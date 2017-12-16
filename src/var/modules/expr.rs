@@ -116,7 +116,7 @@ impl VarProvider for ExprVars {
     fn set(&mut self, _: &Record, data: &mut Data) -> CliResult<()> {
         // copy values from symbol table to context
         for &(var_id, ref name) in &self.vars {
-            let mut val = self.ctx.get_mut(name).expect("Bug: name should be present");
+            let val = self.ctx.get_mut(name).expect("Bug: name should be present");
             *val = data.symbols.get_float(var_id)?.unwrap_or(NAN);
         }
 
