@@ -72,6 +72,7 @@ impl Args {
         let cap = parse_bytesize(self.0.get_str("--buf-cap"))?.floor() as usize;
         let max_mem = parse_bytesize(self.0.get_str("--max-mem"))?.floor() as usize;
         let threaded_rdr = self.get_bool("--read-thread");
+        let thread_bufsize = parse_bytesize(self.0.get_str("--read-tbufsize"))? as usize;
 
         for path in paths {
             let opts = if &*path == "-" {
@@ -80,6 +81,7 @@ impl Args {
                     format: arg_fmt.clone().unwrap_or(InFormat::FASTA),
                     compression: arg_compr,
                     threaded: threaded_rdr,
+                    thread_bufsize: thread_bufsize,
                     qfile: None,
                     cap: cap,
                     max_mem: max_mem,
@@ -95,6 +97,7 @@ impl Args {
                     }),
                     compression: arg_compr.or(compr),
                     threaded: threaded_rdr,
+                    thread_bufsize: thread_bufsize,
                     qfile: None,
                     cap: cap,
                     max_mem: max_mem,
@@ -111,7 +114,7 @@ impl Args {
         Ok(input)
     }
 
-    pub fn get_out_opts(&self) -> CliResult<Option<_OutputOptions>> {
+    pub fn get_output_opts(&self, informat: Option<&InFormat>) -> CliResult<Option<OutputOptions>> {
         let (fmt, delim, fields) = if self.0.get_bool("--to-fa") {
             (Some("fasta"), None, None)
         } else if self.0.get_bool("--to-fq") {
@@ -135,15 +138,61 @@ impl Args {
             None
         };
 
-        Ok(Some(_OutputOptions {
-            path: self.0.get_str("--output"),
-            format_str: self.opt_str("--outformat").or(fmt),
-            threaded: self.get_bool("--write-thread"),
-            props: self.parse_props()?,
-            wrap_fasta: wrap_fasta,
-            csv_delim: self.opt_str("--out-delim").or(delim),
-            csv_fields: fields.unwrap_or_else(|| self.0.get_str("--outfields")),
-        }))
+        let path = self.0.get_str("--output");
+        let threaded = self.get_bool("--write-thread");
+        let props = self.parse_props()?;
+        let wrap_fasta = wrap_fasta;
+        let csv_delim = self.opt_str("--out-delim").or(delim);
+        let csv_fields = fields.unwrap_or_else(|| self.0.get_str("--outfields"));
+        let thread_bufsize = parse_bytesize(self.0.get_str("--write-tbufsize"))? as usize;
+
+        let (arg_fmt, arg_compr) = self.opt_str("--outformat").or(fmt)
+            .map(|fmt| {
+                let (fmt, compr) = parse_format_str(fmt)?;
+                Ok::<_, CliError>((Some(fmt), compr))
+            })
+            .unwrap_or(Ok((None, None)))?;
+
+        let opts =
+            if path == "-" {
+                OutputOptions {
+                    kind: OutputKind::Stdout,
+                    format: get_outformat(
+                        arg_fmt
+                            .as_ref()
+                            .map(String::as_str)
+                            .unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name()),
+                        &props,
+                        wrap_fasta,
+                        csv_delim,
+                        csv_fields,
+                    ).unwrap(),
+                    compression: arg_compr,
+                    threaded: threaded,
+                    thread_bufsize: thread_bufsize,
+                }
+            } else {
+                let (fmt, compr) = path_info(&path);
+
+                OutputOptions {
+                    kind: OutputKind::File(PathBuf::from(&path)),
+                    format: get_outformat(
+                        arg_fmt.as_ref().map(String::as_str).unwrap_or_else(|| {
+                            fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
+                        }),
+                        &props,
+                        wrap_fasta,
+                        csv_delim,
+                        csv_fields,
+                    ).unwrap(),
+                    compression: arg_compr.or(compr),
+                    threaded: threaded,
+                    thread_bufsize: thread_bufsize,
+                }
+            };
+
+        Ok(Some(opts))
+
     }
 
     pub fn get_env_opts(&self) -> CliResult<var::VarOpts> {
@@ -323,68 +372,4 @@ pub fn parse_format_str(string: &str) -> CliResult<(String, Option<Compression>)
     };
 
     Ok((ext, compr))
-}
-
-#[derive(Clone, Debug)]
-pub struct _OutputOptions<'a> {
-    pub path: &'a str,
-    pub format_str: Option<&'a str>,
-    pub threaded: bool,
-    pub props: Vec<(String, String)>,
-    pub wrap_fasta: Option<usize>,
-    pub csv_delim: Option<&'a str>,
-    pub csv_fields: &'a str,
-}
-
-pub fn get_output_opts(
-    opts: &_OutputOptions,
-    informat: Option<&InFormat>,
-) -> CliResult<OutputOptions> {
-    //let qfile = opt_string("--qual-out", &args).map(PathBuf::from);
-
-    let (arg_fmt, arg_compr) = opts.format_str
-        .map(|fmt| {
-            let (fmt, compr) = parse_format_str(fmt)?;
-            Ok::<_, CliError>((Some(fmt), compr))
-        })
-        .unwrap_or(Ok((None, None)))?;
-
-    let opts = if opts.path == "-" {
-        OutputOptions {
-            kind: OutputKind::Stdout,
-            format: get_outformat(
-                arg_fmt
-                    .as_ref()
-                    .map(String::as_str)
-                    .unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name()),
-                &opts.props,
-                opts.wrap_fasta,
-                opts.csv_delim,
-                opts.csv_fields,
-            ).unwrap(),
-            compression: arg_compr,
-            threaded: opts.threaded,
-            //qfile: None,
-        }
-    } else {
-        let (fmt, compr) = path_info(&opts.path);
-
-        OutputOptions {
-            kind: OutputKind::File(PathBuf::from(&opts.path)),
-            format: get_outformat(
-                arg_fmt.as_ref().map(String::as_str).unwrap_or_else(|| {
-                    fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
-                }),
-                &opts.props,
-                opts.wrap_fasta,
-                opts.csv_delim,
-                opts.csv_fields,
-            ).unwrap(),
-            compression: arg_compr.or(compr),
-            threaded: opts.threaded,
-            //qfile: None,
-        }
-    };
-
-    Ok(opts)
 }

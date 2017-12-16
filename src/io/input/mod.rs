@@ -40,6 +40,7 @@ pub struct InputOptions {
     pub threaded: bool,
     pub qfile: Option<PathBuf>,
     pub cap: usize,
+    pub thread_bufsize: usize,
     pub max_mem: usize,
 }
 
@@ -141,6 +142,7 @@ fn io_reader<F, O>(
     kind: &InputType,
     compression: Option<Compression>,
     threaded: bool,
+    thread_bufsize: usize,
     func: F,
 ) -> CliResult<O>
 where
@@ -152,9 +154,7 @@ where
         if let Some(compr) = compression {
             rdr = get_compr_reader(rdr, compr)?;
         }
-        // TODO: not configurable
-        let bufsize = 1 << 22;
-        thread_io::read::reader(bufsize, 2, rdr, |r| func(Box::new(r))).unwrap()
+        thread_io::read::reader(thread_bufsize, 2, rdr, |r| func(Box::new(r))).unwrap()
     } else {
         func(rdr)
     }
@@ -165,7 +165,7 @@ where
     for<'b> F: FnMut(&InputOptions, Box<io::Read + Send + 'b>) -> CliResult<O>,
 {
     opts.into_iter()
-        .map(|o| io_reader(&o.kind, o.compression, o.threaded, |rdr| func(o, rdr)))
+        .map(|o| io_reader(&o.kind, o.compression, o.threaded, o.thread_bufsize, |rdr| func(o, rdr)))
         .collect()
 }
 

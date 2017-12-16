@@ -10,7 +10,6 @@ use lib::inner_result::MapRes;
 #[derive(Debug)]
 pub struct Config<'a> {
     pub input_opts: Vec<input::InputOptions>,
-    pub out_opts: Option<opt::_OutputOptions<'a>>,
     pub output_opts: Option<output::OutputOptions>,
     pub var_opts: var::VarOpts<'a>,
     started: Cell<bool>,
@@ -30,12 +29,7 @@ impl<'a> Config<'a> {
 
     pub fn new(args: &'a opt::Args, custom_help: Option<&var::VarHelp>) -> CliResult<Config<'a>> {
         let input_opts = args.get_input_opts()?;
-        let _out_opts = args.get_out_opts()?;
-        let out_opts = if let Some(o) = _out_opts.as_ref() {
-            Some(opt::get_output_opts(o, Some(&input_opts[0].format))?)
-        } else {
-            None
-        };
+        let out_opts = args.get_output_opts(Some(&input_opts[0].format))?;
 
         let var_opts = args.get_env_opts()?;
 
@@ -51,7 +45,6 @@ impl<'a> Config<'a> {
         Ok(Config {
             output_opts: out_opts,
             input_opts: input_opts,
-            out_opts: _out_opts,
             var_opts: var_opts,
             started: Cell::new(false),
         })

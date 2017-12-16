@@ -53,6 +53,8 @@ Advanced Options:
                         [default: 1G]
     --read-thread       Read from a different thread. Enabled with compressed input.
     --write-thread      Write in a different thread. Enabled with compressed output.
+    --read-tbufsize S   Buffer size of threaded reader [default: 4M].
+    --write-tbufsize S  Buffer size of threaded reader [default: 4M].
 ")}
 
 
@@ -95,8 +97,7 @@ List and explain available variables:
 
 pub static USAGE: &'static str = concat!("
 Tool for processing of biological sequences. It can read and write the formats
-FASTA, FASTQ, QUAL and CSV and offers many commands for filtering and modifying
-those sequences.
+FASTA, FASTQ and CSV/TXT.
 
 Usage:
     seqtool <command> [<opts>...]
@@ -107,7 +108,6 @@ Usage:
 Options:
     -h, --help    Display this message
     --version     Print version info and exit
-    --help-vars   List and explain the variables available to all commands
 
 Commands:
 ", command_list!());

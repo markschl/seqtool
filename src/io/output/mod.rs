@@ -27,7 +27,7 @@ pub struct OutputOptions {
     pub format: OutFormat,
     pub compression: Option<Compression>,
     pub threaded: bool,
-    //pub qfile: Option<PathBuf>,
+    pub thread_bufsize: usize,
 }
 
 impl Default for OutputOptions {
@@ -37,6 +37,7 @@ impl Default for OutputOptions {
             format: OutFormat::FASTA(vec![], None),
             compression: None,
             threaded: false,
+            thread_bufsize: 1 << 22,
         }
     }
 }
@@ -75,7 +76,7 @@ where
     F: FnOnce(&mut Writer) -> CliResult<O>,
 {
     if let Some(o) = opts {
-        io_writer_compr(&o.kind, o.compression, o.threaded, |io_writer| {
+        io_writer_compr(&o.kind, o.compression, o.threaded, o.thread_bufsize, |io_writer| {
             let mut w = from_format(io_writer, &o.format)?;
             func(&mut w)
         })
@@ -89,7 +90,7 @@ where
     F: FnOnce(&mut io::Write) -> CliResult<O>,
 {
     if let Some(o) = opts {
-        io_writer_compr(&o.kind, o.compression, o.threaded, func)
+        io_writer_compr(&o.kind, o.compression, o.threaded, o.thread_bufsize, func)
     } else {
         func(&mut io::sink())
     }
@@ -145,18 +146,15 @@ fn io_writer_compr<F, O>(
     kind: &OutputKind,
     compr: Option<Compression>,
     threaded: bool,
+    thread_bufsize: usize,
     func: F,
 ) -> CliResult<O>
 where
     F: FnOnce(&mut io::Write) -> CliResult<O>,
 {
     if compr.is_some() || threaded {
-        // compressed input
-        // TODO: not configurable
-        let bufsize = 1 << 22;
         thread_io::write::writer_with(
-            bufsize,
-            4,
+            thread_bufsize, 4,
             || {
                 let mut writer = from_kind(kind)?;
                 if let Some(compr) = compr {
