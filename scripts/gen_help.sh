@@ -3,14 +3,14 @@
 cargo build
 
 seqtool=target/debug/seqtool
-wiki=../seqtool-wiki
-main=README.md
+wiki=../seqtool.wiki
+main=_README.md
 
 cat doc/_head.md > $main
 
 # generate command files
 
-echo "# Commands" >> $main
+printf "\n# Commands" >> $main
 
 cmd=(
   ">Basic conversion / editing" pass
@@ -30,13 +30,12 @@ for c in "${cmd[@]}"; do
   fi
 
   out=$wiki/$c.md
-  echo "# $c" > $out
   opts=$($seqtool "$c" -h 2>&1 | sed -n '/Input options/q;p')
   desc=$(echo "$opts" | sed -n '/Usage:/q;p')
   usage=$(echo "$opts" | sed '/Usage:/,$!d')
-  printf "$desc\n\n" >> $out
+  printf "$desc\n\n" > $out
   printf "\`\`\`\n$usage\n\`\`\`\n\n" >> $out
-  echo "* **[$c]($c)**: $desc" >> $main
+  echo "* **[$c](wiki/$c)**: $desc" >> $main
 
   # add custom descriptions
   if [ -f doc/$c.md ]; then
@@ -45,8 +44,6 @@ for c in "${cmd[@]}"; do
   fi
   # variable help
   vars=$($seqtool $c --help-vars 2>&1 | sed -n '/Standard variables/q;p' )
-  xx=$(echo "$vars" | tr -d $' \n')
-  echo "$xx"
   if [ ! -z "$vars" -a "$vars" != " "  ] && [[ "$vars" != Invalid* ]]; then
     printf "\n\n### Provided variables\n\`\`\`\n$vars\n\`\`\`\n\n" >> $out
   fi
@@ -71,3 +68,9 @@ echo "\`\`\`" >> $out
 # other files
 
 cp doc/lists.md doc/ranges.md doc/properties.md doc/performance.md $wiki
+
+# replace URLs in readme
+
+sed -E 's|wiki/|https://github.com/markschl/seqtool/wiki/|g' $main > README.md
+cp README.md $wiki/Home.md
+rm $main
