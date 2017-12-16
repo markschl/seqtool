@@ -14,6 +14,9 @@ no custom format is used for passing information between commands, but data can
 be stored in [properties](https://github.com/markschl/seqtool/wiki/properties) in the form 'key=value' added to the sequence
 headers, or as CSV fields.
 
+[![Linux build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://ci.appveyor.com/project/markschl/seqtool)
+[![Windows build status](https://ci.appveyor.com/api/projects/status/github/markschl/seqtool?svg=true)](https://ci.appveyor.com/project/markschl/seqtool)
+
 # Commands
 ### Basic conversion / editing
 * **[pass](https://github.com/markschl/seqtool/wiki/pass)**: This command is useful for converting from one format to another
