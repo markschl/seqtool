@@ -1,0 +1,18 @@
+Immagine this FASTA file (`input.fa`):
+
+```
+>seq1;group=1
+SEQUENCE
+>seq1;group=2
+SEQUENCE
+>seq2;group=1
+SEQUENCE
+```
+
+```bash
+seqtool split -k 'group_{p:group}.fa' --pdelim ';' input.fa
+```
+
+This will create the files `group_1.fa` and `group_2.fa`. In more
+complicated scenarios, variables may be combined for creating nested subfolders
+of any complexity.

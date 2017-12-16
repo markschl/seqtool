@@ -1,0 +1,44 @@
+[package]
+name = "seqtool"
+version = "0.1.0"
+authors = ["<markschl19@gmail.com>"]
+description = "General purpose tool for reading, modifying and writing biological sequences."
+license = "MIT"
+repository = "https://github.com/markschl/seq_io"
+documentation = "https://docs.rs/seq_io"
+readme = "README.md"
+
+[dependencies]
+docopt = "0.8"
+bio = { git = 'https://github.com/rust-bio/rust-bio', rev='80d1311' }
+seq_io = "0.2.1"
+crossbeam = "0.3"
+lazy_static = "1.0"
+regex = "0.2"
+csv = "1.0.0-beta.5"
+itertools = "0.7"
+bit-vec = "0.4"
+vec_map = "0.8"
+rand = "0.3"
+nom = "3.0"
+flate2 = "1.0"
+bzip2 = "0.3"
+lz4 = "1.22"
+twoway = "0.1"
+memchr = "2.0"
+fxhash = "0.2"
+textwrap = "0.9"
+meval = "0.1"
+bytecount = "0.2.0"
+clippy = {version = "0.0.175", optional = true}
+
+[dev-dependencies]
+assert_cli = "0.5"
+tempdir = "0.3"
+
+[features]
+default = []
+nightly = ["twoway/pcmp"]
+
+[profile.release]
+lto = true
