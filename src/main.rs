@@ -71,7 +71,7 @@ fn main() {
         exit(&var::var_help(), 0);
     }
     if cmd.is_empty() {
-        exit(help::USAGE, 1);
+        exit(help::USAGE, 0);
     } else {
         match run_cmd(cmd) {
             // normal exit
