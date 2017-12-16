@@ -13,3 +13,6 @@ In contrast to frameworks like [biopieces](https://github.com/maasha/biopieces),
 no custom format is used for passing information between commands, but data can
 be stored in [properties](wiki/properties) in the form 'key=value' added to the sequence
 headers, or as CSV fields.
+
+[![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
+[![Windows build status](https://ci.appveyor.com/api/projects/status/github/markschl/seqtool?svg=true)](https://ci.appveyor.com/project/markschl/seqtool)

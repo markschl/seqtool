@@ -32,6 +32,8 @@ FASTQ                |  `.fastq`,`.fq`       | `fastq`       | `--fq`        | `
 CSV (`,` delimited)  |  `.csv`               | `csv`         | `--csv FIELDS`| `--to-csv FIELDS`
 TXT (`tab` delimited)|  `.txt`               | `txt`         | `--txt FIELDS`| `--to-txt FIELDS `
 
+**Note:** Multiline FASTA is parsed and written (`--wrap`), but only single-line
+FASTQ is parsed and written.
 
 Compression formats (no shortcuts available, use `--[out]format`):
 

@@ -9,13 +9,14 @@ All commands accept one or multiple files, or STDIN input. The output is written
 to STDOUT or a file (`-o`, useful for [format conversion](wiki/pass)). Commands can
 be easily chained using the pipe.
 
-### Options recognized by all commands
+Use `seqtool <command> -h` to see all available options. A full list of options
+that are accepted by all commands can be [found here](wiki/opts).
 
-Use `seqtool -h` or [see here](wiki/opts) for a full list of options.
+## Installing
 
-### Performance
+Binaries for Linux, Mac OS X and Windows can be
+[downloaded from the releases section](https://github.com/markschl/seqtool/releases/latest).
+
+## Performance
 
 Seqtool is very fast for most tasks, see [here for a comparison with other tools](wiki/performance).
-
-[![Linux build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://ci.appveyor.com/project/markschl/seqtool)
-[![Windows build status](https://ci.appveyor.com/api/projects/status/github/markschl/seqtool?svg=true)](https://ci.appveyor.com/project/markschl/seqtool)
