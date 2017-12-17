@@ -1,4 +1,4 @@
-The trim ranges are 1-based, using negative numbers means that the number is relative to the sequence end (see [the explanation of ranges](ranges.html)
+The trim ranges are 1-based, using negative numbers means that the number is relative to the sequence end (see [the explanation of ranges](ranges)
 with basic examples).
 
 Example bash commands for removing primers from the ends:
@@ -12,10 +12,6 @@ seqtool trim -- "${#f_primer} .. -${#r_primer}" input.fa > output.fa
 **Note:** Since the last primer base should not be included, we use
 the `-e/--exclude` option.
 
-**Bug**: There is a problem with ranges starting with a negative number
- being interpreted as commandline arguments. However, insertion of a
-  space before the minus sign like this will work:
-  ``seqtool trim ' -5..' input.fa > output.fa``.
 
 ## Using variables
 

@@ -12,14 +12,17 @@ seqtool set -i seq_{num} seqs.fa > renamed.fa
 
 Besides `num`, there are many other variables that can be used
 in any other command (see [below](#variables-available-to-all-commands)).
-Variables are structured into different categories which all have a specific
-prefix divided with a colon from the variable `<prefix>:<varible>`.
+They are structured into different categories which all have a specific
+prefix divided from the variable with a colon (`<prefix>:<varible>`).
 
-* [properties](properties): `p:<name>`
+* [Properties](properties): `p:<name>`
 * Data from [associated lists](lists): `l:<fieldname>` or `l:<column_index>`
 * Sequence statistics: `s:<name>` (also available in dedicated [stat](stat) command)
-* Variables provided by commands (currently: [find](find) (`f:`) and
-  [split](split) (`split:`))
+* Variables provided by commands, currently: [find](find) (`f:`) and
+  [split](split) (`split:`)
+
+The prefix makes it possible to e.g. have list fields and properties with the
+same name.
 
 **Note**  that the variable is written inbetween curly brackets: `{<p:otu>}`.
 This is also required when using them in [properties](#properties).

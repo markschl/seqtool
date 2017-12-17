@@ -10,7 +10,7 @@ cat doc/_head.md > $main
 
 # generate command files
 
-printf "\n# Commands" >> $main
+printf "\n## Commands" >> $main
 
 cmd=(
   ">Basic conversion / editing" pass
@@ -32,9 +32,12 @@ for c in "${cmd[@]}"; do
   out=$wiki/$c.md
   opts=$($seqtool "$c" -h 2>&1 | sed -n '/Input options/q;p')
   desc=$(echo "$opts" | sed -n '/Usage:/q;p')
-  usage=$(echo "$opts" | sed '/Usage:/,$!d')
+  usage=$(echo "$opts" | sed '/Usage:/,$!d' | sed 's/\[-p <prop>\.\.\.\] *\[-l <list>\.\.\.\]//g')
   printf "$desc\n\n" > $out
   printf "\`\`\`\n$usage\n\`\`\`\n\n" >> $out
+  printf "[See this page](opts) for the options common to all commands.\n\n" >> $out  
+  
+  # add to overview
   echo "* **[$c](wiki/$c)**: $desc" >> $main
 
   # add custom descriptions
@@ -42,6 +45,7 @@ for c in "${cmd[@]}"; do
     echo "## Description" >> $out
     cat doc/$c.md >> $out
   fi
+    
   # variable help
   vars=$($seqtool $c --help-vars 2>&1 | sed -n '/Standard variables/q;p' )
   if [ ! -z "$vars" -a "$vars" != " "  ] && [[ "$vars" != Invalid* ]]; then
@@ -54,7 +58,7 @@ cat doc/_desc.md >> $main
 # variables
 out=$wiki/variables.md
 cat doc/variables.md > $out
-printf "\n## Variables available to most commands\n\n\`\`\`\n" >> $out
+printf "\n## Variables available to all commands\n\n\`\`\`\n" >> $out
 $seqtool --help-vars >> $out 2>&1
 echo "\`\`\`" >> $out
 
@@ -67,7 +71,7 @@ echo "\`\`\`" >> $out
 
 # other files
 
-cp doc/lists.md doc/ranges.md doc/properties.md doc/performance.md $wiki
+cp doc/lists.md doc/ranges.md doc/properties.md $wiki
 
 # replace URLs in readme
 

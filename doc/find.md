@@ -86,11 +86,11 @@ vary depending on the options used.
 
 |                                                         | seqtool     | (4 threads) | cutadapt   |
 |---------------------------------------------------------|-------------|-------------|------------|
-| Find the position of the best hit in the whole sequence | 2 min 20 s  | 37.0s       |            |
-| Search only in range where primer should occur (--rng) | 52.1 s      | 13.5 s      | 1 min 18 s* |
-| Search whole sequence + filter by occurrence only (-f) | 53.0 s      | 14.3 s      |            |
-| No matching of ambiguous bases (-a no) -> Myers algorithm | 1 min 5 s   | 16.7 s      |            |
-| Find the first hit. Merging overlapping hits makes this slower.  | 5 min 14 s  | 1min 23s    |            |
+| Find the position of the best hit in the whole sequence | 2min 20s  | 37.0s       |            |
+| Search only in range where primer should occur (--rng) | 52.1s      | 13.5s      | 1min 18s* |
+| Search whole sequence + filter by occurrence only (-f) | 53.0s      | 14.3s      |            |
+| No matching of ambiguous bases (-a no) -> Myers algorithm | 1min 5s   | 16.7s      |            |
+| Find the first hit. Merging overlapping hits makes this slower.  | 5min 14s  | 1min 23s    |            |
 
 * Actually, cutadapt uses semi-global alignment with penalties for leading gaps,
 which is different from manually restricting the search range.
@@ -159,13 +159,13 @@ command does. Instead, they can be accessed using variables
 Variables for the matched sequence (`f:match`), coordinates
 (`f:start`, `f:end`, `f:range`, etc.) are available.
 Selecting another match than the first one is possible by adding
-the match number after a colon (`:`): `m:range:2` will return
+the match number after a colon (`:`): `f:range:2` will return
 the second match.
 Match groups of regular expressions can be
 specified as well by the addition of a second colon:
-`m:range::2` will select the second match group of the first match.
+`f:range::2` will select the second match group of the first match.
 Even named groups are possible. In that case, specify the group name
-instead of the index: `m:range::<group_name>`.
+instead of the index: `f:range::<group_name>`.
 
 A more generalized scheme:
 
@@ -174,7 +174,7 @@ A more generalized scheme:
 This is admittedly quite complicated, but adds a lot of flexibility.
 
 It is also possible to return all hits instead of a specific one
-by using `m:<variable>:all`. This will return a comma delimited list.
+by using `f:<variable>:all`. This will return a comma delimited list.
 The following command searches for all occurrences of a pattern
 and converts them to lowercase:
 

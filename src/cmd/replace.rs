@@ -11,9 +11,8 @@ use cfg;
 use lib::util::replace_iter;
 
 static USAGE: &'static str = concat!("
-This command searches for patterns in sequences or ids/descriptions
-and replaces them by <replacement>. Approximative searches
-are not possible, use 'match' for this.
+This command does fast search and replace for patterns in sequences
+or ids/descriptions.
 
 Usage:
     seqtool replace [options][-p <prop>...][-l <list>...] <pattern> <replacement> [<input>...]
@@ -21,6 +20,7 @@ Usage:
     seqtool replace --help-vars
 
 Options:
+    <replacement>       Replacement string, cannot contain variables.
     -i, --id            Replace in IDs instead of sequences
     -d, --desc          Replace in descriptions
     -r, --regex         Interpret <pattern> as regular expression

@@ -12,8 +12,8 @@ use var::varstring;
 use fxhash::FxHashMap;
 
 static USAGE: &'static str = concat!("
-This command counts the number of sequences and prints the number to STDOUT. Optionally,
-Advanced grouping of sequences is possible by supplying or more key strings containing
+This command counts the number of sequences and prints the number to STDOUT. Advanced 
+grouping of sequences is possible by supplying or more key strings containing
 variables (-k).
 
 Usage:

@@ -1,7 +1,12 @@
 #!/bin/sh
 
+# FASTQ file
+f=$1
+# primer seqs. for searching
+seq1=$2
+seq2=$3
 
-f=/Users/ms/nicht_sichern/f.fq
+
 
 alias s=target/release/seqtool
 
@@ -23,10 +28,12 @@ time read_fastq -i $f -e base_33 | write_fasta -x > /dev/null
 time cat $f | fastq_to_fasta -Q33 > /dev/null
 time fastq_to_fasta -Q33 -i $f > /dev/null
 time seqtk seq -A $f > /dev/null
+time seqkit fq2fa $f > /dev/null
 
 # random subsampling
-time s sample --prob 0.1 $f  | s count --fq
-time seqtk sample $f 0.1 | s count --fq
+time s sample -f 0.1 $f > /dev/null
+time seqtk sample $f 0.1 > /dev/null
+time seqkit sample -p 0.1 $f > /dev/null
 
 # counting
 time s count $f
@@ -39,6 +46,7 @@ time read_fastq -i $f -e base_33 | reverse_seq | complement_seq | write_fastq -x
 time s revcomp $f > /dev/null
 time s revcomp -t4 $f > /dev/null
 time seqtk seq -r $f > /dev/null
+time seqkit seq -rp $f > /dev/null
 
 # compress
 time s . $f > /dev/null
@@ -56,11 +64,12 @@ time seqtk seq $f.gz > /dev/null
 time gzip -dc $f.gz | seqtk seq $f.gz > /dev/null
 
 # RNA -> DNA
-time s replace T U $f --to-fa > /dev/null
-time s replace T U $f --to-fa -t4 > /dev/null
-time s find T --rep U $f --to-fa > /dev/null
-time s find T --rep U $f --to-fa -t4 > /dev/null
-time read_fastq -i $f -e base_33 | transliterate_vals -k SEQ -s T -r U | write_fasta -x > /dev/null
+time s replace T U $f > /dev/null
+time s replace T U $f -t4 > /dev/null
+time s find T --rep U $f  > /dev/null
+time s find T --rep U $f -t4 > /dev/null
+time seqkit seq --dna2rna $f > /dev/null
+time read_fastq -i $f -e base_33 | transliterate_vals -k SEQ -s T -r U | write_fastq -x > /dev/null
 time fasta_nucleotide_changer -i $f -Q33 -r > /dev/null
 
 # GC content "histogram"
@@ -72,9 +81,10 @@ time s count -k n:10:{p:gc} $f.with_gc.fq
 # with expression
 time s count -k n:10:{{s:gc+0}} $f
 
-# search
-#s select -n10000 $f -o $f.fa
-fp=/Users/ms/nicht_sichern/fprimers.fa
+# primer finding
+
+printf ">primer1\n$seq1\n>primer2\n$seq2\n" > _primer_file.fa
+fp=_primer_file.fa
 
 time s find file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
 time s find -d4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
@@ -90,6 +100,5 @@ time s find -d4 --algo ukkonen -t4 file:$fp $f -p primer={f:name} -p start={f:st
 time s find -d4 --algo myers file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
 time s find -d4 --algo myers -t4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
 
-time cutadapt -g BITS=^CCACCWGCGGARGGATCA -g I3K2=^GGGATGAAGAACGYAGYRAA $f -e 0.23 -y ' primer={name}' | s count --fq
+time cutadapt -g primer1=^$seq1 -g primer2=^$seq2 $f -e 0.23 -y ' primer={name}' | s count --fq
 
-#time read_fastq -e base_33 -i $f | find_adaptor -f CCACCWGCGGARGGATCA
