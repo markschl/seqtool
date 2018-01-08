@@ -15,7 +15,8 @@ enum Value {
 #[derive(Debug, Clone)]
 struct ParseNumError;
 
-/// Simple symbol table for storing values of different types
+/// Simple symbol table for storing values of different types. They can be converted
+/// to one another. String -> numeric parsing results are cached for repeated retrieval.
 #[derive(Debug, Clone)]
 pub struct Table(Vec<Value>);
 
@@ -130,6 +131,13 @@ impl Table {
                 ),
             Value::None =>
                 Ok(None),
+        }
+    }
+
+    pub fn is_none(&self, id: usize) -> bool {
+        match *self.get(id) {
+            Value::None => true,
+            _ => false
         }
     }
 

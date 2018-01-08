@@ -26,6 +26,8 @@ extern crate vec_map;
 extern crate bit_vec;
 extern crate bytecount;
 extern crate meval;
+#[cfg(feature = "exprtk")]
+extern crate exprtk_rs;
 extern crate rand;
 extern crate regex;
 extern crate twoway;
@@ -55,6 +57,7 @@ mod cmd;
 mod test;
 #[cfg(test)]
 extern crate assert_cli;
+
 
 fn main() {
     let args = docopt::Docopt::new(help::USAGE)
@@ -102,6 +105,8 @@ fn run_cmd(cmd: &str) -> CliResult<()> {
         "del" => cmd::del::run(),
         "find" => cmd::find::run(),
         "replace" => cmd::replace::run(),
+        #[cfg(feature = "exprtk")]
+        "filter" => cmd::filter::run(),
         "count" => cmd::count::run(),
         "stat" => cmd::stat::run(),
         "upper" => cmd::upper::run(),

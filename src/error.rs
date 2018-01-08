@@ -5,13 +5,13 @@ use std::io;
 use std::error;
 use std::str::Utf8Error;
 use std::num::{ParseFloatError, ParseIntError};
-//use bincode::rustc_serialize::{EncodingError,DecodingError};
 use std::string::FromUtf8Error;
-//use dna::FromTextError;
 
 use seq_io;
 use docopt;
 use regex;
+#[cfg(feature = "exprtk")]
+use exprtk_rs;
 
 //use lib::selective_csv;
 use csv;
@@ -70,9 +70,9 @@ from_err!(Utf8Error);
 from_err!(FromUtf8Error);
 from_err!(ParseIntError);
 from_err!(ParseFloatError);
-// from_err!(EncodingError);
-// from_err!(DecodingError);
-// //from_err!(FromTextError);
-// from_err!(selective_csv::CsvError);
 from_err!(csv::Error);
 from_err!(meval::Error);
+#[cfg(feature = "exprtk")]
+from_err!(exprtk_rs::ParseError);
+#[cfg(feature = "exprtk")]
+from_err!(exprtk_rs::InvalidName);

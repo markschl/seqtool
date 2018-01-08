@@ -17,3 +17,5 @@ pub mod lower;
 pub mod mask;
 pub mod revcomp;
 pub mod stat;
+#[cfg(feature = "exprtk")]
+pub mod filter;

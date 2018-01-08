@@ -308,3 +308,23 @@ fn split_key_seqlen() {
     f.read_to_string(&mut s).unwrap();
     assert_eq!(&s, &FASTA as &str);
 }
+
+
+#[test]
+fn filter() {
+    macro_rules! cmp_stdout_expr {
+        ($args:expr, $input:expr, $cmp:expr) => {
+            Assert::command(&["cargo", "run", "--features", "exprtk", "--"])
+                .with_args($args)
+                .stdin($input.as_ref())
+                .stdout()
+                .is($cmp.as_ref())
+                .unwrap();
+         };
+    }
+
+    cmp_stdout_expr!(&["filter", "s:seqlen > s:ungapped_len and a:p >= 10"], FASTA, SEQS[2..].concat());
+    cmp_stdout_expr!(&["filter", ".id == 'seq0'"], FASTA, SEQS[1]);
+    cmp_stdout_expr!(&["filter", "def(id)"], FASTA, "");
+
+}
