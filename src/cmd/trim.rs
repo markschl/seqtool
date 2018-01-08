@@ -9,7 +9,7 @@ pub static USAGE: &'static str = concat!("
 Trims sequences to a given range.
 
 Usage:
-  seqtool trim [options][-p <prop>...][-l <list>...] <range> [<input>...]
+  seqtool trim [options][-a <attr>...][-l <list>...] <range> [<input>...]
   seqtool trim (-h | --help)
   seqtool trim --help-vars
 

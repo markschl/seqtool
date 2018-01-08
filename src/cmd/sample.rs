@@ -14,7 +14,7 @@ pub static USAGE: &'static str = concat!("
 Return a random subset of sequences.
 
 Usage:
-    seqtool sample [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool sample [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool sample (-h | --help)
     seqtool sample --help-vars
 

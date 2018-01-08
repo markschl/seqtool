@@ -8,7 +8,7 @@ static USAGE: &'static str = concat!("
 Converts all characters in the sequence to lowercase.
 
 Usage:
-    seqtool lower [options][-p <prop>...] [-l <list>...] [<input>...]
+    seqtool lower [options][-a <attr>...] [-l <list>...] [<input>...]
     seqtool lower (-h | --help)
     seqtool lower --help-vars
 

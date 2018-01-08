@@ -8,7 +8,7 @@ static USAGE: &'static str = concat!("
 Converts all characters in the sequence to uppercase.
 
 Usage:
-    seqtool upper [options][-p <prop>...] [-l <list>...] [<input>...]
+    seqtool upper [options][-a <attr>...] [-l <list>...] [<input>...]
     seqtool upper (-h | --help)
     seqtool upper --help-vars
 

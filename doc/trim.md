@@ -35,7 +35,7 @@ _input.fa_ (N is a placeholder):
 NGATGAAGAACGYAGYRAANNNNNNNNNNNNNNNNNNNTCCTCCGCTTATTGATATGCN
 ```
 
-Looking for primers, storing the result in properties using the
+Looking for primers, storing the result in attributes using the
 `f:drange` variable (for dot range):
 
 ```bash
@@ -57,7 +57,7 @@ NGATGAAGAACGYAGYRAANNNNNNNNNNNNNNNNNNNTCCTCCGCTTATTGATATGCN
 Now we can use this range for trimming:
 
 ```bash
-seqtool trim -e '{p:f_end}..{p:r_start}' primer_search.fa > no_primers.fa
+seqtool trim -e '{a:f_end}..{a:r_start}' primer_search.fa > no_primers.fa
 ```
 
 _no\_primers.fa:_

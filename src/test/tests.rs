@@ -1,3 +1,5 @@
+
+use std::str;
 use std::fs::File;
 use std::io::Read;
 use itertools::Itertools;
@@ -50,18 +52,18 @@ fn pass_other() {
 }
 
 #[test]
-fn props() {
-    cmp_stdout!(&[".", "--to-txt", "p:p"], FASTA, "2\n1\n10\n11\n");
+fn attrs() {
+    cmp_stdout!(&[".", "--to-txt", "a:p"], FASTA, "2\n1\n10\n11\n");
     let fa = ">seq;a=0 b=3\nATGC\n";
-    cmp_stdout!(&[".", "--to-txt", "p:b"], fa, "3\n");
-    cmp_stdout!(&[".", "--to-txt", "p:a", "--pdelim", ";"], fa, "0\n");
+    cmp_stdout!(&[".", "--to-txt", "a:b"], fa, "3\n");
+    cmp_stdout!(&[".", "--to-txt", "a:a", "--adelim", ";"], fa, "0\n");
     cmp_stdout!(
-        &[".", "-p", "b={p:a}", "--pdelim", ";"],
+        &[".", "-a", "b={a:a}", "--adelim", ";"],
         fa,
         ">seq;a=0;b=0 b=3\nATGC\n"
     );
-    cmp_stdout!(&[".", "-p", "c={p:b}"], fa, ">seq;a=0 b=3 c=3\nATGC\n");
-    cmp_stdout!(&[".", "-p", "c={p:-b}"], fa, ">seq;a=0 c=3\nATGC\n");
+    cmp_stdout!(&[".", "-a", "c={a:b}"], fa, ">seq;a=0 b=3 c=3\nATGC\n");
+    cmp_stdout!(&[".", "-a", "c={a:-b}"], fa, ">seq;a=0 c=3\nATGC\n");
 }
 
 #[test]
@@ -78,13 +80,13 @@ fn stats() {
 #[test]
 fn count() {
     cmp_stdout!(&["count"], FASTA, "4\n");
-    cmp_stdout!(&["count", "-k", "p:p"], FASTA, "1\t1\n10\t1\n11\t1\n2\t1\n");
+    cmp_stdout!(&["count", "-k", "a:p"], FASTA, "1\t1\n10\t1\n11\t1\n2\t1\n");
     cmp_stdout!(
-        &["count", "-k", "n:10:{p:p}"],
+        &["count", "-k", "n:10:{a:p}"],
         FASTA, "(0,10]\t2\n(10,20]\t2\n"
     );
     cmp_stdout!(
-        &["count", "-nk", "n:10:{p:p}"],
+        &["count", "-nk", "n:10:{a:p}"],
         FASTA, "0\t2\n10\t2\n"
     );
 }
@@ -183,8 +185,8 @@ fn trim_vars() {
     let id = "id start=2 end=3 range=2..3";
     let fa = format!(">{}\nATGC\n", id);
     let trimmed = format!(">{}\nTG\n", id);
-    cmp_stdout!(&["trim", "{p:start}..{p:end}"], fa, &trimmed);
-    cmp_stdout!(&["trim", "{p:range}"], fa, &trimmed);
+    cmp_stdout!(&["trim", "{a:start}..{a:end}"], fa, &trimmed);
+    cmp_stdout!(&["trim", "{a:range}"], fa, &trimmed);
 }
 
 #[test]
@@ -199,9 +201,9 @@ fn set() {
 fn del() {
     let fasta = ">seq;p=0 a=1 b=2\nATGC\n";
     cmp_stdout!(&["del", "-d"], fasta, ">seq;p=0\nATGC\n");
-    cmp_stdout!(&["del", "--props", "a,b"], fasta, ">seq;p=0\nATGC\n");
+    cmp_stdout!(&["del", "--attrs", "a,b"], fasta, ">seq;p=0\nATGC\n");
     cmp_stdout!(
-        &["del", "--pdelim", ";", "--props", "p"],
+        &["del", "--adelim", ";", "--attrs", "p"],
         fasta,
         ">seq a=1 b=2\nATGC\n"
     );
@@ -241,7 +243,7 @@ fn split_n() {
         let tmp_dir = ::std::env::temp_dir(); //  tempdir::TempDir::new("split_test").expect("Could not create temporary directory");
         let key = tmp_dir.join("f_{split:chunk}.{default_ext}");
 
-        run!(&["split", "-n", &format!("{}", size), "-ak", &key.to_string_lossy()], FASTA)
+        run!(&["split", "-n", &format!("{}", size), "-pk", &key.to_string_lossy()], FASTA)
             .succeeds()
             .unwrap();
 
@@ -256,7 +258,7 @@ fn split_n() {
                         ">{} {}\n{}\n",
                         rec.id().unwrap(),
                         rec.desc().unwrap().unwrap(),
-                        ::std::str::from_utf8(rec.seq()).unwrap()
+                        str::from_utf8(rec.seq()).unwrap()
                     ),
                     seq
                 );
@@ -273,8 +275,8 @@ fn split_key() {
     let subdir = tmp_dir.path().join("subdir");
     let expected: &[&str] = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
 
-    let key = &subdir.join("{id}_{p:p}.fa");
-    run!(&["split", "-ak", &key.to_string_lossy()], FASTA)
+    let key = &subdir.join("{id}_{a:p}.fa");
+    run!(&["split", "-pk", &key.to_string_lossy()], FASTA)
         .succeeds()
         .unwrap();
 
@@ -283,11 +285,8 @@ fn split_key() {
         let mut reader = fasta::Reader::from_path(&p).expect(&format!("file {:?} not found", p));
         let rec = reader.next().unwrap().unwrap().to_owned_record();
         assert_eq!(
-            &format!(
-                ">{} {}\n{}\n",
-                rec.id().unwrap(),
-                rec.desc().unwrap().unwrap(),
-                ::std::str::from_utf8(rec.seq()).unwrap()
+            &format!(">{} {}\n{}\n", rec.id().unwrap(), rec.desc().unwrap().unwrap(),
+                str::from_utf8(rec.seq()).unwrap()
             ),
             &SEQS[i]
         );
@@ -300,14 +299,8 @@ fn split_key_seqlen() {
     let tmp_dir =
         tempdir::TempDir::new("split_test").expect("Could not create temporary directory");
 
-    run!(
-        &[
-            "split",
-            "-ak",
-            &tmp_dir.path().join("{s:seqlen}.fa").to_string_lossy()
-        ],
-        FASTA
-    ).succeeds()
+    run!(&["split", "-pk", &tmp_dir.path().join("{s:seqlen}.fa").to_string_lossy()], FASTA)
+        .succeeds()
         .unwrap();
 
     let mut f = File::open(tmp_dir.path().join("25.fa")).unwrap();

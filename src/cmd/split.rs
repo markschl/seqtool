@@ -14,7 +14,7 @@ This command distributes sequences into multiple files based on different
 criteria.
 
 Usage:
-    seqtool split [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool split [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool split (-h | --help)
     seqtool split --help-vars
 
@@ -23,7 +23,7 @@ Options:
                         'f_{split:chunk}.{default_ext}'. This is actually a
                         variable string which can be changed using -k/--key.
     -k, --key <key>     Any key/path which can contain variables.
-    -a, --autoparents   Automatically create all parent directories found in -k
+    -p, --parents       Automatically create all parent directories found in -k
 
 ", common_opts!());
 
@@ -34,7 +34,7 @@ pub fn run() -> CliResult<()> {
 
     let n = args.opt_value("--num-seqs")?;
     let key = args.opt_str("--key");
-    let parents = args.get_bool("--autoparents");
+    let parents = args.get_bool("--parents");
     let verbose = args.get_bool("--verbose");
 
     let (key, limit) = if let Some(n) = n {

@@ -6,7 +6,7 @@ pub static USAGE: &'static str = concat!("
 Returns the first sequences of the input.
 
 Usage:
-    seqtool head [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool head [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool head (-h | --help)
     seqtool head --help-vars
 

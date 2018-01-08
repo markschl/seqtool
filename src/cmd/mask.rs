@@ -13,7 +13,7 @@ by converting to lowercase (soft mask) or replacing with a character (hard
 masking). Reverting soft masking is also possible.
 
 Usage:
-    seqtool mask [options][-p <prop>...][-l <list>...] <ranges> [<input>...]
+    seqtool mask [options][-a <attr>...][-l <list>...] <ranges> [<input>...]
     seqtool mask (-h | --help)
     seqtool mask --help-vars
 

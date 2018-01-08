@@ -4,10 +4,10 @@ use cfg;
 
 static USAGE: &'static str = concat!("
 This command is useful for converting from one format to another
-and/or setting properties.
+and/or setting attributes.
 
 Usage:
-    seqtool (pass|.) [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool (pass|.) [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool (pass|.) (-h | --help)
     seqtool (pass|.) --help-vars
 

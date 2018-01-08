@@ -30,7 +30,7 @@ Searches for one or more patterns in sequences or ids / descriptions,
 optional multithreading.
 
 Usage:
-  seqtool find [options] [-p <prop>...] <pattern> [<input>...]
+  seqtool find [options] [-a <attr>...] <pattern> [<input>...]
   seqtool find (-h | --help)
   seqtool find --help-vars
 
@@ -203,7 +203,7 @@ pub fn run() -> CliResult<()> {
             if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
                 return fail!(
                     "Match command does nothing. Use -f/-e for filtering, --repl for replacing or \
-                     -p for writing properties."
+                     -p for writing attributes."
                 );
             }
 
@@ -265,7 +265,7 @@ pub fn run() -> CliResult<()> {
                     if let Some(keep) = filter {
                         if (matches.num_matches() > 0) ^ keep {
                             if let Some(ref mut f) = dropped_file {
-                                f.write_simple(&record)?;
+                                f.write(&record, vars)?;
                             }
                             return Ok(true);
                         }

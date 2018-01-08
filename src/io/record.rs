@@ -216,7 +216,7 @@ impl<'b, R: Record> Record for SeqQualRecord<'b, R> {
     }
 }
 
-// Wrapper for editing any property
+// Wrapper for editing any attribute
 
 #[derive(Debug, Default)]
 pub struct RecordEditor {

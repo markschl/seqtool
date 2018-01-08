@@ -8,7 +8,7 @@ pub static USAGE: &'static str = concat!("
 Returns the last sequences of the input.
 
 Usage:
-    seqtool tail [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool tail [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool tail (-h | --help)
     seqtool tail --help-vars
 

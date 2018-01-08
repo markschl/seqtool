@@ -22,11 +22,11 @@ file3.fastq    1771678
 
 It is possible to use multiple keys. Consider the [example for the find
 command](find#multiple-patterns) where the primer names and number of mismatches are
-annotated as properties. Now, the mismatch distribution for each primer
+annotated as attributes. Now, the mismatch distribution for each primer
 can be analysed:
 
 ```bash
-seqtool count -k {p:f_primer} -k n:{p:f_dist} seqs.fa
+seqtool count -k {a:f_primer} -k n:{a:f_dist} seqs.fa
 ```
 ```
 primer1	0	249640
@@ -50,7 +50,7 @@ If primers on both ends were searched, it might make sense to use a
 for both primers.
 
 ```bash
-seqtool count -k {p:f_primer} -k {p:r_primer} -k 'n:{{p:f_dist + p:r_dist}}' primer_trimmed.fq.gz
+seqtool count -k {a:f_primer} -k {a:r_primer} -k 'n:{{a:f_dist + a:r_dist}}' primer_trimmed.fq.gz
 ```
 ```
 f_primer1	r_primer1	0	3457490
@@ -65,7 +65,7 @@ The curly braces are actually only needed if a string of multiple
 variables and/or text is composed. The `n:` prefix tells the tool that
 the distance is numeric, which is useful for correct sorting.
 
-Wit numeric keys, it is possible to summarize over intervals, add
+With numeric keys, it is possible to summarize over intervals, add
 a `n:<interval>` prefix. This example shows the GC content
 summarized over 10% windows:
 
@@ -80,5 +80,6 @@ seqtool count -k n:10:{s:gc} seqs.fa
 (60,70]	7
 ```
 
-The intervals (start,end] are open on the left side, meaning that
+The intervals (start,end] are open at the start and
+closed at the end, meaning that
 start <= value < end.

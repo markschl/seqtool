@@ -26,12 +26,12 @@ Output options:
     --to-csv <fields>   CSV output. Short for '--outformat csv --outfields <f>'
     --to-txt <fields>   TXT output. Short for '--outformat txt --outfields <f>'
 
-Property options:
-    -p, --prop <p>      Add a property in the form name=value to FASTA/FASTQ
-                        headers (multiple '-p key=value' args possible)
-    --pdelim <delim>    Property delimiter inserted before. If not a space,
-                        props are appended to the ID (default: ' ')
-    --pval-delim <d>    Delimiter between property names and values [default: =]
+Attribute options:
+    -a, --attr <p>      Add an attribute in the form name=value to FASTA/FASTQ
+                        headers (multiple '-a key=value' args possible)
+    --adelim <delim>    Attribute delimiter inserted before. If not a space,
+                        attributes are appended to the ID (default: ' ')
+    --aval-delim <d>    Delimiter between attribute names and values [default: =]
 
 Associated lists:
     -l, --list <path>   Path to list with metadata (multiple -l args possible)
@@ -59,7 +59,7 @@ Advanced Options:
 
 
 macro_rules! command_list { () => ("
-    pass        No processing done, useful for converting and property setting
+    pass        No processing done, useful for converting and attribute setting
     .           shorthand for 'pass'
 
 Information about sequences
@@ -71,6 +71,7 @@ Subsetting / shuffling sequences
     tail        Return the last N sequences
     slice       Get a slice of the sequences within a defined range
     sample      Get a random subset of sequences
+    filter      Filter based on different criteria
     split       Distribute sequences into multiple files
 
 Searching and replacing
@@ -79,7 +80,7 @@ Searching and replacing
 
 Modifying commands
     set         Set a new sequence and/or header
-    del         Delete description fields and/or properties
+    del         Delete description fields and/or attributes
     trim        Trim sequences on the left and/or right
     mask        Soft or hard mask sequence ranges
     upper       Convert sequences to uppercase

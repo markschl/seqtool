@@ -6,16 +6,16 @@ use var::*;
 use cfg;
 
 pub static USAGE: &'static str = concat!("
-Deletes description field or properties.
+Deletes description field or attributes.
 
 Usage:
-    seqtool del [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool del [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool del (-h | --help)
     seqtool del --help-vars
 
 Options:
     -d, --desc          Delete description
-    --props <names>     Delete properties (comma delimited list)
+    --attrs <names>     Delete attributes (comma delimited list)
 
 ",
     common_opts!()
@@ -26,13 +26,13 @@ pub fn run() -> CliResult<()> {
     let cfg = cfg::Config::from_args(&args)?;
 
     let del_desc = args.get_bool("--desc");
-    let props = args.opt_str("--props");
+    let attrs = args.opt_str("--attrs");
 
     cfg.writer(|writer, mut vars| {
-        if let Some(props) = props {
+        if let Some(attrs) = attrs {
             vars.build(|b| {
-                for p in props.split(',') {
-                    b.register_prop(p, Some(prop::Action::Delete));
+                for p in attrs.split(',') {
+                    b.register_attr(p, Some(attr::Action::Delete));
                 }
                 Ok(())
             })?;

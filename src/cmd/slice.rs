@@ -7,7 +7,7 @@ pub static USAGE: &'static str = concat!("
 Get a slice of the sequences within a defined range.
 
 Usage:
-    seqtool slice [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool slice [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool slice (-h | --help)
     seqtool slice --help-vars
 

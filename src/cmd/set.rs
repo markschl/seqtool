@@ -9,7 +9,7 @@ pub static USAGE: &'static str = concat!("
 Replaces the contents of sequence IDs, descriptions or sequences.
 
 Usage:
-    seqtool set [options][-p <prop>...][-l <list>...] [<input>...]
+    seqtool set [options][-a <attr>...][-l <list>...] [<input>...]
     seqtool set (-h | --help)
     seqtool set --help-vars
 

@@ -6,11 +6,18 @@ use io::Attribute;
 
 pub use self::var::*;
 
+#[cfg(not(feature = "exprtk"))]
+use self::modules::expr as expr_module;
+#[cfg(feature = "exprtk")]
+use self::modules::expr_exprtk as expr_module;
+
 mod var;
 pub mod modules;
-pub mod prop;
+pub mod attr;
 pub mod symbols;
 pub mod varstring;
+
+
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct VarOpts<'a> {
@@ -19,21 +26,21 @@ pub struct VarOpts<'a> {
     pub has_header: bool,
     pub unordered: bool,
     pub id_col: usize,
-    pub prop_opts: PropOpts,
+    pub attr_opts: AttrOpts,
     pub allow_missing: bool,
     // Used to remember that the variable help page has to be returned
     pub var_help: bool,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct PropOpts {
+pub struct AttrOpts {
     pub delim: String,
     pub value_delim: String,
 }
 
-impl Default for PropOpts {
+impl Default for AttrOpts {
     fn default() -> Self {
-        PropOpts {
+        AttrOpts {
             delim: " ".to_string(),
             value_delim: "=".to_string(),
         }
@@ -44,9 +51,9 @@ pub fn var_help() -> String {
     let help_mod: &[Box<var::VarHelp>] = &[
         Box::new(modules::builtins::BuiltinHelp),
         Box::new(modules::stats::StatHelp),
-        Box::new(modules::prop::PropHelp),
+        Box::new(modules::attr::AttrHelp),
         Box::new(modules::list::ListHelp),
-        Box::new(modules::expr::ExprHelp),
+        Box::new(expr_module::ExprHelp),
     ];
     help_mod
         .into_iter()
@@ -57,8 +64,8 @@ pub fn var_help() -> String {
 
 pub fn get_vars<'a>(o: &VarOpts) -> CliResult<Vars<'a>> {
     // Vars instance
-    let delim = parse_delimiter(&o.prop_opts.delim)?;
-    let value_delim = parse_delimiter(&o.prop_opts.value_delim)?;
+    let delim = parse_delimiter(&o.attr_opts.delim)?;
+    let value_delim = parse_delimiter(&o.attr_opts.value_delim)?;
     let append_attr = if delim == b' ' {
         Attribute::Desc
     } else {
@@ -90,9 +97,9 @@ pub fn get_vars<'a>(o: &VarOpts) -> CliResult<Vars<'a>> {
 
     vars.add_module(modules::stats::StatVars::new());
 
-    vars.add_module(modules::prop::PropVars::new(o.allow_missing));
+    vars.add_module(modules::attr::AttrVars::new(o.allow_missing));
 
-    vars.add_module(modules::expr::ExprVars::new()?);
+    vars.add_module(expr_module::ExprVars::new()?);
 
     Ok(vars)
 }

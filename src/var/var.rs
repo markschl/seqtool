@@ -11,7 +11,7 @@ use io::output::OutputOptions;
 use error::CliResult;
 
 use super::symbols::Table;
-use super::prop;
+use super::attr;
 
 pub trait VarProvider: Debug + Send {
     fn prefix(&self) -> Option<&str>;
@@ -128,7 +128,7 @@ impl<'a> VarProvider for &'a mut VarProvider {
 #[derive(Debug)]
 pub struct Data {
     pub symbols: Table,
-    pub props: prop::Props,
+    pub attrs: attr::Attrs,
 }
 
 #[derive(Debug)]
@@ -140,14 +140,14 @@ pub struct Vars<'a> {
 }
 
 impl<'a> Vars<'a> {
-    pub fn new(prop_delim: u8, prop_value_delim: u8, prop_append_attr: Attribute) -> Vars<'a> {
+    pub fn new(attr_delim: u8, attr_value_delim: u8, attr_append_attr: Attribute) -> Vars<'a> {
         Vars {
             varstore: VarStore::new(),
             used_modules: vec![],
             modules: vec![],
             data: Data {
                 symbols: Table::new(0),
-                props: prop::Props::new(prop_delim, prop_value_delim, prop_append_attr),
+                attrs: attr::Attrs::new(attr_delim, attr_value_delim, attr_append_attr),
             },
         }
     }
@@ -194,10 +194,10 @@ impl<'a> Vars<'a> {
         self.modules.push(Box::new(m));
     }
 
-    pub fn parse_props(&mut self, rec: &Record) -> CliResult<()> {
-        if self.data.props.has_props() {
+    pub fn parse_attrs(&mut self, rec: &Record) -> CliResult<()> {
+        if self.data.attrs.has_attrs() {
             let (id, desc) = rec.id_desc_bytes();
-            self.data.props.parse(id, desc);
+            self.data.attrs.parse(id, desc);
         }
         Ok(())
     }
@@ -218,7 +218,7 @@ impl<'a> Vars<'a> {
 
     #[inline]
     pub fn set_record(&mut self, record: &Record) -> CliResult<()> {
-        self.parse_props(record)?;
+        self.parse_attrs(record)?;
 
         for i in &self.used_modules {
             self.modules[*i].set(record, &mut self.data)?;
@@ -232,8 +232,8 @@ impl<'a> Vars<'a> {
     }
 
     #[inline]
-    pub fn props(&self) -> &prop::Props {
-        &self.data.props
+    pub fn attrs(&self) -> &attr::Attrs {
+        &self.data.attrs
     }
 
     #[inline]
@@ -275,8 +275,8 @@ impl<'a, 'b> VarBuilder<'a, 'b> {
         }
     }
 
-    pub fn register_prop(&mut self, name: &str, action: Option<prop::Action>) -> usize {
-        self.varstore.register_prop(name, action)
+    pub fn register_attr(&mut self, name: &str, action: Option<attr::Action>) -> usize {
+        self.varstore.register_attr(name, action)
     }
 
     pub fn register_var(&mut self, name: &str) -> CliResult<usize> {
@@ -329,7 +329,7 @@ impl<'a, 'b> VarBuilder<'a, 'b> {
 
     // must be called before destruction
     fn done(self, data: &mut Data) {
-        self.varstore.reg_props(data);
+        self.varstore.reg_attrs(data);
     }
 }
 
@@ -345,20 +345,20 @@ fn split_name(name: &str) -> (Option<&str>, &str) {
 #[derive(Debug, Clone)]
 pub struct VarStore {
     num_vars: usize,
-    num_props: usize,
+    num_attrs: usize,
     // K: (prefix, name), V: (id, registered?)
     vars: HashMap<(Option<String>, String), (usize, bool)>,
     // K: name, V: (id, action, registered?)
-    props: HashMap<String, (usize, Option<prop::Action>, bool)>,
+    attrs: HashMap<String, (usize, Option<attr::Action>, bool)>,
 }
 
 impl VarStore {
     fn new() -> VarStore {
         VarStore {
             num_vars: 0,
-            num_props: 0,
+            num_attrs: 0,
             vars: HashMap::new(),
-            props: HashMap::new(),
+            attrs: HashMap::new(),
         }
     }
 
@@ -380,13 +380,13 @@ impl VarStore {
         (id, false)
     }
 
-    pub fn register_prop(&mut self, name: &str, action: Option<prop::Action>) -> usize {
-        if let Some(&(id, _, _)) = self.props.get(name) {
+    pub fn register_attr(&mut self, name: &str, action: Option<attr::Action>) -> usize {
+        if let Some(&(id, _, _)) = self.attrs.get(name) {
             return id;
         }
-        let id = self.num_props;
-        self.num_props += 1;
-        self.props.insert(name.to_string(), (id, action, false));
+        let id = self.num_attrs;
+        self.num_attrs += 1;
+        self.attrs.insert(name.to_string(), (id, action, false));
         id
     }
 
@@ -425,14 +425,14 @@ impl VarStore {
     }
 
     // must be called before destruction
-    fn reg_props(&mut self, data: &mut Data) {
+    fn reg_attrs(&mut self, data: &mut Data) {
         data.symbols.resize(self.num_vars);
 
-        let mut p: Vec<_> = self.props.iter_mut().collect();
+        let mut p: Vec<_> = self.attrs.iter_mut().collect();
         p.sort_by_key(|&(_, &mut (id, _, _))| id);
         for (name, &mut (id, action, ref mut registered)) in p {
             if !*registered {
-                data.props.add_prop(name, id, action);
+                data.attrs.add_attr(name, id, action);
                 *registered = true;
             }
         }

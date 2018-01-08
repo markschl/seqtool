@@ -1,6 +1,6 @@
+
 use std::collections::HashMap;
 use std::f64::NAN;
-
 use std::str;
 
 use io::Record;
@@ -30,7 +30,7 @@ impl VarHelp for ExprHelp {
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
             (
-                "Setting a GC content property as fraction instead of percentage",
+                "Setting a GC content attribute as fraction instead of percentage",
                 "seqtool . -p gc={{s:gc / 100}} seqs.fa",
             ),
             (

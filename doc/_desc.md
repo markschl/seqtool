@@ -1,3 +1,11 @@
+## Installing
+
+Binaries for Linux, Mac OS X and Windows can be
+[downloaded from the releases section](https://github.com/markschl/seqtool/releases/latest).
+For compiling from source, [install Rust](https://www.rust-lang.org), download the source
+code; and inside the root directory type `cargo build --release`. The binary is found in
+*target/release/*.
+
 
 ## Usage
 
@@ -11,15 +19,6 @@ be easily chained using the pipe.
 
 Use `seqtool <command> -h` to see all available options. A full list of options
 that are accepted by all commands can be [found here](wiki/opts).
-
-## Installing
-
-Binaries for Linux, Mac OS X and Windows can be
-[downloaded from the releases section](https://github.com/markschl/seqtool/releases/latest).
-For compiling from source, [install Rust](https://www.rust-lang.org), download the source
-code; and inside the root directory type `cargo build --release`. The binary is found in
-*target/release/*.
-
 
 
 ## Performance
@@ -39,7 +38,7 @@ run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.13) ([script](
 | [DNA to RNA (T -> U)](wiki/replace)          | 6.35s  | 2.05s      |        | 4.85s  | 4min 59s  | 1min 21s |
 | [Summarize GC content](wiki/count)           | 3.60s  |             |        |        |            |           |
 | .. with [math formula](wiki/variables#math-expressions) (GC% + 0)| 3.84s  |             |        |        |            |           |
-| Summarize GC content stored in [property](wiki/properties) | 0.97s  |    |           ||  |  |
+| Summarize GC content stored in [attribute](wiki/attributes) | 0.97s  |    |           ||  |  |
 | [Find 5' primer with max. 4 mismatches](wiki/find#algorithms-and-performance) | 52.1s  | 13.5s  |  |  |  |  |  |
 
 Simple counting is the fastest operation. It even beats the UNIX line counting
@@ -70,7 +69,7 @@ I am grateful for comments and ideas on how to improve the tool and also about
 feedback in general. Commands for sorting, dereplication and for working with
 alignments are partly implemented but not ready. I would also like to add a 
 flexible filtering command based on math expressions, however I'm not yet sure
-on which library this shoud be based.
+on which library this should be based.
 
 Since the tool is quite new, it is possible that there are bugs, even if
 [tests for every command](https://github.com/markschl/seqtool/tree/master/src/test)

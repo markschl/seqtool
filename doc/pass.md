@@ -53,7 +53,7 @@ or `--txt`/`--to-txt`.
 seqtool . --outfields id,seq -o output.txt input.fa
 
 # equivalent shortcut:
-seqtool . --txt id,seq > output.txt
+seqtool . --to-txt id,seq > output.txt
 ```
 
 [Variables](variables) can also be included:

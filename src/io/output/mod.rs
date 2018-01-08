@@ -13,7 +13,7 @@ use super::{fasta, fastq, Compression, Record, SeqWriter};
 
 pub use self::writer::*;
 
-pub mod prop;
+pub mod attr;
 pub mod csv;
 pub mod writer;
 
@@ -50,7 +50,7 @@ pub enum OutputKind {
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum OutFormat {
-    // q64, wrap_width, Vec<(prop_name, prop_value)>, default_seqattr_for_props
+    // q64, wrap_width, Vec<(attr_name, attr_value)>, default_seqattr_for_attrs
     FASTA(Vec<(String, String)>, Option<usize>),
     FASTQ(Vec<(String, String)>),
     //    FA_QUAL(PathBuf),
@@ -101,16 +101,16 @@ where
     W: io::Write + 'a,
 {
     Ok(match *format {
-        OutFormat::FASTA(ref props, ref wrap) => {
+        OutFormat::FASTA(ref attrs, ref wrap) => {
             let writer = fasta::FastaWriter::new(io_writer, *wrap);
-            Box::new(prop::PropWriter::new(writer, props.clone()))
+            Box::new(attr::AttrWriter::new(writer, attrs.clone()))
         }
-        OutFormat::FASTQ(ref props) => {
+        OutFormat::FASTQ(ref attrs) => {
             let writer = fastq::FastqWriter::new(io_writer);
             // if q64 {
             //     writer = writer.q64();
             // }
-            Box::new(prop::PropWriter::new(writer, props.clone()))
+            Box::new(attr::AttrWriter::new(writer, attrs.clone()))
         }
         OutFormat::CSV(delim, ref fields) => {
             Box::new(csv::CsvWriter::new(io_writer, fields.clone(), delim))

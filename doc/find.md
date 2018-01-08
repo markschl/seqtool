@@ -180,7 +180,7 @@ and converts them to lowercase:
 
 ```bash
 seqtool find -r -p rng={f:drange:all} [AG]GA seqs.fa \
-  | seqtool mask {p:rng}
+  | seqtool mask {a:rng}
 ```
 
 Exmaple output:

@@ -15,7 +15,7 @@ This command does fast search and replace for patterns in sequences
 or ids/descriptions.
 
 Usage:
-    seqtool replace [options][-p <prop>...][-l <list>...] <pattern> <replacement> [<input>...]
+    seqtool replace [options][-a <attr>...][-l <list>...] <pattern> <replacement> [<input>...]
     seqtool replace (-h | --help)
     seqtool replace --help-vars
 

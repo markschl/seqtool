@@ -140,7 +140,7 @@ impl Args {
 
         let path = self.0.get_str("--output");
         let threaded = self.get_bool("--write-thread");
-        let props = self.parse_props()?;
+        let attrs = self.parse_attrs()?;
         let wrap_fasta = wrap_fasta;
         let csv_delim = self.opt_str("--out-delim").or(delim);
         let csv_fields = fields.unwrap_or_else(|| self.0.get_str("--outfields"));
@@ -162,7 +162,7 @@ impl Args {
                             .as_ref()
                             .map(String::as_str)
                             .unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name()),
-                        &props,
+                        &attrs,
                         wrap_fasta,
                         csv_delim,
                         csv_fields,
@@ -180,7 +180,7 @@ impl Args {
                         arg_fmt.as_ref().map(String::as_str).unwrap_or_else(|| {
                             fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
                         }),
-                        &props,
+                        &attrs,
                         wrap_fasta,
                         csv_delim,
                         csv_fields,
@@ -207,18 +207,18 @@ impl Args {
             has_header: self.0.get_bool("--lheader"),
             unordered: self.0.get_bool("--unordered"),
             id_col: id_col - 1,
-            prop_opts: var::PropOpts {
-                delim: self.opt_str("--pdelim").unwrap_or(" ").to_string(),
-                value_delim: self.0.get_str("--pval-delim").to_string(),
+            attr_opts: var::AttrOpts {
+                delim: self.opt_str("--adelim").unwrap_or(" ").to_string(),
+                value_delim: self.0.get_str("--aval-delim").to_string(),
             },
             allow_missing: self.0.get_bool("--allow-missing"),
             var_help: self.0.get_bool("--help-vars"),
         })
     }
 
-    fn parse_props(&self) -> CliResult<Vec<(String, String)>> {
-        //let v: Vec<_> = self.get_vec("--prop").into_iter().map(parse_prop).collect();
-        self.get_vec("--prop").into_iter().map(parse_prop).collect()
+    fn parse_attrs(&self) -> CliResult<Vec<(String, String)>> {
+        //let v: Vec<_> = self.get_vec("--attr").into_iter().map(parse_attr).collect();
+        self.get_vec("--attr").into_iter().map(parse_attr).collect()
     }
 
     pub fn get_bool(&self, opt: &str) -> bool {
@@ -305,14 +305,14 @@ pub fn path_info<P: AsRef<Path>>(path: &P) -> (Option<&'static str>, Option<Comp
     (fmt, compr)
 }
 
-pub fn parse_prop(text: &str) -> CliResult<(String, String)> {
+pub fn parse_attr(text: &str) -> CliResult<(String, String)> {
     let mut parts = text.splitn(2, '=');
     let name = parts.next().unwrap().to_string();
     let val = match parts.next() {
         Some(p) => p.to_string(),
         None => {
             return fail!(format!(
-                "Invalid property: '{}'. Properties need to be in the format: name=value",
+                "Invalid attribute: '{}'. Attributes need to be in the format: name=value",
                 name
             ))
         }
@@ -322,7 +322,7 @@ pub fn parse_prop(text: &str) -> CliResult<(String, String)> {
 
 pub fn get_outformat(
     string: &str,
-    props: &[(String, String)],
+    attrs: &[(String, String)],
     wrap_fasta: Option<usize>,
     csv_delim: Option<&str>,
     csv_fields: &str,
@@ -330,9 +330,9 @@ pub fn get_outformat(
     let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
 
     let format = match string {
-        "fasta" => OutFormat::FASTA(props.to_owned(), wrap_fasta),
-        "fastq" => OutFormat::FASTQ(props.to_owned()),
-        //"fastq64" => OutFormat::FASTQ(props.to_owned()),
+        "fasta" => OutFormat::FASTA(attrs.to_owned(), wrap_fasta),
+        "fastq" => OutFormat::FASTQ(attrs.to_owned()),
+        //"fastq64" => OutFormat::FASTQ(attrs.to_owned()),
         "csv" => OutFormat::CSV(util::parse_delimiter(csv_delim.unwrap_or(","))?, csv_fields),
         "txt" => OutFormat::CSV(
             util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
