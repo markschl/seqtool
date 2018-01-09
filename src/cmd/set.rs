@@ -1,6 +1,6 @@
 use error::CliResult;
 use opt;
-use io::{Attribute, RecordEditor};
+use io::{SeqAttr, RecordEditor};
 use var::*;
 
 use cfg;
@@ -26,13 +26,13 @@ pub fn run() -> CliResult<()> {
 
     let mut replacements = vec![];
     if let Some(string) = args.opt_str("--id") {
-        replacements.push((string, Attribute::Id));
+        replacements.push((string, SeqAttr::Id));
     }
     if let Some(string) = args.opt_str("--desc") {
-        replacements.push((string, Attribute::Desc));
+        replacements.push((string, SeqAttr::Desc));
     }
     if let Some(string) = args.opt_str("--seq") {
-        replacements.push((string, Attribute::Seq));
+        replacements.push((string, SeqAttr::Seq));
     }
 
     cfg.writer(|writer, mut vars| {

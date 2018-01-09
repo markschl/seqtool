@@ -57,11 +57,7 @@ fn attrs() {
     let fa = ">seq;a=0 b=3\nATGC\n";
     cmp_stdout!(&[".", "--to-txt", "a:b"], fa, "3\n");
     cmp_stdout!(&[".", "--to-txt", "a:a", "--adelim", ";"], fa, "0\n");
-    cmp_stdout!(
-        &[".", "-a", "b={a:a}", "--adelim", ";"],
-        fa,
-        ">seq;a=0;b=0 b=3\nATGC\n"
-    );
+    cmp_stdout!(&[".", "-a", "b={a:a}", "--adelim", ";"], fa, ">seq;a=0;b=0 b=3\nATGC\n");
     cmp_stdout!(&[".", "-a", "c={a:b}"], fa, ">seq;a=0 b=3 c=3\nATGC\n");
     cmp_stdout!(&[".", "-a", "c={a:-b}"], fa, ">seq;a=0 c=3\nATGC\n");
 }

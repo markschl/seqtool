@@ -4,13 +4,13 @@ use error::CliResult;
 use var;
 use var::varstring;
 
-use io::Attribute;
+use io::SeqAttr;
 use super::{Record, Writer};
 
 use csv;
 
 enum Field {
-    Attribute(Attribute),
+    SeqAttr(SeqAttr),
     Expr(varstring::VarString),
 }
 
@@ -40,8 +40,8 @@ impl<W: io::Write> Writer for CsvWriter<W> {
         self.compiled_fields.clear();
         self.row.clear();
         for field in &self.fields {
-            let compiled = match Attribute::from_str(field) {
-                Some(a) => Field::Attribute(a),
+            let compiled = match SeqAttr::from_str(field) {
+                Some(a) => Field::SeqAttr(a),
                 None => {
                     let expr = varstring::VarString::var_or_composed(field, builder)?;
                     Field::Expr(expr)
@@ -60,7 +60,7 @@ impl<W: io::Write> Writer for CsvWriter<W> {
 
     fn write_simple(&mut self, record: &Record) -> CliResult<()> {
         for (field, parsed) in self.compiled_fields.iter().zip(&mut self.row) {
-            if let Field::Attribute(attr) = *field {
+            if let Field::SeqAttr(attr) = *field {
                 parsed.clear();
                 record.write_attr(attr, parsed);
             } else {
@@ -75,7 +75,7 @@ impl<W: io::Write> Writer for CsvWriter<W> {
         for (field, parsed) in self.compiled_fields.iter().zip(&mut self.row) {
             parsed.clear();
             match *field {
-                Field::Attribute(attr) => record.write_attr(attr, parsed),
+                Field::SeqAttr(attr) => record.write_attr(attr, parsed),
                 Field::Expr(ref expr) => expr.compose(parsed, vars.symbols()),
             }
         }

@@ -4,6 +4,7 @@ use std::ascii::AsciiExt;
 use std::path::Path;
 use std::convert::AsRef;
 use std::ffi::OsStr;
+use std::env;
 
 use docopt;
 
@@ -208,8 +209,10 @@ impl Args {
             unordered: self.0.get_bool("--unordered"),
             id_col: id_col - 1,
             attr_opts: var::AttrOpts {
-                delim: self.opt_str("--adelim").unwrap_or(" ").to_string(),
-                value_delim: self.0.get_str("--aval-delim").to_string(),
+                delim: self.opt_string_or_env("--adelim", "SEQTOOL_ATTR_DELIM")
+                            .unwrap_or_else(|| " ".to_string()),
+                value_delim: self.opt_string_or_env("--aval-delim", "SEQTOOL_ATTRVAL_DELIM")
+                            .unwrap_or_else(|| "=".to_string()),
             },
             allow_missing: self.0.get_bool("--allow-missing"),
             var_help: self.0.get_bool("--help-vars"),
@@ -240,6 +243,12 @@ impl Args {
         } else {
             Some(val)
         }
+    }
+
+    pub fn opt_string_or_env(&self, opt: &str, env: &str) -> Option<String> {
+        self.opt_str(opt)
+            .map(|s| s.to_string())
+            .or_else(|| env::var(env).ok())
     }
 
     pub fn value<T: FromStr>(&self, opt: &str) -> CliResult<T> {

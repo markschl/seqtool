@@ -6,7 +6,7 @@ use regex;
 use lib::twoway_iter::TwowayIter;
 use error::CliResult;
 use opt;
-use io::{Attribute, RecordEditor};
+use io::{SeqAttr, RecordEditor};
 use cfg;
 use lib::util::replace_iter;
 
@@ -36,11 +36,11 @@ pub fn run() -> CliResult<()> {
 
     // what should be replaced?
     let attr = if args.get_bool("--id") {
-        Attribute::Id
+        SeqAttr::Id
     } else if args.get_bool("--desc") {
-        Attribute::Desc
+        SeqAttr::Desc
     } else {
-        Attribute::Seq
+        SeqAttr::Seq
     };
 
     let pattern = args.get_str("<pattern>");
@@ -51,7 +51,7 @@ pub fn run() -> CliResult<()> {
     let num_threads = args.thread_num()?;
 
     if regex {
-        if attr == Attribute::Seq {
+        if attr == SeqAttr::Seq {
             let replacer = BytesRegexReplacer(regex::bytes::Regex::new(pattern)?, has_backrefs);
             run_replace(&cfg, attr, replacement, replacer, num_threads)?;
         } else {
@@ -67,7 +67,7 @@ pub fn run() -> CliResult<()> {
 
 fn run_replace<R: Replacer + Sync>(
     cfg: &cfg::Config,
-    attr: Attribute,
+    attr: SeqAttr,
     replacement: &[u8],
     replacer: R,
     num_threads: u32,

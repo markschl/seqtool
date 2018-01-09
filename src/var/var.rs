@@ -5,7 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::clone::Clone;
 
-use io::{Attribute, Record};
+use io::{SeqAttr, Record};
 use io::input::InputOptions;
 use io::output::OutputOptions;
 use error::CliResult;
@@ -140,14 +140,14 @@ pub struct Vars<'a> {
 }
 
 impl<'a> Vars<'a> {
-    pub fn new(attr_delim: u8, attr_value_delim: u8, attr_append_attr: Attribute) -> Vars<'a> {
+    pub fn new(attr_delim: u8, attr_value_delim: u8, append_attr: SeqAttr) -> Vars<'a> {
         Vars {
             varstore: VarStore::new(),
             used_modules: vec![],
             modules: vec![],
             data: Data {
                 symbols: Table::new(0),
-                attrs: attr::Attrs::new(attr_delim, attr_value_delim, attr_append_attr),
+                attrs: attr::Attrs::new(attr_delim, attr_value_delim, append_attr),
             },
         }
     }

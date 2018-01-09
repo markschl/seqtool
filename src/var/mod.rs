@@ -2,7 +2,7 @@ use std::fs::File;
 
 use error::CliResult;
 use lib::util::parse_delimiter;
-use io::Attribute;
+use io::SeqAttr;
 
 pub use self::var::*;
 
@@ -67,9 +67,9 @@ pub fn get_vars<'a>(o: &VarOpts) -> CliResult<Vars<'a>> {
     let delim = parse_delimiter(&o.attr_opts.delim)?;
     let value_delim = parse_delimiter(&o.attr_opts.value_delim)?;
     let append_attr = if delim == b' ' {
-        Attribute::Desc
+        SeqAttr::Desc
     } else {
-        Attribute::Id
+        SeqAttr::Id
     };
     let mut vars = Vars::new(delim, value_delim, append_attr);
 

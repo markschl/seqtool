@@ -8,7 +8,7 @@ use error::CliResult;
 use opt;
 use cfg;
 use var::{varstring, VarHelp, VarProvider};
-use io::{Attribute, RecordEditor};
+use io::{SeqAttr, RecordEditor};
 use io::output::writer::Writer;
 use lib::util::{parse_range, replace_iter};
 use lib::subst_matrix::AsymmIdentityDnaMatrix;
@@ -117,11 +117,11 @@ pub fn run() -> CliResult<()> {
     let verbose = args.get_bool("--verbose");
 
     let attr = if args.get_bool("--id") {
-        Attribute::Id
+        SeqAttr::Id
     } else if args.get_bool("--desc") {
-        Attribute::Desc
+        SeqAttr::Desc
     } else {
-        Attribute::Seq
+        SeqAttr::Seq
     };
 
     let filter = if args.get_bool("--filter") {

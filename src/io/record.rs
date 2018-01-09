@@ -41,39 +41,40 @@ pub trait Record {
         }
     }
 
-    fn write_attr(&self, attr: Attribute, out: &mut Vec<u8>) {
+    fn write_attr(&self, attr: SeqAttr, out: &mut Vec<u8>) {
         match attr {
-            Attribute::Id => {
+            SeqAttr::Id => {
                 out.extend_from_slice(self.id_bytes());
             }
-            Attribute::Desc => {
+            SeqAttr::Desc => {
                 self.desc_bytes().map(|d| out.extend_from_slice(d));
             }
-            Attribute::Seq => for s in self.seq_segments() {
+            SeqAttr::Seq => for s in self.seq_segments() {
                 out.extend_from_slice(s);
             },
         }
     }
 }
 
+/// Not to be confused with key=value attributes
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub enum Attribute {
+pub enum SeqAttr {
     Id,
     Desc,
     Seq,
     //Qual,
 }
 
-impl Attribute {
-    pub fn from_str(attr: &str) -> Option<Attribute> {
+impl SeqAttr {
+    pub fn from_str(attr: &str) -> Option<SeqAttr> {
         Some(if attr.eq_ignore_ascii_case("id") {
-            Attribute::Id
+            SeqAttr::Id
         } else if attr.eq_ignore_ascii_case("desc") {
-            Attribute::Desc
+            SeqAttr::Desc
         } else if attr.eq_ignore_ascii_case("seq") {
-            Attribute::Seq
+            SeqAttr::Seq
         }
-        //else if attr.eq_ignore_ascii_case("qual") { Attribute::Qual }
+        //else if attr.eq_ignore_ascii_case("qual") { SeqAttr::Qual }
         else {
             return None;
         })
@@ -238,11 +239,11 @@ impl RecordEditor {
     }
 
     #[inline]
-    pub fn get<'a>(&'a mut self, attr: Attribute, rec: &'a Record, cached: bool) -> &'a [u8] {
+    pub fn get<'a>(&'a mut self, attr: SeqAttr, rec: &'a Record, cached: bool) -> &'a [u8] {
         match attr {
-            Attribute::Id => rec.id_bytes(),
-            Attribute::Desc => rec.desc_bytes().unwrap_or(b""),
-            Attribute::Seq => {
+            SeqAttr::Id => rec.id_bytes(),
+            SeqAttr::Desc => rec.desc_bytes().unwrap_or(b""),
+            SeqAttr::Seq => {
                 if !cached {
                     self.cache_seq(rec);
                 }
@@ -260,11 +261,11 @@ impl RecordEditor {
     }
 
     #[inline]
-    pub fn edit(&mut self, attr: Attribute) -> &mut Vec<u8> {
+    pub fn edit(&mut self, attr: SeqAttr) -> &mut Vec<u8> {
         let v = match attr {
-            Attribute::Id => self.id.get_or_insert_with(|| vec![]),
-            Attribute::Desc => self.desc.get_or_insert_with(|| vec![]),
-            Attribute::Seq => self.seq.get_or_insert_with(|| vec![]),
+            SeqAttr::Id => self.id.get_or_insert_with(|| vec![]),
+            SeqAttr::Desc => self.desc.get_or_insert_with(|| vec![]),
+            SeqAttr::Seq => self.seq.get_or_insert_with(|| vec![]),
         };
         v.clear();
         v
@@ -273,7 +274,7 @@ impl RecordEditor {
     #[inline]
     pub fn edit_with_val<F, O>(
         &mut self,
-        attr: Attribute,
+        attr: SeqAttr,
         rec: &Record,
         cached: bool,
         mut func: F,
@@ -282,17 +283,17 @@ impl RecordEditor {
         F: FnMut(&[u8], &mut Vec<u8>) -> O,
     {
         match attr {
-            Attribute::Id => {
+            SeqAttr::Id => {
                 let v = self.id.get_or_insert_with(|| vec![]);
                 v.clear();
                 func(rec.id_bytes(), v)
             }
-            Attribute::Desc => {
+            SeqAttr::Desc => {
                 let v = self.desc.get_or_insert_with(|| vec![]);
                 v.clear();
                 func(rec.desc_bytes().unwrap_or(b""), v)
             }
-            Attribute::Seq => {
+            SeqAttr::Seq => {
                 if ! cached {
                     self.cache_seq(rec);
                 }
@@ -300,7 +301,7 @@ impl RecordEditor {
                 v.clear();
                 func(&self.seq_cache, v)
             }
-            //Attribute::Qual => &mut self.qual,
+            //SeqAttr::Qual => &mut self.qual,
         }
     }
 
