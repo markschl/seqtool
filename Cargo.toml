@@ -1,6 +1,6 @@
 [package]
 name = "seqtool"
-version = "0.1.1"
+version = "0.2"
 authors = ["<markschl19@gmail.com>"]
 description = "General purpose tool for reading, modifying and writing biological sequences."
 license = "MIT"
@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 docopt = "0.8"
-bio = { git = 'https://github.com/rust-bio/rust-bio', rev='80d1311' }
+bio = "0.16"
 seq_io = "0.2.1"
 crossbeam = "0.3"
 lazy_static = "1.0"
