@@ -1,16 +1,19 @@
-**Seqtool** is a  general purpose command line program for dealing with large
-amounts of biological sequences, transforming and filtering them.
-It can read and write **FASTA**, **FASTQ** and **CSV** files
-supports different compression algorithms (**GZIP**, **BZIP2**, **LZ4**).
-It uses the [Rust-Bio](http://rust-bio.github.io/) and [seq_io](https://github.com/markschl/seq_io)
-libraries, amongst others, and compiles to a standalone binary.
+**Seqtool** is a  general purpose command line program for dealing with
+large amounts of biological sequences. It can read and write 
+**FASTA**, **FASTQ** and **CSV** files and supports different compression
+algorithms (**GZIP**, **BZIP2**, **LZ4**), auto-recognizing the 
+extensions.
 
-The tool evolved from a simple python script and was rewritten in the *Rust*
-language. It and aims at solving simple tasks that might otherwise only be solved
-by writing custom scripts. This is possible with the use
-of [variables](https://github.com/markschl/seqtool/wiki/variables) and mathematical expressions.
-In contrast to frameworks like [biopieces](https://github.com/maasha/biopieces),
-no custom format is used for passing information between commands. Instead the tool uses '[properties](https://github.com/markschl/seqtool/wiki/properties)', which are key=value strings added to the sequence headers, or custom CSV fields.
+The tool is written in [Rust](https://www.rust-lang.org) and aims at solving simple tasks that might otherwise only be solved by writing
+custom scripts. This is possible with the use of 
+[variables and mathematical expressions](https://github.com/markschl/seqtool/wiki/variables).
+In contrast to [biopieces](https://github.com/maasha/biopieces),
+no custom format is used for passing information between commands.
+Instead, it is possible to use '[attributes](https://github.com/markschl/seqtool/wiki/attributes)', which are key=value strings added to the sequence headers, or custom CSV fields.
+
+It uses the [Rust-Bio](http://rust-bio.github.io/) and 
+[seq_io](https://github.com/markschl/seq_io) libraries, amongst others
+and compiles to a standalone binary.
 
 
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
@@ -19,7 +22,7 @@ no custom format is used for passing information between commands. Instead the t
 ## Commands
 ### Basic conversion / editing
 * **[pass](https://github.com/markschl/seqtool/wiki/pass)**: This command is useful for converting from one format to another
-and/or setting properties.
+and/or setting attributes.
 
 ### Information about sequences
 * **[count](https://github.com/markschl/seqtool/wiki/count)**: This command counts the number of sequences and prints the number to STDOUT. Advanced 
@@ -33,6 +36,7 @@ variables (-k).
 * **[tail](https://github.com/markschl/seqtool/wiki/tail)**: Returns the last sequences of the input.
 * **[slice](https://github.com/markschl/seqtool/wiki/slice)**: Get a slice of the sequences within a defined range.
 * **[sample](https://github.com/markschl/seqtool/wiki/sample)**: Return a random subset of sequences.
+* **[filter](https://github.com/markschl/seqtool/wiki/filter)**: Filters sequences by a mathematical expression which may contain any variable.
 * **[split](https://github.com/markschl/seqtool/wiki/split)**: This command distributes sequences into multiple files based on different
 criteria.
 
@@ -43,7 +47,7 @@ optional multithreading.
 or ids/descriptions.
 
 ### Modifying commands
-* **[del](https://github.com/markschl/seqtool/wiki/del)**: Deletes description field or properties.
+* **[del](https://github.com/markschl/seqtool/wiki/del)**: Deletes description field or attributes.
 * **[set](https://github.com/markschl/seqtool/wiki/set)**: Replaces the contents of sequence IDs, descriptions or sequences.
 * **[trim](https://github.com/markschl/seqtool/wiki/trim)**: Trims sequences to a given range.
 * **[mask](https://github.com/markschl/seqtool/wiki/mask)**: Masks the sequence within a given range or comma delimited list of ranges
@@ -53,6 +57,14 @@ masking). Reverting soft masking is also possible.
 * **[lower](https://github.com/markschl/seqtool/wiki/lower)**: Converts all characters in the sequence to lowercase.
 * **[revcomp](https://github.com/markschl/seqtool/wiki/revcomp)**: Reverse complements DNA sequences. If quality scores are present,
 their order is just reversed.
+## Installing
+
+Binaries for Linux, Mac OS X and Windows can be
+[downloaded from the releases section](https://github.com/markschl/seqtool/releases/latest).
+For compiling from source, [install Rust](https://www.rust-lang.org), download the source
+code; and inside the root directory type `cargo build --release`. The binary is found in
+*target/release/*.
+
 
 ## Usage
 
@@ -66,15 +78,6 @@ be easily chained using the pipe.
 
 Use `seqtool <command> -h` to see all available options. A full list of options
 that are accepted by all commands can be [found here](https://github.com/markschl/seqtool/wiki/opts).
-
-## Installing
-
-Binaries for Linux, Mac OS X and Windows can be
-[downloaded from the releases section](https://github.com/markschl/seqtool/releases/latest).
-For compiling from source, [install Rust](https://www.rust-lang.org), download the source
-code; and inside the root directory type `cargo build --release`. The binary is found in
-*target/release/*.
-
 
 
 ## Performance
@@ -92,14 +95,15 @@ run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.13) ([script](
 | Reverse complement                      | 2.24s  | 0.79s      | 3.80s |  7.8s | 4min 25s | 1min 11s |
 | [Random subsampling](https://github.com/markschl/seqtool/wiki/sample) (to 10%)   | 0.69s  |             | 1.61s |  2.40s |            |           |
 | [DNA to RNA (T -> U)](https://github.com/markschl/seqtool/wiki/replace)          | 6.35s  | 2.05s      |        | 4.85s  | 4min 59s  | 1min 21s |
+| [Remove short sequences](filter)      | 1.03s |      | 2.29s | 2.41s  |  | 1min 14s |
 | [Summarize GC content](https://github.com/markschl/seqtool/wiki/count)           | 3.60s  |             |        |        |            |           |
-| .. with [math formula](https://github.com/markschl/seqtool/wiki/variables#math-expressions) (GC% + 0)| 3.84s  |             |        |        |            |           |
-| Summarize GC content stored in [property](https://github.com/markschl/seqtool/wiki/properties) | 0.97s  |    |           ||  |  |
+| .. with [math formula](https://github.com/markschl/seqtool/wiki/variables#math-expressions) (GC% / 100)| 3.64s  |        |        |        |            |           |
+| Summarize GC content stored in [attribute](https://github.com/markschl/seqtool/wiki/attributes) | 0.97s  |    |           ||  |  |
 | [Find 5' primer with max. 4 mismatches](https://github.com/markschl/seqtool/wiki/find#algorithms-and-performance) | 52.1s  | 13.5s  |  |  |  |  |  |
 
-Simple counting is the fastest operation. It even beats the UNIX line counting
-command (`wc -l`, 2.70s). The commands `find`, `replace` and `revcomp` additionally profit from
-multithreading.
+Simple counting is the fastest operation, faster than the UNIX line counting
+command (`wc -l`, 2.70s) on OS X. The commands `find`, `replace` and `revcomp`
+additionally profit from multithreading.
 
 Compressed I/O is done in a separate thread by default. For LZ4,
 this is faster than getting the input via the pipe
@@ -123,9 +127,9 @@ LZ4 can be even faster than uncompressed I/O.
 
 I am grateful for comments and ideas on how to improve the tool and also about
 feedback in general. Commands for sorting, dereplication and for working with
-alignments are partly implemented but not ready. I would also like to add a 
+alignments are partly implemented but not ready. I would also like to add a
 flexible filtering command based on math expressions, however I'm not yet sure
-on which library this shoud be based.
+on which library this should be based.
 
 Since the tool is quite new, it is possible that there are bugs, even if
 [tests for every command](https://github.com/markschl/seqtool/tree/master/src/test)

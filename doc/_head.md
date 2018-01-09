@@ -4,9 +4,9 @@ large amounts of biological sequences. It can read and write
 algorithms (**GZIP**, **BZIP2**, **LZ4**), auto-recognizing the 
 extensions.
 
-The tool is written in [Rust](https://www.rust-lang.org/en-US/) and aims at solving simple tasks that might otherwise only be solved by writing
+The tool is written in [Rust](https://www.rust-lang.org) and aims at solving simple tasks that might otherwise only be solved by writing
 custom scripts. This is possible with the use of 
-[variables](wiki/variables) and mathematical expressions.
+[variables and mathematical expressions](wiki/variables).
 In contrast to [biopieces](https://github.com/maasha/biopieces),
 no custom format is used for passing information between commands.
 Instead, it is possible to use '[attributes](wiki/attributes)', which are key=value strings added to the sequence headers, or custom CSV fields.

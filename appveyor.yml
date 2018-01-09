@@ -28,13 +28,13 @@ install:
 
 test_script:
   - if [%APPVEYOR_REPO_TAG%]==[false] (
-      cargo build --target %TARGET% &&
-      cargo test --target %TARGET% &&
-      cargo run --target %TARGET%
+      cargo build --features=exprtk --target %TARGET% &&
+      cargo test --features=exprtk --target %TARGET% &&
+      cargo run --features=exprtk --target %TARGET%
     )
 
 before_deploy:
-  - cargo rustc --target %TARGET% --release --bin seqtool -- -C lto
+  - cargo rustc --features=exprtk --target %TARGET% --release --bin seqtool -- -C lto
   - ps: ci\before_deploy.ps1
 
 deploy:

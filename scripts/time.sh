@@ -76,10 +76,16 @@ time fasta_nucleotide_changer -i $f -Q33 -r > /dev/null
 time s count -k n:10:{s:gc} $f
 
 # from variable
-time s count -k n:10:{p:gc} $f.with_gc.fq
+time s count -k n:10:{a:gc} $f.with_gc.fq
 
 # with expression
-time s count -k n:10:{{s:gc+0}} $f
+time s count -k n:.1:{{s:gc/100}} $f
+
+# filter by length
+time s filter 's:seqlen >= 100' $f > /dev/null
+time seqtk seq -L 100 $f > /dev/null
+time seqkit seq -m 100 $f > /dev/null
+time read_fasta -i $f | grab -e 'SEQ_LEN >= 100' | write_fasta -x > /dev/null
 
 # primer finding
 
@@ -101,4 +107,3 @@ time s find -d4 --algo myers file:$fp $f -p primer={f:name} -p start={f:start} -
 time s find -d4 --algo myers -t4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
 
 time cutadapt -g primer1=^$seq1 -g primer2=^$seq2 $f -e 0.23 -y ' primer={name}' | s count --fq
-

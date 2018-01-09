@@ -198,11 +198,7 @@ fn del() {
     let fasta = ">seq;p=0 a=1 b=2\nATGC\n";
     cmp_stdout!(&["del", "-d"], fasta, ">seq;p=0\nATGC\n");
     cmp_stdout!(&["del", "--attrs", "a,b"], fasta, ">seq;p=0\nATGC\n");
-    cmp_stdout!(
-        &["del", "--adelim", ";", "--attrs", "p"],
-        fasta,
-        ">seq a=1 b=2\nATGC\n"
-    );
+    cmp_stdout!(&["del", "--adelim", ";", "--attrs", "p"], fasta, ">seq a=1 b=2\nATGC\n");
 }
 
 #[test]

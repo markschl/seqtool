@@ -25,7 +25,8 @@ impl VarHelp for ExprHelp {
              (+, -, *, /, %, ^, min, max, sqrt, abs, exp, trignometric functions, ...). \
              Boolean expressions are possible with common operators and keywords (and/or/not/...).\
              See http://www.partow.net/programming/exprtk/ and \
-             https://github.com/ArashPartow/exprtk/blob/master/readme.txt for more information.",
+             https://github.com/ArashPartow/exprtk/blob/master/readme.txt for more information. \
+             Math expressions are also used by the 'filter' command.",
         )
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
@@ -35,8 +36,16 @@ impl VarHelp for ExprHelp {
                 "seqtool . -p gc={{s:gc / 100}} seqs.fa",
             ),
             (
-                "Summarise over the fraction of invalid bases (uppercase)",
-                "seqtool count -k 'n:0.05:{{(s:seqlen - s:count:ACGTMRWSYKVHDBN) / s:seqlen}}'",
+                "Removing DNA sequences with more than 10% of ambiguous bases",
+                "seqtool filter 's:count:ATGC / s:seqlen >= 0.1' input.fa",
+            ),
+            (
+                "Selecting IDs with a certain pattern:",
+                "seqtool filter \".id like 'AB*'\" input.fa",
+            ),
+            (
+                "Selecting IDs from a list:",
+                "seqtool filter -uml id_list.txt 'def(l:1)' seqs.fa",
             ),
         ])
     }

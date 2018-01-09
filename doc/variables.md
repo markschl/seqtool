@@ -44,11 +44,28 @@ seqtool find -ir '([^\.]+).*' seqs.fa --to-txt id,f:match::1,seq
 
 ## Math expressions
 
-Simple mathematical expressions (possible thanks to [meval-rs](https://github.com/rekka/meval-rs))
-are written with double curly brackets. This example calculates the length of
-a match found by the _find_ command.
+Mathematical expressions are written with double curly brackets.
+This example calculates the length of a match found by the _find_ command.
 
 ```bash
 seqtool find -d3 GCATATCAATAAGCGGAGGA seqs.fa \
   -p match_len='{{f:end - f:start + 1}}'
 ```
+
+If compiled with [ExprTk](http://www.partow.net/programming/exprtk/) support 
+(which is the default for the provided binaries), filtering expressions
+are also possible using the [filter](filter) command:
+
+```bash
+seqtool filter 's:seqlen >= 100' input.fa > filtered.fa
+```
+
+### String variables
+
+ExprTk expressions can also handle strings. String variables have to be
+explicitly marked as such using a preceding dot (`.variable`).
+
+```bash
+seqtool filter ".id == 'id1' or .id == 'id2'" input.fa > filtered.fa
+```
+

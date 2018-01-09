@@ -36,14 +36,15 @@ run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.13) ([script](
 | Reverse complement                      | 2.24s  | 0.79s      | 3.80s |  7.8s | 4min 25s | 1min 11s |
 | [Random subsampling](wiki/sample) (to 10%)   | 0.69s  |             | 1.61s |  2.40s |            |           |
 | [DNA to RNA (T -> U)](wiki/replace)          | 6.35s  | 2.05s      |        | 4.85s  | 4min 59s  | 1min 21s |
+| [Remove short sequences](filter)      | 1.03s |      | 2.29s | 2.41s  |  | 1min 14s |
 | [Summarize GC content](wiki/count)           | 3.60s  |             |        |        |            |           |
-| .. with [math formula](wiki/variables#math-expressions) (GC% + 0)| 3.84s  |             |        |        |            |           |
+| .. with [math formula](wiki/variables#math-expressions) (GC% / 100)| 3.64s  |        |        |        |            |           |
 | Summarize GC content stored in [attribute](wiki/attributes) | 0.97s  |    |           ||  |  |
 | [Find 5' primer with max. 4 mismatches](wiki/find#algorithms-and-performance) | 52.1s  | 13.5s  |  |  |  |  |  |
 
-Simple counting is the fastest operation. It even beats the UNIX line counting
-command (`wc -l`, 2.70s). The commands `find`, `replace` and `revcomp` additionally profit from
-multithreading.
+Simple counting is the fastest operation, faster than the UNIX line counting
+command (`wc -l`, 2.70s) on OS X. The commands `find`, `replace` and `revcomp`
+additionally profit from multithreading.
 
 Compressed I/O is done in a separate thread by default. For LZ4,
 this is faster than getting the input via the pipe
@@ -67,7 +68,7 @@ LZ4 can be even faster than uncompressed I/O.
 
 I am grateful for comments and ideas on how to improve the tool and also about
 feedback in general. Commands for sorting, dereplication and for working with
-alignments are partly implemented but not ready. I would also like to add a 
+alignments are partly implemented but not ready. I would also like to add a
 flexible filtering command based on math expressions, however I'm not yet sure
 on which library this should be based.
 

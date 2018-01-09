@@ -109,6 +109,7 @@ Usage:
 Options:
     -h, --help    Display this message
     --version     Print version info and exit
+    --help-vars   Display variables accepted by all commands
 
 Commands:
 ", command_list!());
