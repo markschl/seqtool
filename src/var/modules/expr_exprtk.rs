@@ -46,8 +46,8 @@ lazy_static! {
     static ref VAR_RE: regex::Regex = regex::Regex::new(
         r"(\.?[A-Za-z][A-Za-z0-9_]*)(:[A-Za-z0-9][A-Za-z0-9\._]*)*"
     ).unwrap();
-    static ref STRING_DEF: regex::Regex = regex::Regex::new(
-        r"def\(\s*([A-Za-z0-9_]+)\s*\)"
+    static ref DEF: regex::Regex = regex::Regex::new(
+        r"def\(\s*([A-Za-z0-9_:\.]+)\s*\)"
     ).unwrap();
 }
 
@@ -62,7 +62,7 @@ pub struct ExprVars {
         Vec<(usize, usize)>,
         // [var_id -> ExprTk string_id]
         Vec<(usize, usize)>,
-        // str_def [var_id -> ExprTk string_id]
+        // def [var_id -> ExprTk var id]
         Vec<(usize, usize)>,
     )>,
 }
@@ -94,24 +94,21 @@ impl VarProvider for ExprVars {
 
         // def() function
         // 0/0 == NAN (c_double::NAN doesn't work)
-        symbols.add_func1("def", |var| if var == 0./0. { 0. } else { 1. })?;
+        //symbols.add_func1("def", |var| if var == 0./0. { 0. } else { 1. })?;
 
-        // for strings: kind of a hack currently
-        let mut str_def = vec![];
-        let expr_string = STRING_DEF.replace_all(expr_string, |m: &regex::Captures| {
+        // def() function: not actually a function, just a variable that will be set
+        let mut def = vec![];
+        let expr_string = DEF.replace_all(expr_string, |m: &regex::Captures| {
             let name = m.get(1).unwrap().as_str().to_string();
-            if name.starts_with(".") {
-                let (var_id, _) = vars.register_var(&name[1..]);
-                let v = format!("def__{}", name);
-                let expr_var_id = symbols
-                    .add_variable(&v, 0.)
-                    .unwrap()
-                    .unwrap_or_else(|| symbols.get_var_id(&v).unwrap());
-                str_def.push((var_id, expr_var_id));
-                v
-            } else {
-                m.get(0).unwrap().as_str().to_string()
-            }
+            let name = if name.starts_with(".") { &name[1..] } else { &name };
+            let v = format!("def_{}", name.replace(':', "_").replace('.', ""));
+            let (var_id, _) = vars.register_var(name);
+            let expr_var_id = symbols
+                .add_variable(&v, 0.)
+                .unwrap()
+                .unwrap_or_else(|| symbols.get_var_id(&v).unwrap());
+            def.push((var_id, expr_var_id));
+            v
         });
 
         // replace variables with characters not accepted by the expression parser
@@ -147,7 +144,7 @@ impl VarProvider for ExprVars {
             var_ids.push((var_id, expr_var_id));
         }
 
-        self.exprs.push((expr_id, expr, var_ids, string_ids, str_def));
+        self.exprs.push((expr_id, expr, var_ids, string_ids, def));
         Ok(true)
     }
 
@@ -157,7 +154,7 @@ impl VarProvider for ExprVars {
 
     fn set(&mut self, _: &Record, data: &mut Data) -> CliResult<()> {
         // copy values from symbol table to context
-        for &mut (expr_id, ref mut expr, ref var_ids, ref string_ids, ref str_def) in &mut self.exprs {
+        for &mut (expr_id, ref mut expr, ref var_ids, ref string_ids, ref def) in &mut self.exprs {
             // scalars
             for &(var_id, expr_var_id) in var_ids {
                 let value = data.symbols.get_float(var_id)?.unwrap_or(NAN);
@@ -168,9 +165,9 @@ impl VarProvider for ExprVars {
                 let s = data.symbols.get_text(var_id).unwrap_or(b"");
                 expr.symbols().set_string(expr_var_id, s);
             }
-            // def() hack for strings
-            for &(var_id, expr_var_id) in str_def {
-                let v = if data.symbols.is_none(var_id) { 0. } else { 1. };
+            // def() "function"
+            for &(var_id, expr_var_id) in def {
+                let v = if data.symbols.is_empty(var_id) { 0. } else { 1. };
                 expr.symbols().set_value(expr_var_id, v);
             }
 

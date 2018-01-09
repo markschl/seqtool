@@ -29,9 +29,13 @@ memchr = "2.0"
 fxhash = "0.2"
 textwrap = "0.9"
 meval = "0.1"
+exprtk_rs = { version = "0.0.1", optional = true, features = [
+  "comments", "break_continue", "sc_andor", "return_statement",
+  "enhanced_features", "superscalar_unroll"
+ ]}
 bytecount = "0.2.0"
-clippy = { version = "0.0.175", optional = true }
-exprtk_rs = { version = "0.0.1", optional = true }
+ clippy = { version = "0.0.175", optional = true }
+
 
 [dev-dependencies]
 assert_cli = "0.5"

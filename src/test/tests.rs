@@ -305,7 +305,7 @@ fn split_key_seqlen() {
     assert_eq!(&s, &FASTA as &str);
 }
 
-
+#[cfg(feature = "exprtk")]
 #[test]
 fn filter() {
     macro_rules! cmp_stdout_expr {
@@ -321,6 +321,7 @@ fn filter() {
 
     cmp_stdout_expr!(&["filter", "s:seqlen > s:ungapped_len and a:p >= 10"], FASTA, SEQS[2..].concat());
     cmp_stdout_expr!(&["filter", ".id == 'seq0'"], FASTA, SEQS[1]);
-    cmp_stdout_expr!(&["filter", "def(id)"], FASTA, "");
-
+    cmp_stdout_expr!(&["filter", "not(def(id))"], FASTA, "");
+    let fa = ">id\nSEQ\n>id2 a=0\nSEQ";
+    cmp_stdout_expr!(&["filter", "def(a:a)", "--to-txt", "id"], fa, "id2\n");
 }

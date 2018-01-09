@@ -278,7 +278,7 @@ impl From<ListError> for CliError {
                 String::from_utf8_lossy(seq_id)
             ),
             ListError::EntryMissing(ref list_id) => format!(
-                "ID '{}' not found in associated list. Use -m/--allow-missing if you expect  <
+                "ID '{}' not found in associated list. Use -m/--missing if you expect \
                 missing entries.",
                 String::from_utf8_lossy(list_id)
             ),

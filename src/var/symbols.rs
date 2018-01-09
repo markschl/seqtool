@@ -141,6 +141,14 @@ impl Table {
         }
     }
 
+    pub fn is_empty(&self, id: usize) -> bool {
+        match *self.get(id) {
+            Value::Text(ref s, _, _) => s.is_empty(),
+            Value::None => true,
+            _ => false
+        }
+    }
+
     #[inline]
     fn get(&self, id: usize) -> &Value {
         if let Some(v) = self.0.get(id) {

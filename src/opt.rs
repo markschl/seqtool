@@ -214,7 +214,7 @@ impl Args {
                 value_delim: self.opt_string_or_env("--aval-delim", "SEQTOOL_ATTRVAL_DELIM")
                             .unwrap_or_else(|| "=".to_string()),
             },
-            allow_missing: self.0.get_bool("--allow-missing"),
+            allow_missing: self.0.get_bool("--missing"),
             var_help: self.0.get_bool("--help-vars"),
         })
     }
