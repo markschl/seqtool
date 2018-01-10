@@ -20,6 +20,7 @@ struct ParseNumError;
 #[derive(Debug, Clone)]
 pub struct Table(Vec<Value>);
 
+#[allow(dead_code)]
 impl Table {
     #[inline]
     pub fn new(size: usize) -> Table {

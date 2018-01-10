@@ -45,10 +45,13 @@ mod help;
 mod error;
 #[allow(unused)]
 mod lib;
+#[allow(unused_imports)] // silence std::ascii::AsciiExt import warnings
 mod io;
 mod cfg;
+#[allow(unused_imports)]
 mod opt;
 mod var;
+#[allow(unused_imports)]
 mod cmd;
 
 #[cfg(test)]

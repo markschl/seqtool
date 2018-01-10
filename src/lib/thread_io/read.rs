@@ -58,7 +58,7 @@ impl io::Read for Reader {
     }
 }
 
-pub fn reader<R, F, O>(bufsize: usize, queuelen: usize, mut reader: R, func: F) -> io::Result<O>
+pub fn reader<R, F, O>(bufsize: usize, queuelen: usize, reader: R, func: F) -> io::Result<O>
 where
     F: FnOnce(&mut Reader) -> O,
     R: io::Read + Send,
