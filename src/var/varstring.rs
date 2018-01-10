@@ -1,39 +1,19 @@
-extern crate nom;
 
+use std::str;
 use std::cell::RefCell;
 
-use nom::IResult;
+use regex;
 
 use var;
 use error::CliResult;
 
-#[derive(Debug)]
-enum VarType {
-    Var,
-    Expr,
+
+lazy_static! {
+    static ref VAR_RE: regex::Regex = regex::Regex::new(
+        r"(\{\{([^\}]+)\}\}|\{([^\{\}]+)\})"
+    ).unwrap();
 }
 
-named!(_var(&str) -> (&str, Option<VarType>),
-    do_parse!(
-        tag!("{") >>
-        v: take_until!("}") >>
-        take!(1) >>
-        (v, Some(VarType::Var))
-    )
-);
-
-named!(_expr(&str) -> (&str, Option<VarType>),
-    do_parse!(
-        tag!("{{") >>
-        v: take_until!("}}") >>
-        take!(2) >>
-        (v, Some(VarType::Expr))
-    )
-);
-
-named!(find_vars(&str) -> (&str, Option<VarType>),
-    alt!(_expr | _var | do_parse!(take!(1) >> ("", None)))
-);
 
 #[derive(Debug)]
 pub struct VarString {
@@ -63,33 +43,34 @@ impl VarString {
 
     /// Parses a string containing variables in the form " {varname} "
     pub fn parse_register(expr: &str, vars: &mut var::VarBuilder) -> CliResult<VarString> {
+
         let mut outvars = vec![];
-
-        let mut pos = 0;
         let mut prev_pos = 0;
-        let mut rest = &expr[..];
 
-        while let IResult::Done(_rest, (value, ty)) = find_vars(rest) {
-            rest = _rest;
-            if let Some(ty) = ty {
-                let str_before = expr[prev_pos..pos].as_bytes().to_owned();
-                match ty {
-                    VarType::Var => {
-                        let id = vars.register_var(value)?;
-                        outvars.push((str_before, id));
-                    }
-                    VarType::Expr => {
-                        let id = vars.register_with_prefix(Some("expr_"), value)?;
-                        outvars.push((str_before, id));
-                    }
-                }
-                prev_pos = expr.len() - _rest.len();
-            }
-            pos = expr.len() - _rest.len();
+        for m in VAR_RE.find_iter(expr) {
+            let var = m.as_str();
+            let var_id =
+                if var.starts_with("{{") {
+                    // math expression
+                    let expr = &var[2 .. var.len() - 2];
+                    vars.register_with_prefix(Some("expr_"), expr)?
+                } else {
+                    // regular variable
+                    let name = &var[1 .. var.len() - 1];
+                    vars.register_var(name)?
+                };
+            let str_before = expr[prev_pos..m.start()].as_bytes().to_owned();
+            outvars.push((str_before, var_id));
+            prev_pos = m.end();
         }
 
-        let rest = expr[prev_pos..expr.len()].as_bytes().to_owned();
-        let one_var = outvars.len() == 1 && outvars[0].0.is_empty() && rest.is_empty();
+        let rest = expr[prev_pos..].as_bytes().to_owned();
+
+        let one_var =
+            outvars.len() == 1 &&
+            outvars[0].0.is_empty() &&
+            rest.is_empty();
+
         Ok(VarString {
             parts: outvars,
             rest: rest,
@@ -119,7 +100,7 @@ impl VarString {
         if string.len() == 0 {
             return Ok(None);
         }
-        ::std::str::from_utf8(&*string)?
+        str::from_utf8(&*string)?
             .parse()
             .map_err(From::from)
             .map(Some)
@@ -136,7 +117,7 @@ impl VarString {
         if string.len() == 0 {
             return Ok(None);
         }
-        ::std::str::from_utf8(&*string)?
+        str::from_utf8(&*string)?
             .parse()
             .map_err(From::from)
             .map(Some)

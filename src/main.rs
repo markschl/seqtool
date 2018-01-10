@@ -17,8 +17,6 @@ extern crate itertools;
 extern crate lazy_static;
 extern crate memchr;
 #[macro_use]
-extern crate nom;
-#[macro_use]
 extern crate seq_io;
 extern crate vec_map;
 
