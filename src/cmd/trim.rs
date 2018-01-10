@@ -60,35 +60,42 @@ fn trim<'r>(
     out_seq: &'r mut Vec<u8>,
     out_qual: &'r mut Vec<u8>,
 ) -> SeqQualRecord<'r, &'r Record> {
-    let mut s = start;
-    let mut e = end;
 
     out_seq.clear();
 
     if let Some(qual) = record.qual() {
-        // no multiline sequence
+        // no multiline sequence (FASTQ)
         let seq = record.raw_seq();
 
         out_qual.clear();
 
-        out_seq.extend_from_slice(&seq[s..e]);
-        out_qual.extend_from_slice(&qual[s..e]);
+        out_seq.extend_from_slice(&seq[start..end]);
+        out_qual.extend_from_slice(&qual[start..end]);
         SeqQualRecord::new(record, out_seq, Some(out_qual))
 
     } else {
+        let mut s = start;
+        let mut e = end;
+
         for seq in record.seq_segments() {
+
+            if s >= seq.len() {
+                // skip line
+                s -= seq.len();
+                e -= seq.len();
+                continue;
+            }
+
             if e < seq.len() {
+                // stop at this line
                 out_seq.extend_from_slice(&seq[s..e]);
                 break;
             }
 
-            e -= seq.len();
-
             out_seq.extend_from_slice(&seq[s..]);
 
-            if s > 0 {
-                s = 0;
-            }
+            s = 0;
+            e -= seq.len();
         }
         SeqQualRecord::new(record, out_seq, None)
     }

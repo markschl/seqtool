@@ -186,6 +186,19 @@ fn trim_vars() {
 }
 
 #[test]
+fn trim_multiline() {
+    let fa = ">id\nAB\nCDE\nFGHI\nJ";
+    let seq = "ABCDEFGHIJ";
+    cmp_stdout!(&["trim", ".."], fa, format!(">id\n{}\n", seq));
+    for start in 0..seq.len() - 1 {
+        for end in start..seq.len() {
+            cmp_stdout!(&["trim", "-0", &format!("{}..{}", start, end)], fa,
+                        format!(">id\n{}\n", &seq[start..end]));
+        }
+    }
+}
+
+#[test]
 fn set() {
     let fasta = ">seq\nATGC\n";
     cmp_stdout!(&["set", "-i", "seq2"], fasta, ">seq2\nATGC\n");

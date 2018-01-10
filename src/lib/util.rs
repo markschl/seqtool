@@ -2,7 +2,6 @@
 use std::str::FromStr;
 use std::convert::AsRef;
 use std::collections::HashMap;
-use std::hash::BuildHasherDefault;
 
 use error::CliResult;
 use lib::inner_result::MapRes;
@@ -55,7 +54,11 @@ where
 }
 
 pub fn parse_range_str(range: &str) -> CliResult<(Option<&str>, Option<&str>)> {
-    let rng: Vec<&str> = range.splitn(2, "..").collect();
+    let rng: Vec<&str> = range
+        .splitn(2, "..")
+        .map(|r| r.trim())
+        .collect();
+
     if rng.len() != 2 {
         return fail!(format!(
             "Invalid range: '{}'. Possible notations: 'start..end' or 'start..' or '..end', or '..'",

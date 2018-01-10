@@ -13,24 +13,24 @@ impl VarHelp for FindVarHelp {
         "Pattern finding variables"
     }
     fn usage(&self) -> &'static str {
-        "find:<variable>[.pattern_rank][:match_num][:group]"
+        "f:<variable>[.pattern_rank][:match_num][:group]"
     }
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
-            ("match", "The matched sequence/pattern"),
-            ("start", "Start of the match."),
-            ("end",   "End of the match."),
-            ("dist", "Distance of the matched sequence compared to the pattern. Normally, this is \
+            ("f:match", "The matched sequence/pattern"),
+            ("f:start", "Start of the match."),
+            ("f:end",   "End of the match."),
+            ("f:dist", "Distance of the matched sequence compared to the pattern. Normally, this is \
               the edit distance, unless --gapw is used"),
-            ("neg_start", "Start of the match relative to sequence end (negative number)"),
-            ("neg_end",   "End of the match relative to sequence end (negative number)"),
-            ("range",  "Range of the match in the form start-end"),
-            ("drange",
+            ("f:neg_start", "Start of the match relative to sequence end (negative number)"),
+            ("f:neg_end",   "End of the match relative to sequence end (negative number)"),
+            ("f:range",  "Range of the match in the form start-end"),
+            ("f:drange",
             "Range of the match with two dots as delimiter (start..end). Useful with 'trim'\
             and 'mask'"),
-            ("neg_drange",
+            ("f:neg_drange",
             "Range of the match (dot delimiter) relative to the sequence end (-<start>..-<end>)"),
-            ("name",
+            ("f:name",
             "Name of the best matching pattern if there are multiple (read from pattern file)"),
         ])
     }
@@ -220,30 +220,39 @@ impl FindVars {
                     symbols.set_none(var_id);
                 }
             } else {
-                // list of all matches requested
-                let out = symbols.mut_text(var_id);
+                    // list of all matches requested
+                {
+                    let out = symbols.mut_text(var_id);
 
-                for maybe_m in matches.matches_iter(pattern_rank, group) {
-                    if let Some(m) = maybe_m {
-                        match *var {
-                            Start => write!(out, "{}", m.start + 1)?,
-                            End => write!(out, "{}", m.end)?,
-                            NegStart => write!(out, "{}", m.neg_start1(rec.seq_len()))?,
-                            NegEnd => write!(out, "{}", m.neg_end1(rec.seq_len()))?,
-                            Dist => write!(out, "{}", m.dist)?,
-                            Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
-                            NegRange(ref delim) => write!(
-                                out, "{}{}{}",
-                                m.neg_start1(rec.seq_len()), delim, m.neg_end1(rec.seq_len())
-                            )?,
-                            Match => out.extend_from_slice(&text[m.start..m.end]),
-                            _ => unreachable!(),
+                    let mut n = 0;
+                    for maybe_m in matches.matches_iter(pattern_rank, group) {
+                        if let Some(m) = maybe_m {
+                            n += 1;
+                            match *var {
+                                Start => write!(out, "{}", m.start + 1)?,
+                                End => write!(out, "{}", m.end)?,
+                                NegStart => write!(out, "{}", m.neg_start1(rec.seq_len()))?,
+                                NegEnd => write!(out, "{}", m.neg_end1(rec.seq_len()))?,
+                                Dist => write!(out, "{}", m.dist)?,
+                                Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
+                                NegRange(ref delim) => write!(
+                                    out, "{}{}{}",
+                                    m.neg_start1(rec.seq_len()), delim, m.neg_end1(rec.seq_len())
+                                )?,
+                                Match => out.extend_from_slice(&text[m.start..m.end]),
+                                _ => unreachable!(),
+                            }
+                            out.push(b',');
                         }
-                        out.push(b',');
+                    }
+                    if n > 0 {
+                        // remove last comma
+                        out.pop();
+                        continue;
                     }
                 }
-                // remove last comma
-                out.pop();
+                // nothing found
+                symbols.set_none(var_id);
             }
         }
         Ok(())
