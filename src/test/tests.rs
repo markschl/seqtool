@@ -331,6 +331,8 @@ fn filter() {
     cmp_stdout_expr!(&["filter", "s:seqlen > s:ungapped_len and a:p >= 10"], FASTA, SEQS[2..].concat());
     cmp_stdout_expr!(&["filter", ".id == 'seq0'"], FASTA, SEQS[1]);
     cmp_stdout_expr!(&["filter", "not(def(id))"], FASTA, "");
-    let fa = ">id\nSEQ\n>id2 a=0\nSEQ";
-    cmp_stdout_expr!(&["filter", "def(a:a)", "--to-txt", "id"], fa, "id2\n");
+    let fa = ">id\nSEQ\n>id2 a=20\nSEQ\n>id3 a=\nSEQ";
+    cmp_stdout_expr!(&["filter", "def(a:a) and a:a >= 20", "--to-txt", "id"], fa, "id2\n");
+    cmp_stdout_expr!(&["filter", "a:a >= 20", "--to-txt", "id"], fa, "id2\n");
+    cmp_stdout_expr!(&["filter", ".id like 'id*'", "--to-txt", "id"], fa, "id\nid2\nid3\n");
 }
