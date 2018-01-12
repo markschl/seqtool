@@ -33,7 +33,7 @@ test_script:
     )
 
 before_deploy:
-  - cargo rustc --features=exprtk --target %TARGET% --release --bin seqtool -- -C lto
+  - cargo rustc --features=exprtk --target %TARGET% --release --bin seqtool -- -C lto -C panic=abort
   - ps: ci\before_deploy.ps1
 
 deploy:
