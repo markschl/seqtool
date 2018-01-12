@@ -13,7 +13,7 @@ code; and inside the root directory type `cargo build --release`. The binary is 
 seqtool <command> [<options>] [<files>...]
 ```
 
-All commands accept one or multiple files, or STDIN input. The output is written
+All commands accept one or multiple files and STDIN input. The output is written
 to STDOUT or a file (`-o`, useful for [format conversion](wiki/pass)). Commands can
 be easily chained using the pipe.
 
@@ -27,7 +27,8 @@ The following run time comparison of diffferent tasks aims to give a quick overv
 comprehensive by any means. Comparisons to a selection of other tools/toolsets are shown if
 there exists an equivalent operation. For all commands, a 1.1 Gb FASTQ file
 containing 1.73 billion Illumina reads of 150-500 bp length was used. They were
-run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.13) ([script](scripts/time.sh)).
+run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.13) 
+([script](https://github.com/markschl/seqtool/blob/master/scripts/time.sh)).
 
 |      | seqtool | [4 threads] | [seqtk](https://github.com/lh3/seqtk) | [seqkit](https://github.com/shenwei356/seqkit/) | [FASTX](https://github.com/agordon/fastx_toolkit) | [biopieces](http://maasha.github.io/biopieces/) |
 |-----------------------------------------|---------|-------------|--------|--------|------------|-----------|
@@ -36,7 +37,7 @@ run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.13) ([script](
 | Reverse complement                      | 2.24s  | 0.79s      | 3.80s |  7.8s | 4min 25s | 1min 11s |
 | [Random subsampling](wiki/sample) (to 10%)   | 0.69s  |             | 1.61s |  2.40s |            |           |
 | [DNA to RNA (T -> U)](wiki/replace)          | 6.35s  | 2.05s      |        | 4.85s  | 4min 59s  | 1min 21s |
-| [Remove short sequences](filter)      | 1.03s |      | 2.29s | 2.41s  |  | 1min 14s |
+| [Remove short sequences](wiki/filter)      | 1.03s |      | 2.29s | 2.41s  |  | 1min 14s |
 | [Summarize GC content](wiki/count)           | 3.60s  |             |        |        |            |           |
 | .. with [math formula](wiki/variables#math-expressions) (GC% / 100)| 3.64s  |        |        |        |            |           |
 | Summarize GC content stored in [attribute](wiki/attributes) | 0.97s  |    |           ||  |  |
@@ -68,9 +69,7 @@ LZ4 can be even faster than uncompressed I/O.
 
 I am grateful for comments and ideas on how to improve the tool and also about
 feedback in general. Commands for sorting, dereplication and for working with
-alignments are partly implemented but not ready. I would also like to add a
-flexible filtering command based on math expressions, however I'm not yet sure
-on which library this should be based.
+alignments are partly implemented but not ready.
 
 Since the tool is quite new, it is possible that there are bugs, even if
 [tests for every command](https://github.com/markschl/seqtool/tree/master/src/test)

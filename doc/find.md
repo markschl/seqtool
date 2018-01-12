@@ -5,7 +5,7 @@ using [the variables](#variables). Occurrences can be replaced.
 
 ### Exact searching
 
-This is the most simple and also the fastest way of searching.
+This is the simplest and also the fastest way of searching.
 In the following example, a pattern
 is searched and only hits matching sequences are returned (`-f`).
 Unmatched sequences are written to a different file.
@@ -24,8 +24,8 @@ Genbank format by using a regex group named 'acc' and replaces the ID with
 this group:
 
 ```bash
-seqtool find -ir 'gi\|\d+\|[a-z]+\|(?P<acc>.+?)\|.*' seqs.fa \
-   --rep '{f:match::acc}' > seqs_accession.fa
+seqtool find -ir "gi\|\d+\|[a-z]+\|(?P<acc>.+?)\|.*" seqs.fa \
+   --rep "{f:match::acc}" > seqs_accession.fa
 ```
 
 Headers like this one: `>gi|1031916024|gb|KU317675.1|` are transformed
@@ -33,7 +33,6 @@ to `>KU317675.`
 
 **Note:** Only ASCII is currently supported, unicode is not recognized
 in regular expressions.
-
 
 ### Approximative searching
 
@@ -49,7 +48,7 @@ Example:
 
 ```bash
 seqtool find -d 4 ATTAGCG seqs.fa \
-     -p hit='{f:range}_(dist:{f:dist})' -p matched ='{m:match}'
+     -a hit="{f:range}_(dist:{f:dist})" -p matched ="{m:match}"
 ```
 
 Possible output:
@@ -81,16 +80,16 @@ the [Rust-Bio](http://rust-bio.github.io/)
 library. This gives the end positions of each hit. To obtain the starting
 positions, a simple semi-global alignment is done.
 
-The runtimes for searching two 5' primers in a [1.1 GB file](performance)
+The runtimes for searching two 5' primers in a [1.1 GB file](../#performance)
 vary depending on the options used.
 
 |                                                         | seqtool     | (4 threads) | cutadapt   |
 |---------------------------------------------------------|-------------|-------------|------------|
-| Find the position of the best hit in the whole sequence | 2min 20s  | 37.0s       |            |
-| Search only in range where primer should occur (--rng) | 52.1s      | 13.5s      | 1min 18s* |
-| Search whole sequence + filter by occurrence only (-f) | 53.0s      | 14.3s      |            |
-| No matching of ambiguous bases (-a no) -> Myers algorithm | 1min 5s   | 16.7s      |            |
-| Find the first hit. Merging overlapping hits makes this slower.  | 5min 14s  | 1min 23s    |            |
+| Search whole sequence + filter by occurrence (-f)       | 53.0s       | 14.3s       |            |
+| Find the position of the best hit in the whole sequence | 2min 20s  | 37.0s         |            |
+| No matching of ambiguous bases (-a no) -> Myers algorithm | 1min 5s   | 16.7s       |            |
+| Find the first hit. Merging overlapping hits makes this slower.  | 5min 14s  | 1min 23s    |     |
+| Search only in range where the primer should occur (--rng) | 52.1s      | 13.5s      | 1min 18s* |
 
 * Actually, cutadapt uses semi-global alignment with penalties for leading gaps,
 which is different from manually restricting the search range.

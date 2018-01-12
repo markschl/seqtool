@@ -26,14 +26,14 @@ impl VarHelp for BuiltinHelp {
             ("num", "Sequence number starting with 1"),
             (
                 "path",
-                "Path to current input file (or '-' if reading from STDIN)",
+                "Path to the current input file (or '-' if reading from STDIN)",
             ),
             (
                 "filename",
-                "Name to current input file with extension (or '-')",
+                "Name of the current input file with extension (or '-')",
             ),
-            ("filestem", "Name to current input file without extension."),
-            ("extension", "File extension"),
+            ("filestem", "Name of the current input file without extension (or '-')"),
+            ("extension", "Extension of the current input file."),
         ])
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {

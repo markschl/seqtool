@@ -59,7 +59,7 @@ seqtool . --to-txt id,seq > output.txt
 [Variables](variables) can also be included:
 
 ```bash
-seqtool . --to-txt 'id,seq,length: {s:seqlen}' input.fa
+seqtool . --to-txt "id,seq,length: {s:seqlen}" input.fa
 ```
 
 returns:

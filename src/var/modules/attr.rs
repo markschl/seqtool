@@ -18,7 +18,7 @@ impl VarHelp for AttrHelp {
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
             (
-                "Summarizing over a attribute in the FASTA header '>id size=3'",
+                "Summarizing over an attribute in the FASTA header '>id size=3'",
                 "seqtool count -k a:size seqs.fa",
             ),
             (

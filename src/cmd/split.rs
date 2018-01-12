@@ -116,8 +116,9 @@ impl VarHelp for CunkVarHelp {
         Some(&[
             (
                 "split:chunk",
-                "Chunk number. With the -n argument, it will increment by one each time\
-                 the size limit <N> is reached. Otherwise, it will always be 1.",
+                "Chunk number starting with 1. With the -n argument, it will \
+                 increment by one each time the size limit <N> is reached. \
+                 Otherwise, it will always be 1.",
             ),
         ])
     }

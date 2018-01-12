@@ -42,7 +42,7 @@ This example creates new files named after the attribute values and saves
 sequences with that value there:
 
 ```bash
-seqtool split -k '{a:attribute}.fa' seqs.fa
+seqtool split -k {a:attribute}.fa seqs.fa
 ```
 
 See individual command descriptions for more examples ([count](count), [split](split),
@@ -53,7 +53,7 @@ See individual command descriptions for more examples ([count](count), [split](s
 
 It is also possible to use other delimiters by specifying `--adelim`. It will be used
 for both setting attributes (`-a`) and parsing them by the use of a variable (`a:name`).
-This is also useful for parsing attributes set by other tools like 
+This is also useful for parsing attributes set by other tools like
 [usearch](htta://drive5.com/usearch/). To replace the `=` delimiter, use
 the `--aval-delim` option. Alternatively, the delimiters can be changed more permanently
 by setting the `SEQTOOL_ATTR_DELIM` and `SEQTOOL_ATTRVAL_DELIM` environment variables.
@@ -76,11 +76,11 @@ SEQUENCE
 Extract cluster ids and sizes into a tab delimited txt file:
 
 ```bash
-seqtool . --to-txt id,a:size --adelim ';' clusters.fa
+seqtool . --to-txt id,a:size --adelim ";" clusters.fa
 
 # equivalent to:
 
-SEQTOOL_ATTR_DELIM=';'
+SEQTOOL_ATTR_DELIM=";"
 seqtool . --to-txt id,a:size clusters.fa
 ```
 

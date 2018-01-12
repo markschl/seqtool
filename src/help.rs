@@ -27,7 +27,7 @@ Output options:
     --to-txt <fields>   TXT output. Short for '--outformat txt --outfields <f>'
 
 Attribute options:
-    -a, --attr <p>      Add an attribute in the form name=value to FASTA/FASTQ
+    -a, --attr <a>      Add an attribute in the form name=value to FASTA/FASTQ
                         headers (multiple '-a key=value' args possible)
     --adelim <delim>    Attribute delimiter inserted before. If not a space,
                         attributes are appended to the ID (default: ' ')

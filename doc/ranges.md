@@ -17,16 +17,15 @@ from end:   -8  -7 <b>-6  -5  -4  -3</b>  -2  -1
 0-based:     0   1  <b>2   3   4   5</b>   6   7
 </pre>
 
-In this example, the following commands will trim output the range printed in bold
-letters.
+All of the following commands will trim to the range shown in bold:
 
 ```bash
 # 1-based positive
-seqtool trim '3..6' seqs.fa
+seqtool trim "3..6" seqs.fa
 
 # 1-based negative
 # space before range and quote necessary
-seqtool trim ' -6..-3' seqs.fa.
+seqtool trim " -6..-3" seqs.fa.
 
 # 0-based
 seqtool trim 2..6 seqs.fa
@@ -34,7 +33,7 @@ seqtool trim 2..6 seqs.fa
 
 **Note**: There is a problem with ranges starting with a negative number
 being interpreted as command line arguments. However, insertion of a
-space before the minus sign like this will work.
+space before the minus sign will work.
 
 
 #### Empty ranges

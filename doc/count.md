@@ -50,7 +50,7 @@ If primers on both ends were searched, it might make sense to use a
 for both primers.
 
 ```bash
-seqtool count -k {a:f_primer} -k {a:r_primer} -k 'n:{{a:f_dist + a:r_dist}}' primer_trimmed.fq.gz
+seqtool count -k {a:f_primer} -k {a:r_primer} -k "n:{{a:f_dist + a:r_dist}}" primer_trimmed.fq.gz
 ```
 ```
 f_primer1	r_primer1	0	3457490
