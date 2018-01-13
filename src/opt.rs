@@ -283,10 +283,10 @@ pub fn path_info<P: AsRef<Path>>(path: &P) -> (Option<&'static str>, Option<Comp
         None => return (None, None),
     };
 
-    let compr = match ext.as_bytes() {
-        b"gz" | b"gzip" => Some(Compression::GZIP),
-        b"bz2" | b"bzip2" => Some(Compression::BZIP2),
-        b"lz4" => Some(Compression::LZ4),
+    let compr = match ext.to_ascii_lowercase().as_str() {
+        "gz" | "gzip" => Some(Compression::GZIP),
+        "bz2" | "bzip2" => Some(Compression::BZIP2),
+        "lz4" => Some(Compression::LZ4),
         _ => None,
     };
 
@@ -298,11 +298,11 @@ pub fn path_info<P: AsRef<Path>>(path: &P) -> (Option<&'static str>, Option<Comp
     let path = if compr.is_some() { stem } else { path };
 
     let fmt = match path.extension().and_then(OsStr::to_str) {
-        Some(ext) => match ext.as_bytes() {
-            b"fastq" | b"fq" => Some("fastq"),
-            b"fasta" | b"fa" | b"fna" | b"fsa" => Some("fasta"),
-            b"csv" => Some("csv"),
-            b"txt" => Some("txt"),
+        Some(ext) => match ext.to_ascii_lowercase().as_str() {
+            "fastq" | "fq" => Some("fastq"),
+            "fasta" | "fa" | "fna" | "fsa" => Some("fasta"),
+            "csv" => Some("csv"),
+            "txt" | "tsv" => Some("txt"),
             _ => {
                 eprintln!("Unknown extension: '{}', assuming FASTA format", ext);
                 None
