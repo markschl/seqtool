@@ -118,10 +118,13 @@ where
     })
 }
 
-pub fn from_kind(kind: &OutputKind) -> io::Result<Box<io::Write>> {
+pub fn from_kind(kind: &OutputKind) -> CliResult<Box<io::Write>> {
     Ok(match *kind {
         OutputKind::Stdout => Box::new(io::BufWriter::new(STDOUT.lock())),
-        OutputKind::File(ref p) => Box::new(io::BufWriter::new(File::create(p)?)),
+        OutputKind::File(ref p) => Box::new(io::BufWriter::new(
+            File::create(p)
+                .map_err(|e| format!("Error creating '{}': {}", p.to_string_lossy(), e))?
+        )),
     })
 }
 

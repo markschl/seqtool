@@ -75,8 +75,9 @@ pub fn get_vars<'a>(o: &VarOpts) -> CliResult<Vars<'a>> {
 
     // lists
     let list_delim = parse_delimiter(o.list_delim)?;
-    for (i, list) in o.lists.iter().enumerate() {
-        let csv_file = File::open(list)?;
+    for (i, &list) in o.lists.iter().enumerate() {
+        let csv_file = File::open(list)
+            .map_err(|e| format!("Error opening '{}': {}", list, e))?;
         if o.unordered {
             let finder = modules::list::Unordered::new();
             vars.add_module(modules::list::ListVars::new(
