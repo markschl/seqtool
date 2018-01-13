@@ -30,7 +30,7 @@ sequence format      | recognized extensions | format string | shortcut (in) | .
 FASTA                |  `.fasta`,`.fa`,`.fna`,`.fsa`| `fasta`       | `--fa`        | `--to-fa`
 FASTQ                |  `.fastq`,`.fq`       | `fastq`       | `--fq`        | `--to-fq`
 CSV (`,` delimited)  |  `.csv`               | `csv`         | `--csv FIELDS`| `--to-csv FIELDS`
-TXT (`tab` delimited)|  `.txt`               | `txt`         | `--txt FIELDS`| `--to-txt FIELDS `
+TXT (`tab` delimited)|  `.txt`,`.tsv`        | `txt`         | `--txt FIELDS`| `--to-txt FIELDS `
 
 **Note:** Multiline FASTA is parsed and written (`--wrap`), but only single-line
 FASTQ is parsed and written.
