@@ -50,7 +50,7 @@ pub fn run() -> CliResult<()> {
 
             cfg.read_sequential_var(&mut vars, |record, vars| {
 
-                let seqlen = record.seq_segments().fold(0, |sum, seq| sum + seq.len());
+                let seqlen = record.seq_len();
 
                 seq.clear();
                 for s in record.seq_segments() {

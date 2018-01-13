@@ -102,7 +102,7 @@ impl VarProvider for StatVars {
         for &(ref stat, id) in &self.stats {
             match *stat {
                 SeqLen => data.symbols
-                    .set_int(id, rec.seq_segments().fold(0, |l, s| l + s.len()) as i64),
+                    .set_int(id, rec.seq_len() as i64),
 
                 GC => {
                     let mut n = 0u64;
