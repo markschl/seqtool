@@ -1,6 +1,6 @@
 [package]
 name = "seqtool"
-version = "0.2.0"
+version = "0.2.3"
 authors = ["<markschl19@gmail.com>"]
 description = "General purpose tool for reading, modifying and writing biological sequences."
 license = "MIT"
@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 docopt = "0.8"
 bio = "0.16"
-seq_io = "0.2.1"
+seq_io = "0.2.2"
 crossbeam = "0.3"
 lazy_static = "1.0"
 regex = "0.2"
@@ -19,7 +19,7 @@ csv = "1.0.0-beta.5"
 itertools = "0.7"
 bit-vec = "0.4"
 vec_map = "0.8"
-rand = "0.3"
+rand = "0.4"
 flate2 = "1.0"
 bzip2 = "0.3"
 lz4 = "1.22"
@@ -31,9 +31,9 @@ meval = "0.1"
 exprtk_rs = { version = "0.0.4", optional = true, features = [
   "comments", "break_continue", "sc_andor", "return_statement",
   "enhanced_features", "superscalar_unroll"
- ]}
-bytecount = "0.2.0"
-clippy = { version = "0.0.175", optional = true }
+ ] }
+bytecount = "0.3"
+clippy = { version = "0.0.179", optional = true }
 
 [dev-dependencies]
 assert_cli = "0.5"
@@ -46,3 +46,4 @@ exprtk = ["exprtk_rs"]
 
 [profile.release]
 lto = true
+#panic = "abort"
