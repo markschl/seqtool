@@ -40,10 +40,10 @@ Search Options:
     -d, --dist <dist>   Approximative string matching with maximum edit distance
                         of <dist> [default: 0]
     --in-order          Report hits in the order of their occurrence instead
-                        of sorting by distance (might be slower because -g yes)
-    -g, --group <yes>   Group hits by starting position (keep only the best one.
+                        of sorting by distance (might be slower because of -g)
+    -g, --group <yn>    Group hits by starting position (keep only the best one.
                         (slower) {yes/no}. default: 'no', unless --in-order is used.
-    -a, --ambig <yes>   Override choice of whether DNA ambiguity codes (IUPAC)
+    --ambig <yn>        Override choice of whether DNA ambiguity codes (IUPAC)
                         are recognized or not {yes/no}.
     --seqtype <type>    Sequence type {dna/protein/other}
     -t, --threads <N>   Number of threads to use [default: 1]
@@ -111,9 +111,9 @@ pub fn run() -> CliResult<()> {
 
     let dist: u16 = args.value("--dist")?;
     let sorted = !args.get_bool("--in-order");
+    let group_pos = args.yes_no("--group")?.unwrap_or_else(|| !sorted);
     let regex = args.get_bool("--regex");
     let ambig = args.yes_no("--ambig")?;
-    let group_pos = args.yes_no("--group")?.unwrap_or_else(|| !sorted);
     let verbose = args.get_bool("--verbose");
 
     let attr = if args.get_bool("--id") {
@@ -136,7 +136,7 @@ pub fn run() -> CliResult<()> {
 
     let pattern = args.get_str("<pattern>");
     let patterns = if !pattern.starts_with("file:") {
-        vec![("".to_string(), pattern.to_string())]
+        vec![("pattern".to_string(), pattern.to_string())]
     } else {
         read_pattern_file(&pattern[5..])?
     };
@@ -203,7 +203,7 @@ pub fn run() -> CliResult<()> {
             if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
                 return fail!(
                     "Match command does nothing. Use -f/-e for filtering, --repl for replacing or \
-                     -p for writing attributes."
+                     -a for writing attributes."
                 );
             }
 
@@ -212,7 +212,7 @@ pub fn run() -> CliResult<()> {
 
             report!(
               verbose,
-              "Sorting by best hit: {:?}, grouping hits by position: {:?}, doing alignments: {:?}",
+              "Sorting by distance: {:?}, grouping hits by position: {:?}, doing alignments: {:?}",
               sorted, group_pos, needs_alignment
             );
 
@@ -240,6 +240,7 @@ pub fn run() -> CliResult<()> {
                 &mut vars,
                 num_threads,
                 || {
+                    // initiate matchers (one per record set)
                     algorithms
                         .iter()
                         .zip(&patterns)
@@ -247,6 +248,7 @@ pub fn run() -> CliResult<()> {
                         .collect::<CliResult<Vec<_>>>()
                 },
                 || {
+                    // initialize per-sequence record data
                     let editor = Box::new(RecordEditor::default());
                     let matches = Box::new(Matches::new(
                         &pattern_names,
@@ -257,11 +259,13 @@ pub fn run() -> CliResult<()> {
                     (editor, matches)
                 },
                 |record, &mut (ref mut editor, ref mut matches), ref mut matchers| {
+                    // searching in worker threads
                     let text = editor.get(attr, &record, false);
                     matches.find(text, matchers);
                     Ok(())
                 },
                 |record, &mut (ref mut editor, ref matches), vars| {
+                    // records returned to main thread
                     if let Some(keep) = filter {
                         if (matches.num_matches() > 0) ^ keep {
                             if let Some(ref mut f) = dropped_file {
@@ -470,7 +474,8 @@ fn get_matcher<'a>(
           Box::new(BytesRegexMatcher::new(pattern, o.has_groups)?),
         Myers =>
           Box::new(MyersMatcher::new(
-            pattern.as_bytes(), o.max_dist as u8, o.needs_alignment, o.sorted, o.group_pos,
+            pattern.as_bytes(), o.max_dist as u8,
+            o.needs_alignment, o.sorted, o.group_pos,
             &align_score_eq
           )?),
         Ukkonen => {
