@@ -47,7 +47,7 @@ pub struct InputOptions {
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum InFormat {
     FASTA,
-    FASTQ(bool),
+    FASTQ,
     CSV(u8, Vec<String>, bool),
 }
 
@@ -55,7 +55,7 @@ impl InFormat {
     pub fn name(&self) -> &'static str {
         match *self {
             InFormat::FASTA => "fasta",
-            InFormat::FASTQ(_) => "fastq",
+            InFormat::FASTQ => "fastq",
             InFormat::CSV(d, _, _) => if d == b'\t' {
                 "txt"
             } else {
@@ -74,8 +74,7 @@ impl InFormat {
 
         let format = match string {
             "fasta" => InFormat::FASTA,
-            "fastq" => InFormat::FASTQ(false),
-            "fastq64" => InFormat::FASTQ(true),
+            "fastq" => InFormat::FASTQ,
             "csv" => InFormat::CSV(
                 util::parse_delimiter(csv_delim.unwrap_or(","))?,
                 csv_fields,
@@ -115,9 +114,12 @@ impl seq_io::BufStrategy for LimitedBufStrategy {
     }
 }
 
-fn get_io_reader<'a>(kind: &'a InputType) -> io::Result<Box<io::Read + Send + 'a>> {
+fn get_io_reader<'a>(kind: &'a InputType) -> CliResult<Box<io::Read + Send + 'a>> {
     Ok(match *kind {
-        InputType::File(ref path) => Box::new(File::open(path)?),
+        InputType::File(ref path) => Box::new(
+            File::open(path)
+                .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?
+        ),
         InputType::Stdin => Box::new(io::stdin()),
     })
 }
@@ -247,7 +249,7 @@ where
             let mut rdr = seq_io::fasta::Reader::with_cap_and_strategy(rdr, cap, strategy);
             run_rdr!(rdr, func)
         }
-        InFormat::FASTQ(_) => {
+        InFormat::FASTQ => {
             let mut rdr = seq_io::fastq::Reader::with_cap_and_strategy(rdr, cap, strategy);
             run_rdr!(rdr, func)
         }
@@ -314,7 +316,7 @@ where
             func,
             work
         )?,
-        InFormat::FASTQ(_) => run_rdr_par!(
+        InFormat::FASTQ => run_rdr_par!(
             seq_io::parallel::parallel_fastq_init,
             n_threads,
             queue_len,
