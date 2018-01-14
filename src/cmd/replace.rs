@@ -2,6 +2,7 @@ use std::borrow::ToOwned;
 use std::str;
 
 use regex;
+use memchr::Memchr;
 
 use lib::twoway_iter::TwowayIter;
 use error::CliResult;
@@ -9,6 +10,7 @@ use opt;
 use io::{SeqAttr, RecordEditor};
 use cfg;
 use lib::util::replace_iter;
+
 
 static USAGE: &'static str = concat!("
 This command does fast search and replace for patterns in sequences
@@ -59,8 +61,13 @@ pub fn run() -> CliResult<()> {
             run_replace(&cfg, attr, replacement, replacer, num_threads)?;
         }
     } else {
-        let replacer = BytesReplacer(pattern.as_bytes().to_owned());
-        run_replace(&cfg, attr, replacement, replacer, num_threads)?;
+        if pattern.len() == 1 {
+            let replacer = SingleByteReplacer(pattern.as_bytes()[0]);
+            run_replace(&cfg, attr, replacement, replacer, num_threads)?;
+        } else {
+            let replacer = BytesReplacer(pattern.as_bytes().to_owned());
+            run_replace(&cfg, attr, replacement, replacer, num_threads)?;
+        }
     }
     Ok(())
 }
@@ -94,6 +101,17 @@ trait Replacer {
     fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()>;
 }
 
+struct SingleByteReplacer(u8);
+
+impl Replacer for SingleByteReplacer {
+    fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
+        let matches = Memchr::new(self.0, text).map(|start| (start, start + 1));
+        replace_iter(text, replacement, out, matches);
+        Ok(())
+    }
+}
+
+
 struct BytesReplacer(Vec<u8>);
 
 impl Replacer for BytesReplacer {
@@ -112,7 +130,7 @@ impl Replacer for BytesRegexReplacer {
             let matches = self.0.find_iter(text).map(|m| (m.start(), m.end()));
             replace_iter(text, replacement, out, matches);
         } else {
-            // slower, requires allocations
+            // requires allocations
             let replaced = self.0.replace_all(text, replacement);
             out.extend_from_slice(&replaced);
         }
@@ -129,7 +147,7 @@ impl Replacer for RegexReplacer {
             let matches = self.0.find_iter(string).map(|m| (m.start(), m.end()));
             replace_iter(text, replacement, out, matches);
         } else {
-            // slower, requires allocations
+            // requires allocations
             let replacement = str::from_utf8(replacement)?;
             let replaced = self.0.replace_all(string, replacement);
             out.extend_from_slice(replaced.as_bytes());

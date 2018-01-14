@@ -35,7 +35,6 @@ impl Writer for NoOutput {
     fn has_vars(&self) -> bool {
         false
     }
-    //fn prepare(&mut self, data: &var::Data) {}
     fn write_simple(&mut self, _: &Record) -> CliResult<()> {
         Ok(())
     }

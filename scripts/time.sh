@@ -33,7 +33,7 @@ time seqkit fq2fa $f > /dev/null
 # random subsampling
 time s sample -f 0.1 $f > /dev/null
 time seqtk sample $f 0.1 > /dev/null
-time seqkit sample -a 0.1 $f > /dev/null
+time seqkit sample -p 0.1 $f > /dev/null
 
 # counting
 time s count $f

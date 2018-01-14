@@ -1,7 +1,7 @@
 use std::io;
 use std::convert::AsRef;
 use std::collections::HashMap;
-use std::borrow::ToOwned;
+use std::borrow::{Cow,ToOwned};
 
 use csv;
 use lib::util::match_fields;
@@ -168,8 +168,17 @@ impl Record for CsvRecord {
         (self.id_bytes(), self.desc_bytes())
     }
 
+    fn get_header(&self) -> SeqHeader {
+        let (id, desc) = self.id_desc_bytes();
+        SeqHeader::IdDesc(id, desc)
+    }
+
     fn raw_seq(&self) -> &[u8] {
         self.data.get(self.cols.seq_col).unwrap_or(b"")
+    }
+
+    fn has_seq_lines(&self) -> bool {
+        false
     }
 
     fn qual(&self) -> Option<&[u8]> {
@@ -180,5 +189,3 @@ impl Record for CsvRecord {
         to.extend_from_slice(self.raw_seq())
     }
 }
-
-// Writer

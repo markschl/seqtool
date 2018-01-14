@@ -56,10 +56,13 @@ fn attrs() {
     cmp_stdout!(&[".", "--to-txt", "a:p"], FASTA, "2\n1\n10\n11\n");
     let fa = ">seq;a=0 b=3\nATGC\n";
     cmp_stdout!(&[".", "--to-txt", "a:b"], fa, "3\n");
+    cmp_stdout!(&[".", "--to-txt", "a:a"], fa, "\"\"");
     cmp_stdout!(&[".", "--to-txt", "a:a", "--adelim", ";"], fa, "0\n");
+    cmp_stdout!(&[".", "--to-txt", "a:b", "--adelim", ";"], fa, "\"\"");
+    cmp_stdout!(&[".", "--to-txt", "id,desc,seq"], fa, "seq;a=0\tb=3\tATGC\n");
     cmp_stdout!(&[".", "-a", "b={a:a}", "--adelim", ";"], fa, ">seq;a=0;b=0 b=3\nATGC\n");
     cmp_stdout!(&[".", "-a", "c={a:b}"], fa, ">seq;a=0 b=3 c=3\nATGC\n");
-    cmp_stdout!(&[".", "-a", "c={a:-b}"], fa, ">seq;a=0 c=3\nATGC\n");
+    //cmp_stdout!(&[".", "-a", "c={a:-b}"], fa, ">seq;a=0 c=3\nATGC\n");
 }
 
 #[test]
@@ -216,28 +219,13 @@ fn del() {
 
 #[test]
 fn replace() {
-    let fa = ">id_123 some desc\nATGC\n";
+    let fa = ">id_123 some desc\nA\nT\nGC\n";
     cmp_stdout!(&["replace", "T", "U"], fa, ">id_123 some desc\nAUGC\n");
-    cmp_stdout!(
-        &["replace", "-r", "[AT]", "?"],
-        fa,
-        ">id_123 some desc\n??GC\n"
-    );
-    cmp_stdout!(
-        &["replace", "-ir", r"_\d{3}", ".."],
-        fa,
-        ">id.. some desc\nATGC\n"
-    );
-    cmp_stdout!(
-        &["replace", "-ir", r"_(\d{3})", "..$1"],
-        fa,
-        ">id..123 some desc\nATGC\n"
-    );
-    cmp_stdout!(
-        &["replace", "-d", "e", "a"],
-        fa,
-        ">id_123 soma dasc\nATGC\n"
-    );
+    cmp_stdout!(&["replace", "ATG", "TGA"], fa, ">id_123 some desc\nTGAC\n");
+    cmp_stdout!(&["replace", "-r", "[AT]", "?"], fa, ">id_123 some desc\n??GC\n");
+    cmp_stdout!(&["replace", "-ir", r"_\d{3}", ".."], fa, ">id.. some desc\nATGC\n");
+    cmp_stdout!(&["replace", "-ir", r"_(\d{3})", "..$1"], fa, ">id..123 some desc\nATGC\n");
+    cmp_stdout!(&["replace", "-d", "e", "a"], fa, ">id_123 soma dasc\nATGC\n");
 }
 
 // split

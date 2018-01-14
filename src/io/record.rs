@@ -1,15 +1,36 @@
 
+use std::io;
+use std::borrow::Cow;
 use std::str::{self, Utf8Error};
 use std::ascii::AsciiExt;
 
 use seq_io::fasta;
 
 pub trait Record {
-    //type SeqSegments: Iterator<Item=&'a [u8]> + 'a;
     fn id_bytes(&self) -> &[u8];
     fn desc_bytes(&self) -> Option<&[u8]>;
     fn raw_seq(&self) -> &[u8];
     fn qual(&self) -> Option<&[u8]>;
+    fn has_seq_lines(&self) -> bool;
+    fn get_header(&self) -> SeqHeader;
+    /// Returns the position of the space delimiter in the FASTA/FASTQ header,
+    /// if already searched (outer option) and present (inner option)
+    /// This option is used by the FastaRecord and FastqRecord wrappers
+    /// in order to cache the position of the ID/description
+    fn delim(&self) -> Option<Option<usize>> {
+        None
+    }
+    /// Sets the position of the space delimiter in the FASTA/FASTQ header
+    /// if it is already known in order to prevent it from being searched again.
+    /// This is used for parallel processing, in case of accessing the ID
+    /// within the worker thread, its position will not have to be searched
+    /// again in the main thread.
+    fn set_delim(&self, _: Option<usize>) {}
+    /// Iterator over sequence lines (for FASTA), or just the sequence (FASTQ/CSV).
+    /// The idea is to prevent allocations and copying, otherwise use `write_seq`
+    fn seq_segments(&self) -> SeqLineIter {
+        SeqLineIter::Other(Some(self.raw_seq()))
+    }
 
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (self.id_bytes(), self.desc_bytes())
@@ -18,17 +39,15 @@ pub trait Record {
     fn id(&self) -> Result<&str, Utf8Error> {
         str::from_utf8(self.id_bytes())
     }
+
     fn desc(&self) -> Option<Result<&str, Utf8Error>> {
         self.desc_bytes().map(str::from_utf8)
     }
+
     fn desc_or<'a>(&'a self, default: &'a str) -> Result<&'a str, Utf8Error> {
         self.desc_bytes()
             .map(str::from_utf8)
             .unwrap_or_else(|| Ok(default))
-    }
-
-    fn seq_segments(&self) -> SeqLineIter {
-        SeqLineIter::Other(Some(self.raw_seq()))
     }
 
     fn seq_len(&self) -> usize {
@@ -41,6 +60,7 @@ pub trait Record {
         }
     }
 
+    /// Writes the contents of the given sequence attribute to out
     fn write_attr(&self, attr: SeqAttr, out: &mut Vec<u8>) {
         match attr {
             SeqAttr::Id => {
@@ -56,13 +76,19 @@ pub trait Record {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum SeqHeader<'a> {
+    IdDesc(&'a [u8], Option<&'a [u8]>),
+    FullHeader(&'a [u8])
+}
+
+
 /// Not to be confused with key=value attributes
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SeqAttr {
     Id,
     Desc,
     Seq,
-    //Qual,
 }
 
 impl SeqAttr {
@@ -74,7 +100,6 @@ impl SeqAttr {
         } else if attr.eq_ignore_ascii_case("seq") {
             SeqAttr::Seq
         }
-        //else if attr.eq_ignore_ascii_case("qual") { SeqAttr::Qual }
         else {
             return None;
         })
@@ -91,17 +116,26 @@ impl<'b, R: Record + ?Sized> Record for &'b R {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (**self).id_desc_bytes()
     }
+    fn delim(&self) -> Option<Option<usize>> {
+        (**self).delim()
+    }
+    fn set_delim(&self, delim: Option<usize>) {
+        (**self).set_delim(delim)
+    }
     fn raw_seq(&self) -> &[u8] {
         (**self).raw_seq()
     }
     fn qual(&self) -> Option<&[u8]> {
         (**self).qual()
     }
-    fn write_seq(&self, to: &mut Vec<u8>) {
-        (**self).write_seq(to)
+    fn has_seq_lines(&self) -> bool {
+        (**self).has_seq_lines()
     }
     fn seq_segments(&self) -> SeqLineIter {
         (**self).seq_segments()
+    }
+    fn get_header(&self) -> SeqHeader {
+        (**self).get_header()
     }
 }
 
@@ -147,13 +181,6 @@ impl<'a, R: Record + 'a> DefRecord<'a, R> {
     }
 }
 
-impl<'a> DefRecord<'a, &'a Record> {
-    pub fn from_rec(inner: &'a Record) -> DefRecord<'a, &'a Record> {
-        let (id, desc) = inner.id_desc_bytes();
-        DefRecord::new(inner, id, desc)
-    }
-}
-
 impl<'b, R: Record> Record for DefRecord<'b, R> {
     fn id_bytes(&self) -> &[u8] {
         self.id
@@ -164,19 +191,29 @@ impl<'b, R: Record> Record for DefRecord<'b, R> {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (self.id, self.desc)
     }
+    fn delim(&self) -> Option<Option<usize>> {
+        self.rec.delim()
+    }
+    fn set_delim(&self, delim: Option<usize>) {
+        self.rec.set_delim(delim)
+    }
+    fn get_header(&self) -> SeqHeader {
+        SeqHeader::IdDesc(self.id, self.desc)
+    }
     fn raw_seq(&self) -> &[u8] {
         self.rec.raw_seq()
     }
+    fn has_seq_lines(&self) -> bool {
+        self.rec.has_seq_lines()
+    }
     fn qual(&self) -> Option<&[u8]> {
         self.rec.qual()
-    }
-    fn write_seq(&self, to: &mut Vec<u8>) {
-        self.rec.write_seq(to)
     }
     fn seq_segments(&self) -> SeqLineIter {
         self.rec.seq_segments()
     }
 }
+
 
 // Wrapper storing sequence/quality data
 
@@ -206,8 +243,20 @@ impl<'b, R: Record> Record for SeqQualRecord<'b, R> {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         self.rec.id_desc_bytes()
     }
+    fn get_header(&self) -> SeqHeader {
+        self.rec.get_header()
+    }
+    fn delim(&self) -> Option<Option<usize>> {
+        self.rec.delim()
+    }
+    fn set_delim(&self, delim: Option<usize>) {
+        self.rec.set_delim(delim)
+    }
     fn raw_seq(&self) -> &[u8] {
         self.seq
+    }
+    fn has_seq_lines(&self) -> bool {
+        self.rec.has_seq_lines()
     }
     fn qual(&self) -> Option<&[u8]> {
         self.qual.or_else(|| self.rec.qual())
@@ -217,15 +266,31 @@ impl<'b, R: Record> Record for SeqQualRecord<'b, R> {
     }
 }
 
-// Wrapper for editing any attribute
+// Wrapper for retrieving and editing record attributes
 
 #[derive(Debug, Default)]
 pub struct RecordEditor {
     id: Option<Vec<u8>>,
     desc: Option<Vec<u8>>,
     seq: Option<Vec<u8>>,
-    seq_cache: Vec<u8>,
-    //qual: Option<Vec<u8>>,
+    seq_cache: SeqCache,
+}
+
+#[derive(Debug, Default)]
+struct SeqCache(Vec<u8>);
+
+impl SeqCache {
+    fn get_seq<'a>(&'a mut self, rec: &'a Record, get_cached: bool) -> &'a [u8] {
+        if rec.has_seq_lines() {
+            if get_cached {
+                self.0.clear();
+            }
+            rec.write_seq(&mut self.0);
+            &self.0
+        } else {
+            rec.raw_seq()
+        }
+    }
 }
 
 impl RecordEditor {
@@ -234,29 +299,16 @@ impl RecordEditor {
             id: None,
             desc: None,
             seq: None,
-            seq_cache: vec![],
+            seq_cache: SeqCache(vec![]),
         }
     }
 
     #[inline]
-    pub fn get<'a>(&'a mut self, attr: SeqAttr, rec: &'a Record, cached: bool) -> &'a [u8] {
+    pub fn get<'a>(&'a mut self, attr: SeqAttr, rec: &'a Record, get_cached: bool) -> &'a [u8] {
         match attr {
             SeqAttr::Id => rec.id_bytes(),
             SeqAttr::Desc => rec.desc_bytes().unwrap_or(b""),
-            SeqAttr::Seq => {
-                if !cached {
-                    self.cache_seq(rec);
-                }
-                &self.seq_cache
-            }
-        }
-    }
-
-    #[inline]
-    fn cache_seq(&mut self, rec: &Record) {
-        self.seq_cache.clear();
-        for seq in rec.seq_segments() {
-            self.seq_cache.extend_from_slice(seq);
+            SeqAttr::Seq => self.seq_cache.get_seq(rec, get_cached)
         }
     }
 
@@ -276,7 +328,7 @@ impl RecordEditor {
         &mut self,
         attr: SeqAttr,
         rec: &Record,
-        cached: bool,
+        get_cached: bool,
         mut func: F,
     ) -> O
     where
@@ -294,14 +346,11 @@ impl RecordEditor {
                 func(rec.desc_bytes().unwrap_or(b""), v)
             }
             SeqAttr::Seq => {
-                if ! cached {
-                    self.cache_seq(rec);
-                }
+                let seq = self.seq_cache.get_seq(rec, get_cached);
                 let v = self.seq.get_or_insert_with(|| vec![]);
                 v.clear();
-                func(&self.seq_cache, v)
+                func(seq, v)
             }
-            //SeqAttr::Qual => &mut self.qual,
         }
     }
 
@@ -327,6 +376,7 @@ impl<'r> Record for EditedRecord<'r> {
             .map(|i| i.as_slice())
             .unwrap_or_else(|| self.rec.id_bytes())
     }
+
     fn desc_bytes(&self) -> Option<&[u8]> {
         self.editor
             .desc
@@ -334,9 +384,25 @@ impl<'r> Record for EditedRecord<'r> {
             .map(|d| Some(d.as_slice()))
             .unwrap_or_else(|| self.rec.desc_bytes())
     }
+
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (self.id_bytes(), self.rec.desc_bytes())
     }
+    fn get_header(&self) -> SeqHeader {
+        if self.editor.id.is_some() || self.editor.desc.is_some() {
+            SeqHeader::IdDesc(self.id_bytes(), self.desc_bytes())
+        } else {
+            self.rec.get_header()
+        }
+    }
+
+    fn delim(&self) -> Option<Option<usize>> {
+        self.rec.delim()
+    }
+    fn set_delim(&self, delim: Option<usize>) {
+        self.rec.set_delim(delim)
+    }
+
     fn raw_seq(&self) -> &[u8] {
         self.editor
             .seq
@@ -344,20 +410,24 @@ impl<'r> Record for EditedRecord<'r> {
             .map(|s| s.as_slice())
             .unwrap_or_else(|| self.rec.raw_seq())
     }
+
+    fn has_seq_lines(&self) -> bool {
+        if self.editor.seq.is_some() {
+            false
+        } else {
+            self.rec.has_seq_lines()
+        }
+    }
+
     fn qual(&self) -> Option<&[u8]> {
         self.rec.qual()
     }
+
     fn seq_segments(&self) -> SeqLineIter {
         self.editor
             .seq
             .as_ref()
             .map(|s| SeqLineIter::Other(Some(s)))
             .unwrap_or_else(|| self.rec.seq_segments())
-    }
-
-    fn write_seq(&self, to: &mut Vec<u8>) {
-        for seq in self.seq_segments() {
-            to.extend_from_slice(seq);
-        }
     }
 }

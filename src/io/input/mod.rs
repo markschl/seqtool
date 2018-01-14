@@ -10,7 +10,7 @@ use lz4;
 
 use error::CliResult;
 use lib::thread_io;
-use super::{csv, Compression, Record, SeqReader};
+use super::{csv, fasta, fastq, Compression, Record, SeqReader};
 use lib::util;
 
 #[allow(dead_code)]
@@ -217,10 +217,12 @@ where
 }
 
 macro_rules! run_rdr {
-    ($rdr:expr, $func:expr) => {
+    ($rdr:expr, $func:expr, $rec:ident, $mod_rec:block) => {
         {
             while let Some(res) = (&mut $rdr).next() {
-                if ! $func(&res?)? {
+                let $rec = res?;
+                let rec = $mod_rec;
+                if ! $func(&rec)? {
                     break;
                 }
             }
@@ -228,6 +230,7 @@ macro_rules! run_rdr {
         }
      };
 }
+
 
 pub fn run_reader<'a, R, F>(
     format: &InFormat,
@@ -247,15 +250,15 @@ where
     match *format {
         InFormat::FASTA => {
             let mut rdr = seq_io::fasta::Reader::with_cap_and_strategy(rdr, cap, strategy);
-            run_rdr!(rdr, func)
+                run_rdr!(rdr, func, rec, {fasta::FastaRecord::new(rec)})
         }
         InFormat::FASTQ => {
             let mut rdr = seq_io::fastq::Reader::with_cap_and_strategy(rdr, cap, strategy);
-            run_rdr!(rdr, func)
+                run_rdr!(rdr, func, rec, {fastq::FastqRecord::new(rec)})
         }
         InFormat::CSV(ref delim, ref fields, has_header) => {
             let mut rdr = csv::CsvReader::new(rdr, *delim, fields, has_header)?;
-            run_rdr!(rdr, func)
+            run_rdr!(rdr, func, rec, {rec})
         }
     }
 }
@@ -282,62 +285,72 @@ where
     F: FnMut(&Record, &mut D, &mut S) -> CliResult<bool>,
 {
     // not very nice, but saves some repetitition
-    macro_rules! run_rdr_par {
-        ($name:path, $nt:expr, $qlen:expr, $rdr_init:expr,
-            $rdinit:expr, $rsinit:expr, $func:expr, $work:expr) => {
+    macro_rules! transform_result {
+        ($res:expr) => {
             {
-                let o: CliResult<_> = $name($nt, $qlen, $rdr_init, $rdinit, $rsinit,
-                    |rec, out, l| $work(&rec as &Record, out, l),
-                    |rec, out, l| {
-                        match $func(&rec as &Record, out, l) {
-                            Ok(res) => if !res {
-                                return Some(Ok(()));
-                            },
-                            Err(e) => return Some(Err(e))
-                        }
-                        None
-                    }
-                );
-                o
+                match $res {
+                    Ok(res) => if !res {
+                        return Some(Ok(()));
+                    },
+                    Err(e) => return Some(Err(e))
+                }
+                None
             }
-         };
+        }
     }
 
     let queue_len = n_threads as usize * 2;
 
-    let out = match *format {
-        InFormat::FASTA => run_rdr_par!(
-            seq_io::parallel::parallel_fasta_init,
-            n_threads,
-            queue_len,
-            || Ok::<_, seq_io::fasta::Error>(seq_io::fasta::Reader::new(rdr)),
-            record_data_init,
-            rset_data_init,
-            func,
-            work
-        )?,
-        InFormat::FASTQ => run_rdr_par!(
-            seq_io::parallel::parallel_fastq_init,
-            n_threads,
-            queue_len,
-            || Ok::<_, seq_io::fastq::Error>(seq_io::fastq::Reader::new(rdr)),
-            record_data_init,
-            rset_data_init,
-            func,
-            work
-        )?,
-        InFormat::CSV(ref delim, ref fields, has_header) => run_rdr_par!(
-            parallel_csv::parallel_csv_init,
-            n_threads,
-            queue_len,
-            || csv::CsvReader::new(rdr, *delim, fields, has_header),
-            record_data_init,
-            rset_data_init,
-            func,
-            work
-        )?,
+    let out: CliResult<Option<CliResult<()>>> = match *format {
+        InFormat::FASTA =>
+            seq_io::parallel::parallel_fasta_init(
+                n_threads, queue_len,
+                || Ok::<_, seq_io::fasta::Error>(seq_io::fasta::Reader::new(rdr)),
+                || record_data_init().map(|d| (d, None)),
+                rset_data_init,
+                |rec, &mut (ref mut d, ref mut delim), s| {
+                    let rec = fasta::FastaRecord::new(rec);
+                    work(&rec as &Record, d, s);
+                    *delim = rec.delim();
+                },
+                |rec, &mut (ref mut d, delim), s| {
+                    let rec = fasta::FastaRecord::new(rec);
+                    if let Some(_d) = delim {
+                        rec.set_delim(_d);
+                    }
+                    transform_result!(func(&rec, d, s))
+                }
+            ),
+        InFormat::FASTQ =>
+            seq_io::parallel::parallel_fastq_init(
+                n_threads, queue_len,
+                || Ok::<_, seq_io::fastq::Error>(seq_io::fastq::Reader::new(rdr)),
+                || record_data_init().map(|d| (d, None)),
+                rset_data_init,
+                |rec, &mut (ref mut d, ref mut delim), s| {
+                    let rec = fastq::FastqRecord::new(rec);
+                    work(&rec as &Record, d, s);
+                    *delim = rec.delim();
+                },
+                |rec, &mut (ref mut d, delim), s| {
+                    let rec = fastq::FastqRecord::new(rec);
+                    if let Some(_d) = delim {
+                        rec.set_delim(_d);
+                    }
+                    transform_result!(func(&rec, d, s))
+                }
+            ),
+        InFormat::CSV(ref delim, ref fields, has_header) =>
+            parallel_csv::parallel_csv_init(
+                n_threads, queue_len,
+                || csv::CsvReader::new(rdr, *delim, fields, has_header),
+                record_data_init,
+                rset_data_init,
+                |rec, d, s| work(&rec as &Record, d, s),
+                |rec, d, s| transform_result!(func(&rec as &Record, d, s))
+            )
     };
-    match out {
+    match out? {
         Some(Err(e)) => Err(e),
         _ => Ok(()),
     }

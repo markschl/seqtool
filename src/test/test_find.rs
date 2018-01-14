@@ -16,19 +16,9 @@ fn find_exact_filter() {
 #[test]
 fn find_replace() {
     let fasta = ">seq_123 desc\nATGC\n";
+    cmp_stdout!(&["find", "GC", "--rep", "??"], fasta, ">seq_123 desc\nAT??\n");
     cmp_stdout!(
-        &["find", "GC", "--rep", "??"],
-        fasta,
-        ">seq_123 desc\nAT??\n"
-    );
-    cmp_stdout!(
-        &[
-            "find",
-            "-ir",
-            r"\w+_(\d+)",
-            "--rep",
-            "new_name_{f:match::1}"
-        ],
+        &["find", "-ir", r"\w+_(\d+)", "--rep", "new_name_{f:match::1}"],
         fasta,
         ">new_name_123 desc\nATGC\n"
     );
@@ -52,12 +42,17 @@ fn find_regex() {
 }
 
 #[test]
+fn find_multiline_seq() {
+    cmp_stdout!(&["find", "-f", "ATGC"], ">id\nAT\nGC\n", ">id\nATGC\n");
+}
+
+#[test]
 fn find_rng() {
     cmp_stdout!(&["find", "-f", "--rng", "..4", "TTGG"], FASTA, select(&[0]));
     cmp_stdout!(&["find", "-f", "--rng", "..3", "TTGG"], FASTA, "");
     cmp_stdout!(&["find", "-f", "--rng", "2..5", "TTGG"], FASTA, "");
     cmp_stdout!(&["find", "-f", "--rng", "2..4", "TGGC"], FASTA, "");
-    //cmp_stdout!(&["find", "-f", "--rng", "\" -4..\"", "GATCA"], FASTA, FASTA);
+    cmp_stdout!(&["find", "-f", "--rng", " -5..", "GATCA"], FASTA, FASTA);
     cmp_stdout!(&["find", "-f", "--rng", "16..-7", "CGAT"], FASTA, FASTA);
 }
 
@@ -70,7 +65,7 @@ fn find_vars() {
     );
     cmp_stdout!(&["find", "CAGG", "--to-csv",
         "id,f:match,f:start,f:end,f:range,f:neg_start,f:neg_end,f:drange,f:neg_drange,f:name,f:dist,f:match:all"], fasta,
-        "seq,CAGG,5,8,5-8,-21,-18,5..8,-21..-18,,0,CAGG\n"
+        "seq,CAGG,5,8,5-8,-21,-18,5..8,-21..-18,pattern,0,CAGG\n"
     );
 }
 
@@ -201,41 +196,18 @@ fn find_ambig() {
     let seq_ambig = "ACRCTGTGGAGNTTTC";
     // TODO: working around Ukkonen bug in rust-bio
     cmp_stdout!(
-        &[
-            "find",
-            "--to-csv",
-            "id,f:range",
-            "--ambig",
-            "yes",
-            &seq_ambig[1..]
-        ],
+        &["find", "--to-csv", "id,f:range", "--ambig", "yes", &seq_ambig[1..]],
         format!(">seq\n{}\n", seq_orig),
         "seq,2-16\n"
     );
     cmp_stdout!(
-        &[
-            "find",
-            "--to-csv",
-            "id,f:range",
-            "--ambig",
-            "yes",
-            &seq_orig[1..]
-        ],
+        &["find", "--to-csv", "id,f:range", "--ambig", "yes", &seq_orig[1..]],
         format!(">seq\n{}\n", seq_ambig),
         "seq,"
     );
     // fuzzy matching however will work
     cmp_stdout!(
-        &[
-            "find",
-            "--to-csv",
-            "id,f:range",
-            "--ambig",
-            "yes",
-            "--dist",
-            "2",
-            &seq_orig[1..]
-        ],
+        &["find", "--to-csv", "id,f:range", "--ambig", "yes", "--dist", "2", &seq_orig[1..]],
         format!(">seq\n{}\n", seq_ambig),
         "seq,2-16\n"
     );

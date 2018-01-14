@@ -4,6 +4,7 @@ use error::CliResult;
 use var;
 
 use super::{Record, SeqWriter, Writer};
+use io::DefRecord;
 
 pub struct AttrWriter<W: SeqWriter> {
     inner: W,
@@ -39,8 +40,7 @@ impl<W: SeqWriter> Writer for AttrWriter<W> {
     }
 
     fn write_simple(&mut self, record: &Record) -> CliResult<()> {
-        self.inner
-            .write(record.id_bytes(), record.desc_bytes(), record)
+        self.inner.write(record)
     }
 
     fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
@@ -56,10 +56,9 @@ impl<W: SeqWriter> Writer for AttrWriter<W> {
             } else {
                 Some(desc_out.as_ref())
             };
-            self.inner.write(id_out, desc, record)
+            self.inner.write(&DefRecord::new(&record, id_out, desc))
         } else {
-            self.inner
-                .write(record.id_bytes(), record.desc_bytes(), record)
+            self.inner.write(record)
         }
     }
 }

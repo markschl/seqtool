@@ -107,9 +107,6 @@ where
         }
         OutFormat::FASTQ(ref attrs) => {
             let writer = fastq::FastqWriter::new(io_writer);
-            // if q64 {
-            //     writer = writer.q64();
-            // }
             Box::new(attr::AttrWriter::new(writer, attrs.clone()))
         }
         OutFormat::CSV(delim, ref fields) => {
