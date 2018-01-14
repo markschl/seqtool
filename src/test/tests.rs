@@ -62,7 +62,7 @@ fn attrs() {
     cmp_stdout!(&[".", "--to-txt", "id,desc,seq"], fa, "seq;a=0\tb=3\tATGC\n");
     cmp_stdout!(&[".", "-a", "b={a:a}", "--adelim", ";"], fa, ">seq;a=0;b=0 b=3\nATGC\n");
     cmp_stdout!(&[".", "-a", "c={a:b}"], fa, ">seq;a=0 b=3 c=3\nATGC\n");
-    //cmp_stdout!(&[".", "-a", "c={a:-b}"], fa, ">seq;a=0 c=3\nATGC\n");
+    cmp_stdout!(&[".", "-a", "c={a:-b}"], fa, ">seq;a=0 c=3\nATGC\n");
 }
 
 #[test]
@@ -213,7 +213,7 @@ fn set() {
 fn del() {
     let fasta = ">seq;p=0 a=1 b=2\nATGC\n";
     cmp_stdout!(&["del", "-d"], fasta, ">seq;p=0\nATGC\n");
-    //cmp_stdout!(&["del", "--attrs", "a,b"], fasta, ">seq;p=0\nATGC\n");
+    cmp_stdout!(&["del", "--attrs", "a,b"], fasta, ">seq;p=0\nATGC\n");
     cmp_stdout!(&["del", "--adelim", ";", "--attrs", "p"], fasta, ">seq a=1 b=2\nATGC\n");
 }
 
@@ -233,7 +233,7 @@ fn replace() {
 #[test]
 fn split_n() {
     for size in 1..5 {
-        let tmp_dir = ::std::env::temp_dir(); //  tempdir::TempDir::new("split_test").expect("Could not create temporary directory");
+        let tmp_dir = ::std::env::temp_dir();
         let key = tmp_dir.join("f_{split:chunk}.{default_ext}");
 
         run!(&["split", "-n", &format!("{}", size), "-pk", &key.to_string_lossy()], FASTA)
@@ -322,5 +322,5 @@ fn filter() {
     let fa = ">id\nSEQ\n>id2 a=20\nSEQ\n>id3 a=\nSEQ";
     cmp_stdout_expr!(&["filter", "def(a:a) and a:a >= 20", "--to-txt", "id"], fa, "id2\n");
     cmp_stdout_expr!(&["filter", "a:a >= 20", "--to-txt", "id"], fa, "id2\n");
-    //cmp_stdout_expr!(&["filter", ".id like 'id*'", "--to-txt", "id"], fa, "id\nid2\nid3\n");
+    cmp_stdout_expr!(&["filter", ".id like 'id*'", "--to-txt", "id"], fa, "id\nid2\nid3\n");
 }
