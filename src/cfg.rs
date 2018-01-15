@@ -110,7 +110,6 @@ impl<'a> Config<'a> {
         input::io_readers(&self.input_opts, |in_opts, rdr| {
             vars.new_input(in_opts)?;
             input::run_reader(&in_opts.format, rdr, in_opts.cap, in_opts.max_mem, |rec| {
-                let rec = DefRecord::from_rec(rec);
                 vars.set_record(&rec)?;
                 func(&rec, vars)
             })

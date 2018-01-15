@@ -154,7 +154,7 @@ impl Attrs {
         let mut delim_before = delim_before;
         for &id in ids {
             let d = self.parser.data().get(id).unwrap();
-            assert!(d.pos.is_none());
+            debug_assert!(d.pos.is_none());
             if delim_before {
                 new_text.push(self.attr_delim);
             } else {

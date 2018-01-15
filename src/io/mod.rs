@@ -7,7 +7,7 @@ pub trait SeqReader {
 }
 
 pub trait SeqWriter {
-    fn write(&mut self, id: &[u8], desc: Option<&[u8]>, record: &Record) -> CliResult<()>;
+    fn write(&mut self, record: &Record) -> CliResult<()>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
@@ -17,6 +17,11 @@ pub enum Compression {
     LZ4,
 }
 
+// macro_rules! record_wrapper {
+//     ($name:ident, $fmt:expr) => (
+//
+//     );
+// }
 mod record;
 pub mod fasta;
 pub mod fastq;
