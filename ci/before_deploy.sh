@@ -17,8 +17,8 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
-    cross rustc --bin seqtool --target $TARGET --release --features=exprtk -- -C lto
-    strip -x target/$TARGET/release/seqtool
+    cross rustc --bin seqtool --target $TARGET --release --features=exprtk -- -C lto -C panic=abort
+    strip target/$TARGET/release/seqtool
 
     cp target/$TARGET/release/seqtool $stage/
 
