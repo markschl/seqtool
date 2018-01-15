@@ -11,8 +11,8 @@ seq2=$3
 alias s=target/release/seqtool
 
 # prepare
-# s . -p gc={s:gc} $f > $f.with_gc.fq
-# gzip -k $f
+# s . -a gc={s:gc} $f > $f.with_gc.fq
+# #gzip -k $f
 # lz4 -k $f
 
 # get files into memory cache
@@ -33,7 +33,7 @@ time seqkit fq2fa $f > /dev/null
 # random subsampling
 time s sample -f 0.1 $f > /dev/null
 time seqtk sample $f 0.1 > /dev/null
-time seqkit sample -p 0.1 $f > /dev/null
+time seqkit sample -a 0.1 $f > /dev/null
 
 # counting
 time s count $f
@@ -92,18 +92,19 @@ time read_fasta -i $f | grab -e 'SEQ_LEN >= 100' | write_fasta -x > /dev/null
 printf ">primer1\n$seq1\n>primer2\n$seq2\n" > _primer_file.fa
 fp=_primer_file.fa
 
-time s find file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 -t4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 --in-order file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 --in-order -t4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 --rng ..25 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 --rng ..25 -t4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 file:$fp $f > /dev/null
-time s find -d4 -t4 file:$fp $f > /dev/null
-time s find -d4 --algo ukkonen file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 --algo ukkonen -t4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 --algo myers file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
-time s find -d4 --algo myers -t4 file:$fp $f -p primer={f:name} -p start={f:start} -p end={f:end} -p dist={f:dist} > /dev/null
+time s find file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 --in-order file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 --in-order -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 --rng ..25 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 --rng ..25 -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -fd4 file:$fp $f > /dev/null
+time s find -fd4 -t4 file:$fp $f > /dev/null
+time s find -d4 --algo ukkonen file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 --algo ukkonen -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 --algo myers file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+time s find -d4 --algo myers -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
 
-time cutadapt -g primer1=^$seq1 -g primer2=^$seq2 $f -e 0.23 -y ' primer={name}' | s count --fq
+time cutadapt -g primer1=^$seq1 -g primer2=^$seq2 $f -e 0.23 -y ' primer={name}' > /dev/null
+time cutadapt -g primer1=^$seq1 -g primer2=^$seq2 $f -e 0.23 -y ' primer={name}' -j4 > /dev/null

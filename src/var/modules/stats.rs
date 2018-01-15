@@ -102,27 +102,10 @@ impl VarProvider for StatVars {
         for &(ref stat, id) in &self.stats {
             match *stat {
                 SeqLen => data.symbols
-                    .set_int(id, rec.seq_segments().fold(0, |l, s| l + s.len()) as i64),
+                    .set_int(id, rec.seq_len() as i64),
 
-                GC => {
-                    let mut n = 0u64;
-                    let mut gc = 0u64;
-                    for seq in rec.seq_segments() {
-                        for b in seq {
-                            match *b {
-                                b'C' | b'G' => {
-                                    n += 1;
-                                    gc += 1;
-                                }
-                                b'A' | b'T' | b'U' => {
-                                    n += 1;
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    data.symbols.set_float(id, gc as f64 / n as f64 * 100.)
-                }
+                GC => data.symbols
+                    .set_float(id, get_gc(rec.seq_segments()) * 100.),
 
                 UngappedLen => {
                     let n = rec.seq_segments()
@@ -158,4 +141,25 @@ impl VarProvider for StatVars {
         }
         Ok(())
     }
+}
+
+
+fn get_gc<'a, I>(seqs: I) -> f64 where I: Iterator<Item=&'a [u8]> {
+    let mut n = 0u64;
+    let mut gc = 0u64;
+    for seq in seqs {
+        for b in seq {
+            match *b {
+                b'C' | b'G' => {
+                    n += 1;
+                    gc += 1;
+                }
+                b'A' | b'T' | b'U' => {
+                    n += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    gc as f64 / n as f64
 }
