@@ -1,6 +1,6 @@
 [package]
 name = "seqtool"
-version = "0.2.3"
+version = "0.2.1"
 authors = ["<markschl19@gmail.com>"]
 description = "General purpose tool for reading, modifying and writing biological sequences."
 license = "MIT"
@@ -46,4 +46,4 @@ exprtk = ["exprtk_rs"]
 
 [profile.release]
 lto = true
-#panic = "abort"
+panic = "abort" # ~ 10% faster
