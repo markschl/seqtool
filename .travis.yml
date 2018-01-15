@@ -14,6 +14,8 @@ matrix:
   include:
     - env: TARGET=i686-unknown-linux-gnu
     - env: TARGET=x86_64-unknown-linux-gnu
+    - env: TARGET=i686-unknown-linux-musl
+    - env: TARGET=x86_64-unknown-linux-musl
     - env: TARGET=i686-apple-darwin
       os: osx
     - env: TARGET=x86_64-apple-darwin
