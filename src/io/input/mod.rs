@@ -7,9 +7,10 @@ use seq_io;
 use flate2::read::GzDecoder;
 use bzip2::read::BzDecoder;
 use lz4;
+use zstd;
 
 use error::CliResult;
-use lib::thread_io;
+use thread_io;
 use super::{csv, fasta, fastq, Compression, Record, SeqReader};
 use lib::util;
 
@@ -40,7 +41,7 @@ pub struct InputOptions {
     pub threaded: bool,
     pub qfile: Option<PathBuf>,
     pub cap: usize,
-    pub thread_bufsize: usize,
+    pub thread_bufsize: Option<usize>,
     pub max_mem: usize,
 }
 
@@ -132,9 +133,10 @@ where
     R: io::Read + Send + 'a,
 {
     Ok(match compression {
-        Compression::GZIP => Box::new(GzDecoder::new(rdr)),
+        Compression::GZIP  => Box::new(GzDecoder::new(rdr)),
         Compression::BZIP2 => Box::new(BzDecoder::new(rdr)),
-        Compression::LZ4 => Box::new(lz4::Decoder::new(rdr)?),
+        Compression::LZ4  => Box::new(lz4::Decoder::new(rdr)?),
+        Compression::ZSTD => Box::new(zstd::Decoder::new(rdr)?),
     })
 }
 
@@ -144,7 +146,7 @@ fn io_reader<F, O>(
     kind: &InputType,
     compression: Option<Compression>,
     threaded: bool,
-    thread_bufsize: usize,
+    thread_bufsize: Option<usize>,
     func: F,
 ) -> CliResult<O>
 where
@@ -153,10 +155,17 @@ where
     let mut rdr = get_io_reader(kind)?;
     if compression.is_some() || threaded {
         // read in different thread
-        if let Some(compr) = compression {
-            rdr = get_compr_reader(rdr, compr)?;
-        }
-        thread_io::read::reader(thread_bufsize, 2, rdr, |r| func(Box::new(r))).unwrap()
+        let thread_bufsize =
+            if let Some(compr) = compression {
+                rdr = get_compr_reader(rdr, compr)?;
+                thread_bufsize.unwrap_or(compr.best_read_bufsize())
+            } else {
+                thread_bufsize.unwrap_or(1 << 22)
+            };
+        thread_io::read::reader(
+            thread_bufsize,
+             2, rdr, |r| func(Box::new(r))
+         )
     } else {
         func(rdr)
     }

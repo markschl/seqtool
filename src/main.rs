@@ -18,6 +18,7 @@ extern crate lazy_static;
 extern crate memchr;
 #[macro_use]
 extern crate seq_io;
+extern crate thread_io;
 extern crate vec_map;
 
 // used by specific commands
@@ -34,6 +35,7 @@ extern crate twoway;
 extern crate bzip2;
 extern crate flate2;
 extern crate lz4;
+extern crate zstd;
 
 use std::process;
 use self::error::*;

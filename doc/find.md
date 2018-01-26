@@ -122,7 +122,7 @@ seqtool find -d6 file:f_primers.fa seqs.fa \
     -p second_best={f:name.2}_({f:dist.2}) > primer_search.fa
 ```
 
-Exmaple output:
+Example output:
 
 ```
 >seq1 f_primer=primer2 f_dist=1 second_best=primer1_(5)
@@ -148,8 +148,8 @@ used to report only those hits.
 ### Replace matches
 
 Hits can be replaced by other text. Variables are allowed
-as well (in contrast to the *replace* command). It is possible
-Backreferences to regex groups (e.g. `$1`) are not supported like the _replace_
+as well (in contrast to the *replace* command). Backreferences to regex groups 
+(e.g. `$1`) are not supported like the _replace_
 command does. Instead, they can be accessed using variables
 (`<variable>::<group>`)
 

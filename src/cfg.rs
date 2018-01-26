@@ -219,7 +219,7 @@ impl<'a> Config<'a> {
         o.kind = output::OutputKind::File(path.into());
         let mut io_writer = output::from_kind(&o.kind)?;
         if let Some(compr) = o.compression {
-            io_writer = output::compr_writer(io_writer, compr)?;
+            io_writer = output::compr_writer(io_writer, compr, o.compression_level)?;
         }
         let mut w = output::from_format(io_writer, &o.format)?;
         if let Some(v) = vars {

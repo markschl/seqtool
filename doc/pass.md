@@ -42,6 +42,7 @@ format       | recognized extensions | format string (FASTA)
 GZIP         |  `.gzip`,`.gz`        | `fasta.gz`
 BZIP2        |  `.bzip2`,`.bz2`      | `fasta.bz2`
 LZ4          |  `.lz4`               | `fasta.lz4`
+ZSTD         |  `.zst`               | `fasta.zst`
 
 #### CSV / TXT files
 

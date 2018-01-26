@@ -16,8 +16,11 @@ use io::output::{OutFormat, OutputKind, OutputOptions};
 use io::Compression;
 use lib::util;
 use lib::bytesize::parse_bytesize;
+use lib::inner_result::MapRes;
+
 
 pub struct Args(docopt::ArgvMap);
+
 
 impl Args {
     pub fn new(usage: &str) -> Result<Args, docopt::Error> {
@@ -70,10 +73,12 @@ impl Args {
         };
 
         let mut input: Vec<InputOptions> = vec![];
-        let cap = parse_bytesize(self.0.get_str("--buf-cap"))?.floor() as usize;
-        let max_mem = parse_bytesize(self.0.get_str("--max-mem"))?.floor() as usize;
+        let cap = parse_bytesize(self.get_str("--buf-cap"))?.floor() as usize;
+        let max_mem = parse_bytesize(self.get_str("--max-mem"))?.floor() as usize;
         let threaded_rdr = self.get_bool("--read-thread");
-        let thread_bufsize = parse_bytesize(self.0.get_str("--read-tbufsize"))? as usize;
+        let thread_bufsize = self.opt_str("--read-tbufsize")
+            .map_res(|s| parse_bytesize(s))?
+            .map(|s| s as usize);
 
         for path in paths {
             let opts = if &*path == "-" {
@@ -145,7 +150,10 @@ impl Args {
         let wrap_fasta = wrap_fasta;
         let csv_delim = self.opt_str("--out-delim").or(delim);
         let csv_fields = fields.unwrap_or_else(|| self.0.get_str("--outfields"));
-        let thread_bufsize = parse_bytesize(self.0.get_str("--write-tbufsize"))? as usize;
+        let thread_bufsize = self.opt_str("--write-tbufsize")
+            .map_res(|s| parse_bytesize(s))?
+            .map(|s| s as usize);
+        let compr_level = self.opt_value("--compr-level")?;
 
         let (arg_fmt, arg_compr) = self.opt_str("--outformat").or(fmt)
             .map(|fmt| {
@@ -167,8 +175,9 @@ impl Args {
                         wrap_fasta,
                         csv_delim,
                         csv_fields,
-                    ).unwrap(),
+                    )?,
                     compression: arg_compr,
+                    compression_level: compr_level,
                     threaded: threaded,
                     thread_bufsize: thread_bufsize,
                 }
@@ -185,8 +194,9 @@ impl Args {
                         wrap_fasta,
                         csv_delim,
                         csv_fields,
-                    ).unwrap(),
+                    )?,
                     compression: arg_compr.or(compr),
+                    compression_level: compr_level,
                     threaded: threaded,
                     thread_bufsize: thread_bufsize,
                 }
@@ -287,6 +297,7 @@ pub fn path_info<P: AsRef<Path>>(path: &P) -> (Option<&'static str>, Option<Comp
         "gz" | "gzip" => Some(Compression::GZIP),
         "bz2" | "bzip2" => Some(Compression::BZIP2),
         "lz4" => Some(Compression::LZ4),
+        "zst" => Some(Compression::ZSTD),
         _ => None,
     };
 
@@ -364,19 +375,11 @@ pub fn parse_format_str(string: &str) -> CliResult<(String, Option<Compression>)
     let (ext, compr) = if parts.len() == 1 {
         (parts[0].to_string(), None)
     } else {
-        let compr = match parts[1] {
-            "gz" => Compression::GZIP,
-            "bz2" => Compression::BZIP2,
-            "lz4" => Compression::LZ4,
-            #[cfg(feature = "lzma")]
-            "7z" | "xz" => Compression::LZMA,
-            _ => {
-                return Err(CliError::Other(format!(
-                    "Unknown compression format: '{}'. Valid formats are gz, bz2, lz4, 7z",
-                    parts[1]
-                )))
-            }
-        };
+        let compr = Compression::from_str(parts[1]).ok_or_else(||
+            format!(
+                "Unknown compression format: '{}'. Valid formats are gz, bz2, lz4, 7z",
+                parts[1]
+            ))?;
         (parts[0].to_string(), Some(compr))
     };
 

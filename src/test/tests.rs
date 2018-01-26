@@ -12,6 +12,7 @@ use super::*;
 
 // To debug/reproduce: `echo "<input>" | tr '\\n' '\n' | cargo run ... | cat -e`
 
+
 #[test]
 fn pass() {
     cmp_stdout!(&["pass"], FASTA, FASTA);
@@ -48,6 +49,31 @@ fn pass_other() {
         &[".", "--txt", "id,seq", "--to-fq"],
         txt,
         "Qualities missing"
+    );
+}
+
+#[test]
+fn pipe() {
+    assert_eq!(&piped!(&["."], FASTA, &["."]), &FASTA as &str);
+}
+
+#[test]
+fn compress() {
+    assert_eq!(&piped!(
+        &[".", "--outformat", "fasta.gz", "--compr-level", "9"], FASTA,
+        &[".", "--format", "fasta.gz"]), &FASTA as &str
+    );
+    assert_eq!(&piped!(
+        &[".", "--outformat", "fasta.bz2", "--compr-level", "9"], FASTA,
+        &[".", "--format", "fasta.bz2"]), &FASTA as &str
+    );
+    assert_eq!(&piped!(
+        &[".", "--outformat", "fasta.lz4", "--compr-level", "9"], FASTA,
+        &[".", "--format", "fasta.lz4"]), &FASTA as &str
+    );
+    assert_eq!(&piped!(
+        &[".", "--outformat", "fasta.zst", "--compr-level", "9"], FASTA,
+        &[".", "--format", "fasta.zst"]), &FASTA as &str
     );
 }
 

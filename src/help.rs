@@ -25,6 +25,8 @@ Output options:
     --to-fq             FASTQ output. Short for: '--outformat fastq'
     --to-csv <fields>   CSV output. Short for '--outformat csv --outfields <f>'
     --to-txt <fields>   TXT output. Short for '--outformat txt --outfields <f>'
+    --compr-level <l>   Level for compressed output. 1-9 for GZIP/BZIP2 and
+                        1-21 for ZSTANDARD
 
 Attribute options:
     -a, --attr <a>      Add an attribute in the form name=value to FASTA/FASTQ
@@ -53,8 +55,8 @@ Advanced Options:
                         [default: 1G]
     --read-thread       Read from a different thread. Enabled with compressed input.
     --write-thread      Write in a different thread. Enabled with compressed output.
-    --read-tbufsize S   Buffer size of threaded reader [default: 4M].
-    --write-tbufsize S  Buffer size of threaded reader [default: 4M].
+    --read-tbufsize S   Buffer size of threaded reader (default: automatically determined)
+    --write-tbufsize S  Buffer size of threaded reader (default: automatically determined)
 ")}
 
 
