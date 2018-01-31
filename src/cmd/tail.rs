@@ -31,8 +31,7 @@ pub fn run() -> CliResult<()> {
 
     cfg.writer(|writer, mut vars| {
         // first count the sequences
-        // There is no infrastructure for jumping in and starting a read anywhere
-        // in the file...
+        // TODO: maybe support .fai files and use them?
 
         let mut n = 0;
 
@@ -46,7 +45,7 @@ pub fn run() -> CliResult<()> {
 
         cfg.read_sequential_var(&mut vars, |record, vars| {
             i += 1;
-            if i >= select_from {
+            if i > select_from {
                 writer.write(&record, vars)?;
             }
             Ok(true)
