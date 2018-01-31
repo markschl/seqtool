@@ -29,8 +29,8 @@ test_script:
   - if [%APPVEYOR_REPO_TAG%]==[false] (
       cargo build --features=exprtk --target %TARGET% &&
       cargo run --features=exprtk --target %TARGET%
+      cargo test --features=exprtk --target %TARGET%
     )
-      #cargo test --features=exprtk --target %TARGET% 
 
 before_deploy:
   - cargo rustc --features=exprtk --target %TARGET% --release --bin seqtool -- -C lto -C panic=abort
