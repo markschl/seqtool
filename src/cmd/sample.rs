@@ -42,7 +42,7 @@ pub fn run() -> CliResult<()> {
                 sample_n(&cfg, n_rand, thread_rng(), writer, &mut vars)
             }
         } else if let Some(p) = args.opt_value::<f32>("--frac")? {
-            if p > 1. {
+            if p < 0. || p > 1. {
                 return fail!("Fractions should be between 0 and 1");
             }
             if let Some(s) = seed {
@@ -114,9 +114,8 @@ fn sample_prob<R: Rng>(
     writer: &mut Writer,
     mut vars: &mut Vars,
 ) -> CliResult<()> {
-    if prob < 0. || prob > 1. {
-        return fail!("Invalid probability: {}, must be between 0 and 1");
-    }
+
+    assert!(prob >= 0. && prob <= 1.);
 
     cfg.read_sequential_var(&mut vars, |record, vars| {
         if rng.gen::<f32>() < prob {
