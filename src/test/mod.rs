@@ -1,58 +1,160 @@
+
 extern crate tempdir;
+extern crate assert_cli;
 
 #[allow(unused_imports)]
 use std::io::{Read,Write};
 use std::process::{Command,Stdio};
+use std::env;
+use std::fs::File;
+use std::convert::AsRef;
+use std::path::{PathBuf,Path};
+use assert_cli::Assert;
 
-macro_rules! run {
-    ($args:expr, $input:expr) => {
-        Assert::main_binary().with_args($args)
-            .stdin($input.as_ref())
-     };
+
+trait Input {
+    fn set(&self, a: Assert) -> Assert;
 }
 
-macro_rules! cmp_stdout {
-    ($args:expr, $input:expr, $cmp:expr) => {
-        run!($args, $input).stdout().is($cmp.as_ref()).unwrap();
-     };
+impl<T> Input for T where T: AsRef<str> {
+    fn set(&self, a: Assert) -> Assert {
+        a.stdin(self.as_ref())
+    }
 }
 
-macro_rules! fails {
-    ($args:expr, $input:expr, $msg:expr) => {
-        Assert::main_binary().with_args($args)
-            .stdin($input.as_ref())
+struct FileInput<'a>(&'a str);
+
+impl<'a> Input for FileInput<'a> {
+    fn set(&self, a: Assert) -> Assert {
+        a.with_args(&[self.0])
+    }
+}
+
+
+struct Tester {
+    root: PathBuf,
+    bin: PathBuf
+}
+
+impl Tester {
+    fn new() -> Tester {
+        let mut a = Assert::command(&["cargo", "run"]);
+        if cfg!(feature="exprtk") {
+            a = a.with_args(&["--features=exprtk"]);
+        }
+        a.succeeds().execute().unwrap();
+
+        // then return the path
+        let root = Self::root();
+
+        let name = "seqtool";
+        let name = if cfg!(windows) {
+                format!("{}.exe", name)
+            } else {
+                name.to_string()
+            };
+
+        Tester {
+            bin: root.join(name),
+            root: root,
+        }
+    }
+
+    fn root() -> PathBuf {
+        // from BurntSushi's xsv test code
+        let mut root = env::current_exe()
+            .unwrap()
+            .parent()
+            .expect("executable's directory")
+            .to_path_buf();
+
+        if root.ends_with("deps") {
+            root.pop();
+        }
+        root
+    }
+
+    fn temp_dir<F, O>(&self, prefix: &str, mut f: F) -> O
+        where F: FnMut(&mut tempdir::TempDir) -> O
+    {
+        let mut d = tempdir::TempDir::new_in(&self.root, prefix).expect("Could not create temp. dir");
+        let out = f(&mut d);
+        d.close().unwrap();
+        out
+    }
+
+    fn temp_file<F, O>(&self, name: &str, mut func: F) -> O
+        where F: FnMut(&Path, &mut File) -> O
+    {
+        self.temp_dir("test", |d| {
+            let p = d.path().join(name);
+            let mut f = File::create(&p).expect("Error creating file");
+            func(&p, &mut f)
+        })
+    }
+
+    fn cmd<I: Input>(&self, args: &[&str], input: I) -> Assert {
+        let a = Assert::command(&[self.bin.to_str().unwrap()])
+            .with_args(args);
+        input.set(a)
+    }
+
+    fn cmp<I: Input>(&self, args: &[&str], input: I, expected: &str) -> &Self {
+        self.cmd(args, input)
+            .stdout().is(expected)
+            .execute().unwrap();
+        self
+    }
+
+    fn succeeds<I: Input>(&self, args: &[&str], input: I) -> &Self {
+        self.cmd(args, input)
+            .succeeds()
+            .execute().unwrap();
+        self
+    }
+
+    fn fails<I: Input>(&self, args: &[&str], input: I, msg: &str) -> &Self {
+        self.cmd(args, input)
             .fails()
-            .stderr().contains($msg.as_ref()).unwrap();
-     };
-}
+            .stderr().contains(msg)
+            .execute().unwrap();
+        self
+    }
 
-macro_rules! piped {
-    ($args1:expr, $input:expr, $args2:expr) => {{
-        let p1 = Command::new("cargo")
-            .args(["run", "-q", "--"].into_iter().chain($args1))
+    fn pipe(&self, args1: &[&str], input: &str, args2: &[&str], expected_out: &str) -> &Self {
+        let p1 = Command::new(&self.bin)
+            .args(args1)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
             .expect("could not run 1");
-        p1.stdin.unwrap().write($input.as_bytes()).expect("write error");
+        p1.stdin.unwrap().write(input.as_bytes()).expect("write error");
 
-        let p2 = Command::new("cargo")
-            .args(["run", "-q", "--"].into_iter().chain($args2))
+        let p2 = Command::new(&self.bin)
+            .args(args2)
             .stdin(p1.stdout.unwrap())
             .output()
             .expect("could not run 2");
 
-        String::from_utf8_lossy(&p2.stdout).to_string()
-    }};
+        assert_eq!(&String::from_utf8_lossy(&p2.stdout), expected_out);
+
+        self
+    }
 }
 
+fn fasta_record(seq: &str) -> String {
+    format!(">seq \n{}\n", seq)
+}
 
-static _SEQS: [&'static str; 4] = [
+// used by many tests:
+
+static SEQS: [&'static str; 4] = [
     ">seq1 p=2\nTTGGCAGGCCAAGGCCGATGGATCA\n",
     ">seq0 p=1\nCTGGCAGGCC-AGGCCGATGGATCA\n",
     ">seq3 p=10\nCAGGCAGGCC-AGGCCGATGGATCA\n",
     ">seq2 p=11\nACGG-AGGCC-AGGCCGATGGATCA\n",
 ];
+
 
 // id	desc	seq
 // seq1	p=2	    TTGGCAGGCCAAGGCCGATGGATCA	(0)
@@ -60,22 +162,37 @@ static _SEQS: [&'static str; 4] = [
 // seq3	p=10	CAGGCAGGCC-AGGCCGATGGATCA	(2)
 // seq2	p=11	ACGG-AGGCC-AGGCCGATGGATCA	(3)
 
+
 lazy_static! {
+    static ref __FASTA_STRING: String = SEQS.concat();
     #[derive(Eq, PartialEq, Debug)]
-    static ref FASTA: String = SEQS.concat();
-    static ref SEQS: Vec<&'static str> = _SEQS.to_vec();
+    static ref FASTA: &'static str = &__FASTA_STRING;
 }
 
-fn select(seqs: &[usize]) -> String {
+fn select_fasta(seqs: &[usize]) -> String {
     seqs.into_iter()
-        .map(|i| _SEQS[*i])
+        .map(|i| SEQS[*i])
         .collect::<Vec<_>>()
         .concat()
 }
 
-fn fasta_record(seq: &str) -> String {
-    format!(">seq \n{}\n", seq)
-}
 
-mod tests;
-mod test_find;
+mod pass;
+mod count;
+mod slice;
+mod sample;
+mod head;
+mod tail;
+mod trim;
+mod set;
+mod del;
+mod replace;
+mod find;
+mod split;
+mod upper;
+mod lower;
+mod mask;
+mod revcomp;
+mod stat;
+#[cfg(feature = "exprtk")]
+mod filter;
