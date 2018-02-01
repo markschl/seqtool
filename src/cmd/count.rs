@@ -12,7 +12,7 @@ use var::varstring;
 use fxhash::FxHashMap;
 
 static USAGE: &'static str = concat!("
-This command counts the number of sequences and prints the number to STDOUT. Advanced 
+This command counts the number of sequences and prints the number to STDOUT. Advanced
 grouping of sequences is possible by supplying or more key strings containing
 variables (-k).
 
@@ -86,12 +86,16 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
             {
                 if let Some(&(int, _)) = interval.as_ref() {
                     if let Some(v) = key.get_float(vars.symbols())? {
-                        let v = v / int as f64;
-                        let f = v.floor();
-                        if v != f {
-                            *is_different = true;
+                        if !v.is_nan() {
+                            let v = v / int as f64;
+                            let f = v.floor();
+                            if v != f {
+                                *is_different = true;
+                            }
+                            *cat = Category::Num(f as i64);
+                        } else {
+                            *cat = Category::NaN;
                         }
-                        *cat = Category::Num(f as i64);
                     } else {
                         *cat = Category::NA;
                     }
@@ -143,6 +147,7 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
                             write!(field, "{0:.1$}", n as f64 * int, precision)?;
                         }
                     },
+                    Category::NaN => field.push_str("NaN"),
                     Category::NA => field.push_str("N/A")
                 }
             }
@@ -184,5 +189,6 @@ fn parse_key(
 enum Category<T: Debug> {
     Text(T),
     Num(i64),
+    NaN,
     NA
 }
