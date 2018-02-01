@@ -66,10 +66,21 @@ impl<R: io::Read> CsvReader<R> {
                 })
                 .unzip();
 
-            let idx: Result<Vec<_>, _> = columns.iter().map(|c| c.parse::<usize>()).collect();
+            let idx: Result<Vec<_>, _> = columns
+                .iter()
+                .map(|c| c.parse::<usize>())
+                .collect();
 
-            let indices: Vec<usize> = match idx {
-                Ok(i) => i,
+            let indices: CliResult<Vec<usize>> = match idx {
+                Ok(indices) => {
+                    indices.into_iter().map(|i|
+                        if i == 0 {
+                            fail!("List column numbers should be > 1")
+                        } else {
+                            Ok(i - 1)
+                        }
+                    ).collect()
+                }
                 Err(_) => {
                     // need to look up the indices
                     if !has_header {
@@ -77,10 +88,10 @@ impl<R: io::Read> CsvReader<R> {
                     }
                     let header: Vec<_> = rdr.headers()?.iter().collect();
                     match_fields(&columns, &header)
-                        .map_err(|f| format!("Did not find '{}' in header.", f))?
+                        .map_err(|f| format!("Did not find '{}' in header.", f).into())
                 }
             };
-            seq_names.into_iter().zip(indices).collect()
+            seq_names.into_iter().zip(indices?).collect()
         };
 
         Ok(CsvReader {
