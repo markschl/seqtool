@@ -13,3 +13,21 @@ fn filter() {
         .cmp(&["filter", "a:a >= 20", "--to-txt", "id"], fa, "id2\n")
         .cmp(&["filter", ".id like 'id*'", "--to-txt", "id"], fa, "id\nid2\nid3\n");
 }
+
+#[test]
+fn drop_file() {
+    let t = Tester::new();
+    t.temp_dir("find_drop", |d| {
+        let out = d.path().join("dropped.fa");
+        let out_path = out.to_str().expect("invalid path");
+
+        let fa = ">id1\nSEQ\n>id2\nOTHER";
+        t.cmp(&["filter", ".seq != 'SEQ'", "-a", "i={num}", "--dropped", out_path], fa, ">id2 i=2\nOTHER\n");
+
+        let mut f = File::open(out_path).expect("File not there");
+        let mut s = String::new();
+        f.read_to_string(&mut s).unwrap();
+
+        assert_eq!(&s, ">id1 i=1\nSEQ\n");
+    })
+}

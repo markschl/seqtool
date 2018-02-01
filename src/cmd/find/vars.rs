@@ -110,10 +110,9 @@ impl FindVars {
 
     /// returns: (name, positions, pattern_rank)
     /// where positions = Some(hit_index, group_index) or None if all hits were requested
-    pub fn parse_code<'a>(
-        &self,
-        code: &'a str,
-    ) -> CliResult<(&'a str, Option<usize>, usize, usize)> {
+    pub fn parse_code<'a>(&self, code: &'a str)
+        -> CliResult<(&'a str, Option<usize>, usize, usize)>
+    {
         let mut parts: Vec<&str> = code.splitn(2, ':').collect();
 
         let mut name = parts.remove(0);
@@ -215,45 +214,40 @@ impl FindVars {
                         _ => unreachable!(),
                     }
                     continue;
-                } else {
-                    // important: reset previous value
-                    symbols.set_none(var_id);
                 }
             } else {
-                    // list of all matches requested
-                {
-                    let out = symbols.mut_text(var_id);
+                // list of all matches requested
+                let out = symbols.mut_text(var_id);
 
-                    let mut n = 0;
-                    for maybe_m in matches.matches_iter(pattern_rank, group) {
-                        if let Some(m) = maybe_m {
-                            n += 1;
-                            match *var {
-                                Start => write!(out, "{}", m.start + 1)?,
-                                End => write!(out, "{}", m.end)?,
-                                NegStart => write!(out, "{}", m.neg_start1(rec.seq_len()))?,
-                                NegEnd => write!(out, "{}", m.neg_end1(rec.seq_len()))?,
-                                Dist => write!(out, "{}", m.dist)?,
-                                Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
-                                NegRange(ref delim) => write!(
-                                    out, "{}{}{}",
-                                    m.neg_start1(rec.seq_len()), delim, m.neg_end1(rec.seq_len())
-                                )?,
-                                Match => out.extend_from_slice(&text[m.start..m.end]),
-                                _ => unreachable!(),
-                            }
-                            out.push(b',');
+                let mut n = 0;
+                for maybe_m in matches.matches_iter(pattern_rank, group) {
+                    if let Some(m) = maybe_m {
+                        n += 1;
+                        match *var {
+                            Start => write!(out, "{}", m.start + 1)?,
+                            End => write!(out, "{}", m.end)?,
+                            NegStart => write!(out, "{}", m.neg_start1(rec.seq_len()))?,
+                            NegEnd => write!(out, "{}", m.neg_end1(rec.seq_len()))?,
+                            Dist => write!(out, "{}", m.dist)?,
+                            Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
+                            NegRange(ref delim) => write!(
+                                out, "{}{}{}",
+                                m.neg_start1(rec.seq_len()), delim, m.neg_end1(rec.seq_len())
+                            )?,
+                            Match => out.extend_from_slice(&text[m.start..m.end]),
+                            _ => unreachable!(),
                         }
-                    }
-                    if n > 0 {
-                        // remove last comma
-                        out.pop();
-                        continue;
+                        out.push(b',');
                     }
                 }
-                // nothing found
-                symbols.set_none(var_id);
+                if n > 0 {
+                    // remove last comma
+                    out.pop();
+                    continue;
+                }
             }
+            // important: reset previous value if nothing was found
+            symbols.set_none(var_id);
         }
         Ok(())
     }

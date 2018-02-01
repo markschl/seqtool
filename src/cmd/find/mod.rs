@@ -229,7 +229,7 @@ pub fn run() -> CliResult<()> {
             let (pattern_names, patterns): (Vec<_>, Vec<_>) = patterns.into_iter().unzip();
 
             let mut dropped_file = if let Some(f) = dropped_file.as_ref() {
-                Some(cfg.other_writer(f, None, None)?)
+                Some(cfg.other_writer(f, Some(&mut vars), Some(&mut match_vars))?)
             } else {
                 None
             };
@@ -266,15 +266,6 @@ pub fn run() -> CliResult<()> {
                 },
                 |record, &mut (ref mut editor, ref matches), vars| {
                     // records returned to main thread
-                    if let Some(keep) = filter {
-                        if (matches.num_matches() > 0) ^ keep {
-                            if let Some(ref mut f) = dropped_file {
-                                f.write(&record, vars)?;
-                            }
-                            return Ok(true);
-                        }
-                    }
-
                     if let Some(rep) = replacement.as_ref() {
                         editor.edit_with_val(attr, &record, true, |text, out| {
                             match_vars.set_with(
@@ -300,6 +291,17 @@ pub fn run() -> CliResult<()> {
                         match_vars.set_with(record, matches, &mut vars.mut_data().symbols, text)?;
                     }
 
+                    // keep / exclude
+                    if let Some(keep) = filter {
+                        if (matches.num_matches() > 0) ^ keep {
+                            if let Some(ref mut f) = dropped_file {
+                                f.write(&record, vars)?;
+                            }
+                            return Ok(true);
+                        }
+                    }
+
+                    // write non-excluded to output
                     writer.write(&editor.rec(&record), vars)?;
                     Ok(true)
                 },

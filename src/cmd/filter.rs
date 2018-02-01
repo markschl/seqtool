@@ -28,11 +28,11 @@ pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
     let cfg = cfg::Config::from_args(&args)?;
     let expr = args.get_str("<expression>");
-    let mut dropped_file = args.opt_str("--dropped")
-        .map_res(|s| cfg.other_writer(s, None, None))?;
+    let dropped_file = args.opt_str("--dropped");
 
     cfg.writer(|writer, mut vars| {
         let expr_id = vars.build(|b| b.register_with_prefix(Some("expr_"), expr))?;
+        let mut dropped_file = dropped_file.map_res(|s| cfg.other_writer(s, Some(&mut vars), None))?;
 
         cfg.read_sequential_var(&mut vars, |record, vars| {
 
