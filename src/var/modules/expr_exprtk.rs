@@ -145,7 +145,15 @@ impl VarProvider for ExprVars {
         }
 
         // expression
-        let (expr, expr_vars) = Expression::with_vars(&expr_string, symbols)?;
+        let (expr, expr_vars) = Expression::with_vars(&expr_string, symbols)
+            .map_err(|e| {
+                if e.message.to_lowercase().contains("invalid string operation") {
+                    // make error message more clear
+                    return "Invalid string operation in math expression. Is it possible that there \
+                    are string variables without the '.' prefix (.variable)?".to_string();
+                }
+                format!("{}", e)
+            })?;
         let mut var_ids = vec![];
         for (name, expr_var_id) in expr_vars {
             let orig_name = replacements.get(&name).unwrap_or(&name);
