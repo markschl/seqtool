@@ -8,7 +8,7 @@ use std::process::{Command,Stdio};
 use std::env;
 use std::fs::File;
 use std::convert::AsRef;
-use std::path::{PathBuf,Path};
+use std::path::PathBuf;
 use assert_cli::Assert;
 
 
@@ -83,13 +83,17 @@ impl Tester {
         out
     }
 
-    fn temp_file<F, O>(&self, name: &str, mut func: F) -> O
-        where F: FnMut(&Path, &mut File) -> O
+    fn temp_file<F, O>(&self, name: &str, content: Option<&str>, mut func: F) -> O
+        where F: FnMut(&str, &mut File) -> O
     {
         self.temp_dir("test", |d| {
             let p = d.path().join(name);
             let mut f = File::create(&p).expect("Error creating file");
-            func(&p, &mut f)
+            if let Some(c) = content {
+                f.write_all(c.as_bytes()).unwrap();
+                f.flush().unwrap();
+            }
+            func(p.to_str().expect("invalid path name"), &mut f)
         })
     }
 

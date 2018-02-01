@@ -5,7 +5,7 @@ use seq_io::fasta;
 use super::*;
 
 #[test]
-fn find_exact_filter() {
+fn exact_filter() {
     Tester::new()
         // filter
         .cmp(&["find", "-f", "GGCAGGCC"], *FASTA, &select_fasta(&[0, 1, 2]))
@@ -14,7 +14,7 @@ fn find_exact_filter() {
 }
 
 #[test]
-fn find_replace() {
+fn replace() {
     let fasta = ">seq_123 desc\nATGC\n";
     Tester::new()
         .cmp(&["find", "GC", "--rep", "??"], fasta, ">seq_123 desc\nAT??\n")
@@ -31,27 +31,45 @@ fn find_replace() {
 }
 
 #[test]
-fn find_id_desc() {
+fn id_desc() {
     Tester::new()
         .cmp(&["find", "-if", "seq1"], *FASTA, &select_fasta(&[0]))
         .cmp(&["find", "--desc", "-f", "p="], *FASTA, &FASTA);
 }
 
 #[test]
-fn find_regex() {
+fn regex() {
     Tester::new()
         .cmp(&["find", "--desc", "-rf", r"p=\d$"], *FASTA, &select_fasta(&[0, 1]))
         .cmp(&["find", "-rf", "C[AT]GGCAGG"], *FASTA, &select_fasta(&[1, 2]));
 }
 
 #[test]
-fn find_multiline_seq() {
+fn multiline_seq() {
     Tester::new()
         .cmp(&["find", "-f", "ATGC"], ">id\nAT\nGC\n", ">id\nATGC\n");
 }
 
 #[test]
-fn find_rng() {
+fn drop_file() {
+    let t = Tester::new();
+    let fa = ">seq1\nSEQ1\n>seq2\nSEQ2\n>seq3\nSEQ3\n";
+    t.temp_dir("find_drop", |d| {
+        let out = d.path().join("dropped.fa");
+        let out_path = out.to_str().expect("invalid path");
+
+        t.cmp(&["find", "-f", "2", "-a", "m={f:range}", "--dropped", out_path], fa,
+                ">seq2 m=4-4\nSEQ2\n");
+
+        let mut f = File::open(out_path).expect("File not there");
+        let mut s = String::new();
+        f.read_to_string(&mut s).unwrap();
+        assert_eq!(&s, ">seq1 m=\nSEQ1\n>seq3 m=\nSEQ3\n");
+    })
+}
+
+#[test]
+fn rng() {
     Tester::new()
         .cmp(&["find", "-f", "--rng", "..4", "TTGG"], *FASTA, &select_fasta(&[0]))
         .cmp(&["find", "-f", "--rng", "..3", "TTGG"], *FASTA, "")
@@ -62,7 +80,7 @@ fn find_rng() {
 }
 
 #[test]
-fn find_vars() {
+fn vars() {
     let fasta = ">seq\nTTGGCAGGCCAAGGCCGATGGATCA\n";
     Tester::new()
         .cmp(&["find", "-r", "C[GC](A[AT])", "--to-txt",
@@ -76,7 +94,7 @@ fn find_vars() {
 }
 
 #[test]
-fn find_fuzzy() {
+fn fuzzy() {
     // compare seqtool output with equivalent code using rust-bio functions directly
 
     let seq = "GCACCGTGGATGAGCGCCATAG";
@@ -125,7 +143,7 @@ fn find_fuzzy() {
 
 // this code is equivalent to what seqtool should do
 // 1. find end positions up to edit distance of 'dist'
-// 2. SW alignment for finding the start position
+// 2. NW alignment for finding the start position
 fn fuzzy_find(pattern: &[u8], text: &[u8], max_dist: usize) -> Vec<(usize, usize, usize)> {
     use bio::pattern_matching::ukkonen;
     use bio::alignment::pairwise;
@@ -170,7 +188,7 @@ fn fuzzy_find(pattern: &[u8], text: &[u8], max_dist: usize) -> Vec<(usize, usize
 }
 
 #[test]
-fn find_ambig() {
+fn ambig() {
     let seq = "AACACACTGTGGAGTTTTCAT";
     //                    R        N
     let subseq = "ACRCTGTGGAGNTTTC";
@@ -212,7 +230,7 @@ fn find_ambig() {
 }
 
 #[test]
-fn find_threaded() {
+fn threaded() {
     for t in 1..4 {
         let mut cap = 3;
         while cap < t * FASTA.len() {
@@ -236,7 +254,7 @@ fn find_threaded() {
 }
 
 #[test]
-fn find_multiple() {
+fn multiple() {
     let seq = "AACACACTGTGGAGTTTTCGA";
     let patterns = &[
         b"ACACACTGTGGAGTTTTCGA", // p0: 0 mismatches at end
@@ -249,8 +267,8 @@ fn find_multiple() {
 
     let t = Tester::new();
 
-    t.temp_file("patterns.fa", |p, f| {
-        let patt_path = format!("file:{}", p.to_str().unwrap());
+    t.temp_file("patterns.fa", None, |p, f| {
+        let patt_path = format!("file:{}", p);
 
         for (i, p) in patterns.into_iter().enumerate() {
             fasta::write_parts(f, format!("p{}", i).as_bytes(), None, *p as &[u8]).unwrap();

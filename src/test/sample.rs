@@ -8,11 +8,7 @@ use super::*;
 fn sample() {
     let t = Tester::new();
 
-    t.temp_file("sample", |p, f| {
-        let path = p.to_str().unwrap();
-        f.write_all(FASTA.as_bytes()).unwrap();
-        f.flush().unwrap();
-
+    t.temp_file("sample", Some(*FASTA), |path, _| {
         t.cmp(&["sample", "-n", "4"], FileInput(path), &FASTA)
          .cmp(&["sample", "-n", "0"], FileInput(path), "\n")
          .fails(&["sample", "-f", "2"], FileInput(path), "Fractions should be between 0 and 1")
