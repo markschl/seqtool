@@ -75,26 +75,37 @@ Additional speedups can be achieved by [restricting the search range](#restrict_
 #### Algorithms and performance
 
 The procedure involves searching for all hits up to the given edit distance
-([Ukkonen, 1985](https://doi.org/10.1016/0196-6774(85)90023-9) or an accelerated version by [Myers](https://doi.org/10.1145/316542.316550)), implemented in
+([Ukkonen, 1985](https://doi.org/10.1016/0196-6774(85)90023-9) or an accelerated
+version by [Myers](https://doi.org/10.1145/316542.316550)), implemented in
 the [Rust-Bio](http://rust-bio.github.io/)
 library. This gives the end positions of each hit. To obtain the starting
 positions, a simple semi-global alignment is done.
 
-The runtimes for searching two 5' primers in a [1.1 GB file](../#performance)
-vary depending on the options used.
+The runtimes for searching two reverse primers with up to 4 mismatches (`-d 4`)
+in a [1.2 GB file](https://github.com/markschl/seqtool#performance)
+vary depending on the options used. One primer had ambiguities, the other didn't.
+This results in two different algorithms being used (Myers for primer without
+ambiguities and Ukkonen for degenerated primer) unless `-a no` is used or the
+algorithm is explicitly specified (`--algo <name>`).
 
-|                                                         | seqtool     | (4 threads) | cutadapt   |
-|---------------------------------------------------------|-------------|-------------|------------|
-| Search whole sequence + filter by occurrence (-f)       | 53.0s       | 14.3s       |            |
-| Find the position of the best hit in the whole sequence | 2min 20s  | 37.0s         |            |
-| No matching of ambiguous bases (-a no) -> Myers algorithm | 1min 5s   | 16.7s       |            |
-| Find the first hit. Merging overlapping hits makes this slower.  | 5min 14s  | 1min 23s    |     |
-| Search only in range where the primer should occur (--rng) | 52.1s      | 13.5s      | 1min 18s* |
+|                                                         | 1 thread    | 4 threads   |
+|---------------------------------------------------------|-------------|-------------|
+| Search whole sequence + filter by occurrence (`-f`)     | 1min 15s    | 20.5s       |
+| Find the position of the best hit                       | 2min 14s    | 35.3s       |
+| Position of best hit in range where the primer should occur (`--rng`)| 1min 6s | 17.4s|
+| Position without matching of ambiguous bases (`-a no`)  | 1min 49s    | 29.1s       |
+| Report hits in order<sup>1</sup>                        | 6min 32s    | 1min 45s    |
+| [cutadapt](https://github.com/marcelm/cutadapt)<sup>2</sup>| 1min 47s| 32.3s        |
 
-* Actually, cutadapt uses semi-global alignment with penalties for leading gaps,
-which is different from manually restricting the search range.
+<sup>1</sup> `--in-order` option. Overlapping hits with the same starting
+position are merged (unless `-g no`), which requires many alignments and makes
+searching slower.
 
-**Note:** Ukkonen matching currently has a [bug](https://github.com/rust-bio/rust-bio/issues/117): matches starting at position 0 reports a wrong distance (dist + 1).
+<sup>2</sup> Cutadapt uses semi-global alignment with penalties for
+leading/trailing gaps.
+
+**Note:** Ukkonen matching currently has a [bug](https://github.com/rust-bio/rust-bio/issues/117):
+matches starting at position 0 reports a wrong distance (dist + 1).
 Until fixed, make sure to set `-d` high enough, and this should not be a problem.
 
 
@@ -148,7 +159,7 @@ used to report only those hits.
 ### Replace matches
 
 Hits can be replaced by other text. Variables are allowed
-as well (in contrast to the *replace* command). Backreferences to regex groups 
+as well (in contrast to the *replace* command). Backreferences to regex groups
 (e.g. `$1`) are not supported like the _replace_
 command does. Instead, they can be accessed using variables
 (`<variable>::<group>`)
