@@ -53,7 +53,7 @@ Advanced Options:
     --buf-cap <size>    Initial capacity of internal reader buffer [default: 68K]
     --max-mem <size>    Buffer size limit. Larger sequences will cause an error.
                         [default: 1G]
-    --read-thread       Read from a different thread. Enabled with compressed input.
+    -T, --read-thread   Read from a different thread. Enabled with compressed input.
     --write-thread      Write in a different thread. Enabled with compressed output.
     --read-tbufsize S   Buffer size of threaded reader (default: automatically determined)
     --write-tbufsize S  Buffer size of threaded reader (default: automatically determined)

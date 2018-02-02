@@ -25,3 +25,9 @@ fn fasta_io() {
 fn pipe() {
     Tester::new().pipe(&["."], &FASTA, &["."], &FASTA);
 }
+
+#[test]
+fn thread_io() {
+    Tester::new()
+        .cmp(&[".", "-T", "--write-thread"], *FASTA, &FASTA);
+}
