@@ -91,7 +91,7 @@ impl<W: io::Write> FastaWriter<W> {
 }
 
 
-impl<W: io::Write> SeqWriter for FastaWriter<W> {
+impl<W: io::Write> output::SeqWriter<W> for FastaWriter<W> {
     fn write(&mut self, record: &Record) -> CliResult<()> {
         match record.get_header() {
             SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.io_writer, id, desc)?,
@@ -103,5 +103,9 @@ impl<W: io::Write> SeqWriter for FastaWriter<W> {
             fasta::write_seq_iter(&mut self.io_writer, record.seq_segments())?;
         }
         Ok(())
+    }
+
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
+        Some(Ok(self.io_writer))
     }
 }

@@ -7,7 +7,7 @@ use opt;
 use error::CliResult;
 use lib::inner_result::MapRes;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config<'a> {
     pub input_opts: Vec<input::InputOptions>,
     pub output_opts: Option<output::OutputOptions>,
@@ -29,6 +29,7 @@ impl<'a> Config<'a> {
 
     pub fn new(args: &'a opt::Args, custom_help: Option<&var::VarHelp>) -> CliResult<Config<'a>> {
         let input_opts = args.get_input_opts()?;
+
         let out_opts = args.get_output_opts(Some(&input_opts[0].format))?;
 
         let var_opts = args.get_env_opts()?;
@@ -58,7 +59,7 @@ impl<'a> Config<'a> {
 
     pub fn writer<F, O>(&self, func: F) -> CliResult<O>
     where
-        F: FnOnce(&mut output::Writer, var::Vars) -> CliResult<O>,
+        F: FnOnce(&mut output::Writer<&mut io::Write>, var::Vars) -> CliResult<O>,
     {
         output::writer(self.output_opts.as_ref(), |writer| {
             let mut vars = self.vars()?;
@@ -69,7 +70,7 @@ impl<'a> Config<'a> {
 
     pub fn writer_with<F, O, I, V>(&self, init: I, func: F) -> CliResult<O>
     where
-        F: FnOnce(&mut output::Writer, var::Vars, V) -> CliResult<O>,
+        F: FnOnce(&mut output::Writer<&mut io::Write>, var::Vars, V) -> CliResult<O>,
         I: FnOnce(&mut var::Vars) -> CliResult<V>,
         V: var::VarProvider,
     {
@@ -211,16 +212,16 @@ impl<'a> Config<'a> {
         path: &str,
         vars: Option<&mut var::Vars>,
         other_mod: Option<&mut var::VarProvider>,
-    ) -> CliResult<Box<output::Writer + 'c>> {
+    )
+    -> CliResult<Box<output::Writer<Box<output::WriteFinish>> + 'c>>
+    {
         let mut o = self.output_opts
             .as_ref()
             .cloned()
             .unwrap_or_else(Default::default);
         o.kind = output::OutputKind::File(path.into());
-        let mut io_writer = output::from_kind(&o.kind)?;
-        if let Some(compr) = o.compression {
-            io_writer = output::compr_writer(io_writer, compr, o.compression_level)?;
-        }
+        let io_writer = output::io_writer_from_kind(&o.kind)?;
+        let io_writer = output::compr_writer(io_writer, o.compression, o.compression_level)?;
         let mut w = output::from_format(io_writer, &o.format)?;
         if let Some(v) = vars {
             v.build_with(other_mod, |b| w.register_vars(b))?;

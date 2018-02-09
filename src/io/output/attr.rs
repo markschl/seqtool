@@ -1,30 +1,35 @@
+
+use std::io;
+use std::marker::PhantomData;
 use vec_map::VecMap;
 
 use error::CliResult;
 use var;
 
-use super::{Record, SeqWriter, Writer};
+use super::{Record, SeqWriter, Writer, WriteFinish};
 use io::DefRecord;
 
-pub struct AttrWriter<W: SeqWriter> {
-    inner: W,
+pub struct AttrWriter<W: io::Write, S: SeqWriter<W>> {
+    inner: S,
     attrs: Vec<(String, String)>, // used only until 'register_vars' called
     compiled_attrs: VecMap<var::varstring::VarString>,
     temp: (Vec<u8>, Vec<u8>),
+    _w: PhantomData<W>,
 }
 
-impl<W: SeqWriter> AttrWriter<W> {
-    pub fn new(writer: W, attrs: Vec<(String, String)>) -> AttrWriter<W> {
+impl<W: io::Write, S: SeqWriter<W>> AttrWriter<W, S> {
+    pub fn new(writer: S, attrs: Vec<(String, String)>) -> AttrWriter<W, S> {
         AttrWriter {
             inner: writer,
             attrs: attrs,
             compiled_attrs: VecMap::new(),
             temp: (vec![], vec![]),
+            _w: PhantomData
         }
     }
 }
 
-impl<W: SeqWriter> Writer for AttrWriter<W> {
+impl<W: io::Write, S: SeqWriter<W>> Writer<W> for AttrWriter<W, S> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()> {
         for &(ref name, ref value) in &self.attrs {
             let e = var::varstring::VarString::parse_register(value, builder)?;
@@ -60,5 +65,9 @@ impl<W: SeqWriter> Writer for AttrWriter<W> {
         } else {
             self.inner.write(record)
         }
+    }
+
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
+        Box::new(self.inner).into_inner()
     }
 }

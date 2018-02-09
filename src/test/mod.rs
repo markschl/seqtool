@@ -22,11 +22,21 @@ impl<T> Input for T where T: AsRef<str> {
     }
 }
 
+#[derive(Debug, Clone)]
 struct FileInput<'a>(&'a str);
 
 impl<'a> Input for FileInput<'a> {
     fn set(&self, a: Assert) -> Assert {
         a.with_args(&[self.0])
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MultiFileInput(Vec<String>);
+
+impl Input for MultiFileInput {
+    fn set(&self, a: Assert) -> Assert {
+        a.with_args(&self.0.iter().map(|s| s.as_str()).collect::<Vec<_>>())
     }
 }
 
@@ -182,6 +192,8 @@ fn select_fasta(seqs: &[usize]) -> String {
 
 
 mod pass;
+mod compress;
+mod convert;
 mod count;
 mod slice;
 mod sample;

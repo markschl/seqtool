@@ -3,15 +3,18 @@ use std::fs::create_dir_all;
 
 use fxhash::FxHashMap;
 
-use error::CliResult;
+use error::{CliError, CliResult};
 use opt;
 use cfg;
 use var::{symbols, varstring, VarHelp, VarProvider, VarStore};
-use io::output::Writer;
+use lib::inner_result::MapRes;
+use io::output::{Writer, WriteFinish};
+
 
 pub static USAGE: &'static str = concat!("
 This command distributes sequences into multiple files based on different
-criteria.
+criteria. In contrast to other commands, the output (-o) argument can
+contain variables in order to determine the file path for each sequence.
 
 Usage:
     seqtool split [options][-a <attr>...][-l <list>...] [<input>...]
@@ -21,9 +24,8 @@ Usage:
 Options:
     -n, --num-seqs <N>  Split into chunks of <N> sequences and writes them to
                         'f_{split:chunk}.{default_ext}'. This is actually a
-                        variable string which can be changed using -k/--key.
-    -k, --key <key>     Any key/path which can contain variables.
-    -p, --parents       Automatically create all parent directories found in -k
+                        variable string which can be changed using -o/--output.
+    -p, --parents       Automatically create all parent directories found in -o
 
 ", common_opts!());
 
@@ -33,16 +35,16 @@ pub fn run() -> CliResult<()> {
     let cfg = cfg::Config::from_args_with_help(&args, &CunkVarHelp)?;
 
     let n = args.opt_value("--num-seqs")?;
-    let key = args.opt_str("--key");
+    let out = args.opt_str("--output");
     let parents = args.get_bool("--parents");
     let verbose = args.get_bool("--verbose");
 
     let (key, limit) = if let Some(n) = n {
-        (key.unwrap_or("f_{split:chunk}.{default_ext}"), n)
-    } else if let Some(key) = key {
+        (out.unwrap_or("f_{split:chunk}.{default_ext}"), n)
+    } else if let Some(key) = out {
         (key, 0)
     } else {
-        return fail!("The split command requires either '-n' or '-k'.");
+        return fail!("The split command requires either '-n' or '-o'.");
     };
 
     let mut vars = cfg.vars()?;
@@ -51,7 +53,7 @@ pub fn run() -> CliResult<()> {
         varstring::VarString::var_or_composed(key, b)
     })?;
 
-    let mut outfiles: FxHashMap<_, Box<Writer>> = FxHashMap::default();
+    let mut outfiles: FxHashMap<_, Box<Writer<_>>> = FxHashMap::default();
     let mut path = vec![];
 
     cfg.read_sequential_var(&mut vars, |record, mut vars| {
@@ -100,7 +102,16 @@ pub fn run() -> CliResult<()> {
         let writer = outfiles.get_mut(&path).unwrap();
         writer.write(&record, vars)?;
         Ok(true)
-    })
+    })?;
+
+    // file handles from Config::other_writer() have to be finished
+    for (_, f) in outfiles {
+        f.into_inner()
+         .map_res(|w| Ok::<_, CliError>(
+             w?.finish()?.flush()?
+         ))?;
+    }
+    Ok(())
 }
 
 pub struct CunkVarHelp;

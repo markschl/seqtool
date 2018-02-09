@@ -10,7 +10,7 @@ use zstd;
 use error::{CliError, CliResult};
 use thread_io;
 
-use super::{fasta, fastq, Compression, Record, SeqWriter};
+use super::{fasta, fastq, Compression, Record};
 
 pub use self::writer::*;
 
@@ -22,11 +22,18 @@ lazy_static! {
     static ref STDOUT: io::Stdout = io::stdout();
 }
 
+
+pub trait SeqWriter<W: io::Write> {
+    fn write(&mut self, record: &Record) -> CliResult<()>;
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>>;
+}
+
+
 #[derive(Clone, Debug)]
 pub struct OutputOptions {
     pub kind: OutputKind,
     pub format: OutFormat,
-    pub compression: Option<Compression>,
+    pub compression: Compression,
     pub compression_level: Option<u8>,
     pub threaded: bool,
     pub thread_bufsize: Option<usize>,
@@ -37,7 +44,7 @@ impl Default for OutputOptions {
         OutputOptions {
             kind: OutputKind::Stdout,
             format: OutFormat::FASTA(vec![], None),
-            compression: None,
+            compression: Compression::None,
             compression_level: None,
             threaded: false,
             thread_bufsize: None,
@@ -112,9 +119,9 @@ impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
 
 
 
-pub fn writer<F, O>(opts: Option<&OutputOptions>, func: F) -> CliResult<O>
+pub fn writer<'a, 'b, F, O>(opts: Option<&OutputOptions>, func: F) -> CliResult<O>
 where
-    F: FnOnce(&mut Writer) -> CliResult<O>,
+    F: FnOnce(&mut Writer<&mut io::Write>) -> CliResult<O>,
 {
     if let Some(o) = opts {
         io_writer_compr(&o.kind, o.compression, o.compression_level, o.threaded, o.thread_bufsize,
@@ -141,7 +148,7 @@ where
     }
 }
 
-pub fn from_format<'a, W>(io_writer: W, format: &OutFormat) -> CliResult<Box<Writer + 'a>>
+pub fn from_format<'a, W>(io_writer: W, format: &OutFormat) -> CliResult<Box<Writer<W> + 'a>>
 where
     W: io::Write + 'a,
 {
@@ -160,7 +167,7 @@ where
     })
 }
 
-pub fn from_kind(kind: &OutputKind) -> io::Result<Box<WriteFinish>> {
+pub fn io_writer_from_kind(kind: &OutputKind) -> io::Result<Box<WriteFinish>> {
     Ok(match *kind {
         OutputKind::Stdout => Box::new(io::BufWriter::new(STDOUT.lock())),
         OutputKind::File(ref p) => Box::new(io::BufWriter::new(
@@ -197,13 +204,14 @@ pub fn compr_writer(
         Compression::LZ4 =>
             Box::new(lz4::EncoderBuilder::new().build(writer)?),
         Compression::ZSTD=>
-            Box::new(zstd::Encoder::new(writer, level.unwrap_or(0) as i32)?)
+            Box::new(zstd::Encoder::new(writer, level.unwrap_or(0) as i32)?),
+        Compression::None => writer,
     })
 }
 
 fn io_writer_compr<F, O>(
     kind: &OutputKind,
-    compr: Option<Compression>,
+    compr: Compression,
     compr_level: Option<u8>,
     threaded: bool,
     thread_bufsize: Option<usize>,
@@ -212,19 +220,15 @@ fn io_writer_compr<F, O>(
 where
     F: FnOnce(&mut io::Write) -> CliResult<O>,
 {
-    if compr.is_some() || threaded {
+    if compr != Compression::None || threaded {
 
-        let thread_bufsize = compr
-            .map(|c| thread_bufsize.unwrap_or(c.best_write_bufsize()))
-            .unwrap_or(1 << 22);
+        let thread_bufsize = thread_bufsize.unwrap_or(compr.best_write_bufsize());
 
         thread_io::write::writer_init_finish(
             thread_bufsize, 4,
             || {
-                let mut writer = from_kind(kind)?;
-                if let Some(compr) = compr {
-                    writer = compr_writer(writer, compr, compr_level)?;
-                }
+                let mut writer = io_writer_from_kind(kind)?;
+                writer = compr_writer(writer, compr, compr_level)?;
                 Ok(writer)
             },
             |mut w| func(&mut w),
@@ -232,7 +236,7 @@ where
         ).map(|(o, _)| o)
 
     } else {
-        let mut writer = from_kind(kind)?;
+        let mut writer = io_writer_from_kind(kind)?;
         let o = func(&mut writer)?;
         writer.finish()?.flush()?;
         Ok(o)

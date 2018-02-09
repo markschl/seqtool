@@ -3,7 +3,7 @@ use super::*;
 
 
 #[test]
-fn compress() {
+fn compress_pipe() {
     Tester::new()
         .pipe(
             &[".", "--outformat", "fasta.gz", "--compr-level", "9"], &FASTA,
@@ -21,4 +21,17 @@ fn compress() {
             &[".", "--outformat", "fasta.zst", "--compr-level", "9"], &FASTA,
             &[".", "--format", "fasta.zst"], &FASTA
         );
+}
+
+
+#[test]
+fn compress_file() {
+    let t = Tester::new();
+
+    t.temp_file("compr.fa.gz", None, |path, _| {
+        t.succeeds(&[".", "-o", path], *FASTA);
+        t.fails(&[".", "--format", "fasta"], path, "FASTA parse error");
+        t.cmp(&["."], FileInput(path), *FASTA);
+        t.cmp(&[".", "--format", "fasta.gz"], FileInput(path), *FASTA);
+    });
 }

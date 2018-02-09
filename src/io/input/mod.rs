@@ -36,7 +36,7 @@ impl fmt::Display for InputType {
 pub struct InputOptions {
     pub kind: InputType,
     pub format: InFormat,
-    pub compression: Option<Compression>,
+    pub compression: Compression,
     // read in separate thread
     pub threaded: bool,
     pub qfile: Option<PathBuf>,
@@ -125,18 +125,17 @@ fn get_io_reader<'a>(kind: &'a InputType) -> CliResult<Box<io::Read + Send + 'a>
     })
 }
 
-fn get_compr_reader<'a, R>(
-    rdr: R,
+fn get_compr_reader<'a>(
+    rdr: Box<io::Read + Send + 'a>,
     compression: Compression,
 ) -> io::Result<Box<io::Read + Send + 'a>>
-where
-    R: io::Read + Send + 'a,
 {
     Ok(match compression {
         Compression::GZIP  => Box::new(GzDecoder::new(rdr)),
         Compression::BZIP2 => Box::new(BzDecoder::new(rdr)),
         Compression::LZ4  => Box::new(lz4::Decoder::new(rdr)?),
         Compression::ZSTD => Box::new(zstd::Decoder::new(rdr)?),
+        Compression::None => rdr,
     })
 }
 
@@ -144,7 +143,7 @@ use error::CliError;
 
 fn io_reader<F, O>(
     kind: &InputType,
-    compression: Option<Compression>,
+    compression: Compression,
     threaded: bool,
     thread_bufsize: Option<usize>,
     func: F,
@@ -152,16 +151,11 @@ fn io_reader<F, O>(
 where
     for<'b> F: FnOnce(Box<io::Read + Send + 'b>) -> CliResult<O>,
 {
-    let mut rdr = get_io_reader(kind)?;
-    if compression.is_some() || threaded {
+    let rdr = get_io_reader(kind)?;
+    if compression != Compression::None || threaded {
         // read in different thread
-        let thread_bufsize =
-            if let Some(compr) = compression {
-                rdr = get_compr_reader(rdr, compr)?;
-                thread_bufsize.unwrap_or(compr.best_read_bufsize())
-            } else {
-                thread_bufsize.unwrap_or(1 << 22)
-            };
+        let thread_bufsize = thread_bufsize.unwrap_or(compression.best_read_bufsize());
+        let rdr = get_compr_reader(rdr, compression)?;
         thread_io::read::reader(
             thread_bufsize,
              2, rdr, |r| func(Box::new(r))

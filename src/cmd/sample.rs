@@ -1,5 +1,6 @@
 
 use std::cmp::min;
+use std::io;
 
 use rand::*;
 use bit_vec::BitVec;
@@ -57,11 +58,11 @@ pub fn run() -> CliResult<()> {
     })
 }
 
-fn sample_n<R: Rng>(
+fn sample_n<R: Rng, W: io::Write>(
     cfg: &cfg::Config,
     n_rand: usize,
     mut rng: R,
-    writer: &mut Writer,
+    writer: &mut Writer<W>,
     mut vars: &mut Vars,
 ) -> CliResult<()> {
     if cfg.has_stdin() {
@@ -107,11 +108,11 @@ fn sample_n<R: Rng>(
     })
 }
 
-fn sample_prob<R: Rng>(
+fn sample_prob<R: Rng, W: io::Write>(
     cfg: &cfg::Config,
     prob: f32,
     mut rng: R,
-    writer: &mut Writer,
+    writer: &mut Writer<W>,
     mut vars: &mut Vars,
 ) -> CliResult<()> {
 

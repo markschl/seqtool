@@ -9,12 +9,9 @@ pub trait SeqReader {
     fn next(&mut self) -> Option<CliResult<&Record>>;
 }
 
-pub trait SeqWriter {
-    fn write(&mut self, record: &Record) -> CliResult<()>;
-}
-
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum Compression {
+    None,
     GZIP,
     BZIP2,
     LZ4,

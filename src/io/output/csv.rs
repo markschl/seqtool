@@ -35,7 +35,7 @@ impl<W: io::Write> CsvWriter<W> {
     }
 }
 
-impl<W: io::Write> Writer for CsvWriter<W> {
+impl<W: io::Write> Writer<W> for CsvWriter<W> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()> {
         self.compiled_fields.clear();
         self.row.clear();
@@ -81,5 +81,9 @@ impl<W: io::Write> Writer for CsvWriter<W> {
         }
         self.writer.write_record(&self.row)?;
         Ok(())
+    }
+
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
+        Some(self.writer.into_inner().map_err(Into::into))
     }
 }

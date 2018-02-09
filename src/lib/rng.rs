@@ -70,8 +70,8 @@ impl VarRange {
     ) -> CliResult<(usize, usize)> {
         Ok(match *self {
             VarRange::Split(ref start, ref end) => Range::new(
-                start.map_res(|s| s.value(symbols))?,
-                end.map_res(|e| e.value(symbols))?,
+                start.as_ref().map_res(|s| s.value(symbols))?,
+                end.as_ref().map_res(|e| e.value(symbols))?,
                 length,
                 rng0,
             )?.get(exclusive),

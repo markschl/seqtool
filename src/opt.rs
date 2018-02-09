@@ -40,6 +40,7 @@ impl Args {
     }
 
     pub fn get_input_opts(&self) -> CliResult<Vec<InputOptions>> {
+
         let mut paths = self.get_vec("<input>");
         if paths.is_empty() {
             // default to stdin
@@ -62,17 +63,6 @@ impl Args {
         delim = self.opt_str("--delim").or(delim);
         let fields = fields.unwrap_or_else(|| self.0.get_str("--fields"));
         let header = self.0.get_bool("--header");
-
-        let (arg_fmt, arg_compr) = match fmt {
-            Some(fmt) => {
-                let (fmt, compr) = parse_format_str(fmt)?;
-                let fmt = InFormat::from_opts(&fmt, delim, fields, header)?;
-                (Some(fmt), compr)
-            }
-            None => (None, None),
-        };
-
-        let mut input: Vec<InputOptions> = vec![];
         let cap = parse_bytesize(self.get_str("--buf-cap"))?.floor() as usize;
         let max_mem = parse_bytesize(self.get_str("--max-mem"))?.floor() as usize;
         let threaded_rdr = self.get_bool("--read-thread");
@@ -80,12 +70,19 @@ impl Args {
             .map_res(|s| parse_bytesize(s))?
             .map(|s| s as usize);
 
-        for path in paths {
+        let (arg_fmt, arg_compr) = fmt.map(|fmt| {
+                let (fmt, compr) = parse_format_str(fmt)?;
+                let fmt = InFormat::from_opts(&fmt, delim, fields, header)?;
+                Ok::<_, CliError>((Some(fmt), Some(compr)))
+            })
+            .unwrap_or(Ok((None, None)))?;
+
+        let input: Vec<_> = paths.into_iter().map(|path| {
             let opts = if &*path == "-" {
                 InputOptions {
                     kind: InputType::Stdin,
                     format: arg_fmt.clone().unwrap_or(InFormat::FASTA),
-                    compression: arg_compr,
+                    compression: arg_compr.unwrap_or(Compression::None),
                     threaded: threaded_rdr,
                     thread_bufsize: thread_bufsize,
                     qfile: None,
@@ -101,7 +98,7 @@ impl Args {
                         fmt.map(|f| InFormat::from_opts(f, delim, fields, header).unwrap())
                             .unwrap_or(InFormat::FASTA)
                     }),
-                    compression: arg_compr.or(compr),
+                    compression: arg_compr.or(compr).unwrap_or(Compression::None),
                     threaded: threaded_rdr,
                     thread_bufsize: thread_bufsize,
                     qfile: None,
@@ -110,8 +107,9 @@ impl Args {
                 }
             };
 
-            input.push(opts);
-        }
+            opts
+
+        }).collect();
 
         if input.is_empty() {
             return fail!("Input is empty.");
@@ -158,7 +156,7 @@ impl Args {
         let (arg_fmt, arg_compr) = self.opt_str("--outformat").or(fmt)
             .map(|fmt| {
                 let (fmt, compr) = parse_format_str(fmt)?;
-                Ok::<_, CliError>((Some(fmt), compr))
+                Ok::<_, CliError>((Some(fmt), Some(compr)))
             })
             .unwrap_or(Ok((None, None)))?;
 
@@ -176,7 +174,7 @@ impl Args {
                         csv_delim,
                         csv_fields,
                     )?,
-                    compression: arg_compr,
+                    compression: arg_compr.unwrap_or(Compression::None),
                     compression_level: compr_level,
                     threaded: threaded,
                     thread_bufsize: thread_bufsize,
@@ -195,7 +193,7 @@ impl Args {
                         csv_delim,
                         csv_fields,
                     )?,
-                    compression: arg_compr.or(compr),
+                    compression: arg_compr.or(compr).unwrap_or(Compression::None),
                     compression_level: compr_level,
                     threaded: threaded,
                     thread_bufsize: thread_bufsize,
@@ -369,18 +367,18 @@ pub fn get_outformat(
     Ok(format)
 }
 
-pub fn parse_format_str(string: &str) -> CliResult<(String, Option<Compression>)> {
+pub fn parse_format_str(string: &str) -> CliResult<(String, Compression)> {
     let string = string.to_ascii_lowercase();
     let parts: Vec<_> = string.split('.').collect();
     let (ext, compr) = if parts.len() == 1 {
-        (parts[0].to_string(), None)
+        (parts[0].to_string(), Compression::None)
     } else {
         let compr = Compression::from_str(parts[1]).ok_or_else(||
             format!(
                 "Unknown compression format: '{}'. Valid formats are gz, bz2, lz4, 7z",
                 parts[1]
             ))?;
-        (parts[0].to_string(), Some(compr))
+        (parts[0].to_string(), compr)
     };
 
     Ok((ext, compr))

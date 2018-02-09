@@ -82,7 +82,7 @@ impl<W: io::Write> FastqWriter<W> {
     }
 }
 
-impl<W: io::Write> SeqWriter for FastqWriter<W> {
+impl<W: io::Write> output::SeqWriter<W> for FastqWriter<W> {
     fn write(&mut self, record: &Record) -> CliResult<()> {
         let qual = record.qual().ok_or("Qualities missing!")?;
         // Using .raw_seq() is possible only because FASTA cannot be used as input source
@@ -95,5 +95,9 @@ impl<W: io::Write> SeqWriter for FastqWriter<W> {
             SeqHeader::FullHeader(h) => fastq::write_to(&mut self.0, h, seq, qual)?,
         }
         Ok(())
+    }
+
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
+        Some(Ok(self.0))
     }
 }

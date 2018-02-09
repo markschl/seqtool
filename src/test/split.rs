@@ -16,7 +16,7 @@ fn split_n() {
 
                 let key = tmp_dir.path().join("f_{split:chunk}.{default_ext}");
 
-                t.succeeds(&["split", "-n", &format!("{}", size), "-pk", &key.to_str().unwrap()], *FASTA);
+                t.succeeds(&["split", "-n", &format!("{}", size), "-po", &key.to_str().unwrap()], *FASTA);
 
                 for (i, seqs) in SEQS.iter().chunks(size).into_iter().enumerate() {
                     let p = tmp_dir.path().join(format!("f_{}.fasta", i + 1));
@@ -51,7 +51,7 @@ fn split_key() {
 
         let key = &subdir.join("{id}_{a:p}.fa");
 
-        t.succeeds(&["split", "-pk", &key.to_string_lossy()], *FASTA);
+        t.succeeds(&["split", "-po", &key.to_string_lossy()], *FASTA);
 
         for (i, k) in expected.iter().enumerate() {
             let p = subdir.join(format!("{}.fa", k));
@@ -75,11 +75,39 @@ fn split_key_seqlen() {
     let t = Tester::new();
     t.temp_dir("split_key_seqlen", |tmp_dir| {
         let p = tmp_dir.path().join("{s:seqlen}.fa");
-        t.succeeds(&["split", "-pk", p.to_str().unwrap()], *FASTA);
+        t.succeeds(&["split", "-po", p.to_str().unwrap()], *FASTA);
 
         let mut f = File::open(tmp_dir.path().join("25.fa")).unwrap();
         let mut s = String::new();
         f.read_to_string(&mut s).unwrap();
         assert_eq!(&s, &FASTA as &str);
+    });
+}
+
+
+#[test]
+fn split_compression() {
+    let t = Tester::new();
+
+    t.temp_dir("split_compression", |tmp_dir| {
+        let subdir = tmp_dir.path().join("subdir");
+
+        let key = &subdir.join("{id}_{a:p}.fa.gz");
+
+        t.succeeds(&["split", "-po", &key.to_str().unwrap()], *FASTA);
+
+        let expected: &[&str] = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
+
+        let f = MultiFileInput(expected.iter()
+            .map(|e| subdir.join(e.to_string() + ".fa.gz")
+            .to_string_lossy().into())
+            .collect());
+
+        t.fails(&[".", "--format", "fasta"], f.clone(),
+            "FASTA parse error: expected '>' but found '\\u{1f}' at file start"
+        );
+
+        t.cmp(&["."], f, *FASTA);
+
     });
 }

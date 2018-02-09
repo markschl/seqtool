@@ -1,15 +1,21 @@
+
+use std::io;
+
 use var;
 use io::Record;
 use error::CliResult;
+use super::WriteFinish;
 
-pub trait Writer {
+
+pub trait Writer<W: io::Write> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()>;
     fn has_vars(&self) -> bool;
     fn write_simple(&mut self, record: &Record) -> CliResult<()>;
     fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()>;
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>>;
 }
 
-impl<W: Writer + ?Sized> Writer for Box<W> {
+impl<Wr: Writer<W> + ?Sized, W: io::Write> Writer<W> for Box<Wr> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()> {
         (**self).register_vars(builder)
     }
@@ -22,13 +28,16 @@ impl<W: Writer + ?Sized> Writer for Box<W> {
     fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
         (**self).write(record, vars)
     }
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
+        (*self).into_inner()
+    }
 }
 
 // empty output
 
 pub struct NoOutput;
 
-impl Writer for NoOutput {
+impl<W: io::Write> Writer<W> for NoOutput {
     fn register_vars(&mut self, _: &mut var::VarBuilder) -> CliResult<()> {
         Ok(())
     }
@@ -40,5 +49,8 @@ impl Writer for NoOutput {
     }
     fn write(&mut self, _: &Record, _: &var::Vars) -> CliResult<()> {
         Ok(())
+    }
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
+        None
     }
 }
