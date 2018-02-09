@@ -1,6 +1,7 @@
 use std::str;
 use std::fmt::Display;
 use std::ascii::AsciiExt;
+use std::collections::HashMap;
 
 use itertools::Itertools;
 
@@ -11,11 +12,8 @@ use var::{varstring, VarHelp, VarProvider};
 use io::{SeqAttr, RecordEditor};
 use io::output::writer::Writer;
 use lib::util::{parse_range, replace_iter};
-use lib::subst_matrix::AsymmIdentityDnaMatrix;
 use lib::rng::Range;
 use lib::seqtype::{guess_seqtype, SeqType};
-
-use bio::pattern_matching::ukkonen::unit_cost;
 
 use self::matcher::*;
 use self::matches::*;
@@ -40,15 +38,13 @@ Search Options:
     -d, --dist <dist>   Approximative string matching with maximum edit distance
                         of <dist> [default: 0]
     --in-order          Report hits in the order of their occurrence instead
-                        of sorting by distance (might be slower because of -g)
-    -g, --group <yn>    Group hits by starting position (keep only the best one.
-                        (slower) {yes/no}. default: 'no', unless --in-order is used.
-    --ambig <yn>        Override choice of whether DNA ambiguity codes (IUPAC)
-                        are recognized or not {yes/no}.
+                        of sorting by distance (with -d > 0)
     --seqtype <type>    Sequence type {dna/protein/other}
     -t, --threads <N>   Number of threads to use [default: 1]
+    --ambig <yn>        Override choice of whether DNA ambiguity codes (IUPAC)
+                        are recognized or not {yes/no}.
     --algo <algorithm>  Override decision of algorithm for testing
-                        (regex/exact/ukkonen/myers/auto) [default: auto]
+                        (regex/exact/myers/auto) [default: auto]
 
 Search range:
     --rng <range>       Search within the given range ('start..end', 'start..'
@@ -74,13 +70,41 @@ Actions:
     common_opts!()
 );
 
+lazy_static! {
+    static ref AMBIG_DNA: HashMap<u8, Vec<u8>> = hashmap!{
+        b'M' => b"ACM".to_vec(),
+        b'R' => b"AGR".to_vec(),
+        b'W' => b"ATW".to_vec(),
+        b'S' => b"CGS".to_vec(),
+        b'Y' => b"CTY".to_vec(),
+        b'K' => b"GTK".to_vec(),
+        b'V' => b"ACGMRSV".to_vec(),
+        b'H' => b"ACTMWYH".to_vec(),
+        b'D' => b"AGTRWKD".to_vec(),
+        b'B' => b"CGTSYKB".to_vec(),
+        b'N' => b"ACGTMRWSYKVHDBN".to_vec(),
+    };
+
+    static ref AMBIG_RNA: HashMap<u8, Vec<u8>> = AMBIG_DNA
+        .iter()
+        .map(|(&b, eq)| {
+            let eq = eq.into_iter().map(|&b| if b == b'T' { b'U' } else { b }).collect();
+            (b, eq)
+        })
+        .collect();
+
+    static ref AMBIG_PROTEIN: HashMap<u8, Vec<u8>> = hashmap!{
+        b'X' => b"CDEFGHIKLMNOPQRSTUVWY".to_vec(),
+    };
+}
+
+
 use self::Algorithm::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Algorithm {
     Exact,
     Regex,
-    Ukkonen,
     Myers,
 }
 
@@ -89,7 +113,6 @@ impl Algorithm {
         Some(match &*s.to_ascii_lowercase() {
             "exact" => Exact,
             "regex" => Regex,
-            "ukkonen" => Ukkonen,
             "myers" => Myers,
             _ => return None,
         })
@@ -100,10 +123,10 @@ struct MatchOpts {
     has_groups: bool,
     needs_alignment: bool,
     sorted: bool,
-    group_pos: bool,
     max_dist: u16,
     seqtype: SeqType,
 }
+
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
@@ -111,7 +134,6 @@ pub fn run() -> CliResult<()> {
 
     let dist: u16 = args.value("--dist")?;
     let sorted = !args.get_bool("--in-order");
-    let group_pos = args.yes_no("--group")?.unwrap_or_else(|| !sorted);
     let regex = args.get_bool("--regex");
     let ambig = args.yes_no("--ambig")?;
     let verbose = args.get_bool("--verbose");
@@ -212,15 +234,14 @@ pub fn run() -> CliResult<()> {
 
             report!(
               verbose,
-              "Sorting by distance: {:?}, grouping hits by position: {:?}, doing alignments: {:?}",
-              sorted, group_pos, needs_alignment
+              "Sorting by distance: {:?}, searching start position: {:?}",
+              sorted, needs_alignment
             );
 
             let opts = MatchOpts {
                 has_groups: match_vars.positions().has_groups(),
                 needs_alignment: needs_alignment,
                 sorted: sorted,
-                group_pos: group_pos,
                 max_dist: dist,
                 seqtype: seqtype,
             };
@@ -293,7 +314,7 @@ pub fn run() -> CliResult<()> {
 
                     // keep / exclude
                     if let Some(keep) = filter {
-                        if (matches.num_matches() > 0) ^ keep {
+                        if matches.has_matches() ^ keep {
                             if let Some(ref mut f) = dropped_file {
                                 f.write(&record, vars)?;
                             }
@@ -333,9 +354,9 @@ where
             let (seqtype, is_n, is_ambig) = guess_seqtype(pattern.as_ref().as_bytes(), typehint)
                 .ok_or_else(|| {
                     format!(
-              "{} was specified as sequence type, but sequence recognition suggests another type.",
-              typehint.unwrap_or("<nothing>")
-            )
+                      "{} was specified as sequence type, but sequence recognition suggests another type.",
+                      typehint.unwrap_or("<nothing>")
+                    )
                 })?;
             // no discrimination here
             let mut is_ambig = is_n || is_ambig;
@@ -346,48 +367,37 @@ where
 
             if seqtype == SeqType::Other && ambig_override.unwrap_or(false) {
                 eprintln!(
-              "Warning: Ambiguous matching was activated, but the sequence type of the pattern \
-              '{}' does not seem to be DNA/RNA/protein.",
-              name
-          );
+                  "Warning: Ambiguous matching was activated, but the sequence type of the pattern \
+                  '{}' does not seem to be DNA/RNA/protein.",
+                  name
+              );
             }
 
             is_ambig = ambig_override.unwrap_or(is_ambig);
 
             // decide which algorithm should be used
-            let mut algorithm = if regex {
-                Regex
-            } else if dist > 0 || is_ambig {
-                if is_ambig || pattern.as_ref().len() > 64 {
-                    Ukkonen
-                } else {
+            let mut algorithm =
+                if regex {
+                    Regex
+                } else if dist > 0 || is_ambig {
                     Myers
-                }
-            } else {
-                Exact
-            };
+                } else {
+                    Exact
+                };
 
             // override with user choice
             if let Some(a) = algo_override {
                 algorithm = a;
-                if a != Ukkonen && is_ambig {
+                if a != Myers && is_ambig {
                     eprintln!("Warning: --ambig ignored.");
                     is_ambig = false;
                 }
             }
 
-            report!(
-                verbose,
-                "{}: {:?}{}, search algorithm: {:?}{}",
-                name,
-                seqtype,
-                if is_ambig { " with ambiguities" } else { "" },
-                algorithm,
-                if dist > 0 {
-                    format!(", max. distance: {}", dist)
-                } else {
-                    "".to_string()
-                },
+            report!(verbose,
+                "{}: {:?}{}, search algorithm: {:?}{}", name, seqtype,
+                if is_ambig { " with ambiguities" } else { "" },  algorithm,
+                if dist > 0 { format!(", max. distance: {}", dist) } else { "".to_string() },
             );
 
             Ok((seqtype, (algorithm, is_ambig)))
@@ -434,33 +444,6 @@ where
     Ok((t, out))
 }
 
-fn align_score_eq(a: u8, b: u8) -> i32 {
-    if a == b {
-        1
-    } else {
-        -1
-    }
-}
-
-fn align_score_ambig_dna(patt: u8, search: u8) -> i32 {
-    AsymmIdentityDnaMatrix::get(search, patt) as i32
-}
-
-fn align_score_ambig_protein(patt: u8, search: u8) -> i32 {
-    if search == patt || patt == b'X' {
-        1
-    } else {
-        -1
-    }
-}
-
-fn unit_cost_ambig_dna(patt: u8, search: u8) -> u32 {
-    (AsymmIdentityDnaMatrix::get(search, patt) == -1) as u32
-}
-
-fn unit_cost_ambig_protein(patt: u8, search: u8) -> u32 {
-    (patt != search || patt != b'X') as u32
-}
 
 fn get_matcher<'a>(
     pattern: &str,
@@ -474,40 +457,25 @@ fn get_matcher<'a>(
         Regex =>
           // TODO: string regexes for ID/desc
           Box::new(BytesRegexMatcher::new(pattern, o.has_groups)?),
-        Myers =>
-          Box::new(MyersMatcher::new(
-            pattern.as_bytes(), o.max_dist as u8,
-            o.needs_alignment, o.sorted, o.group_pos,
-            &align_score_eq
-          )?),
-        Ukkonen => {
-            if ambig {
-                if o.seqtype == SeqType::DNA {
-                    Box::new(UkkonenMatcher::new(
-                      pattern.as_bytes(), o.max_dist as u8,
-                      o.needs_alignment, o.sorted, o.group_pos,
-                      &unit_cost_ambig_dna, &align_score_ambig_dna
-                    )?)
-
-                } else {
-                    // relies on correct detection of the sequence type. Invalid amino acids
-                    // are not recognized and will positively match against X
-                    Box::new(UkkonenMatcher::new(
-                      pattern.as_bytes(), o.max_dist as u8,
-                      o.needs_alignment, o.sorted, o.group_pos,
-                      &unit_cost_ambig_protein, &align_score_ambig_protein
-                    )?)
-                  }
-            } else {
-                Box::new(UkkonenMatcher::new(
-                  pattern.as_bytes(), o.max_dist as u8,
-                  o.needs_alignment, o.sorted, o.group_pos,
-                  &unit_cost, &align_score_eq
-                )?)
-            }
+        Myers => {
+            let ambig_map =
+                if ambig {
+                    match o.seqtype {
+                        SeqType::DNA => Some(&AMBIG_DNA as &HashMap<_, _>),
+                        SeqType::RNA => Some(&AMBIG_RNA as &HashMap<_, _>),
+                        SeqType::Protein => Some(&AMBIG_PROTEIN as &HashMap<_, _>),
+                        SeqType::Other => None,
+                    }
+                } else { None };
+            Box::new(MyersMatcher::new(
+              pattern.as_bytes(), o.max_dist as u8,
+              o.needs_alignment, o.sorted,
+              ambig_map
+            )?)
         }
     })
 }
+
 
 fn read_pattern_file(path: &str) -> CliResult<Vec<(String, String)>> {
     use seq_io::fasta::*;

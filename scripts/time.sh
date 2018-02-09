@@ -7,16 +7,17 @@ seq1=$2
 seq2=$3
 
 
-
 alias s=target/release/seqtool
 
 # prepare
 # s . -a gc={s:gc} $f > $f.with_gc.fq
-# #gzip -k $f
+# gzip -k $f
 # lz4 -k $f
+# bzip2 -k $f
+# zstd -k $f
 
-# get files into memory cache
-wc -l $f $f.* > /dev/null
+# load files into memory
+s count $f $f.* -k filename
 
 logfile=timing.txt
 exec > $logfile 2>&1
@@ -91,20 +92,38 @@ time read_fasta -i $f | grab -e 'SEQ_LEN >= 100' | write_fasta -x > /dev/null
 
 printf ">primer1\n$seq1\n>primer2\n$seq2\n" > _primer_file.fa
 fp=_primer_file.fa
+printf "$seq1\n$seq2\n" | tr 'YR' 'N' > _primer_list.txt
 
-time s find file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 --in-order file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 --in-order -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 --rng ..25 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 --rng ..25 -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -fd4 file:$fp $f > /dev/null
-time s find -fd4 -t4 file:$fp $f > /dev/null
-time s find -d4 --algo ukkonen file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 --algo ukkonen -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 --algo myers file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
-time s find -d4 --algo myers -t4 file:$fp $f -a primer={f:name} -a start={f:start} -a end={f:end} -a dist={f:dist} > /dev/null
+run_find() {
+    time s find -v file:$fp $f -a primer={f:name} -a rng={f:range} "$@" > /dev/null
+    time s find -v file:$fp $f -a primer={f:name} -a rng={f:range} -t4 "$@" > /dev/null
+}
 
-time cutadapt -g primer1=^$seq1 -g primer2=^$seq2 $f -e 0.23 -y ' primer={name}' > /dev/null
-time cutadapt -g primer1=^$seq1 -g primer2=^$seq2 $f -e 0.23 -y ' primer={name}' -j4 > /dev/null
+run_find --algo myers
+run_find --algo myers -d1
+run_find --algo myers -d4
+run_find --algo myers -d8
+run_find --algo myers -d4 --in-order
+run_find --algo myers -d4 --rng ..25
+time s find -v file:$fp $f -a d={f:dist} > /dev/null
+time s find -v file:$fp $f -a d={f:dist} -t4 > /dev/null
+run_find --algo exact
+
+adapter_removal() {
+    time AdapterRemoval --file1 $f --adapter-list _primer_list.txt --shift 8 --threads 4 \
+     --output1 /dev/null --discarded /dev/stdout --settings /dev/null "$@" > /dev/null
+    time AdapterRemoval --file1 $f --adapter-list _primer_list.txt --shift 8 --threads 4 \
+    --output1 /dev/null --discarded /dev/stdout --settings /dev/null --threads 4 "$@" > /dev/null
+}
+
+adapter_removal --mm 1
+adapter_removal --mm 4
+adapter_removal --mm 8
+
+time cutadapt -a primer1=$seq1$ -a primer2=$seq2$ $f -e 0.23 -y ' primer={name}' > /dev/null
+time cutadapt -a primer1=$seq1$ -a primer2=$seq2$ $f -e 0.23 -y ' primer={name}' -j4 > /dev/null
+
+# trim
+
+time s find -f file:$fp $f -a primer={f:name} -a end={f:end} -t5 > $f.find.fq
+time s trim -e {a:end}.. $f.find.fq > /dev/null

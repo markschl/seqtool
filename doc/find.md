@@ -37,9 +37,10 @@ in regular expressions.
 ### Approximative searching
 
 Approximative matching is particularly useful for finding primers and
-adapters or other short patterns.
-The approach of seqtool aims to be somehow more general than
-the one by the specialized tool [cutadapt](https://github.com/marcelm/cutadapt).
+adapters or other short patterns. The tool is not specialized for removing
+adapters like other software, but still aims at being very fast and
+useful for many purposes. **Note:** Currently, pattern length is currently
+limited to 64 characters.
 
 It is possible to search for all matches up to a maximum
 [edit distance](https://en.wikipedia.org/wiki/Edit_distance)
@@ -48,7 +49,7 @@ Example:
 
 ```bash
 seqtool find -d 4 ATTAGCG seqs.fa \
-     -a hit="{f:range}_(dist:{f:dist})" -p matched ="{m:match}"
+     -a hit="{f:range}_(dist:{f:dist})" -a range="{m:range}"
 ```
 
 Possible output:
@@ -59,65 +60,64 @@ GGATCAGCGATCC
 (...)
 ```
 
-The second best hit can be returned by using `{f:range:2}` or `{f:match:2}`, etc...
-Note that due to the way these algorithms work, many overlapping hits with different
-distances to the sequence can be returned. Thus, the second best hit may overlap
-with the best hit. Use `-g yes` to only report one hit per position. This is
-off (`-g no`) by default since it can have a major performance impact. Only
-if `--inorder` is used, it is on by default.
+The second best hit can be returned by using `{f:range:2}` or `{f:match:2}`, etc. Use `--in-order` to report hits in order from left to right instead.
 
-In the case of simple filtering by occurrence (`-e`/`-f`), this
-is not required. However, if any variable with positional information is
-used, this will impact performance.
+Speedups can be achieved by [restricting the search range](#restrict_search_range) and by multithreading (`-t`).
 
-Additional speedups can be achieved by [restricting the search range](#restrict_search_range) and multithreading (`-t`).
 
-#### Algorithms and performance
+#### Search performance
 
-The procedure involves searching for all hits up to the given edit distance
-([Ukkonen, 1985](https://doi.org/10.1016/0196-6774(85)90023-9) or an accelerated
-version by [Myers](https://doi.org/10.1145/316542.316550)), implemented in
-the [Rust-Bio](http://rust-bio.github.io/)
-library. This gives the end positions of each hit. To obtain the starting
-positions, a simple semi-global alignment is done.
-
-The runtimes for searching two reverse primers with up to 4 mismatches (`-d 4`)
+Approximative matching uses the fast bit-parallel algorithm by [Myers](https://doi.org/10.1145/316542.316550).
+The runtimes for searching two forward primers (22 bp) with up to 4 mismatches (`-d 4`)
 in a [1.2 GB file](https://github.com/markschl/seqtool#performance)
-vary depending on the options used. One primer had ambiguities, the other didn't.
-This results in two different algorithms being used (Myers for primer without
-ambiguities and Ukkonen for degenerated primer) unless `-a no` is used or the
-algorithm is explicitly specified (`--algo <name>`).
+vary depending on the options used. In the following comparison, the positions
+of two possible primers were searched using this algorithm using 1 or 4
+threads/processes.
 
-|                                                         | 1 thread    | 4 threads   |
+|                                                         | 1 core      | 4 cores     |
 |---------------------------------------------------------|-------------|-------------|
-| Search whole sequence + filter by occurrence (`-f`)     | 1min 15s    | 20.5s       |
-| Find the position of the best hit                       | 2min 14s    | 35.3s       |
-| Position of best hit in range where the primer should occur (`--rng`)| 1min 6s | 17.4s|
-| Position without matching of ambiguous bases (`-a no`)  | 1min 49s    | 29.1s       |
-| Report hits in order<sup>1</sup>                        | 6min 32s    | 1min 45s    |
-| [cutadapt](https://github.com/marcelm/cutadapt)<sup>2</sup>| 1min 47s| 32.3s        |
+| Filter by occurrence (`-f`), no position determined     | 14.0s       | 3.24s       |
+| Find the position of the best hit                       | 31.3s       | 7.73s       |
+| Report first hit  from left<sup>1</sup>                 | 31.1s       | 7.72s       |
+| Best hit in range where the primer should occur<sup>2</sup>| 8.02s    | 2.34s       |
+| Exact search (no mismatches/ambiguities)<sup>4</sup>    | 11.1s       | 2.57s       |
+| [cutadapt](https://github.com/marcelm/cutadapt)         | 1min 16s    | 24.2s       |
+| [AdapterRemoval](https://github.com/MikkelSchubert/adapterremoval)<sup>3</sup> | 35.0s| 8.75s |
 
-<sup>1</sup> `--in-order` option. Overlapping hits with the same starting
-position are merged (unless `-g no`), which requires many alignments and makes
-searching slower.
+<sup>1</sup> `--in-order` option. Normally, hits are sorted by decreasing
+distance.
 
-<sup>2</sup> Cutadapt uses semi-global alignment with penalties for
-leading/trailing gaps.
+<sup>2</sup> `--rng ..25`
 
-**Note:** Ukkonen matching currently has a [bug](https://github.com/rust-bio/rust-bio/issues/117):
-matches starting at position 0 reports a wrong distance (dist + 1).
-Until fixed, make sure to set `-d` high enough, and this should not be a problem.
+<sup>3</sup> Using the Two Way algorithm for comparison, not Myers
+
+<sup>4</sup> Single-end mode
 
 
 ### Ambiguities
 
-DNA ambiguity codes according to the IUPAC nomenclature are accepted in patterns
-and DNA sequences. This can have a performance impact because the Ukkonen
-algorithm is always used in this case. Matching is asymmetric:
-`R` in a search pattern is matched by [`A`, `G`, `R`] in sequences,
-but `R` in a sequence will only match ambiguities sharing the same set of bases
-(`R`, `V`, `D`, `N`) in the pattern. This should prevent false positive matches
-in sequences with many `N`s.
+DNA (RNA) ambiguity codes according to the IUPAC nomenclature are accepted and
+automatically recognised in search patterns. For Proteins, `X` is recognised as
+wildcard for all amino acids. The molecule type is automatically determined
+from the pattern. Use `-v` to show which search settings are used. Example:
+
+```bash
+seqtool find -v file:primers.fasta -a primer={f:name} -a rng={f:range} input.fasta > output.fasta
+```
+
+```
+primer1: DNA, search algorithm: Exact
+primer2: DNA with ambiguities, search algorithm: Myers
+Sorting by distance: true, searching start position: true
+```
+
+In case of wrongly recognised patterns, specify `--seqtype`. However, the
+tool is very cautious and will warn about any inconsistency betwenn multiple paterns.
+
+**Note:** Matching is asymmetric: `R` in a search pattern matches [`A`, `G`, `R`]
+in sequences, but `R` in a sequence will only match ambiguities sharing the same
+set of bases (`R`, `V`, `D`, `N`) in the pattern. This should prevent false
+positive matches in sequences with many ambiguous characters.
 
 
 ### Multiple patterns

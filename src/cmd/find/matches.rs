@@ -19,11 +19,11 @@ pub struct Matches {
     // offset introduced by narrowing down search range (calc_bounds)
     offset: usize,
     // vector of matches for each pattern
-    // Vec<Option<Match>> is a flat 2D matrix with dimension num_matches x num_match_groups
+    // Vec<Option<Match>> is a flat 2D matrix with dimension has_matches x num_match_groups
     matches: Vec<Vec<Option<Match>>>,
-    num_matches: usize,
-    // dist, index, num_matches
-    dist_order: Vec<(u16, usize, usize)>,
+    has_matches: bool,
+    // dist, index, has_matches
+    dist_order: Vec<(u16, usize, bool)>,
     // optional search range
 }
 
@@ -40,9 +40,9 @@ impl Matches {
             pos: pos,
             max_shift: max_shift,
             multiple_matchers: n > 1,
-            dist_order: vec![(0, 0, 0); n],
+            dist_order: vec![(0, 0, false); n],
             matches: vec![vec![]; n],
-            num_matches: 0,
+            has_matches: false,
             bounds: bounds,
             calc_bounds: None,
             offset: 0,
@@ -61,7 +61,7 @@ impl Matches {
         }
 
         if !self.multiple_matchers {
-            self.num_matches = self.pos.collect_matches(
+            self.has_matches = self.pos.collect_matches(
                 text,
                 &mut matchers[0],
                 &mut self.matches[0],
@@ -70,12 +70,12 @@ impl Matches {
             );
         } else {
             for (i, ((ref mut matcher, ref mut matches),
-                    &mut (ref mut best_dist, ref mut idx, ref mut n))) in matchers
+                    &mut (ref mut best_dist, ref mut idx, ref mut has_matches))) in matchers
                         .into_iter()
                         .zip(self.matches.iter_mut())
                         .zip(self.dist_order.iter_mut())
                         .enumerate() {
-                *n = self.pos.collect_matches(
+                *has_matches = self.pos.collect_matches(
                     text,
                     matcher,
                     matches,
@@ -91,15 +91,12 @@ impl Matches {
             }
             // sort -> best matches first
             self.dist_order.sort_by_key(|&(dist, _, _)| dist);
+            self.has_matches = self.dist_order[0].2;
         }
     }
 
-    pub fn num_matches(&self) -> usize {
-        if self.multiple_matchers {
-            self.dist_order[0].2
-        } else {
-            self.num_matches
-        }
+    pub fn has_matches(&self) -> bool {
+        self.has_matches
     }
 
     fn _matches(&self, pattern_rank: usize) -> &[Option<Match>] {
@@ -122,13 +119,13 @@ impl Matches {
         if self.multiple_matchers {
             return self.dist_order
                 .get(pattern_rank)
-                .and_then(|&(_, i, num_matches)| {
-                    if num_matches > 0 {
+                .and_then(|&(_, i, has_matches)| {
+                    if has_matches {
                         return self.matcher_names.get(i).map(String::as_str);
                     }
                     None
                 });
-        } else if self.num_matches > 0 {
+        } else if self.has_matches {
             return Some(&self.matcher_names[0]);
         }
         None
@@ -142,7 +139,7 @@ impl Matches {
 /// special type.
 #[derive(Debug, Clone)]
 pub struct SearchPositions {
-    max_pos: usize,
+    search_limit: usize,
     // group numbers
     groups: Vec<usize>,
     // group number -> index in groups vector
@@ -152,7 +149,7 @@ pub struct SearchPositions {
 impl SearchPositions {
     pub fn new() -> SearchPositions {
         SearchPositions {
-            max_pos: 0,
+            search_limit: 0,
             groups: vec![],
             group_idx: VecMap::new(),
         }
@@ -169,15 +166,15 @@ impl SearchPositions {
 
     // None means that all matches should be searched
     pub fn register_pos(&mut self, pos: usize, group: usize) {
-        if pos > self.max_pos {
-            self.max_pos = pos;
+        if pos >= self.search_limit {
+            self.search_limit = pos + 1;
         }
         self.add_group(group);
     }
 
     // None means that all matches should be searched
     pub fn register_all(&mut self, group: usize) {
-        self.max_pos = ::std::usize::MAX;
+        self.search_limit = ::std::usize::MAX;
         self.add_group(group);
     }
 
@@ -193,19 +190,18 @@ impl SearchPositions {
         matches: &mut Vec<Option<Match>>,
         max_shift: Option<&Shift>,
         offset: usize,
-    ) -> usize
+    ) -> bool
     where
         M: Matcher,
     {
         matches.clear();
-        let mut i = 0;
+        let mut num_found = 0;
 
         matcher.iter_matches(text, &mut |h| {
-            if i > self.max_pos {
-                return false;
-            }
 
             let (start, end) = h.pos();
+
+            // pre-filter
             if let Some(s) = max_shift.as_ref() {
                 if !s.in_range((start, end), text.len()) {
                     for _ in 0..self.groups.len() {
@@ -213,6 +209,12 @@ impl SearchPositions {
                     }
                     return true;
                 }
+            }
+
+            num_found += 1;
+
+            if self.search_limit == 0 {
+                return false;
             }
 
             for group in &self.groups {
@@ -224,10 +226,13 @@ impl SearchPositions {
                 matches.push(m);
             }
 
-            i += 1;
+            if num_found >= self.search_limit {
+                return false;
+            }
+
             true
         });
-        i
+        num_found > 0
     }
 
     fn matches_iter<'a>(&self, group: usize, matches: &'a [Option<Match>]) -> MatchesIter<'a> {

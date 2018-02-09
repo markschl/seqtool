@@ -30,6 +30,8 @@ extern crate exprtk_rs;
 extern crate rand;
 extern crate regex;
 extern crate twoway;
+#[macro_use]
+extern crate maplit;
 
 // compression
 extern crate bzip2;

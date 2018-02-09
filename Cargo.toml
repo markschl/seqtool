@@ -36,6 +36,9 @@ exprtk_rs = { version = "0.0.4", optional = true, features = [
  ] }
 bytecount = "0.3"
 clippy = { version = "0.0.179", optional = true }
+maplit = "1.0"
+pattern_matching = { path = "src/pattern_matching", version = "0.1" }
+ref_slice = "1.1"
 
 [dev-dependencies]
 assert_cli = "0.5"
@@ -48,4 +51,4 @@ exprtk = ["exprtk_rs"]
 
 [profile.release]
 lto = true
-panic = "abort" # ~ 10% faster
+panic = "abort" # smaller & faster binary

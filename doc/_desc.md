@@ -26,7 +26,7 @@ that are accepted by all commands can be [found here](wiki/opts).
 The following run time comparison of diffferent tasks aims to give a quick overview but is not
 comprehensive by any means. Comparisons to a selection of other tools/toolsets are shown if
 there exists an equivalent operation. For all commands, a 1.1 Gb FASTQ file
-containing 1.73 billion Illumina reads of 150-500 bp length was used. They were
+containing 1.73 million Illumina reads of 150-500 bp length was used. They were
 run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.9)
 ([script](https://github.com/markschl/seqtool/blob/master/scripts/time.sh)).
 
@@ -40,8 +40,8 @@ run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.9)
 | [Remove short sequences](wiki/filter)      | 1.62s |      | 3.45s | 2.91s  |  | 1min 23.6s |
 | [Summarize GC content](wiki/count)           | 4.45s  |             |        |        |            |           |
 | .. with [math formula](wiki/variables#math-expressions) (GC% / 100)| 4.55s  |        |        |        |   |   |
-| Summarize GC content stored in [attribute](wiki/attributes) | 1.55s  |    |           ||  |  |
-| [Find 5' primer with max. 4 mismatches](wiki/find#algorithms-and-performance) | 52.1s  | 13.5s  |  |  |  |  |  |
+| [Find forward primers with max. 4 mismatches](wiki/find#algorithms-and-performance) | 8.02s | 2.34s  |  |  |  |  |  |
+| [Remove the primers if found \(1.36 M seqs\)](wiki/trim# Using variables) | 2.26s |   |  |  |  |  |  |
 
 Simple counting is the fastest operation, faster than the UNIX line counting
 command (`wc -l`, 2.70s) on OS X. The commands `find`, `replace` and `revcomp`

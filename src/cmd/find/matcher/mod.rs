@@ -2,11 +2,11 @@ use std::fmt::Debug;
 
 mod exact;
 mod regex;
-mod fuzzy;
+mod approx;
 
 pub use self::exact::*;
 pub use self::regex::*;
-pub use self::fuzzy::*;
+pub use self::approx::*;
 
 pub trait Matcher {
     fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool);
