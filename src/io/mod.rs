@@ -5,9 +5,17 @@ use error::CliResult;
 pub use self::record::*;
 
 
-pub trait SeqReader {
-    fn next(&mut self) -> Option<CliResult<&Record>>;
+pub trait SeqReader<O> {
+    fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>>;
 }
+
+
+pub trait SeqWriter<W: io::Write> {
+    fn write(&mut self, record: &Record) -> CliResult<()>;
+    fn into_inner(self: Box<Self>) -> Option<CliResult<W>>;
+}
+
+
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum Compression {

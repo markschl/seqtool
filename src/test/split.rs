@@ -14,28 +14,28 @@ fn split_n() {
 
         t.temp_dir("split_n", |tmp_dir| {
 
-                let key = tmp_dir.path().join("f_{split:chunk}.{default_ext}");
+            let key = tmp_dir.path().join("f_{split:chunk}.{default_ext}");
 
-                t.succeeds(&["split", "-n", &format!("{}", size), "-po", &key.to_str().unwrap()], *FASTA);
+            t.succeeds(&["split", "-n", &format!("{}", size), "-po", &key.to_str().unwrap()], *FASTA);
 
-                for (i, seqs) in SEQS.iter().chunks(size).into_iter().enumerate() {
-                    let p = tmp_dir.path().join(format!("f_{}.fasta", i + 1));
-                    let mut reader = fasta::Reader::from_path(&p)
-                        .expect(&format!("file {:?} not found", p));
-                    for seq in seqs {
-                        let rec = reader.next().expect("Not enough records").unwrap();
-                        assert_eq!(
-                            &format!(
-                                ">{} {}\n{}\n",
-                                rec.id().unwrap(),
-                                rec.desc().unwrap().unwrap(),
-                                str::from_utf8(rec.seq()).unwrap()
-                            ),
-                            seq
-                        );
-                    }
-                    assert!(reader.next().is_none(), "Too many records");
+            for (i, seqs) in SEQS.iter().chunks(size).into_iter().enumerate() {
+                let p = tmp_dir.path().join(format!("f_{}.fasta", i + 1));
+                let mut reader = fasta::Reader::from_path(&p)
+                    .expect(&format!("file {:?} not found", p));
+                for seq in seqs {
+                    let rec = reader.next().expect("Not enough records").unwrap();
+                    assert_eq!(
+                        &format!(
+                            ">{} {}\n{}\n",
+                            rec.id().unwrap(),
+                            rec.desc().unwrap().unwrap(),
+                            str::from_utf8(rec.seq()).unwrap()
+                        ),
+                        seq
+                    );
                 }
+                assert!(reader.next().is_none(), "Too many records");
+            }
         });
     }
 }

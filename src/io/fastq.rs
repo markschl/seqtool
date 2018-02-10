@@ -6,8 +6,28 @@ use std::cell::Cell;
 
 use memchr::memchr;
 
-use seq_io::fastq::{self, Record as FR};
+use seq_io::BufStrategy;
+use seq_io::fastq::{self, Record as FR, Reader};
 use super::*;
+
+
+// Reader
+
+pub struct FastqReader<R: io::Read, S: BufStrategy>(pub Reader<R, S>);
+
+impl<R, S, O> SeqReader<O> for FastqReader<R, S>
+    where
+        R: io::Read,
+        S: BufStrategy,
+{
+    fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
+        self.0.next().map(|r| {
+            let r = FastqRecord::new(r?);
+            Ok(func(&r))
+        })
+    }
+}
+
 
 // Wrapper for FASTQ record
 
@@ -82,7 +102,7 @@ impl<W: io::Write> FastqWriter<W> {
     }
 }
 
-impl<W: io::Write> output::SeqWriter<W> for FastqWriter<W> {
+impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
     fn write(&mut self, record: &Record) -> CliResult<()> {
         let qual = record.qual().ok_or("Qualities missing!")?;
         // Using .raw_seq() is possible only because FASTA cannot be used as input source

@@ -98,9 +98,17 @@ impl<'a> Config<'a> {
     {
         self.check_repetition()?;
         input::io_readers(&self.input_opts, |o, rdr| {
-            input::run_reader(&o.format, rdr, o.cap, o.max_mem, &mut func)
+            input::run_reader(rdr, &o.format, o.cap, o.max_mem, &mut func)
         })?;
         Ok(())
+    }
+
+    pub fn all_readers<F>(&self, func: F) -> CliResult<()>
+    where
+        F: FnMut(usize, &Record) -> CliResult<()>,
+    {
+        self.check_repetition()?;
+        input::all_readers(&self.input_opts, func)
     }
 
     pub fn read_sequential_var<F>(&self, vars: &mut var::Vars, mut func: F) -> CliResult<()>
@@ -108,9 +116,9 @@ impl<'a> Config<'a> {
         F: FnMut(&Record, &mut var::Vars) -> CliResult<bool>,
     {
         self.check_repetition()?;
-        input::io_readers(&self.input_opts, |in_opts, rdr| {
-            vars.new_input(in_opts)?;
-            input::run_reader(&in_opts.format, rdr, in_opts.cap, in_opts.max_mem, |rec| {
+        input::io_readers(&self.input_opts, |o, rdr| {
+            vars.new_input(o)?;
+            input::run_reader(rdr, &o.format, o.cap, o.max_mem, &mut |rec| {
                 vars.set_record(&rec)?;
                 func(&rec, vars)
             })

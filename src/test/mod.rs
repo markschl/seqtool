@@ -212,3 +212,4 @@ mod revcomp;
 mod stat;
 #[cfg(feature = "exprtk")]
 mod filter;
+mod interleave;

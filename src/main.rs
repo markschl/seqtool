@@ -118,6 +118,7 @@ fn run_cmd(cmd: &str) -> CliResult<()> {
         "lower" => cmd::lower::run(),
         "mask" => cmd::mask::run(),
         "revcomp" => cmd::revcomp::run(),
+        "interleave" => cmd::interleave::run(),
         _ => Err(CliError::Other(
             concat!("Unknown command! Available commands:\n", command_list!()).to_string(),
         )),

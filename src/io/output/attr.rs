@@ -6,8 +6,10 @@ use vec_map::VecMap;
 use error::CliResult;
 use var;
 
-use super::{Record, SeqWriter, Writer, WriteFinish};
+use io::SeqWriter;
+use super::{Record, Writer, WriteFinish};
 use io::DefRecord;
+
 
 pub struct AttrWriter<W: io::Write, S: SeqWriter<W>> {
     inner: S,

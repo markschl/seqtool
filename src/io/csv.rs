@@ -113,6 +113,13 @@ impl<R: io::Read> CsvReader<R> {
             },
         })
     }
+
+    pub fn next(&mut self) -> Option<CliResult<&Record>> {
+        if !try_opt!(self.rdr.read_byte_record(&mut self.rec.data)) {
+            return None;
+        }
+        Some(Ok(&self.rec))
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -125,15 +132,17 @@ pub struct Columns {
     other_cols: Vec<(String, usize)>,
 }
 
-impl<R: io::Read> SeqReader for CsvReader<R> {
-    //type Record = CsvRecord;
-    fn next(&mut self) -> Option<CliResult<&Record>> {
-        if !try_opt!(self.rdr.read_byte_record(&mut self.rec.data)) {
-            return None;
-        }
-        Some(Ok(&self.rec))
+
+impl<R, O> SeqReader<O> for CsvReader<R>
+    where
+        R: io::Read,
+{
+    fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
+        self.next().map(|r| r.map(|r| func(&r)))
     }
 }
+
+
 
 // method used by seq_io::parallel module
 impl<R: io::Read> CsvReader<R> {

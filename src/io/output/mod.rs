@@ -23,12 +23,6 @@ lazy_static! {
 }
 
 
-pub trait SeqWriter<W: io::Write> {
-    fn write(&mut self, record: &Record) -> CliResult<()>;
-    fn into_inner(self: Box<Self>) -> Option<CliResult<W>>;
-}
-
-
 #[derive(Clone, Debug)]
 pub struct OutputOptions {
     pub kind: OutputKind,

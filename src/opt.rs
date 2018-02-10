@@ -85,7 +85,6 @@ impl Args {
                     compression: arg_compr.unwrap_or(Compression::None),
                     threaded: threaded_rdr,
                     thread_bufsize: thread_bufsize,
-                    qfile: None,
                     cap: cap,
                     max_mem: max_mem,
                 }
@@ -101,7 +100,6 @@ impl Args {
                     compression: arg_compr.or(compr).unwrap_or(Compression::None),
                     threaded: threaded_rdr,
                     thread_bufsize: thread_bufsize,
-                    qfile: None,
                     cap: cap,
                     max_mem: max_mem,
                 }
