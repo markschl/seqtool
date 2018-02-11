@@ -335,20 +335,19 @@ impl Traceback {
         // is shorter than the pattern
         self.states[0].dist = m;
         self.positions.next().unwrap();
-        // leftmost column with all 1s
+        // leftmost column starts at second position
         let leftmost_state = &mut self.states[1];
         leftmost_state.dist = m;
-        leftmost_state.pv = ::std::u64::MAX;
-        // begin with 2nd column
+        leftmost_state.pv = ::std::u64::MAX; // all 1s
         self.pos = self.positions.next().unwrap();
     }
 
     #[inline]
     fn add_state(&mut self, s: State) {
         self.pos = self.positions.next().unwrap();
-        *unsafe{ self.states.get_unchecked_mut(self.pos) } = s;
         //self.states[self.pos] = s;
-        //println!("add state at {} {:?}", self.pos, &self.states[..self.pos +1]);
+        // faster
+        *unsafe { self.states.get_unchecked_mut(self.pos) } = s;
     }
 
     /// Returns the length of the current match, optionally adding the
@@ -514,12 +513,12 @@ mod tests {
 
     #[test]
     fn test_long_shorter() {
-        let text =    "GCGGTGTCCACGCGTGGGTCCTGAGGGAGCTCGTCGGTGTGGGGTTCGGGGGGGTTTGT";
-        let pattern ="CGCGGTGTCCACGCGTGGGTCCTGAGGGAGCTCGTCGGTGTGGGGTTCGGGGGGGTTTGTG";
+        let text =           "CCACGCGTGGGTCCTGAGGGAGCTCGTCGGTGTGGGGTTCGGGGGGGTTTGT";
+        let pattern ="CGCGGTGTCCACGCGTGGGTCCTGAGGGAGCTCGTCGGTGTGGGGTTCGGGGGGGTTTGT";
 
         let mut myers = Myers::new(pattern.as_bytes());
-        let mut matches = myers.find_all_pos(text.as_bytes(), 2);
-        assert_eq!(matches.next().unwrap(), (0, 59, 2));
+        let mut matches = myers.find_all_pos(text.as_bytes(), 8);
+        assert_eq!(matches.next().unwrap(), (0, 52, 8));
     }
 
     #[test]
