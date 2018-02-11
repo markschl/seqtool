@@ -213,3 +213,4 @@ mod stat;
 #[cfg(feature = "exprtk")]
 mod filter;
 mod interleave;
+mod concat;

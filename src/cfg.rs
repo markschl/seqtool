@@ -9,9 +9,9 @@ use lib::inner_result::MapRes;
 
 #[derive(Debug, Clone)]
 pub struct Config<'a> {
-    pub input_opts: Vec<input::InputOptions>,
-    pub output_opts: Option<output::OutputOptions>,
-    pub var_opts: var::VarOpts<'a>,
+    input_opts: Vec<input::InputOptions>,
+    output_opts: Option<output::OutputOptions>,
+    var_opts: var::VarOpts<'a>,
     started: Cell<bool>,
 }
 
@@ -109,6 +109,10 @@ impl<'a> Config<'a> {
     {
         self.check_repetition()?;
         input::all_readers(&self.input_opts, func)
+    }
+
+    pub fn num_readers(&self) -> usize {
+        self.input_opts.len()
     }
 
     pub fn read_sequential_var<F>(&self, vars: &mut var::Vars, mut func: F) -> CliResult<()>

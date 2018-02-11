@@ -15,9 +15,9 @@ printf "\n## Commands" >> $main
 cmd=(
   ">Basic conversion / editing" pass
   ">Information about sequences" count stat
-  ">Subsetting/shuffling sequences" head tail slice sample filter split
+  ">Subsetting/shuffling sequences" head tail slice sample filter split interleave
   ">Searching and replacing" find replace
-  ">Modifying commands" del set trim mask upper lower revcomp
+  ">Modifying commands" del set trim mask upper lower revcomp concat
 )
 for c in "${cmd[@]}"; do
   echo "$c"

@@ -20,3 +20,4 @@ pub mod stat;
 #[cfg(feature = "exprtk")]
 pub mod filter;
 pub mod interleave;
+pub mod concat;

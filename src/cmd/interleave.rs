@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use error::CliResult;
 use opt;
 use cfg;
@@ -41,15 +39,13 @@ pub fn run() -> CliResult<()> {
                 } else {
                     if rec_id != id.as_slice() {
                         return fail!(format!(
-                            "ID of record ({}) does not match the ID of the first one ({})",
-                            String::from_utf8_lossy(rec_id), String::from_utf8_lossy(&id)
+                            "ID of record #{} ({}) does not match the ID of the first one ({})",
+                            i + 1, String::from_utf8_lossy(rec_id), String::from_utf8_lossy(&id)
                         ));
                     }
                 }
             }
-            writer.write(rec, &vars)?;
-            Ok(())
-        })?;
-        Ok(())
+            writer.write(rec, &vars)
+        })
     })
 }

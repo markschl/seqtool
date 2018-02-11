@@ -266,6 +266,44 @@ impl<'b, R: Record> Record for SeqQualRecord<'b, R> {
     }
 }
 
+
+// Record that owns all data
+
+#[derive(Default, Clone)]
+pub struct OwnedRecord {
+    pub id: Vec<u8>,
+    pub desc: Option<Vec<u8>>,
+    pub seq: Vec<u8>,
+    pub qual: Option<Vec<u8>>,
+}
+
+
+impl Record for OwnedRecord {
+    fn id_bytes(&self) -> &[u8] {
+        &self.id
+    }
+    fn desc_bytes(&self) -> Option<&[u8]> {
+        self.desc.as_ref().map(|d| d.as_slice())
+    }
+    fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
+        (self.id_bytes(), self.desc_bytes())
+    }
+    fn get_header(&self) -> SeqHeader {
+        SeqHeader::IdDesc(self.id_bytes(), self.desc_bytes())
+    }
+    fn raw_seq(&self) -> &[u8] {
+        &self.seq
+    }
+    fn has_seq_lines(&self) -> bool {
+        false
+    }
+    fn qual(&self) -> Option<&[u8]> {
+        self.qual.as_ref().map(|d| d.as_slice())
+    }
+}
+
+
+
 // Wrapper for retrieving and editing record attributes
 
 #[derive(Debug, Default)]
