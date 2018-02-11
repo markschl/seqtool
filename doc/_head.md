@@ -6,12 +6,14 @@ algorithms ([LZ4](http://lz4.github.io/lz4) and
 [Zstandard](http://facebook.github.io/zstd)) out of the box.
 
 
-The tool is written in [Rust](https://www.rust-lang.org) and aims at solving simple tasks that might otherwise only be solved by writing
-custom scripts. This is possible with the use of
+The tool is written in [Rust](https://www.rust-lang.org) and aims at solving
+simple tasks that might otherwise only be solved by writing
+custom scripts while being very fast. This is possible with the use of
 [variables and mathematical expressions](wiki/variables).
 In contrast to [biopieces](https://github.com/maasha/biopieces),
 no custom format is used for passing information between commands.
-Instead, it is possible to use '[attributes](wiki/attributes)', which are key=value strings added to the sequence headers, or custom CSV fields.
+Instead, it is possible to use '[attributes](wiki/attributes)', which are
+key=value strings added to the sequence headers, or custom CSV fields.
 
 It uses the [Rust-Bio](http://rust-bio.github.io/) and
 [seq_io](https://github.com/markschl/seq_io) libraries, amongst others

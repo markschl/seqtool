@@ -39,8 +39,8 @@ in regular expressions.
 Approximative matching is particularly useful for finding primers and
 adapters or other short patterns. The tool is not specialized for removing
 adapters like other software, but still aims at being very fast and
-useful for many purposes. **Note:** Currently, pattern length is currently
-limited to 64 characters.
+useful for many purposes. **Note:** The length of search patterns for
+approximative matching is limited to 64 characters, currently.
 
 It is possible to search for all matches up to a maximum
 [edit distance](https://en.wikipedia.org/wiki/Edit_distance)
@@ -60,19 +60,21 @@ GGATCAGCGATCC
 (...)
 ```
 
-The second best hit can be returned by using `{f:range:2}` or `{f:match:2}`, etc. Use `--in-order` to report hits in order from left to right instead.
+The second best hit can be returned by using `{f:range:2}` or `{f:match:2}`, etc.
+Use `--in-order` to report hits in order from left to right instead.
 
-Speedups can be achieved by [restricting the search range](#restrict_search_range) and by multithreading (`-t`).
+Substantial speedups can be achieved by [restricting the search range](#restrict_search_range)
+and by multithreading (`-t`).
 
 
 #### Search performance
 
-Approximative matching uses the fast bit-parallel algorithm by [Myers](https://doi.org/10.1145/316542.316550).
+Approximative matching uses the fast bit-parallel algorithm by
+[Myers](https://doi.org/10.1145/316542.316550).
 The runtimes for searching two forward primers (22 bp) with up to 4 mismatches (`-d 4`)
 in a [1.2 GB file](https://github.com/markschl/seqtool#performance)
-vary depending on the options used. In the following comparison, the positions
-of two possible primers were searched using this algorithm using 1 or 4
-threads/processes.
+vary depending on the options used. In the following table, different settings
+as well as other tools are compared, using 1 or 4 threads or processes ('cores').
 
 |                                                         | 1 core      | 4 cores     |
 |---------------------------------------------------------|-------------|-------------|
@@ -80,9 +82,9 @@ threads/processes.
 | Find the position of the best hit                       | 31.3s       | 7.73s       |
 | Report first hit  from left<sup>1</sup>                 | 31.1s       | 7.72s       |
 | Best hit in range where the primer should occur<sup>2</sup>| 8.02s    | 2.34s       |
-| Exact search (no mismatches/ambiguities)<sup>4</sup>    | 11.1s       | 2.57s       |
+| Exact search (no mismatches/ambiguities)<sup>3</sup>    | 11.1s       | 2.57s       |
 | [cutadapt](https://github.com/marcelm/cutadapt)         | 1min 16s    | 24.2s       |
-| [AdapterRemoval](https://github.com/MikkelSchubert/adapterremoval)<sup>3</sup> | 35.0s| 8.75s |
+| [AdapterRemoval](https://github.com/MikkelSchubert/adapterremoval)<sup>4</sup> | 35.0s| 8.75s |
 
 <sup>1</sup> `--in-order` option. Normally, hits are sorted by decreasing
 distance.
