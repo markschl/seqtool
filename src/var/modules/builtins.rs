@@ -34,6 +34,7 @@ impl VarHelp for BuiltinHelp {
             ),
             ("filestem", "Name of the current input file without extension (or '-')"),
             ("extension", "Extension of the current input file."),
+            ("dirname", "Name of the base directory of the current file (or '')"),
         ])
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
@@ -61,6 +62,7 @@ enum BuiltinVar {
     InStem,
     DefaultExt,
     Ext,
+    Dir,
 }
 
 #[derive(Debug, Default)]
@@ -69,6 +71,7 @@ struct PathInfo {
     name: Option<Vec<u8>>,
     stem: Option<Vec<u8>>,
     ext: Option<Vec<u8>>,
+    dir: Option<Vec<u8>>,
     out_ext: Vec<u8>,
 }
 
@@ -120,6 +123,10 @@ impl VarProvider for BuiltinVars {
                 self.path_info.ext = Some(vec![]);
                 Ext
             }
+            "dirname" => {
+                self.path_info.dir = Some(vec![]);
+                Dir
+            }
             "default_ext" => DefaultExt,
             _ => return Ok(false),
         };
@@ -154,6 +161,8 @@ impl VarProvider for BuiltinVars {
                     .set_text(id, self.path_info.stem.as_ref().unwrap()),
                 Ext => data.symbols
                     .set_text(id, self.path_info.ext.as_ref().unwrap()),
+                Dir => data.symbols
+                    .set_text(id, self.path_info.dir.as_ref().unwrap()),
                 DefaultExt => data.symbols.set_text(id, &self.path_info.out_ext),
             }
         }
