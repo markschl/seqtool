@@ -24,8 +24,8 @@ mod matches;
 mod vars;
 
 static USAGE: &'static str = concat!("
-Searches for one or more patterns in sequences or ids / descriptions,
-optional multithreading.
+Fast searching for one or more patterns in sequences or ids/descriptions,
+with optional multithreading.
 
 Usage:
   seqtool find [options] [-a <attr>...] <pattern> [<input>...]
@@ -39,7 +39,7 @@ Search Options:
                         of <dist> [default: 0]
     --in-order          Report hits in the order of their occurrence instead
                         of sorting by distance (with -d > 0)
-    --seqtype <type>    Sequence type {dna/protein/other}
+    --seqtype <type>    Sequence type {dna/rna/protein/other}
     -t, --threads <N>   Number of threads to use [default: 1]
     --ambig <yn>        Override choice of whether DNA ambiguity codes (IUPAC)
                         are recognized or not {yes/no}.
@@ -196,15 +196,8 @@ pub fn run() -> CliResult<()> {
 
     // determine sequence type for each pattern
     let typehint = typehint.as_ref().map(|s| s.as_str());
-    let (seqtype, algorithms) = analyse_patterns(
-        &patterns,
-        algo_override,
-        typehint,
-        ambig,
-        regex,
-        dist,
-        verbose,
-    )?;
+    let (seqtype, algorithms) = analyse_patterns(&patterns, algo_override, typehint,
+                                                 ambig, regex, dist, verbose)?;
 
     // run
     cfg.writer_with(
@@ -234,7 +227,7 @@ pub fn run() -> CliResult<()> {
 
             report!(
               verbose,
-              "Sorting by distance: {:?}, searching start position: {:?}",
+              "Sort by distance: {:?}. Find full position: {:?}",
               sorted, needs_alignment
             );
 
