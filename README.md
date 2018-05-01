@@ -20,6 +20,7 @@ It uses the [Rust-Bio](http://rust-bio.github.io/) and
 and compiles to a standalone binary.
 
 
+
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
 [![Windows build status](https://ci.appveyor.com/api/projects/status/github/markschl/seqtool?svg=true)](https://ci.appveyor.com/project/markschl/seqtool)
 
