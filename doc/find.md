@@ -78,10 +78,10 @@ as well as other tools are compared, using 1 or 4 threads or processes ('cores')
 
 |                                                         | 1 core      | 4 cores     |
 |---------------------------------------------------------|-------------|-------------|
-| Filter by occurrence (`-f`), no position determined     | 14.0s       | 3.24s       |
-| Find the position of the best hit                       | 31.3s       | 7.73s       |
-| Report first hit  from left<sup>1</sup>                 | 31.1s       | 7.72s       |
+| Find the position of best hit                           | 31.3s       | 7.73s       |
+| Report first hit from left<sup>1</sup>                  | 31.1s       | 7.72s       |
 | Best hit in range where the primer should occur<sup>2</sup>| 8.02s    | 2.34s       |
+| Filter by occurrence (`-f`), no position determined     | 14.0s       | 3.24s       |
 | Exact search (no mismatches/ambiguities)<sup>3</sup>    | 11.1s       | 2.57s       |
 | [cutadapt](https://github.com/marcelm/cutadapt)         | 1min 16s    | 24.2s       |
 | [AdapterRemoval](https://github.com/MikkelSchubert/adapterremoval)<sup>4</sup> | 35.0s| 8.75s |
@@ -101,7 +101,7 @@ distance.
 DNA (RNA) ambiguity codes according to the IUPAC nomenclature are accepted and
 automatically recognised in search patterns. For Proteins, `X` is recognised as
 wildcard for all amino acids. The molecule type is automatically determined
-from the pattern. Use `-v` to show which search settings are used. Example:
+from the pattern. Use `-v` to show which search settings are being used. Example:
 
 ```bash
 seqtool find -v file:primers.fasta -a primer={f:name} -a rng={f:range} input.fasta > output.fasta
@@ -113,8 +113,8 @@ primer2: DNA with ambiguities, search algorithm: Myers
 Sorting by distance: true, searching start position: true
 ```
 
-In case of wrongly recognised patterns, specify `--seqtype`. However, the
-tool is very cautious and will warn about any inconsistency betwenn multiple paterns.
+In case of wrongly recognised patterns, specify `--seqtype`. The tool is
+very cautious and will warn about any inconsistencies between multiple patterns.
 
 **Note:** Matching is asymmetric: `R` in a search pattern matches [`A`, `G`, `R`]
 in sequences, but `R` in a sequence will only match ambiguities sharing the same
@@ -145,8 +145,8 @@ SEQUENCE
 
 ### Restrict search range
 
-It is possible to search only part of the target
-string. By using `--rng`. This can substantially speed up the search.
+It is possible to search only part of the target string by using `--rng`.
+This can substantially speed up the search.
 
 
 ```bash
@@ -160,7 +160,7 @@ used to report only those hits.
 
 ### Replace matches
 
-Hits can be replaced by other text. Variables are allowed
+Hits can be replaced by other text (`--repl`). Variables are allowed
 as well (in contrast to the *replace* command). Backreferences to regex groups
 (e.g. `$1`) are not supported like the _replace_
 command does. Instead, they can be accessed using variables
@@ -170,7 +170,7 @@ command does. Instead, they can be accessed using variables
 
 Variables for the matched sequence (`f:match`), coordinates
 (`f:start`, `f:end`, `f:range`, etc.) are available.
-Selecting another match than the first one is possible by adding
+Selecting another match than the best/first one is possible by adding
 the match number after a colon (`:`): `f:range:2` will return
 the second match.
 Match groups of regular expressions can be

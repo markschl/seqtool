@@ -93,21 +93,23 @@ time read_fasta -i $f | grab -e 'SEQ_LEN >= 100' | write_fasta -x > /dev/null
 printf ">primer1\n$seq1\n>primer2\n$seq2\n" > _primer_file.fa
 fp=_primer_file.fa
 printf "$seq1\n$seq2\n" | tr 'YR' 'N' > _primer_list.txt
+sed 's/R/[AG]/g' _primer_file.fa > _primer_file_ambig.fa
 
 run_find() {
-    time s find -v file:$fp $f -a primer={f:name} -a rng={f:range} "$@" > /dev/null
-    time s find -v file:$fp $f -a primer={f:name} -a rng={f:range} -t4 "$@" > /dev/null
+    time s find -v file:$1 $f -a primer={f:name} -a rng={f:range} "${@:2}" > /dev/null
+    time s find -v file:$1 $f -a primer={f:name} -a rng={f:range} -t4 "${@:2}" > /dev/null
 }
 
-run_find --algo myers
-run_find --algo myers -d1
-run_find --algo myers -d4
-run_find --algo myers -d8
-run_find --algo myers -d4 --in-order
-run_find --algo myers -d4 --rng ..25
+run_find $fp --algo myers
+run_find $fp --algo myers -d1
+run_find $fp --algo myers -d4
+run_find $fp --algo myers -d8
+run_find $fp --algo myers -d4 --in-order
+run_find $fp --algo myers -d4 --rng ..25
 time s find -v file:$fp $f -a d={f:dist} > /dev/null
 time s find -v file:$fp $f -a d={f:dist} -t4 > /dev/null
-run_find --algo exact
+run_find $fp --algo exact
+run_find _primer_file_ambig.fa -r --seqtype other
 
 adapter_removal() {
     time AdapterRemoval --file1 $f --adapter-list _primer_list.txt --shift 8 --threads 4 \

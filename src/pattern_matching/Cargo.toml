@@ -3,8 +3,17 @@ name = "pattern_matching"
 version = "0.1.0"
 authors = ["marcschl <ms201@gmx.net>"]
 
+[dependencies]
+custom_derive = "*"
+newtype_derive = "*"
+
 [dev-dependencies]
 bio = "0.16"
+num-bigint = "*"
 
 [profile.bench]
 lto = true
+
+[dependencies.num-traits]
+version = "0.2"
+default-features = false

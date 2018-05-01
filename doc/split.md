@@ -3,9 +3,9 @@ Immagine this FASTA file (`input.fa`):
 ```
 >seq1;group=1
 SEQUENCE
->seq1;group=2
+>seq2;group=2
 SEQUENCE
->seq2;group=1
+>seq3;group=1
 SEQUENCE
 ```
 
