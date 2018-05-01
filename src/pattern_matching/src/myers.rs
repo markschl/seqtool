@@ -270,7 +270,7 @@ impl<'a, I: TextIterator<'a>> FullMatches<'a, I> {
         self.find_next(Some(ops))
     }
 
-    fn find_next(&mut self, ops: Option<&mut Vec<AlignmentOperation>>) -> Option<(usize, usize, u8)> {
+    pub fn find_next(&mut self, ops: Option<&mut Vec<AlignmentOperation>>) -> Option<(usize, usize, u8)> {
         for (i, &a) in self.text.by_ref() {
             self.myers.step_trace(&mut self.state, a);
             if self.state.dist <= self.max_dist {
@@ -322,7 +322,7 @@ impl Traceback {
 
     fn init(&mut self, m: u8, k: usize) {
         self.m = m;
-        let num_cols = m as usize + k + 2;
+        let num_cols = m as usize + k + 1;
         self.positions = (0..num_cols).cycle();
         let curr_len = self.states.len();
         if num_cols > curr_len {
@@ -331,12 +331,8 @@ impl Traceback {
             }
         }
         debug_assert!(self.states.len() >= num_cols);
-        // first column is used to ensure a correct path if the text
-        // is shorter than the pattern
-        self.states[0].dist = m;
-        self.positions.next().unwrap();
-        // leftmost column starts at second position
-        let leftmost_state = &mut self.states[1];
+
+        let leftmost_state = &mut self.states[0];
         leftmost_state.dist = m;
         leftmost_state.pv = ::std::u64::MAX; // all 1s
         self.pos = self.positions.next().unwrap();
@@ -370,14 +366,14 @@ impl Traceback {
 
         macro_rules! move_up {
             ($state:expr) => {
-                 if $state.pv & max_mask > 0 {
+                 if $state.pv & max_mask != 0 {
                      $state.dist -= 1
-                 } else if $state.mv & max_mask > 0 {
+                 } else if $state.mv & max_mask != 0 {
                      $state.dist += 1
                  }
                 // Not always faster:
-                //$state.dist += ($state.mv & max_mask > 0) as u8;
-                //$state.dist -= ($state.pv & max_mask > 0) as u8;
+                //$state.dist += ($state.mv & max_mask != 0) as u8;
+                //$state.dist -= ($state.pv & max_mask != 0) as u8;
                 $state.pv <<= 1;
                 $state.mv <<= 1;
             };
@@ -416,35 +412,34 @@ impl Traceback {
 
         while v_offset < self.m {
             let op =
-                if lstate.dist < state.dist {
+                if state.pv & max_mask != 0 {
+                    // up
+                    v_offset += 1;
+                    move_up!(state);
+                    move_up!(lstate);
+                    Ins
+                } else {
+                    let op =
+                        if lstate.dist + 1 == state.dist {
+                            // left
+                            Del
+                        } else {
+                            // diagonal
+                            v_offset += 1;
+                            move_up!(lstate);
+                            if lstate.dist == state.dist {
+                                Match
+                            } else {
+                                Subst
+                            }
+                        };
                     // move left
                     state = lstate;
                     lstate = states.next().unwrap().clone();
                     move_up_many!(lstate, v_offset);
                     h_offset += 1;
-                    Del
-                } else {
-                    v_offset += 1;
-                    // move up or diagonal
-                    if state.pv & max_mask == max_mask {
-                        // up
-                        move_up!(state);
-                        move_up!(lstate);
-                        Ins
-                    } else {
-                        // diagnonal
-                        let curr_dist = state.dist;
-                        state = lstate;
-                        move_up!(state);
-                        lstate = states.next().unwrap().clone();
-                        move_up_many!(lstate, v_offset);
-                        h_offset += 1;
-                        if state.dist == curr_dist {
-                            Match
-                        } else {
-                            Subst
-                        }
-                    }
+
+                    op
                 };
 
             if let Some(o) = ops.as_mut() {
@@ -489,14 +484,26 @@ mod tests {
 
     #[test]
     fn test_traceback() {
-        let text =   "CAGACAT-CTT".replace('-', "");
-        let pattern = "AG-CGTGCT".replace('-', "");
+        let text =   "CAGA-CAT-CTT".replace('-', "");
+        let pattern =   "AGCGTGCT".replace('-', "");
 
         let mut myers = Myers::new(pattern.as_bytes());
         let mut matches = myers.find_all_pos(text.as_bytes(), 3);
         let mut aln = vec![];
-        assert_eq!(matches.find_next(Some(&mut aln)).unwrap(), (1, 9, 3));
-        assert_eq!(aln, &[Match, Match, Del, Match, Subst, Match, Ins, Match, Match]);
+        assert_eq!(matches.find_next(Some(&mut aln)).unwrap(), (3, 9, 3));
+        assert_eq!(aln, &[Match, Ins, Match, Subst, Match, Ins, Match, Match]);
+    }
+
+    #[test]
+    fn test_traceback2() {
+        let text =    "TCAG--CAGATGGAGCTC".replace('-', "");
+        let pattern = "TCAGAGCAG".replace('-', "");
+
+        let mut myers = Myers::new(pattern.as_bytes());
+        let mut matches = myers.find_all_pos(text.as_bytes(), 2);
+        let mut aln = vec![];
+        assert_eq!(matches.find_next(Some(&mut aln)).unwrap(), (0, 7, 2));
+        assert_eq!(aln, &[Match, Match, Match, Match, Ins, Ins, Match, Match, Match]);
     }
 
     #[test]
