@@ -41,7 +41,7 @@ run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.9)
 | [Summarize GC content](wiki/count)           | 4.45s  |             |        |        |            |           |
 | .. with [math formula](wiki/variables#math-expressions) (GC% / 100)| 4.55s  |        |        |        |   |   |
 | [Find forward primers with max. 4 mismatches](wiki/find#algorithms-and-performance) | 8.02s | 2.34s  |  |  |  |  |  |
-| [Remove the primers if found \(1.36 M seqs\)](wiki/trim# Using variables) | 2.26s |   |  |  |  |  |  |
+| [Remove the primers if found \(1.36 M seqs\)](wiki/trim#using-variables) | 2.26s |   |  |  |  |  |  |
 
 Simple counting is the fastest operation, faster than the UNIX line counting
 command (`wc -l`, 2.70s) on OS X. The commands `find`, `replace` and `revcomp`

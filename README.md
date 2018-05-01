@@ -6,12 +6,14 @@ algorithms ([LZ4](http://lz4.github.io/lz4) and
 [Zstandard](http://facebook.github.io/zstd)) out of the box.
 
 
-The tool is written in [Rust](https://www.rust-lang.org) and aims at solving simple tasks that might otherwise only be solved by writing
-custom scripts. This is possible with the use of
+The tool is written in [Rust](https://www.rust-lang.org) and aims at solving
+simple tasks that might otherwise only be solved by writing
+custom scripts while being very fast. This is possible with the use of
 [variables and mathematical expressions](https://github.com/markschl/seqtool/wiki/variables).
 In contrast to [biopieces](https://github.com/maasha/biopieces),
 no custom format is used for passing information between commands.
-Instead, it is possible to use '[attributes](https://github.com/markschl/seqtool/wiki/attributes)', which are key=value strings added to the sequence headers, or custom CSV fields.
+Instead, it is possible to use '[attributes](https://github.com/markschl/seqtool/wiki/attributes)', which are
+key=value strings added to the sequence headers, or custom CSV fields.
 
 It uses the [Rust-Bio](http://rust-bio.github.io/) and
 [seq_io](https://github.com/markschl/seq_io) libraries, amongst others
@@ -40,11 +42,14 @@ variables (-k).
 * **[sample](https://github.com/markschl/seqtool/wiki/sample)**: Return a random subset of sequences.
 * **[filter](https://github.com/markschl/seqtool/wiki/filter)**: Filters sequences by a mathematical expression which may contain any variable.
 * **[split](https://github.com/markschl/seqtool/wiki/split)**: This command distributes sequences into multiple files based on different
-criteria.
+criteria. In contrast to other commands, the output (-o) argument can
+contain variables in order to determine the file path for each sequence.
+* **[interleave](https://github.com/markschl/seqtool/wiki/interleave)**: Interleaves records of all files in the input. The records will returned in
+the same order as the files.
 
 ### Searching and replacing
-* **[find](https://github.com/markschl/seqtool/wiki/find)**: Searches for one or more patterns in sequences or ids / descriptions,
-optional multithreading.
+* **[find](https://github.com/markschl/seqtool/wiki/find)**: Fast searching for one or more patterns in sequences or ids/descriptions,
+with optional multithreading.
 * **[replace](https://github.com/markschl/seqtool/wiki/replace)**: This command does fast search and replace for patterns in sequences
 or ids/descriptions.
 
@@ -59,6 +64,8 @@ masking). Reverting soft masking is also possible.
 * **[lower](https://github.com/markschl/seqtool/wiki/lower)**: Converts all characters in the sequence to lowercase.
 * **[revcomp](https://github.com/markschl/seqtool/wiki/revcomp)**: Reverse complements DNA sequences. If quality scores are present,
 their order is just reversed.
+* **[concat](https://github.com/markschl/seqtool/wiki/concat)**: Concatenates sequences/alignments from different files in the order
+in which they are provided. Fails if the IDs don't match.
 ## Installing
 
 Binaries for Linux, Mac OS X and Windows can be
@@ -87,7 +94,7 @@ that are accepted by all commands can be [found here](https://github.com/marksch
 The following run time comparison of diffferent tasks aims to give a quick overview but is not
 comprehensive by any means. Comparisons to a selection of other tools/toolsets are shown if
 there exists an equivalent operation. For all commands, a 1.1 Gb FASTQ file
-containing 1.73 billion Illumina reads of 150-500 bp length was used. They were
+containing 1.73 million Illumina reads of 150-500 bp length was used. They were
 run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.9)
 ([script](https://github.com/markschl/seqtool/blob/master/scripts/time.sh)).
 
@@ -101,8 +108,8 @@ run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.9)
 | [Remove short sequences](https://github.com/markschl/seqtool/wiki/filter)      | 1.62s |      | 3.45s | 2.91s  |  | 1min 23.6s |
 | [Summarize GC content](https://github.com/markschl/seqtool/wiki/count)           | 4.45s  |             |        |        |            |           |
 | .. with [math formula](https://github.com/markschl/seqtool/wiki/variables#math-expressions) (GC% / 100)| 4.55s  |        |        |        |   |   |
-| Summarize GC content stored in [attribute](https://github.com/markschl/seqtool/wiki/attributes) | 1.55s  |    |           ||  |  |
-| [Find 5' primer with max. 4 mismatches](https://github.com/markschl/seqtool/wiki/find#algorithms-and-performance) | 52.1s  | 13.5s  |  |  |  |  |  |
+| [Find forward primers with max. 4 mismatches](https://github.com/markschl/seqtool/wiki/find#algorithms-and-performance) | 8.02s | 2.34s  |  |  |  |  |  |
+| [Remove the primers if found \(1.36 M seqs\)](https://github.com/markschl/seqtool/wiki/trim#using-variables) | 2.26s |   |  |  |  |  |  |
 
 Simple counting is the fastest operation, faster than the UNIX line counting
 command (`wc -l`, 2.70s) on OS X. The commands `find`, `replace` and `revcomp`
