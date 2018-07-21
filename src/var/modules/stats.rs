@@ -107,44 +107,57 @@ impl VarProvider for StatVars {
                 GC => data.symbols
                     .set_float(id, get_gc(rec.seq_segments()) * 100.),
 
-                UngappedLen => {
-                    let n = rec.seq_segments()
-                        .fold(0, |n, s| n + s.iter().filter(|&&c| c != b'-').count());
-                    data.symbols.set_int(id, n as i64);
-                }
+                UngappedLen => data.symbols
+                    .set_int(id, get_ungapped_len(rec, b'-') as i64),
 
-                Count(byte) => {
-                    let mut n = 0;
-                    for seq in rec.seq_segments() {
-                        n += bytecount::count(seq, byte);
-                    }
-                    data.symbols.set_int(id, n as i64);
-                }
+                Count(byte) => data.symbols
+                    .set_int(id, count_byte(rec, byte) as i64),
 
-                MultiCount(ref bytes) => {
-                    let mut n = 0;
-                    for seq in rec.seq_segments() {
-                        n += seq.iter()
-                            .filter(|&b| {
-                                for b0 in bytes {
-                                    if b == b0 {
-                                        return true;
-                                    }
-                                }
-                                false
-                            })
-                            .count();
-                    }
-                    data.symbols.set_int(id, n as i64);
-                }
+                MultiCount(ref bytes) => data.symbols
+                    .set_int(id, count_bytes(rec, bytes) as i64),
             }
         }
         Ok(())
     }
 }
 
+#[inline]
+fn get_ungapped_len<R: Record>(rec: R, gap_char: u8) -> usize {
+    rec.seq_segments()
+        .fold(0, |n, s| n + s.iter().filter(|&&c| c != gap_char).count())
+}
 
-fn get_gc<'a, I>(seqs: I) -> f64 where I: Iterator<Item=&'a [u8]> {
+#[inline]
+fn count_byte<R: Record>(rec: R, byte: u8) -> usize {
+    let mut n = 0;
+    for seq in rec.seq_segments() {
+        n += bytecount::count(seq, byte);
+    }
+    n
+}
+
+#[inline]
+fn count_bytes<R: Record>(rec: R, bytes: &[u8]) -> usize {
+    let mut n = 0;
+    for seq in rec.seq_segments() {
+        n += seq.iter()
+            .filter(|&b| {
+                for b0 in bytes {
+                    if b == b0 {
+                        return true;
+                    }
+                }
+                false
+            })
+            .count();
+    }
+    n
+}
+
+#[inline]
+fn get_gc<'a, I>(seqs: I) -> f64
+where I: Iterator<Item=&'a [u8]>
+{
     let mut n = 0u64;
     let mut gc = 0u64;
     for seq in seqs {
