@@ -4,6 +4,7 @@ use std::io;
 
 use rand::*;
 use bit_vec::BitVec;
+use byteorder::{BigEndian, WriteBytesExt};
 
 use error::CliResult;
 use opt;
@@ -32,12 +33,17 @@ Options:
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
     let cfg = cfg::Config::from_args(&args)?;
-    let seed = args.opt_value::<usize>("--seed")?;
+    let seed = args.opt_value("--seed")?
+        .map(|s| {
+            let mut seed_array = [0; 32];
+            (&mut seed_array[..]).write_u64::<BigEndian>(s).unwrap();
+            seed_array
+        });
 
     cfg.writer(|writer, mut vars| {
         if let Some(n_rand) = args.opt_value("--num-seqs")? {
             if let Some(s) = seed {
-                let rng: StdRng = SeedableRng::from_seed(&[s] as &[usize]);
+                let rng: IsaacRng = SeedableRng::from_seed(s);
                 sample_n(&cfg, n_rand, rng, writer, &mut vars)
             } else {
                 sample_n(&cfg, n_rand, thread_rng(), writer, &mut vars)
@@ -47,7 +53,7 @@ pub fn run() -> CliResult<()> {
                 return fail!("Fractions should be between 0 and 1");
             }
             if let Some(s) = seed {
-                let rng: StdRng = SeedableRng::from_seed(&[s] as &[usize]);
+                let rng: StdRng = SeedableRng::from_seed(s);
                 sample_prob(&cfg, p, rng, writer, &mut vars)
             } else {
                 sample_prob(&cfg, p, thread_rng(), writer, &mut vars)

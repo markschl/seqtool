@@ -32,6 +32,7 @@ extern crate regex;
 extern crate twoway;
 #[macro_use]
 extern crate maplit;
+extern crate byteorder;
 
 // compression
 extern crate bzip2;

@@ -14,8 +14,10 @@ fn sample() {
          .fails(&["sample", "-f", "2"], FileInput(path), "Fractions should be between 0 and 1")
          .fails(&["sample", "-f", "-1"], FileInput(path), "Fractions should be between 0 and 1");
 
+        let mut seed = [0; 32];
+        seed[0] = 9;
         for &p in [0., 0.5, 1.].into_iter() {
-            let mut rng = rand::StdRng::from_seed(&[9]);
+            let mut rng = rand::StdRng::from_seed(seed);
             let expected = SEQS
                 .iter().cloned()
                 .filter(|_| rng.gen::<f32>() < p)
