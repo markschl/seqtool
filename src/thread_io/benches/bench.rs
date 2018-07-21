@@ -28,7 +28,7 @@ macro_rules! bench {
                     for chunk in data.chunks(1024) {
                         w.write(chunk)?;
                     }
-                    Ok(())
+                    Ok::<(), ::std::io::Error>(())
                 }).unwrap();
 
             });
@@ -37,9 +37,9 @@ macro_rules! bench {
 }
 
 
-bench!(writer_1m_2, 1 << 20, 2);
-bench!(writer_1m_4, 1 << 20, 4);
-bench!(writer_1m_5, 1 << 20, 5);
+bench!(writer_512k_2, 1 << 20, 2);
+bench!(writer_512k_4, 1 << 20, 4);
+bench!(writer_512k_5, 1 << 20, 5);
 
 bench!(writer_68k_3, 1024 * 68, 3);
 bench!(writer_256k_3, 1 << 18, 3);

@@ -245,7 +245,7 @@ mod tests {
             for queuelen in 1..len {
                 let mut out = vec![0];
                 let mut rdr = Reader::new(text, channel_bufsize, len / channel_bufsize);
-                let res = reader(channel_bufsize, queuelen, rdr, |r| {
+                let res: io::Result<_> = reader(channel_bufsize, queuelen, rdr, |r| {
                     while r.read(&mut out)? > 0 {
                     }
                     Ok(())
