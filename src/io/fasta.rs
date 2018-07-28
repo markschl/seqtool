@@ -8,6 +8,7 @@ use memchr::memchr;
 use error::CliResult;
 use seq_io::BufStrategy;
 use seq_io::fasta::{self, Record as FR, Reader};
+use var;
 use super::*;
 
 
@@ -112,7 +113,7 @@ impl<W: io::Write> FastaWriter<W> {
 
 
 impl<W: io::Write> SeqWriter<W> for FastaWriter<W> {
-    fn write(&mut self, record: &Record) -> CliResult<()> {
+    fn write(&mut self, record: &Record, _: &var::Vars) -> CliResult<()> {
         match record.get_header() {
             SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.io_writer, id, desc)?,
             SeqHeader::FullHeader(h) => fasta::write_head(&mut self.io_writer, h)?,

@@ -1,30 +1,32 @@
 macro_rules! common_opts { () => (r"
 Input options:
-    --format <format>   Input format: fasta (default), fastq or csv. Compression:
-                        <format>.<compression> (.gz, .bz2 or .lz4). Only
-                        needed if the format cannot be guessed from the extension.
+    --fmt <format>      Input format: fasta(default), fastq (fastq-illumina,
+                        fastq-solexa), or csv / tsv (=txt).
+                        Compression: <format>.<compression> (.gz, .bz2 or .lz4).
+                        Only needed if format cannot be guessed from extension.
     --fields <fields>   CSV fields: 'id,seq,desc' (in order) or 'id:2,desc:6,seq:9'
                         (col. num.) or headers: 'id:id,seq:sequence,desc:desc'
                         [default: id,seq,desc]
-    --delim <delim>     TXT/CSV delimiter. Defaults: '\t' for txt; ',' for csv
+    --delim <delim>     TSV/CSV delimiter. Defaults: '\t' for tsv/txt; ',' for csv
     --header            Specify if CSV file has a header. Auto-enabled with headers.
-    --fa                FASTA input. Short for '--format fasta'.
-    --fq                FASTQ input. Short for '--format fastq'.
-    --csv <fields>      CSV input. Short for '--format csv --fields <fields>'
-    --txt <fields>      TXT input. Short for '--format txt --fields <fields>'
+    --fa                FASTA input. Short for '--fmt fasta'.
+    --fq                FASTQ input. Short for '--fmt fastq'.
+    --fq-illumina       FASTQ input in Illumina 1.3+ format (--fmt fastq-illumina)
+    --csv <fields>      CSV input. Short for '--fmt csv --fields <fields>'
+    --tsv <fields>      TSV input. Short for '--fmt tsv --fields <fields>'
+    --qual <file>       Path to QUAL file with quality scores (Roche 454 style)
 
 Output options:
     -o, --output <f>    Write output to <file> instead of STDOUT [default: -].
-    --no-out            No output at all
-    --outformat <fmt>   Output format and compression. See --format. Only needed
+    --to <outformat>    Output format and compression. See --fmt. Only needed
                         if not guessed from the extension (default: input format).
     --wrap <width>      Wrap FASTA sequences to maximum <width> characters
-    --out-delim <d>     TXT/CSV delimiter. Defaults: '\t' for txt; ',' for csv
-    --outfields <f>     TXT/CSV fields (variables allowed). [default: id,seq,desc]
-    --to-fa             FASTA output. Short for: '--outformat fasta'
-    --to-fq             FASTQ output. Short for: '--outformat fastq'
-    --to-csv <fields>   CSV output. Short for '--outformat csv --outfields <f>'
-    --to-txt <fields>   TXT output. Short for '--outformat txt --outfields <f>'
+    --out-delim <d>     TSV/CSV delimiter. Defaults: '\t' for tsv/txt; ',' for csv
+    --outfields <f>     TSV/CSV fields (variables allowed). [default: id,seq,desc]
+    --to-fa             FASTA output. Short for: '--to fasta'
+    --to-fq             FASTQ output. Short for: '--to fastq'
+    --to-csv <fields>   CSV output. Short for '--to csv --outfields <f>'
+    --to-tsv <fields>   TSV output. Short for '--to tsv --outfields <f>'
     --compr-level <l>   Level for compressed output. 1-9 for GZIP/BZIP2 and
                         1-21 for ZSTANDARD
 
@@ -55,8 +57,8 @@ Advanced Options:
                         [default: 1G]
     -T, --read-thread   Read from a different thread. Enabled with compressed input.
     --write-thread      Write in a different thread. Enabled with compressed output.
-    --read-tbufsize S   Buffer size of threaded reader (default: automatically determined)
-    --write-tbufsize S  Buffer size of threaded reader (default: automatically determined)
+    --read-tbufsize S   Buffer size of threaded reader (default: auto)
+    --write-tbufsize S  Buffer size of threaded reader (default: auto)
 ")}
 
 
@@ -100,7 +102,7 @@ List and explain available variables:
 
 pub static USAGE: &'static str = concat!("
 Tool for processing of biological sequences. It can read and write the formats
-FASTA, FASTQ and CSV/TXT.
+FASTA, FASTQ and CSV/TSV.
 
 Usage:
     seqtool <command> [<opts>...]

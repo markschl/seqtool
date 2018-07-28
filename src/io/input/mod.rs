@@ -11,7 +11,7 @@ use zstd;
 
 use error::{CliError, CliResult};
 use thread_io;
-use super::{csv, fasta, fastq, Compression, Record, SeqReader};
+use super::*;
 use lib::util;
 
 #[allow(dead_code)]
@@ -47,20 +47,29 @@ pub struct InputOptions {
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum InFormat {
     FASTA,
-    FASTQ,
-    CSV(u8, Vec<String>, bool),
+    FASTQ {
+        format: QualFormat,
+    },
+    CSV {
+        delim: u8,
+        fields: Vec<String>,
+        has_header: bool
+    },
 }
 
 impl InFormat {
     pub fn name(&self) -> &'static str {
         match *self {
             InFormat::FASTA => "fasta",
-            InFormat::FASTQ => "fastq",
-            InFormat::CSV(d, _, _) => if d == b'\t' {
-                "txt"
-            } else {
-                "csv"
-            },
+            InFormat::FASTQ { format } =>
+                match format {
+                    QualFormat::Sanger => "fastq",
+                    QualFormat::Illumina => "fastq-illumina",
+                    QualFormat::Solexa => "fastq-solexa",
+                    QualFormat::Phred => unreachable!()
+                },
+            InFormat::CSV { delim, ..} =>
+                if delim == b'\t' { "tsv" } else { "csv" },
         }
     }
 
@@ -73,18 +82,30 @@ impl InFormat {
         let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
 
         let format = match string {
-            "fasta" => InFormat::FASTA,
-            "fastq" => InFormat::FASTQ,
-            "csv" => InFormat::CSV(
-                util::parse_delimiter(csv_delim.unwrap_or(","))?,
-                csv_fields,
-                header,
-            ),
-            "txt" => InFormat::CSV(
-                util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
-                csv_fields,
-                header,
-            ),
+            "fasta" | "fa" =>
+                InFormat::FASTA,
+            "fastq" | "fq" =>
+                InFormat::FASTQ { format: QualFormat::Sanger },
+            "fastq-illumina" | "fq-illumina" =>
+                InFormat::FASTQ {
+                    format: QualFormat::Illumina
+                },
+            "fastq-solexa" | "fq-solexa"=>
+                InFormat::FASTQ {
+                    format: QualFormat::Solexa
+                },
+            "csv" =>
+                InFormat::CSV {
+                    delim: util::parse_delimiter(csv_delim.unwrap_or(","))?,
+                    fields: csv_fields,
+                    has_header: header,
+                },
+            "tsv" =>
+                InFormat::CSV {
+                    delim: util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
+                    fields: csv_fields,
+                    has_header: header,
+                },
             _ => {
                 return Err(CliError::Other(format!(
                     "Unknown input format: '{}'.",
@@ -268,11 +289,11 @@ pub fn get_reader<'a, O, R>(rdr: R, format: &InFormat, cap: usize, max_mem: usiz
     };
     Ok(match *format {
         InFormat::FASTA =>
-            Box::new(fasta::FastaReader(seq_io::fasta::Reader::with_cap_and_strategy(rdr, cap, strategy))) as Box<SeqReader<_>>,
-        InFormat::FASTQ =>
-            Box::new(fastq::FastqReader(seq_io::fastq::Reader::with_cap_and_strategy(rdr, cap, strategy))) as Box<SeqReader<_>>,
-        InFormat::CSV(ref delim, ref fields, has_header) =>
-            Box::new(csv::CsvReader::new(rdr, *delim, fields, has_header)?) as Box<SeqReader<_>>,
+            Box::new(fasta::FastaReader(seq_io::fasta::Reader::with_cap_and_strategy(rdr, cap, strategy))),
+        InFormat::FASTQ { .. } =>
+            Box::new(fastq::FastqReader(seq_io::fastq::Reader::with_cap_and_strategy(rdr, cap, strategy))),
+        InFormat::CSV {ref delim, ref fields, has_header} =>
+            Box::new(csv::CsvReader::new(rdr, *delim, fields, has_header)?),
     })
 }
 
@@ -336,7 +357,7 @@ where
                     transform_result!(func(&rec, d, s))
                 }
             ),
-        InFormat::FASTQ =>
+        InFormat::FASTQ { .. } =>
             seq_io::parallel::parallel_fastq_init(
                 n_threads, queue_len,
                 || Ok::<_, seq_io::fastq::Error>(seq_io::fastq::Reader::new(rdr)),
@@ -355,7 +376,7 @@ where
                     transform_result!(func(&rec, d, s))
                 }
             ),
-        InFormat::CSV(ref delim, ref fields, has_header) =>
+        InFormat::CSV {ref delim, ref fields, has_header} =>
             parallel_csv::parallel_csv_init(
                 n_threads, queue_len,
                 || csv::CsvReader::new(rdr, *delim, fields, has_header),

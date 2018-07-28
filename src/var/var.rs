@@ -5,13 +5,14 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::clone::Clone;
 
-use io::{SeqAttr, Record};
+use io::{SeqAttr, Record, QualConverter};
 use io::input::InputOptions;
 use io::output::OutputOptions;
 use error::CliResult;
 
 use super::symbols::Table;
 use super::attr;
+
 
 pub trait VarProvider: Debug + Send {
     fn prefix(&self) -> Option<&str>;
@@ -129,6 +130,7 @@ impl<'a> VarProvider for &'a mut VarProvider {
 pub struct Data {
     pub symbols: Table,
     pub attrs: attr::Attrs,
+    pub qual_converter: Option<QualConverter>,
 }
 
 #[derive(Debug)]
@@ -140,7 +142,13 @@ pub struct Vars<'a> {
 }
 
 impl<'a> Vars<'a> {
-    pub fn new(attr_delim: u8, attr_value_delim: u8, append_attr: SeqAttr) -> Vars<'a> {
+    pub fn new(
+        attr_delim: u8,
+        attr_value_delim: u8,
+        append_attr: SeqAttr,
+        qual_converter: Option<QualConverter>,
+    ) -> Vars<'a>
+    {
         Vars {
             varstore: VarStore::new(),
             used_modules: vec![],
@@ -148,6 +156,7 @@ impl<'a> Vars<'a> {
             data: Data {
                 symbols: Table::new(0),
                 attrs: attr::Attrs::new(attr_delim, attr_value_delim, append_attr),
+                qual_converter: qual_converter,
             },
         }
     }
@@ -234,6 +243,11 @@ impl<'a> Vars<'a> {
     #[inline]
     pub fn attrs(&self) -> &attr::Attrs {
         &self.data.attrs
+    }
+
+    #[inline]
+    pub fn data(&self) -> &Data {
+        &self.data
     }
 
     #[inline]

@@ -82,7 +82,7 @@ fn rng() {
 fn vars() {
     let fasta = ">seq\nTTGGCAGGCCAAGGCCGATGGATCA\n";
     Tester::new()
-        .cmp(&["find", "-r", "C[GC](A[AT])", "--to-txt",
+        .cmp(&["find", "-r", "C[GC](A[AT])", "--to-tsv",
             "id,f:match,f:match:1,f:match:2,f:match:3,f:match:all,f:range:all,f:end:all,f:match::1,f:match:2:1"], fasta,
             "seq\tCCAA\tCCAA\tCGAT\t\tCCAA,CGAT\t9-12,16-19\t12,19\tAA\tAT\n"
         )
@@ -124,18 +124,18 @@ fn vars() {
 //         );
 //
 //         t.cmp(
-//                 &["find", "-g", "yes", "-d", &d, "--algo", "ukkonen", "--to-txt", vars, pattern],
+//                 &["find", "-g", "yes", "-d", &d, "--algo", "ukkonen", "--to-tsv", vars, pattern],
 //                 &fasta, &expected
 //             )
 //             .cmp(
-//                 &["find", "-g", "yes", "-d", &d, "--algo", "myers", "--to-txt", vars, pattern],
+//                 &["find", "-g", "yes", "-d", &d, "--algo", "myers", "--to-tsv", vars, pattern],
 //                 &fasta, &expected
 //             );
 //
 //         // exact matches
 //         if max_dist == 0 {
-//             t.cmp(&["find", "--to-txt", vars, pattern], &fasta, &expected)
-//              .cmp(&["find", "-r", "--to-txt", vars, pattern], &fasta, &expected);
+//             t.cmp(&["find", "--to-tsv", vars, pattern], &fasta, &expected)
+//              .cmp(&["find", "-r", "--to-tsv", vars, pattern], &fasta, &expected);
 //         }
 //     }
 // }
@@ -235,7 +235,7 @@ fn threaded() {
         while cap < t * FASTA.len() {
             Tester::new()
                 .cmd(&[
-                    "find", "-f", "--id", "--to-txt", "id",
+                    "find", "-f", "--id", "--to-tsv", "id",
                     "-t", &format!("{}", t),
                     "--buf-cap", &format!("{}", cap), "seq"
                 ], *FASTA)
@@ -246,7 +246,8 @@ fn threaded() {
                 .stdout()
                 .contains("seq2")
                 .stdout()
-                .contains("seq3");
+                .contains("seq3")
+                .unwrap();
             cap += 10;
         }
     }

@@ -103,7 +103,7 @@ fn split_compression() {
             .to_string_lossy().into())
             .collect());
 
-        t.fails(&[".", "--format", "fasta"], f.clone(),
+        t.fails(&[".", "--fmt", "fasta"], f.clone(),
             "FASTA parse error: expected '>' but found '\\u{1f}' at file start"
         );
 

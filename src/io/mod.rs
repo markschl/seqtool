@@ -1,8 +1,10 @@
 use std::io;
 use zstd;
+use var;
 use error::CliResult;
 
 pub use self::record::*;
+pub use self::qual_format::*;
 
 
 pub trait SeqReader<O> {
@@ -11,7 +13,7 @@ pub trait SeqReader<O> {
 
 
 pub trait SeqWriter<W: io::Write> {
-    fn write(&mut self, record: &Record) -> CliResult<()>;
+    fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()>;
     fn into_inner(self: Box<Self>) -> Option<CliResult<W>>;
 }
 
@@ -54,6 +56,7 @@ impl Compression {
 
 
 mod record;
+mod qual_format;
 pub mod fasta;
 pub mod fastq;
 pub mod csv;

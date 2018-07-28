@@ -1,8 +1,8 @@
 
-use std::io;
 use std::borrow::Cow;
 use std::str::{self, Utf8Error};
 use std::ascii::AsciiExt;
+use super::QualFormat;
 
 use seq_io::fasta;
 
@@ -294,11 +294,11 @@ impl Record for OwnedRecord {
     fn raw_seq(&self) -> &[u8] {
         &self.seq
     }
-    fn has_seq_lines(&self) -> bool {
-        false
-    }
     fn qual(&self) -> Option<&[u8]> {
         self.qual.as_ref().map(|d| d.as_slice())
+    }
+    fn has_seq_lines(&self) -> bool {
+        false
     }
 }
 

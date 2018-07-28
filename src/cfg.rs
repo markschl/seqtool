@@ -5,12 +5,12 @@ use var;
 use io::*;
 use opt;
 use error::CliResult;
-use lib::inner_result::MapRes;
+
 
 #[derive(Debug, Clone)]
 pub struct Config<'a> {
     input_opts: Vec<input::InputOptions>,
-    output_opts: Option<output::OutputOptions>,
+    output_opts: output::OutputOptions,
     var_opts: var::VarOpts<'a>,
     started: Cell<bool>,
 }
@@ -52,8 +52,8 @@ impl<'a> Config<'a> {
     }
 
     pub fn vars(&self) -> CliResult<var::Vars> {
-        let mut vars = var::get_vars(&self.var_opts)?;
-        self.output_opts.as_ref().map_res(|o| vars.out_opts(o))?;
+        let mut vars = var::get_vars(&self.var_opts, &self.input_opts[0].format)?;
+        vars.out_opts(&self.output_opts)?;
         Ok(vars)
     }
 
@@ -61,7 +61,7 @@ impl<'a> Config<'a> {
     where
         F: FnOnce(&mut output::Writer<&mut io::Write>, var::Vars) -> CliResult<O>,
     {
-        output::writer(self.output_opts.as_ref(), |writer| {
+        output::writer(&self.output_opts, |writer| {
             let mut vars = self.vars()?;
             vars.build(|b| writer.register_vars(b))?;
             func(writer, vars)
@@ -74,7 +74,7 @@ impl<'a> Config<'a> {
         I: FnOnce(&mut var::Vars) -> CliResult<V>,
         V: var::VarProvider,
     {
-        output::writer(self.output_opts.as_ref(), |writer| {
+        output::writer(&self.output_opts, |writer| {
             let mut vars = self.vars()?;
             let mut var_provider = init(&mut vars)?;
             vars.build_with(Some(&mut var_provider), |b| writer.register_vars(b))?;
@@ -86,7 +86,7 @@ impl<'a> Config<'a> {
     where
         F: FnOnce(&mut io::Write, var::Vars) -> CliResult<O>,
     {
-        output::io_writer(self.output_opts.as_ref(), |writer| {
+        output::io_writer(&self.output_opts, |writer| {
             let vars = self.vars()?;
             func(writer, vars)
         })
@@ -227,10 +227,7 @@ impl<'a> Config<'a> {
     )
     -> CliResult<Box<output::Writer<Box<output::WriteFinish>> + 'c>>
     {
-        let mut o = self.output_opts
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(Default::default);
+        let mut o = self.output_opts.clone();
         o.kind = output::OutputKind::File(path.into());
         let io_writer = output::io_writer_from_kind(&o.kind)?;
         let io_writer = output::compr_writer(io_writer, o.compression, o.compression_level)?;

@@ -6,20 +6,20 @@ use super::*;
 fn compress_pipe() {
     Tester::new()
         .pipe(
-            &[".", "--outformat", "fasta.gz", "--compr-level", "9"], &FASTA,
-            &[".", "--format", "fasta.gz"], &FASTA
+            &[".", "--to", "fasta.gz", "--compr-level", "9"], &FASTA,
+            &[".", "--fmt", "fasta.gz"], &FASTA
         )
         .pipe(
-            &[".", "--outformat", "fasta.bz2", "--compr-level", "9"], &FASTA,
-            &[".", "--format", "fasta.bz2"], &FASTA
+            &[".", "--to", "fasta.bz2", "--compr-level", "9"], &FASTA,
+            &[".", "--fmt", "fasta.bz2"], &FASTA
         )
         .pipe(
-            &[".", "--outformat", "fasta.lz4", "--compr-level", "9"], &FASTA,
-            &[".", "--format", "fasta.lz4"], &FASTA
+            &[".", "--to", "fasta.lz4", "--compr-level", "9"], &FASTA,
+            &[".", "--fmt", "fasta.lz4"], &FASTA
         )
         .pipe(
-            &[".", "--outformat", "fasta.zst", "--compr-level", "9"], &FASTA,
-            &[".", "--format", "fasta.zst"], &FASTA
+            &[".", "--to", "fasta.zst", "--compr-level", "9"], &FASTA,
+            &[".", "--fmt", "fasta.zst"], &FASTA
         );
 }
 
@@ -30,8 +30,8 @@ fn compress_file() {
 
     t.temp_file("compr.fa.gz", None, |path, _| {
         t.succeeds(&[".", "-o", path], *FASTA);
-        t.fails(&[".", "--format", "fasta"], path, "FASTA parse error");
+        t.fails(&[".", "--fmt", "fasta"], path, "FASTA parse error");
         t.cmp(&["."], FileInput(path), *FASTA);
-        t.cmp(&[".", "--format", "fasta.gz"], FileInput(path), *FASTA);
+        t.cmp(&[".", "--fmt", "fasta.gz"], FileInput(path), *FASTA);
     });
 }

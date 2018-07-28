@@ -58,19 +58,6 @@ impl<W: io::Write> Writer<W> for CsvWriter<W> {
         !self.fields.is_empty()
     }
 
-    fn write_simple(&mut self, record: &Record) -> CliResult<()> {
-        for (field, parsed) in self.compiled_fields.iter().zip(&mut self.row) {
-            if let Field::SeqAttr(attr) = *field {
-                parsed.clear();
-                record.write_attr(attr, parsed);
-            } else {
-                panic!("Cannot use expressions in write_simple");
-            }
-        }
-        self.writer.write_record(&self.row)?;
-        Ok(())
-    }
-
     fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
         for (field, parsed) in self.compiled_fields.iter().zip(&mut self.row) {
             parsed.clear();

@@ -1,5 +1,5 @@
 
-use std::io;
+use std::io::Write;
 use error::CliResult;
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -8,6 +8,7 @@ use memchr::memchr;
 
 use seq_io::BufStrategy;
 use seq_io::fastq::{self, Record as FR, Reader};
+use var;
 use super::*;
 
 
@@ -94,30 +95,53 @@ impl<'a> Record for FastqRecord<'a> {
 
 // Writer
 
-pub struct FastqWriter<W: io::Write>(W);
+pub struct FastqWriter<W: io::Write> {
+    writer: W,
+    qual_fmt: Option<QualFormat>,
+    qual_vec: Vec<u8>,
+}
 
 impl<W: io::Write> FastqWriter<W> {
-    pub fn new(io_writer: W) -> FastqWriter<W> {
-        FastqWriter(io_writer)
+    pub fn new(io_writer: W, qual_fmt: Option<QualFormat>) -> FastqWriter<W> {
+
+        FastqWriter {
+            writer: io_writer,
+            qual_fmt: qual_fmt,
+            qual_vec: vec![],
+        }
     }
 }
 
+
 impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
-    fn write(&mut self, record: &Record) -> CliResult<()> {
-        let qual = record.qual().ok_or("Qualities missing!")?;
+    fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
+        let qual = record.qual().ok_or("No quality scores found in input.")?;
+        let qual =
+            if let Some(fmt) = self.qual_fmt {
+                if let Some(cnv) = vars.data().qual_converter.as_ref() {
+                    self.qual_vec.clear();
+                    cnv.convert_quals(qual, &mut self.qual_vec, fmt)
+                        .map_err(|e| format!(
+                            "Error writing record '{}'. {}",
+                            String::from_utf8_lossy(record.id_bytes()), e
+                        ))?;
+                    &self.qual_vec
+                } else { qual }
+            } else { qual };
+
         // Using .raw_seq() is possible only because FASTA cannot be used as input source
         // (no quality info). Might change if getting the quality info from other sources
         // (mothur-style .qual files)
         let seq = record.raw_seq();
 
         match record.get_header() {
-            SeqHeader::IdDesc(id, desc) => fastq::write_parts(&mut self.0, id, desc, seq, qual)?,
-            SeqHeader::FullHeader(h) => fastq::write_to(&mut self.0, h, seq, qual)?,
+            SeqHeader::IdDesc(id, desc) => fastq::write_parts(&mut self.writer, id, desc, seq, qual)?,
+            SeqHeader::FullHeader(h) => fastq::write_to(&mut self.writer, h, seq, qual)?,
         }
         Ok(())
     }
 
     fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
-        Some(Ok(self.0))
+        Some(Ok(self.writer))
     }
 }

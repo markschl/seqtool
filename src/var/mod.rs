@@ -2,6 +2,7 @@ use std::fs::File;
 
 use error::CliResult;
 use lib::util::parse_delimiter;
+use io::input::InFormat;
 use io::SeqAttr;
 
 pub use self::var::*;
@@ -62,7 +63,7 @@ pub fn var_help() -> String {
         .join("\n")
 }
 
-pub fn get_vars<'a>(o: &VarOpts) -> CliResult<Vars<'a>> {
+pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
     // Vars instance
     let delim = parse_delimiter(&o.attr_opts.delim)?;
     let value_delim = parse_delimiter(&o.attr_opts.value_delim)?;
@@ -71,7 +72,15 @@ pub fn get_vars<'a>(o: &VarOpts) -> CliResult<Vars<'a>> {
     } else {
         SeqAttr::Id
     };
-    let mut vars = Vars::new(delim, value_delim, append_attr);
+    // quality converter is not related to variables,
+    // therefore stored in InFormat
+    let qual_converter =
+        match *informat {
+            InFormat::FASTQ { format } => Some(format.get_converter()),
+            _ =>  None
+        };
+
+    let mut vars = Vars::new(delim, value_delim, append_attr, qual_converter);
 
     // lists
     let list_delim = parse_delimiter(o.list_delim)?;

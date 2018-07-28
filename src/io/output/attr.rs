@@ -46,10 +46,6 @@ impl<W: io::Write, S: SeqWriter<W>> Writer<W> for AttrWriter<W, S> {
         !self.attrs.is_empty()
     }
 
-    fn write_simple(&mut self, record: &Record) -> CliResult<()> {
-        self.inner.write(record)
-    }
-
     fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
         if vars.attrs().has_attrs() {
             let &mut (ref mut id_out, ref mut desc_out) = &mut self.temp;
@@ -63,9 +59,9 @@ impl<W: io::Write, S: SeqWriter<W>> Writer<W> for AttrWriter<W, S> {
             } else {
                 Some(desc_out.as_ref())
             };
-            self.inner.write(&DefRecord::new(&record, id_out, desc))
+            self.inner.write(&DefRecord::new(&record, id_out, desc), vars)
         } else {
-            self.inner.write(record)
+            self.inner.write(record, vars)
         }
     }
 

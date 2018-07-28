@@ -9,8 +9,10 @@ use zstd;
 
 use error::{CliError, CliResult};
 use thread_io;
+use lib::util;
 
-use super::{fasta, fastq, Compression, Record};
+use super::{fasta, fastq, Compression, Record, QualFormat};
+use super::input::InFormat;
 
 pub use self::writer::*;
 
@@ -37,7 +39,7 @@ impl Default for OutputOptions {
     fn default() -> OutputOptions {
         OutputOptions {
             kind: OutputKind::Stdout,
-            format: OutFormat::FASTA(vec![], None),
+            format: OutFormat::FASTA {attrs: vec![], wrap_width: None},
             compression: Compression::None,
             compression_level: None,
             threaded: false,
@@ -54,24 +56,77 @@ pub enum OutputKind {
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum OutFormat {
-    // q64, wrap_width, Vec<(attr_name, attr_value)>, default_seqattr_for_attrs
-    FASTA(Vec<(String, String)>, Option<usize>),
-    FASTQ(Vec<(String, String)>),
+    FASTA {
+        attrs: Vec<(String, String)>,
+        // Vec<(attr_name, attr_value)>, default_seqattr_for_attrs
+        wrap_width: Option<usize>,
+    },
+    FASTQ {
+        // only Some() if different from input format
+        format: Option<QualFormat>,
+        attrs: Vec<(String, String)>
+    },
     //    FA_QUAL(PathBuf),
-    CSV(u8, Vec<String>),
+    CSV {
+        delim: u8,
+        fields: Vec<String>
+    },
 }
 
 impl OutFormat {
     pub fn default_ext(&self) -> &'static str {
         match *self {
-            OutFormat::FASTA(..) => "fasta",
-            OutFormat::FASTQ(..) => "fastq",
-            OutFormat::CSV(delim, _) => if delim == b'\t' {
-                "txt"
-            } else {
-                "csv"
-            },
+            OutFormat::FASTA {..} => "fasta",
+            OutFormat::FASTQ {..} => "fastq",
+            OutFormat::CSV {delim, ..} =>
+                if delim == b'\t' { "tsv" } else { "csv" },
         }
+    }
+
+    pub fn from_opts(
+        string: &str,
+        attrs: &[(String, String)],
+        wrap_fasta: Option<usize>,
+        csv_delim: Option<&str>,
+        csv_fields: &str,
+        informat: Option<&InFormat>,
+    ) -> CliResult<OutFormat>
+    {
+        let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
+
+        let mut format = match string {
+            "fasta" | "fa" => OutFormat::FASTA {attrs: attrs.to_owned(), wrap_width: wrap_fasta},
+            "fastq" | "fq" => OutFormat::FASTQ { format: Some(QualFormat::Sanger), attrs: attrs.to_owned()},
+            "fastq-illumina" | "fq-illumina" =>
+                OutFormat::FASTQ { format: Some(QualFormat::Illumina), attrs: attrs.to_owned()},
+            "fastq-solexa" | "fq-solexa" =>
+                OutFormat::FASTQ { format: Some(QualFormat::Solexa), attrs: attrs.to_owned()},
+            "csv" => OutFormat::CSV {
+                delim: util::parse_delimiter(csv_delim.unwrap_or(","))?,
+                fields: csv_fields
+            },
+            "tsv" | "txt" => OutFormat::CSV {
+                delim: util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
+                fields: csv_fields,
+            },
+            _ => {
+                return Err(CliError::Other(format!(
+                    "Unknown output format: '{}'",
+                    string
+                )))
+            }
+        };
+
+        // remove quality output format if equal to input format
+        if let OutFormat::FASTQ { format: outfmt, .. } = &mut format {
+            if let Some(&InFormat::FASTQ { format: infmt }) = informat {
+                if outfmt == &Some(infmt) {
+                    *outfmt = None;
+                }
+            }
+        }
+
+        Ok(format)
     }
 }
 
@@ -113,32 +168,41 @@ impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
 
 
 
-pub fn writer<'a, 'b, F, O>(opts: Option<&OutputOptions>, func: F) -> CliResult<O>
+pub fn writer<'a, 'b, F, O>(o: &OutputOptions, func: F) -> CliResult<O>
 where
     F: FnOnce(&mut Writer<&mut io::Write>) -> CliResult<O>,
 {
-    if let Some(o) = opts {
-        io_writer_compr(&o.kind, o.compression, o.compression_level, o.threaded, o.thread_bufsize,
-            |io_writer| {
-                let mut w = from_format(io_writer, &o.format)?;
-                func(&mut w)
-            }
-        )
-    } else {
-        func(&mut NoOutput)
-    }
+    io_writer(o, |io_writer| {
+            let mut w = from_format(io_writer, &o.format)?;
+            func(&mut w)
+        }
+    )
 }
 
-pub fn io_writer<F, O>(opts: Option<&OutputOptions>, func: F) -> CliResult<O>
+pub fn io_writer<F, O>(o: &OutputOptions, func: F) -> CliResult<O>
 where
     F: FnOnce(&mut io::Write) -> CliResult<O>,
 {
-    if let Some(o) = opts {
-        io_writer_compr(
-            &o.kind, o.compression, o.compression_level, o.threaded, o.thread_bufsize, func
-        )
+    if o.compression != Compression::None || o.threaded {
+
+        let thread_bufsize = o.thread_bufsize.unwrap_or(o.compression.best_write_bufsize());
+
+        thread_io::write::writer_init_finish(
+            thread_bufsize, 4,
+            || {
+                let mut writer = io_writer_from_kind(&o.kind)?;
+                writer = compr_writer(writer, o.compression, o.compression_level)?;
+                Ok(writer)
+            },
+            |mut w| func(&mut w),
+            |w| w.finish()?.flush()
+        ).map(|(o, _)| o)
+
     } else {
-        func(&mut io::sink())
+        let mut writer = io_writer_from_kind(&o.kind)?;
+        let o = func(&mut writer)?;
+        writer.finish()?.flush()?;
+        Ok(o)
     }
 }
 
@@ -147,15 +211,15 @@ where
     W: io::Write + 'a,
 {
     Ok(match *format {
-        OutFormat::FASTA(ref attrs, ref wrap) => {
-            let writer = fasta::FastaWriter::new(io_writer, *wrap);
+        OutFormat::FASTA {ref attrs, wrap_width} => {
+            let writer = fasta::FastaWriter::new(io_writer, wrap_width);
             Box::new(attr::AttrWriter::new(writer, attrs.clone()))
         }
-        OutFormat::FASTQ(ref attrs) => {
-            let writer = fastq::FastqWriter::new(io_writer);
+        OutFormat::FASTQ {format, ref attrs} => {
+            let writer = fastq::FastqWriter::new(io_writer, format);
             Box::new(attr::AttrWriter::new(writer, attrs.clone()))
         }
-        OutFormat::CSV(delim, ref fields) => {
+        OutFormat::CSV {delim, ref fields} => {
             Box::new(csv::CsvWriter::new(io_writer, fields.clone(), delim))
         }
     })
@@ -201,38 +265,4 @@ pub fn compr_writer(
             Box::new(zstd::Encoder::new(writer, level.unwrap_or(0) as i32)?),
         Compression::None => writer,
     })
-}
-
-fn io_writer_compr<F, O>(
-    kind: &OutputKind,
-    compr: Compression,
-    compr_level: Option<u8>,
-    threaded: bool,
-    thread_bufsize: Option<usize>,
-    func: F,
-) -> CliResult<O>
-where
-    F: FnOnce(&mut io::Write) -> CliResult<O>,
-{
-    if compr != Compression::None || threaded {
-
-        let thread_bufsize = thread_bufsize.unwrap_or(compr.best_write_bufsize());
-
-        thread_io::write::writer_init_finish(
-            thread_bufsize, 4,
-            || {
-                let mut writer = io_writer_from_kind(kind)?;
-                writer = compr_writer(writer, compr, compr_level)?;
-                Ok(writer)
-            },
-            |mut w| func(&mut w),
-            |w| w.finish()?.flush()
-        ).map(|(o, _)| o)
-
-    } else {
-        let mut writer = io_writer_from_kind(kind)?;
-        let o = func(&mut writer)?;
-        writer.finish()?.flush()?;
-        Ok(o)
-    }
 }

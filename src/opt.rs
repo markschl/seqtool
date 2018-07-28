@@ -13,7 +13,7 @@ use error::CliError;
 use var;
 use io::input::*;
 use io::output::{OutFormat, OutputKind, OutputOptions};
-use io::Compression;
+use io::{QualFormat, Compression};
 use lib::util;
 use lib::bytesize::parse_bytesize;
 use lib::inner_result::MapRes;
@@ -51,15 +51,17 @@ impl Args {
             (Some("fasta"), None, None)
         } else if self.0.get_bool("--fq") {
             (Some("fastq"), None, None)
+        } else if self.0.get_bool("--fq-illumina") {
+            (Some("fastq-illumina"), None, None)
         } else if let Some(fields) = self.opt_str("--csv") {
             (Some("csv"), Some(","), Some(fields))
-        } else if let Some(fields) = self.opt_str("--txt") {
-            (Some("txt"), Some("\t"), Some(fields))
+        } else if let Some(fields) = self.opt_str("--tsv") {
+            (Some("tsv"), Some("\t"), Some(fields))
         } else {
             (None, None, None)
         };
 
-        fmt = self.opt_str("--format").or(fmt);
+        fmt = self.opt_str("--fmt").or(fmt);
         delim = self.opt_str("--delim").or(delim);
         let fields = fields.unwrap_or_else(|| self.0.get_str("--fields"));
         let header = self.0.get_bool("--header");
@@ -116,22 +118,18 @@ impl Args {
         Ok(input)
     }
 
-    pub fn get_output_opts(&self, informat: Option<&InFormat>) -> CliResult<Option<OutputOptions>> {
+    pub fn get_output_opts(&self, informat: Option<&InFormat>) -> CliResult<OutputOptions> {
         let (fmt, delim, fields) = if self.0.get_bool("--to-fa") {
             (Some("fasta"), None, None)
         } else if self.0.get_bool("--to-fq") {
             (Some("fastq"), None, None)
         } else if let Some(fields) = self.opt_str("--to-csv") {
             (Some("csv"), Some(","), Some(fields))
-        } else if let Some(fields) = self.opt_str("--to-txt") {
-            (Some("txt"), Some("\t"), Some(fields))
+        } else if let Some(fields) = self.opt_str("--to-tsv") {
+            (Some("tsv"), Some("\t"), Some(fields))
         } else {
             (None, None, None)
         };
-
-        if self.0.get_bool("--no-output") {
-            return Ok(None);
-        }
 
         let wrap_fasta = if let Some(w) = self.opt_str("--wrap") {
             Some(w.parse()
@@ -151,7 +149,7 @@ impl Args {
             .map(|s| s as usize);
         let compr_level = self.opt_value("--compr-level")?;
 
-        let (arg_fmt, arg_compr) = self.opt_str("--outformat").or(fmt)
+        let (arg_fmt, arg_compr) = self.opt_str("--to").or(fmt)
             .map(|fmt| {
                 let (fmt, compr) = parse_format_str(fmt)?;
                 Ok::<_, CliError>((Some(fmt), Some(compr)))
@@ -162,7 +160,7 @@ impl Args {
             if path == "-" {
                 OutputOptions {
                     kind: OutputKind::Stdout,
-                    format: get_outformat(
+                    format: OutFormat::from_opts(
                         arg_fmt
                             .as_ref()
                             .map(String::as_str)
@@ -171,6 +169,7 @@ impl Args {
                         wrap_fasta,
                         csv_delim,
                         csv_fields,
+                        informat,
                     )?,
                     compression: arg_compr.unwrap_or(Compression::None),
                     compression_level: compr_level,
@@ -182,7 +181,7 @@ impl Args {
 
                 OutputOptions {
                     kind: OutputKind::File(PathBuf::from(&path)),
-                    format: get_outformat(
+                    format: OutFormat::from_opts(
                         arg_fmt.as_ref().map(String::as_str).unwrap_or_else(|| {
                             fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
                         }),
@@ -190,6 +189,7 @@ impl Args {
                         wrap_fasta,
                         csv_delim,
                         csv_fields,
+                        informat,
                     )?,
                     compression: arg_compr.or(compr).unwrap_or(Compression::None),
                     compression_level: compr_level,
@@ -198,7 +198,7 @@ impl Args {
                 }
             };
 
-        Ok(Some(opts))
+        Ok(opts)
 
     }
 
@@ -309,7 +309,7 @@ pub fn path_info<P: AsRef<Path>>(path: &P) -> (Option<&'static str>, Option<Comp
             "fastq" | "fq" => Some("fastq"),
             "fasta" | "fa" | "fna" | "fsa" => Some("fasta"),
             "csv" => Some("csv"),
-            "txt" | "tsv" => Some("txt"),
+            "tsv" | "txt" => Some("tsv"),
             _ => {
                 eprintln!("Unknown extension: '{}', assuming FASTA format", ext);
                 None
@@ -334,35 +334,6 @@ pub fn parse_attr(text: &str) -> CliResult<(String, String)> {
         }
     };
     Ok((name, val))
-}
-
-pub fn get_outformat(
-    string: &str,
-    attrs: &[(String, String)],
-    wrap_fasta: Option<usize>,
-    csv_delim: Option<&str>,
-    csv_fields: &str,
-) -> CliResult<OutFormat> {
-    let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
-
-    let format = match string {
-        "fasta" => OutFormat::FASTA(attrs.to_owned(), wrap_fasta),
-        "fastq" => OutFormat::FASTQ(attrs.to_owned()),
-        //"fastq64" => OutFormat::FASTQ(attrs.to_owned()),
-        "csv" => OutFormat::CSV(util::parse_delimiter(csv_delim.unwrap_or(","))?, csv_fields),
-        "txt" => OutFormat::CSV(
-            util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
-            csv_fields,
-        ),
-        _ => {
-            return Err(CliError::Other(format!(
-                "Unknown output format: '{}'",
-                string
-            )))
-        }
-    };
-
-    Ok(format)
 }
 
 pub fn parse_format_str(string: &str) -> CliResult<(String, Compression)> {

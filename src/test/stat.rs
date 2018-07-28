@@ -11,6 +11,6 @@ fn stats() {
     let vars_noprefix = vars.replace("s:", "");
     let retval2 = format!("id\t{}\n{}", vars_noprefix.replace(",", "\t"), retval);
     Tester::new()
-        .cmp(&[".", "--to-txt", &format!("id,{}", vars)], seq, retval)
+        .cmp(&[".", "--to-tsv", &format!("id,{}", vars)], seq, retval)
         .cmp(&["stat", &vars_noprefix], seq, &retval2);
 }
