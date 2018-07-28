@@ -6,6 +6,8 @@ extern crate assert_cli;
 use std::io::{Read,Write};
 use std::process::{Command,Stdio};
 use std::env;
+use std::str;
+use std::iter::repeat;
 use std::fs::File;
 use std::convert::AsRef;
 use std::path::PathBuf;
@@ -158,6 +160,20 @@ impl Tester {
 
 fn fasta_record(seq: &str) -> String {
     format!(">seq \n{}\n", seq)
+}
+
+fn fastq_records<Q1, Q2>(q1: Q1, q2: Q2) -> String
+where Q1: AsRef<[u8]>,
+      Q2: AsRef<[u8]>
+{
+    let q1 = q1.as_ref();
+    let q2 = q2.as_ref();
+    format!("@seq1\n{}\n+\n{}\n@seq2\n{}\n+\n{}\n",
+        repeat('A').take(q1.len()).collect::<String>(),
+        str::from_utf8(q1).unwrap(),
+        repeat('G').take(q2.len()).collect::<String>(),
+        str::from_utf8(q2).unwrap(),
+    )
 }
 
 // used by many tests:

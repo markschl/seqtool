@@ -3,7 +3,7 @@ use std::fs::File;
 use error::CliResult;
 use lib::util::parse_delimiter;
 use io::input::InFormat;
-use io::SeqAttr;
+use io::{SeqAttr, QualFormat};
 
 pub use self::var::*;
 
@@ -76,9 +76,10 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
     // therefore stored in InFormat
     let qual_converter =
         match *informat {
-            InFormat::FASTQ { format } => Some(format.get_converter()),
-            _ =>  None
-        };
+            InFormat::FASTQ { format } => format,
+            _ => QualFormat::Sanger
+        }
+        .get_converter();
 
     let mut vars = Vars::new(delim, value_delim, append_attr, qual_converter);
 

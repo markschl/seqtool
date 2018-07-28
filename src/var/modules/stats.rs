@@ -27,6 +27,11 @@ impl VarHelp for StatHelp {
                 "Count occurrence one or more characters. Usage: `s:count:<characters>`. \
                  Note that some characters (like '-') cannot be specified in math expressions.",
             ),
+            (
+                "s:exp_err",
+                "Expected errors for the whole sequence calculated based on quality scores \
+                 as the sum of all error probabilities.",
+            ),
         ])
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
@@ -46,6 +51,7 @@ enum Stat {
     GC,
     Count(u8),
     MultiCount(Vec<u8>),
+    ExpErr,
 }
 
 #[derive(Debug)]
@@ -87,7 +93,8 @@ impl VarProvider for StatVars {
                 } else {
                     return fail!("Please specify one or more characters to count.");
                 }
-            }
+            },
+            "exp_err" => ExpErr,
             _ => return Ok(false),
         };
         self.stats.push((stat, id));
@@ -115,6 +122,11 @@ impl VarProvider for StatVars {
 
                 MultiCount(ref bytes) => data.symbols
                     .set_int(id, count_bytes(rec, bytes) as i64),
+
+                ExpErr => {
+                    let q = rec.qual().ok_or("No quality scores in input.")?;
+                    data.symbols.set_float(id, data.qual_converter.prob_sum(q)?);
+                }
             }
         }
         Ok(())

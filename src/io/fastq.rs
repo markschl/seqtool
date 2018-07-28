@@ -118,15 +118,14 @@ impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
         let qual =
             if let Some(fmt) = self.qual_fmt {
-                if let Some(cnv) = vars.data().qual_converter.as_ref() {
-                    self.qual_vec.clear();
-                    cnv.convert_quals(qual, &mut self.qual_vec, fmt)
-                        .map_err(|e| format!(
-                            "Error writing record '{}'. {}",
-                            String::from_utf8_lossy(record.id_bytes()), e
-                        ))?;
-                    &self.qual_vec
-                } else { qual }
+                self.qual_vec.clear();
+                vars.data().qual_converter
+                    .convert_quals(qual, &mut self.qual_vec, fmt)
+                    .map_err(|e| format!(
+                        "Error writing record '{}'. {}",
+                        String::from_utf8_lossy(record.id_bytes()), e
+                    ))?;
+                &self.qual_vec
             } else { qual };
 
         // Using .raw_seq() is possible only because FASTA cannot be used as input source

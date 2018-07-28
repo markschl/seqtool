@@ -130,7 +130,7 @@ impl<'a> VarProvider for &'a mut VarProvider {
 pub struct Data {
     pub symbols: Table,
     pub attrs: attr::Attrs,
-    pub qual_converter: Option<QualConverter>,
+    pub qual_converter: QualConverter,
 }
 
 #[derive(Debug)]
@@ -146,7 +146,7 @@ impl<'a> Vars<'a> {
         attr_delim: u8,
         attr_value_delim: u8,
         append_attr: SeqAttr,
-        qual_converter: Option<QualConverter>,
+        qual_converter: QualConverter,
     ) -> Vars<'a>
     {
         Vars {
