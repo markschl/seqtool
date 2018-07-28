@@ -1,7 +1,6 @@
 
 use std::borrow::Cow;
 use std::str::{self, Utf8Error};
-use std::ascii::AsciiExt;
 use super::QualFormat;
 
 use seq_io::fasta;

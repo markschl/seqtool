@@ -1,6 +1,5 @@
 use std::str;
 use std::fmt::Display;
-use std::ascii::AsciiExt;
 use std::collections::HashMap;
 
 use itertools::Itertools;

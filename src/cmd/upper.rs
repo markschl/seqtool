@@ -1,4 +1,3 @@
-use std::ascii::AsciiExt;
 use error::CliResult;
 use io::SeqQualRecord;
 use opt;

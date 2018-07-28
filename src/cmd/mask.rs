@@ -2,7 +2,6 @@
 use error::CliResult;
 use opt;
 use io::SeqQualRecord;
-use std::ascii::AsciiExt;
 use lib::rng::*;
 
 use cfg;

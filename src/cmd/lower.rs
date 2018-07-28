@@ -1,6 +1,5 @@
 use error::CliResult;
 use io::SeqQualRecord;
-use std::ascii::AsciiExt;
 use opt;
 use cfg;
 

@@ -1,6 +1,5 @@
 use std::str::FromStr;
 use std::path::PathBuf;
-use std::ascii::AsciiExt;
 use std::path::Path;
 use std::convert::AsRef;
 use std::ffi::OsStr;
