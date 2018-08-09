@@ -11,7 +11,7 @@ use error::{CliError, CliResult};
 use thread_io;
 use lib::util;
 
-use super::{fasta, fastq, Compression, Record, QualFormat};
+use super::{fasta, fastq, fa_qual, Compression, Record, QualFormat};
 use super::input::InFormat;
 
 pub use self::writer::*;
@@ -66,7 +66,11 @@ pub enum OutFormat {
         format: Option<QualFormat>,
         attrs: Vec<(String, String)>
     },
-    //    FA_QUAL(PathBuf),
+    FaQual {
+        attrs: Vec<(String, String)>,
+        wrap_width: Option<usize>,
+        qfile: PathBuf,
+    },
     CSV {
         delim: u8,
         fields: Vec<String>
@@ -78,6 +82,7 @@ impl OutFormat {
         match *self {
             OutFormat::FASTA {..} => "fasta",
             OutFormat::FASTQ {..} => "fastq",
+            OutFormat::FaQual { .. } => "fasta",
             OutFormat::CSV {delim, ..} =>
                 if delim == b'\t' { "tsv" } else { "csv" },
         }
@@ -90,25 +95,30 @@ impl OutFormat {
         csv_delim: Option<&str>,
         csv_fields: &str,
         informat: Option<&InFormat>,
+        qfile: Option<&str>,
     ) -> CliResult<OutFormat>
     {
         let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
 
         let mut format = match string {
-            "fasta" | "fa" => OutFormat::FASTA {attrs: attrs.to_owned(), wrap_width: wrap_fasta},
-            "fastq" | "fq" => OutFormat::FASTQ { format: Some(QualFormat::Sanger), attrs: attrs.to_owned()},
+            "fasta" | "fna" | "fa" | "<FASTA/QUAL>" =>
+                OutFormat::FASTA {attrs: attrs.to_owned(), wrap_width: wrap_fasta},
+            "fastq" | "fq" =>
+                OutFormat::FASTQ { format: Some(QualFormat::Sanger), attrs: attrs.to_owned()},
             "fastq-illumina" | "fq-illumina" =>
                 OutFormat::FASTQ { format: Some(QualFormat::Illumina), attrs: attrs.to_owned()},
             "fastq-solexa" | "fq-solexa" =>
                 OutFormat::FASTQ { format: Some(QualFormat::Solexa), attrs: attrs.to_owned()},
-            "csv" => OutFormat::CSV {
-                delim: util::parse_delimiter(csv_delim.unwrap_or(","))?,
-                fields: csv_fields
-            },
-            "tsv" | "txt" => OutFormat::CSV {
-                delim: util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
-                fields: csv_fields,
-            },
+            "csv" =>
+                OutFormat::CSV {
+                    delim: util::parse_delimiter(csv_delim.unwrap_or(","))?,
+                    fields: csv_fields
+                },
+            "tsv" | "txt" =>
+                OutFormat::CSV {
+                    delim: util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
+                    fields: csv_fields,
+                },
             _ => {
                 return Err(CliError::Other(format!(
                     "Unknown output format: '{}'",
@@ -123,6 +133,20 @@ impl OutFormat {
                 if outfmt == &Some(infmt) {
                     *outfmt = None;
                 }
+            }
+        }
+
+        // FaQual format
+        if let Some(f) = qfile {
+            match format {
+                OutFormat::FASTA { attrs, wrap_width } => {
+                    format = OutFormat::FaQual {
+                        attrs,
+                        wrap_width,
+                        qfile: PathBuf::from(f)
+                    };
+                },
+                _ => return fail!("Expecting FASTA as output format if combined with QUAL files")
             }
         }
 
@@ -217,6 +241,10 @@ where
         }
         OutFormat::FASTQ {format, ref attrs} => {
             let writer = fastq::FastqWriter::new(io_writer, format);
+            Box::new(attr::AttrWriter::new(writer, attrs.clone()))
+        }
+        OutFormat::FaQual { ref attrs, wrap_width, ref qfile } => {
+            let writer = fa_qual::FaQualWriter::new(io_writer, wrap_width, qfile)?;
             Box::new(attr::AttrWriter::new(writer, attrs.clone()))
         }
         OutFormat::CSV {delim, ref fields} => {

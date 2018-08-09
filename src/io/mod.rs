@@ -59,6 +59,7 @@ mod record;
 mod qual_format;
 pub mod fasta;
 pub mod fastq;
+pub mod fa_qual;
 pub mod csv;
 pub mod input;
 pub mod output;

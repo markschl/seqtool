@@ -64,51 +64,43 @@ impl Args {
         delim = self.opt_str("--delim").or(delim);
         let fields = fields.unwrap_or_else(|| self.0.get_str("--fields"));
         let header = self.0.get_bool("--header");
+        let qfile = self.opt_str("--qual");
         let cap = parse_bytesize(self.get_str("--buf-cap"))?.floor() as usize;
         let max_mem = parse_bytesize(self.get_str("--max-mem"))?.floor() as usize;
-        let threaded_rdr = self.get_bool("--read-thread");
+        let threaded = self.get_bool("--read-thread");
         let thread_bufsize = self.opt_str("--read-tbufsize")
             .map_res(|s| parse_bytesize(s))?
             .map(|s| s as usize);
 
-        let (arg_fmt, arg_compr) = fmt.map(|fmt| {
+        let (arg_fmt, arg_compr) = fmt.map_res(|fmt| {
                 let (fmt, compr) = parse_format_str(fmt)?;
-                let fmt = InFormat::from_opts(&fmt, delim, fields, header)?;
                 Ok::<_, CliError>((Some(fmt), Some(compr)))
-            })
-            .unwrap_or(Ok((None, None)))?;
+            })?
+            .unwrap_or((None, None));
 
         let input: Vec<_> = paths.into_iter().map(|path| {
-            let opts = if &*path == "-" {
-                InputOptions {
-                    kind: InputType::Stdin,
-                    format: arg_fmt.clone().unwrap_or(InFormat::FASTA),
-                    compression: arg_compr.unwrap_or(Compression::None),
-                    threaded: threaded_rdr,
-                    thread_bufsize: thread_bufsize,
-                    cap: cap,
-                    max_mem: max_mem,
-                }
-            } else {
-                let (fmt, compr) = path_info(&path);
 
-                InputOptions {
-                    kind: InputType::File(PathBuf::from(&path)),
-                    format: arg_fmt.clone().unwrap_or_else(|| {
-                        fmt.map(|f| InFormat::from_opts(f, delim, fields, header).unwrap())
-                            .unwrap_or(InFormat::FASTA)
-                    }),
-                    compression: arg_compr.or(compr).unwrap_or(Compression::None),
-                    threaded: threaded_rdr,
-                    thread_bufsize: thread_bufsize,
-                    cap: cap,
-                    max_mem: max_mem,
-                }
+            let (kind, compression, fmt_str) = if path == "-" {
+                (
+                    InputType::Stdin,
+                    arg_compr.unwrap_or(Compression::None),
+                    arg_fmt.clone().unwrap_or_else(|| "fasta".to_string())
+                )
+            } else {
+                let (path_fmt, path_compr) = path_info(&path);
+
+                (
+                    InputType::File(PathBuf::from(&path)),
+                    arg_compr.or(path_compr).unwrap_or(Compression::None),
+                    arg_fmt.clone().unwrap_or_else(|| path_fmt.unwrap_or("fasta").to_string())
+                )
             };
 
-            opts
+            let format = InFormat::from_opts(&fmt_str, delim, fields, header, qfile)?;
 
-        }).collect();
+            Ok(InputOptions { kind, format, compression, threaded, thread_bufsize, cap, max_mem })
+
+        }).collect::<CliResult<_>>()?;
 
         if input.is_empty() {
             return fail!("Input is empty.");
@@ -147,6 +139,7 @@ impl Args {
             .map_res(|s| parse_bytesize(s))?
             .map(|s| s as usize);
         let compr_level = self.opt_value("--compr-level")?;
+        let qfile = self.opt_str("--qual-out");
 
         let (arg_fmt, arg_compr) = self.opt_str("--to").or(fmt)
             .map(|fmt| {
@@ -155,50 +148,43 @@ impl Args {
             })
             .unwrap_or(Ok((None, None)))?;
 
-        let opts =
-            if path == "-" {
-                OutputOptions {
-                    kind: OutputKind::Stdout,
-                    format: OutFormat::from_opts(
-                        arg_fmt
-                            .as_ref()
-                            .map(String::as_str)
-                            .unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name()),
-                        &attrs,
-                        wrap_fasta,
-                        csv_delim,
-                        csv_fields,
-                        informat,
-                    )?,
-                    compression: arg_compr.unwrap_or(Compression::None),
-                    compression_level: compr_level,
-                    threaded: threaded,
-                    thread_bufsize: thread_bufsize,
-                }
-            } else {
-                let (fmt, compr) = path_info(&path);
+        let arg_fmt = arg_fmt
+            .as_ref()
+            .map(String::as_str);
 
-                OutputOptions {
-                    kind: OutputKind::File(PathBuf::from(&path)),
-                    format: OutFormat::from_opts(
-                        arg_fmt.as_ref().map(String::as_str).unwrap_or_else(|| {
-                            fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
-                        }),
-                        &attrs,
-                        wrap_fasta,
-                        csv_delim,
-                        csv_fields,
-                        informat,
-                    )?,
-                    compression: arg_compr.or(compr).unwrap_or(Compression::None),
-                    compression_level: compr_level,
-                    threaded: threaded,
-                    thread_bufsize: thread_bufsize,
-                }
-            };
+        let (kind, compr, fmt_opts) = if path == "-" {
+            (
+                OutputKind::Stdout,
+                arg_compr,
+                arg_fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
+            )
+        } else {
+            let (fmt, compr) = path_info(&path);
+            (
+                OutputKind::File(PathBuf::from(&path)),
+                arg_compr.or(compr),
+                arg_fmt.unwrap_or_else(||
+                        fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
+                )
+            )
+        };
 
-        Ok(opts)
-
+        Ok(OutputOptions {
+            kind: kind,
+            format: OutFormat::from_opts(
+                fmt_opts,
+                &attrs,
+                wrap_fasta,
+                csv_delim,
+                csv_fields,
+                informat,
+                qfile,
+            )?,
+            compression: compr.unwrap_or(Compression::None),
+            compression_level: compr_level,
+            threaded: threaded,
+            thread_bufsize: thread_bufsize,
+        })
     }
 
     pub fn get_env_opts(&self) -> CliResult<var::VarOpts> {

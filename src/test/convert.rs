@@ -1,4 +1,6 @@
 
+use std::fs::File;
+
 use super::*;
 
 
@@ -80,4 +82,54 @@ fn qual_convert() {
         .fails(&[".", "--fq-illumina", "--to", "fq"], &fastq_records([127], []), "Invalid quality")
         .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fastq_records([58], []), "Invalid quality")
         .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fastq_records([127], []), "Invalid quality");
+}
+
+#[test]
+fn qfile() {
+
+    let fa = ">seq\nATGC\n";
+    let qual = ">seq\n40 40 40 30\n";
+
+    let t = Tester::new();
+
+    t.temp_file("qfile.qual", Some(qual), |p, _| {
+        t.cmp(&[".", "--qual", p, "--to-fq"], fa, "@seq\nATGC\n+\nIII?\n");
+    });
+
+    t.temp_file("qfile.qual", Some(qual), |p, _| {
+        t.temp_file("qfile_out.qual", None, |p2, _| {
+            t.cmp(&[".", "--qual", p, "--qual-out", p2], fa, fa);
+            let mut qout = "".to_string();
+            File::open(p2).unwrap().read_to_string(&mut qout).unwrap();
+            assert_eq!(qout, qual);
+        });
+    });
+
+    t.temp_file("qfile.qual", Some(">seq1\n40 40 40 30\n"), |p, _| {
+        t.fails(&[".", "--qual", p],
+            ">seq1\nATGC\n>seq2\nATGC\n",
+            "Quality scores in QUAL file missing for record 'seq2'"
+        );
+    });
+
+    t.temp_file("qfile.qual", Some(">seq\n40\n"), |p, _| {
+        t.fails(
+            &[".", "--qual", p], fa,
+            "is not equal to sequence length"
+        );
+    });
+
+    t.temp_file("qfile.qual", Some(">seq2\n40 40 40 30\n"), |p, _| {
+        t.fails(
+            &[".", "--qual", p], fa,
+            "ID mismatch"
+        );
+    });
+
+    t.temp_file("qfile.qual", Some(">seq\n40 40 40  30\n"), |p, _| {
+        t.fails(
+            &[".", "--qual", p], fa,
+            "Invalid quality score"
+        );
+    });
 }

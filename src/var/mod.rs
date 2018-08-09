@@ -77,6 +77,7 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
     let qual_converter =
         match *informat {
             InFormat::FASTQ { format } => format,
+            InFormat::FaQual { .. } => QualFormat::Phred,
             _ => QualFormat::Sanger
         }
         .get_converter();

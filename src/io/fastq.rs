@@ -16,6 +16,16 @@ use super::*;
 
 pub struct FastqReader<R: io::Read, S: BufStrategy>(pub Reader<R, S>);
 
+impl<R, S> FastqReader<R, S>
+    where
+        R: io::Read,
+        S: BufStrategy,
+{
+    pub fn new(rdr: R, cap: usize, strategy: S) -> Self {
+        FastqReader(Reader::with_cap_and_strategy(rdr, cap, strategy))
+    }
+}
+
 impl<R, S, O> SeqReader<O> for FastqReader<R, S>
     where
         R: io::Read,
@@ -128,15 +138,31 @@ impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
                 &self.qual_vec
             } else { qual };
 
-        // Using .raw_seq() is possible only because FASTA cannot be used as input source
-        // (no quality info). Might change if getting the quality info from other sources
-        // (mothur-style .qual files)
-        let seq = record.raw_seq();
+        // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
+
+        self.writer.write_all(b"@")?;
 
         match record.get_header() {
-            SeqHeader::IdDesc(id, desc) => fastq::write_parts(&mut self.writer, id, desc, seq, qual)?,
-            SeqHeader::FullHeader(h) => fastq::write_to(&mut self.writer, h, seq, qual)?,
+            SeqHeader::IdDesc(id, desc) => {
+                self.writer.write_all(id)?;
+                if let Some(d) = desc {
+                    self.writer.write_all(b" ")?;
+                    self.writer.write_all(d)?;
+                }
+            }
+            SeqHeader::FullHeader(h) => {
+                self.writer.write_all(h)?;
+            },
         }
+
+        self.writer.write_all(b"\n")?;
+        for seq in record.seq_segments() {
+            self.writer.write_all(seq)?;
+        }
+        self.writer.write_all(b"\n+\n")?;
+        self.writer.write_all(qual)?;
+        self.writer.write_all(b"\n")?;
+
         Ok(())
     }
 

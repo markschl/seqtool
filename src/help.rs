@@ -29,6 +29,7 @@ Output options:
     --to-tsv <fields>   TSV output. Short for '--to tsv --outfields <f>'
     --compr-level <l>   Level for compressed output. 1-9 for GZIP/BZIP2 and
                         1-21 for ZSTANDARD
+    --qual-out <file>   Path to QUAL output file with quality scores
 
 Attribute options:
     -a, --attr <a>      Add an attribute in the form name=value to FASTA/FASTQ

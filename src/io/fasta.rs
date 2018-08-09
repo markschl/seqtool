@@ -16,6 +16,16 @@ use super::*;
 
 pub struct FastaReader<R: io::Read, S: BufStrategy>(pub Reader<R, S>);
 
+impl<R, S> FastaReader<R, S>
+    where
+        R: io::Read,
+        S: BufStrategy,
+{
+    pub fn new(rdr: R, cap: usize, strategy: S) -> Self {
+        FastaReader(Reader::with_cap_and_strategy(rdr, cap, strategy))
+    }
+}
+
 impl<R, S, O> SeqReader<O> for FastaReader<R, S>
     where
         R: io::Read,

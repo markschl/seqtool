@@ -50,6 +50,9 @@ pub enum InFormat {
     FASTQ {
         format: QualFormat,
     },
+    FaQual {
+        qfile: PathBuf,
+    },
     CSV {
         delim: u8,
         fields: Vec<String>,
@@ -68,6 +71,7 @@ impl InFormat {
                     QualFormat::Solexa => "fastq-solexa",
                     QualFormat::Phred => unreachable!()
                 },
+            InFormat::FaQual { .. } => "<FASTA/QUAL>",
             InFormat::CSV { delim, ..} =>
                 if delim == b'\t' { "tsv" } else { "csv" },
         }
@@ -78,11 +82,12 @@ impl InFormat {
         csv_delim: Option<&str>,
         csv_fields: &str,
         header: bool,
+        qfile: Option<&str>,
     ) -> CliResult<InFormat> {
         let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
 
         let format = match string {
-            "fasta" | "fa" =>
+            "fasta" | "fa" | "fna" | "<FASTA/QUAL>" =>
                 InFormat::FASTA,
             "fastq" | "fq" =>
                 InFormat::FASTQ { format: QualFormat::Sanger },
@@ -114,10 +119,18 @@ impl InFormat {
             }
         };
 
+        if let Some(f) = qfile {
+            if format != InFormat::FASTA {
+                return fail!("Expecting FASTA as input if combined with QUAL files");
+            }
+            return Ok(InFormat::FaQual { qfile: PathBuf::from(f) })
+        }
+
         Ok(format)
     }
 }
 
+#[derive(Clone)]
 pub struct LimitedBufStrategy {
     double_until: usize,
     limit: usize,
@@ -289,9 +302,11 @@ pub fn get_reader<'a, O, R>(rdr: R, format: &InFormat, cap: usize, max_mem: usiz
     };
     Ok(match *format {
         InFormat::FASTA =>
-            Box::new(fasta::FastaReader(seq_io::fasta::Reader::with_cap_and_strategy(rdr, cap, strategy))),
+            Box::new(fasta::FastaReader::new(rdr, cap, strategy)),
         InFormat::FASTQ { .. } =>
-            Box::new(fastq::FastqReader(seq_io::fastq::Reader::with_cap_and_strategy(rdr, cap, strategy))),
+            Box::new(fastq::FastqReader::new(rdr, cap, strategy)),
+        InFormat::FaQual { ref qfile } =>
+            Box::new(fa_qual::FaQualReader::new(rdr, cap, strategy, qfile)?),
         InFormat::CSV {ref delim, ref fields, has_header} =>
             Box::new(csv::CsvReader::new(rdr, *delim, fields, has_header)?),
     })
@@ -375,6 +390,10 @@ where
                     }
                     transform_result!(func(&rec, d, s))
                 }
+            ),
+        InFormat::FaQual { .. } =>
+            return fail!(
+                "Multithreaded processing of records with qualities from .qual files implemented"
             ),
         InFormat::CSV {ref delim, ref fields, has_header} =>
             parallel_csv::parallel_csv_init(

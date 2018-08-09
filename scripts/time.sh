@@ -11,6 +11,8 @@ alias s=target/release/seqtool
 
 # prepare
 # s . -a gc={s:gc} $f > $f.with_gc.fq
+# s . --qual-out $f.qual --to-fa $f > /dev/null
+# s . --to-fa $f > $f.fa
 # gzip -k $f
 # lz4 -k $f
 # bzip2 -k $f
@@ -25,11 +27,15 @@ set -x
 
 # conversion
 time s . --to-fa $f > /dev/null
+time s . --to fastq-illumina $f > /dev/null
+time s . --qual $f.qual $f.fa > /dev/null
+time s . --to-fq --qual $f.qual $f.fa > /dev/null
 time read_fastq -i $f -e base_33 | write_fasta -x > /dev/null
 time cat $f | fastq_to_fasta -Q33 > /dev/null
 time fastq_to_fasta -Q33 -i $f > /dev/null
 time seqtk seq -A $f > /dev/null
 time seqkit fq2fa $f > /dev/null
+time seqkit convert --from 'Sanger' --to 'Illumina-1.3+' $f > /dev/null
 
 # random subsampling
 time s sample -f 0.1 $f > /dev/null
@@ -51,9 +57,9 @@ time seqkit seq -rp $f > /dev/null
 
 # compress
 time s . $f > /dev/null
-time s . $f --outformat fastq.lz4 > /dev/null
+time s . $f --to fastq.lz4 > /dev/null
 time s . $f | lz4 -c > /dev/null
-time s . $f --outformat fastq.gz > /dev/null
+time s . $f --to fastq.gz > /dev/null
 time s . $f | gzip -c > /dev/null
 
 # decompress
@@ -87,6 +93,12 @@ time s filter 's:seqlen >= 100' $f > /dev/null
 time seqtk seq -L 100 $f > /dev/null
 time seqkit seq -m 100 $f > /dev/null
 time read_fasta -i $f | grab -e 'SEQ_LEN >= 100' | write_fasta -x > /dev/null
+
+# filter by quality
+time s filter 's:exp_err < 1' $f --to-fa > /dev/null
+time usearch -fastq_filter $f -fastq_maxee 1 -fastaout $f.filter.fa
+time vsearch -fastq_filter $f -fastq_maxee 1 -fastaout $f.filter.fa
+rm $f.filter.fa
 
 # primer finding
 
