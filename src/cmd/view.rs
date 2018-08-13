@@ -287,7 +287,7 @@ fn write_id<W: io::Write>(id: &[u8], desc: Option<&[u8]>, mut writer: W, total_l
                 let d = str::from_utf8(d)?;
 
                 if d.chars().count() > rest {
-                    write!(writer, "{} {}{} ", id, &d[..rest - 1], ellipsis)?;
+                    write!(writer, "{} {}{} ", id, &d[..rest - 2], ellipsis)?;
                 } else {
                     write!(writer, "{} {:<2$} ", id, d, rest)?;
                 }
