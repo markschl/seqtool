@@ -38,7 +38,7 @@ General command options:
     -d, --show-desc     Show descriptions along IDs if there is enough space.
     -f, --foreground    Color base / amino acid letters instead of background.
                         If base qualities are present, background coloration
-                        is shown, and the foreground scheme will be 'dna-dark'
+                        is shown, and the foreground scheme will be 'dna-bright'
                         (change with --dna-pal).
 
 Pager (UNIX only):
@@ -155,7 +155,7 @@ pub fn run() -> CliResult<()> {
         if foreground {
             writer.set(ColorSource::Symbol, ColorMode::Fg);
             if dna_pal == "dna" {
-                writer = writer.dna_pal("dna-dark");
+                writer = writer.dna_pal("dna-bright");
             }
         }
     } else {
