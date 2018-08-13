@@ -33,8 +33,8 @@ Usage:
 
 General command options:
     -n, --num-seqs <N>  Number of sequences to select
-    -i, --id-width <N>  Width of IDs in characters. Longer IDs are truncated
-                        (default: 15 or longer)
+    -i, --id-len <N>    Length of IDs in characters. Longer IDs are truncated
+                        (default: 15 - 50 depending on ID length)
     -d, --show-desc     Show descriptions along IDs if there is enough space.
     -f, --foreground    Color base / amino acid letters instead of background.
                         If base qualities are present, background coloration
@@ -101,7 +101,7 @@ pub fn run() -> CliResult<()> {
     let cfg = cfg::Config::from_args(&args)?;
 
     let nmax: Option<usize> = args.opt_value("--num-seqs")?;
-    let mut id_w: Option<usize> = args.opt_value("--id-width")?;
+    let mut id_len: Option<usize> = args.opt_value("--id-len")?;
     let show_desc = args.get_bool("--show-desc");
     let truecolor = args.get_bool("--truecolor");
     let qmax: u8 = args.value("--qmax")?;
@@ -111,8 +111,8 @@ pub fn run() -> CliResult<()> {
     let textcols = args.get_str("--textcols");
     let foreground = args.get_bool("--foreground");
 
-    if id_w == Some(0) {
-        id_w = Some(1);
+    if id_len == Some(0) {
+        id_len = Some(1);
     }
 
     if args.get_bool("--list-pal") {
@@ -180,7 +180,7 @@ pub fn run() -> CliResult<()> {
     let vars = cfg.vars()?;
 
     let mut i = 0;
-    let mut id_w = id_w.unwrap_or(0);
+    let mut id_len = id_len.unwrap_or(0);
 
     cfg.read_sequential(|record| {
         if let Some(n) = nmax {
@@ -193,12 +193,12 @@ pub fn run() -> CliResult<()> {
 
         let (id, desc) = record.id_desc_bytes();
 
-        if id_w == 0 {
+        if id_len == 0 {
             // determine ID width of first ID
-            id_w = max(15, ::std::str::from_utf8(id)?.chars().count() + 3);
+            id_len = min(50, max(15, ::std::str::from_utf8(id)?.chars().count() + 3));
         }
 
-        write_id(id, desc, &mut writer, id_w, show_desc, utf8)?;
+        write_id(id, desc, &mut writer, id_len, show_desc, utf8)?;
 
         // write seq
 
@@ -272,15 +272,15 @@ fn setup_pager(cmd: Option<&str>, break_lines: bool, no_pager: bool) {
     }
 }
 
-fn write_id<W: io::Write>(id: &[u8], desc: Option<&[u8]>, mut writer: W, id_w: usize, show_desc: bool, utf8: bool) -> CliResult<()> {
+fn write_id<W: io::Write>(id: &[u8], desc: Option<&[u8]>, mut writer: W, total_len: usize, show_desc: bool, utf8: bool) -> CliResult<()> {
     let id = str::from_utf8(id)?;
 
     let ellipsis = if utf8 { '…' } else { ' ' };
     let id_len = id.chars().count();
-    if id_len > id_w {
-        write!(writer, "{}{} ", &id[..id_w - 1], ellipsis)?;
+    if id_len > total_len {
+        write!(writer, "{}{} ", &id[..total_len - 1], ellipsis)?;
     } else {
-        let rest = id_w - id_len;
+        let rest = total_len - id_len;
 
         if show_desc && rest >= 3 {
             if let Some(d) = desc {
@@ -295,7 +295,7 @@ fn write_id<W: io::Write>(id: &[u8], desc: Option<&[u8]>, mut writer: W, id_w: u
             }
         }
 
-        write!(writer, "{:<1$} ", id, id_w)?;
+        write!(writer, "{:<1$} ", id, total_len)?;
     }
     Ok(())
 }
