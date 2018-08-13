@@ -8,13 +8,12 @@ pub static USAGE: &'static str = concat!(
 Get a slice of the sequences within a defined range.
 
 Usage:
-    seqtool slice [options][-a <attr>...][-l <list>...] <range> [<input>...]
-    seqtool slice (-h | --help)
-    seqtool slice --help-vars
+    st slice [options][-a <attr>...][-l <list>...] <range> [<input>...]
+    st slice (-h | --help)
+    st slice --help-vars
 
 Options:
     <range>             Range in form 'start..end' or '..end' or 'start..'
-
 ",
     common_opts!()
 );

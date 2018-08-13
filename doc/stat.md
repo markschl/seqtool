@@ -1,8 +1,8 @@
-This command is equivalent to 'seqtool pass --to-txt <stats>', but
+This command is equivalent to 'st pass --to-txt <stats>', but
 variable prefixes (s:) are not necessary. Example:
 
 ```bash
-seqtool stat seqlen,gc seqs.fa
+st stat seqlen,gc seqs.fa
 ```
 
 Example output:

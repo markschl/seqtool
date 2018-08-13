@@ -9,13 +9,12 @@ pub static USAGE: &'static str = concat!(
 Returns the last sequences of the input.
 
 Usage:
-    seqtool tail [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool tail (-h | --help)
-    seqtool tail --help-vars
+    st tail [options][-a <attr>...][-l <list>...] [<input>...]
+    st tail (-h | --help)
+    st tail --help-vars
 
 Options:
     -n, --num-seqs <N>   Number of sequences to select [default: 10]
-
 ",
     common_opts!()
 );

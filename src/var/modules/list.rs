@@ -28,7 +28,7 @@ impl VarHelp for ListHelp {
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[(
             "Extracting sequences with coordinates stored in a BED file",
-            "seqtool trim -l coordinates.bed -0 {l:2}..{l:3} input.fa > output.fa",
+            "st trim -l coordinates.bed -0 {l:2}..{l:3} input.fa > output.fa",
         )])
     }
 }

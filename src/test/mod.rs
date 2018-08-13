@@ -59,7 +59,7 @@ impl Tester {
         // then return the path
         let root = Self::root();
 
-        let name = "seqtool";
+        let name = "st";
         let name = if cfg!(windows) {
                 format!("{}.exe", name)
             } else {

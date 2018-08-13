@@ -1,4 +1,4 @@
-**Seqtool** is a  fast and flexible command line program for dealing with
+**st** is a  fast and flexible command line program for dealing with
 large amounts of biological sequences. It can read and write
 **FASTA**, **FASTQ** and **CSV** files and handles different common
 compression formats (GZIP, BZIP2), but also supports newer/faster compression

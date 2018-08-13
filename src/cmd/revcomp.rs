@@ -13,13 +13,12 @@ Reverse complements DNA sequences. If quality scores are present,
 their order is just reversed.
 
 Usage:
-    seqtool revcomp [options][-a <attr>...] [-l <list>...] [<input>...]
-    seqtool revcomp (-h | --help)
-    seqtool revcomp --help-vars
+    st revcomp [options][-a <attr>...] [-l <list>...] [<input>...]
+    st revcomp (-h | --help)
+    st revcomp --help-vars
 
 Options:
     -t, --threads <N>   Number of threads to use [default: 1]
-
 ",
     common_opts!()
 );

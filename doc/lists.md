@@ -20,7 +20,7 @@ seq2  d:Bacteria,p:"Actinobacteria",c:Actinobacteria,o:Actinomycetales,f:Pseudon
 The lineages can be added to the FASTA header using this command:
 
 ```bash
-seqtool set -l taxonomy.txt -d {l:lineage} seqs.fa > seqs_with_taxonomy.fa
+st set -l taxonomy.txt -d {l:lineage} seqs.fa > seqs_with_taxonomy.fa
 ```
 *seqs_with_taxonomy.fa:*
 ```
@@ -41,7 +41,7 @@ Therefore we add `-u`. This will consume more memory, especially if the list fil
 is large.
 
 ```bash
-seqtool set -ul taxonomy.txt -d {l:lineage} seqs.fa > seqs_with_taxonomy.fa
+st set -ul taxonomy.txt -d {l:lineage} seqs.fa > seqs_with_taxonomy.fa
 ```
 
 Additionally, the tool expects all IDs to be present in associated list.
@@ -55,5 +55,5 @@ The `def()` function returns `true` if the ID (in the first column here)
 is present.
 
 ```bash
-seqtool filter -uml id_list.txt "def(l:1)" seqs.fa > in_list.fa
+st filter -uml id_list.txt "def(l:1)" seqs.fa > in_list.fa
 ```

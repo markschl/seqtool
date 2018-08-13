@@ -19,11 +19,11 @@ impl VarHelp for AttrHelp {
         Some(&[
             (
                 "Summarizing over an attribute in the FASTA header '>id size=3'",
-                "seqtool count -k a:size seqs.fa",
+                "st count -k a:size seqs.fa",
             ),
             (
                 "Adding the sequence length to the header as attribute",
-                "seqtool . -a seqlen={s:seqlen} seqs.fa",
+                "st . -a seqlen={s:seqlen} seqs.fa",
             ),
         ])
     }

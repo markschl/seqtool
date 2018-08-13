@@ -28,9 +28,9 @@ Fast searching for one or more patterns in sequences or ids/descriptions,
 with optional multithreading.
 
 Usage:
-  seqtool find [options] [-a <attr>...] <pattern> [<input>...]
-  seqtool find (-h | --help)
-  seqtool find --help-vars
+  st find [options] [-a <attr>...][-l <list>...] <pattern> [<input>...]
+  st find (-h | --help)
+  st find --help-vars
 
 Search Options:
     <pattern>           Pattern string or 'file:<patterns.fasta>'
@@ -65,7 +65,6 @@ Actions:
                         The extension is autorecognized if possible, fallback
                         is the input format.
     --rep <with>        Replace by a composable string
-
 ",
     common_opts!()
 );

@@ -4,20 +4,20 @@
 Removing sequences shorter than 100 bp:
 
 ```bash
-seqtool filter "s:seqlen >= 100" input.fa > filtered.fa
+st filter "s:seqlen >= 100" input.fa > filtered.fa
 ```
 
 Removing DNA sequences with more than 10% of ambiguous bases:
 
 ```bash
-seqtool filter "s:count:ATGC / s:seqlen >= 0.1" input.fa > filtered.fa
+st filter "s:count:ATGC / s:seqlen >= 0.1" input.fa > filtered.fa
 ```
 
 Quick and easy way to select certain sequences (for more advanced
 filtering using lists, see below):
 
 ```bash
-seqtool filter ".id == 'id1' or .id like 'AB*'" input.fa > filtered.fa
+st filter ".id == 'id1' or .id like 'AB*'" input.fa > filtered.fa
 ```
 
 Note the `.` before the variable name. This indicates that this is a
@@ -28,7 +28,7 @@ Keeping only sequences with less than five primer mismatches (stored in the
 and which are also long enough:
 
 ```bash
-seqtool filter "a:f_dist < 5 and s:seqlen > 100" primer_search.fa > filtered.fa
+st filter "a:f_dist < 5 and s:seqlen > 100" primer_search.fa > filtered.fa
 ```
 
 Fairly advanced expressions, even small scripts are possible.
@@ -51,14 +51,14 @@ This example removes sequences with less than one expected error. The
 output is the same as from `fastq_filter` [USEARCH](https://www.drive5.com/usearch/manual/cmd_fastq_filter.html).
 
 ```bash
-seqtool filter 's:exp_err >= 1' input.fq > filtered.fq
+st filter 's:exp_err >= 1' input.fq > filtered.fq
 ```
 
 Normalization according to sequence length is easily possible with
 a math formula (corresponding to `-fastq_maxee_rate` of USEARCH).
 
 ```bash
-seqtool filter 's:exp_err / s:seqlen >= 0.002' input.fq > filtered.fq
+st filter 's:exp_err / s:seqlen >= 0.002' input.fq > filtered.fq
 ```
 
 ### Undefined (missing) values
@@ -75,7 +75,7 @@ Example for retrieving sequences stored in a list of IDs
 
 
 ```bash
-seqtool filter -uml id_list.txt "def(l:1)" seqs.fa > in_list.fa
+st filter -uml id_list.txt "def(l:1)" seqs.fa > in_list.fa
 ```
 
 Note that **empty strings** are also treated as undefined. Consider this
@@ -94,7 +94,7 @@ The following command does an additional check if the attribute `value`
 is defined or not:
 
 ```bash
-seqtool filter "def(a:value) and a:value > 5" seqs.fa
+st filter "def(a:value) and a:value > 5" seqs.fa
 ```
 
 Output:

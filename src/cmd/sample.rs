@@ -16,9 +16,9 @@ pub static USAGE: &'static str = concat!(
 Return a random subset of sequences.
 
 Usage:
-    seqtool sample [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool sample (-h | --help)
-    seqtool sample --help-vars
+    st sample [options][-a <attr>...][-l <list>...] [<input>...]
+    st sample (-h | --help)
+    st sample --help-vars
 
 Options:
     -f, --frac <frac>   Randomly select with probability f returning the given
@@ -27,7 +27,6 @@ Options:
                         STDIN because records have to be counted before.
     -s, --seed <s>      Use this seed to make the sampling reproducible.
                         Useful e.g. for randomly selecting from paired end reads.
-
 ",
     common_opts!()
 );

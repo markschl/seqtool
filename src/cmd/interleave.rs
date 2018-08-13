@@ -9,13 +9,12 @@ Interleaves records of all files in the input. The records will returned in
 the same order as the files.
 
 Usage:
-    seqtool interleave [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool interleave (-h | --help)
-    seqtool interleave --help-vars
+    st interleave [options][-a <attr>...][-l <list>...] [<input>...]
+    st interleave (-h | --help)
+    st interleave --help-vars
 
 Options:
     -n, --no-id-check   Don't check if the IDs of the files match
-
 ",
     common_opts!()
 );

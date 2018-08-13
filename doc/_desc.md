@@ -10,14 +10,14 @@ code; and inside the root directory type `cargo build --release`. The binary is 
 ## Usage
 
 ```
-seqtool <command> [<options>] [<files>...]
+st <command> [<options>] [<files>...]
 ```
 
 All commands accept one or multiple files and STDIN input. The output is written
 to STDOUT or a file (`-o`, useful for [format conversion](wiki/pass)). Commands can
 be easily chained using the pipe.
 
-Use `seqtool <command> -h` to see all available options. A full list of options
+Use `st <command> -h` to see all available options. A full list of options
 that are accepted by all commands can be [found here](wiki/opts).
 
 
@@ -30,7 +30,7 @@ containing 1.73 million Illumina reads of 150-500 bp length was used. They were
 run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.9)
 ([script](https://github.com/markschl/seqtool/blob/master/scripts/time.sh)).
 
-|      | seqtool | [4 threads] | [seqtk](https://github.com/lh3/seqtk) | [seqkit](https://github.com/shenwei356/seqkit/) | [FASTX](https://github.com/agordon/fastx_toolkit) | [biopieces](http://maasha.github.io/biopieces/) |
+|      | st | [4 threads] | [seqtk](https://github.com/lh3/seqtk) | [seqkit](https://github.com/shenwei356/seqkit/) | [FASTX](https://github.com/agordon/fastx_toolkit) | [biopieces](http://maasha.github.io/biopieces/) |
 |-----------------------------------------|-------|-----------|--------|--------|------------|-----------|
 | Simple [counting](wiki/count)           | 0.62s |           |        |        |            | 46.99s    |
 | [Conversion](wiki/pass) to FASTA       | 1.20s  |           | 2.85s | 4.93s | 3min 38.4s | 3min 37.8s  |
@@ -48,8 +48,8 @@ command (`wc -l`, 2.70s) on OS X. The commands `find`, `replace` and `revcomp`
 additionally profit from multithreading.
 
 Compressed files are recognized based on their extension (Example:
-`seqtool . seqs.lz4`). Compressed I/O is done in a separate thread by default,
-which makes reading/writing faster than via the pipe (e.g. `lz4 -dc seqs.lz4 | seqtool . `),
+`st . seqs.lz4`). Compressed I/O is done in a separate thread by default,
+which makes reading/writing faster than via the pipe (e.g. `lz4 -dc seqs.lz4 | st . `),
 with the exception of GZIP on OS X. Reading/writing [LZ4](http://lz4.github.io/lz4)
 is almost as fast as reading uncompressed input. Writing LZ4 is only slightly
 slower while providing a reasonable compression ratio. For files stored on

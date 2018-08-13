@@ -30,11 +30,11 @@ impl VarHelp for ExprHelp {
         Some(&[
             (
                 "Setting a GC content attribute as fraction instead of percentage",
-                "seqtool . -p gc={{s:gc / 100}} seqs.fa",
+                "st . -p gc={{s:gc / 100}} seqs.fa",
             ),
             (
                 "Summarise over the fraction of invalid bases (uppercase)",
-                "seqtool count -k 'n:0.05:{{(s:seqlen - s:count:ACGTMRWSYKVHDBN) / s:seqlen}}'",
+                "st count -k 'n:0.05:{{(s:seqlen - s:count:ACGTMRWSYKVHDBN) / s:seqlen}}'",
             ),
         ])
     }

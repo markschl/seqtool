@@ -10,14 +10,13 @@ pub static USAGE: &'static str = concat!(
 Deletes description field or attributes.
 
 Usage:
-    seqtool del [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool del (-h | --help)
-    seqtool del --help-vars
+    st del [options][-a <attr>...][-l <list>...] [<input>...]
+    st del (-h | --help)
+    st del --help-vars
 
 Options:
     -d, --desc          Delete description
     --attrs <names>     Delete attributes (comma delimited list)
-
 ",
     common_opts!()
 );

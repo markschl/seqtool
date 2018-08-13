@@ -7,7 +7,7 @@ curly braces: `{variable}`. The following example recodes
 sequence IDs to `seq_1/2/3...`:
 
 ```bash
-seqtool set -i seq_{num} seqs.fa > renamed.fa
+st set -i seq_{num} seqs.fa > renamed.fa
 ```
 
 The variables can be categorized into different categories. Aside from
@@ -36,10 +36,10 @@ in two ways: [attributes](attributes) and [CSV/TXT output](pass).
 This example uses regex matching:
 
 ```bash
-seqtool find -ir "([^\.]+).*" seqs.fa -p id={f:match::1}
+st find -ir "([^\.]+).*" seqs.fa -p id={f:match::1}
 # returns `>seqname.1234 id=seqname`
 
-seqtool find -ir "([^\.]+).*" seqs.fa --to-txt id,f:match::1,seq
+st find -ir "([^\.]+).*" seqs.fa --to-txt id,f:match::1,seq
 # returns `seqname.1234 seqname SEQ`
 # Note: curly brackets are not necessary here.
 ```
@@ -50,7 +50,7 @@ Mathematical expressions are written with double curly brackets.
 This example calculates the length of a match found by the _find_ command.
 
 ```bash
-seqtool find -d3 GCATATCAATAAGCGGAGGA seqs.fa \
+st find -d3 GCATATCAATAAGCGGAGGA seqs.fa \
   -p match_len="{{f:end - f:start + 1}}"
 ```
 
@@ -59,7 +59,7 @@ If compiled with [ExprTk](http://www.partow.net/programming/exprtk/) support
 are also possible using the [filter](filter) command:
 
 ```bash
-seqtool filter "s:seqlen >= 100" input.fa > filtered.fa
+st filter "s:seqlen >= 100" input.fa > filtered.fa
 ```
 
 ### String variables
@@ -68,5 +68,5 @@ ExprTk expressions can also handle strings. String variables have to be
 explicitly marked as such using a preceding dot (`.variable`).
 
 ```bash
-seqtool filter ".id == 'id1' or .id == 'id2'" input.fa > filtered.fa
+st filter ".id == 'id1' or .id == 'id2'" input.fa > filtered.fa
 ```

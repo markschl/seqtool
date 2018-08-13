@@ -12,9 +12,9 @@ Concatenates sequences/alignments from different files in the order
 in which they are provided. Fails if the IDs don't match.
 
 Usage:
-    seqtool concat [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool concat (-h | --help)
-    seqtool concat --help-vars
+    st concat [options][-a <attr>...][-l <list>...] [<input>...]
+    st concat (-h | --help)
+    st concat --help-vars
 
 Options:
     -n, --no-id-check   Don't check if the IDs of the records from
@@ -26,7 +26,6 @@ Options:
                         value is the highest quality value for Illumina 1.8+/
                         Phred+33, since there is no autorecognition of the
                         FASTQ encoding [default: J]
-
 ",
     common_opts!()
 );

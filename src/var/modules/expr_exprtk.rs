@@ -32,19 +32,19 @@ impl VarHelp for ExprHelp {
         Some(&[
             (
                 "Setting a GC content attribute as fraction instead of percentage",
-                "seqtool . -p gc={{s:gc / 100}} seqs.fa",
+                "st . -p gc={{s:gc / 100}} seqs.fa",
             ),
             (
                 "Removing DNA sequences with more than 10% of ambiguous bases",
-                "seqtool filter 's:count:ATGC / s:seqlen >= 0.1' input.fa",
+                "st filter 's:count:ATGC / s:seqlen >= 0.1' input.fa",
             ),
             (
                 "Selecting IDs with a certain pattern:",
-                "seqtool filter \".id like 'AB*'\" input.fa",
+                "st filter \".id like 'AB*'\" input.fa",
             ),
             (
                 "Selecting IDs from a list:",
-                "seqtool filter -uml id_list.txt 'def(l:1)' seqs.fa",
+                "st filter -uml id_list.txt 'def(l:1)' seqs.fa",
             ),
         ])
     }

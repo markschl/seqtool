@@ -101,11 +101,11 @@ Modifying commands
     concat      Concatenate seqs. from multiple files
 
 For information about how to use a command use
-    seqtool <command> -h/--help
+    st <command> -h/--help
 
 List and explain available variables:
-    seqtool --help-vars
-    seqtool <command> --help-vars
+    st --help-vars
+    st <command> --help-vars
 
 "
     };
@@ -117,10 +117,10 @@ Tool for processing of biological sequences. It can read and write the formats
 FASTA, FASTQ and CSV/TSV.
 
 Usage:
-    seqtool <command> [<opts>...]
-    seqtool <command> (-h | --help)
-    seqtool <command> --help-vars
-    seqtool [options]
+    st <command> [<opts>...]
+    st <command> (-h | --help)
+    st <command> --help-vars
+    st [options]
 
 Options:
     -h, --help    Display this message

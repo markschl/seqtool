@@ -27,8 +27,8 @@ View biological sequences, coloured by base / amino acid, or by sequence quality
 The output is automatically forwarded to the 'less' pager on UNIX.
 
 Usage:
-    seqtool view [options] [<input>...]
-    seqtool view (-h | --help)
+    st view [options] [<input>...]
+    st view (-h | --help)
 
 General command options:
     -n, --num-seqs <N>  Number of sequences to select
@@ -43,7 +43,7 @@ General command options:
 Pager (UNIX only):
     -n, --no-pager      Disable automatic forwarding to pager
     --pager <pager>     Pager command to use (default: less -RS).
-                        This overrides the value of the $SEQTOOL_PAGER env.
+                        This overrides the value of the $ST_PAGER env.
                         variable, if set.
     -b, --break         Break lines in pager, disabling 'horizontal scrolling'.
                         Equivalent to --pager 'less -R'
@@ -257,7 +257,7 @@ pub fn run() -> CliResult<()> {
 #[cfg(target_family = "unix")]
 fn setup_pager(cmd: Option<&str>, break_lines: bool, no_pager: bool) {
     if !no_pager {
-        let env_pager = var("SEQTOOL_PAGER");
+        let env_pager = var("ST_PAGER");
         let pager = env_pager
             .as_ref()
             .ok()

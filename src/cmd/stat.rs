@@ -10,13 +10,12 @@ Returns per sequence statistics as tab delimited list. All statistical variables
 (s:<variable>) can be used.
 
 Usage:
-    seqtool stat [options] <stats> [<input>...]
-    seqtool stat (-h | --help)
+    st stat <stats> [<input>...]
+    st stat (-h | --help)
 
 Options:
     <stats>             Comma delimited list of statistics. The 's:' prefix
                         is not necessary.
-
 ",
     common_opts!()
 );

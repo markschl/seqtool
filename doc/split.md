@@ -10,7 +10,7 @@ SEQUENCE
 ```
 
 ```bash
-seqtool split -o "group_{a:group}.fa" --adelim ";" input.fa
+st split -o "group_{a:group}.fa" --adelim ";" input.fa
 ```
 
 This will create the files `group_1.fa` and `group_2.fa`. In more

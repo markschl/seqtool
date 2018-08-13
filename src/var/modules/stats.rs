@@ -37,7 +37,7 @@ impl VarHelp for StatHelp {
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[(
             "Get absolute GC content (not relative to sequence length)",
-            "seqtool stat count:GC input.fa",
+            "st stat count:GC input.fa",
         )])
     }
 }

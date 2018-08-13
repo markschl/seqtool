@@ -17,9 +17,9 @@ criteria. In contrast to other commands, the output (-o) argument can
 contain variables in order to determine the file path for each sequence.
 
 Usage:
-    seqtool split [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool split (-h | --help)
-    seqtool split --help-vars
+    st split [options][-a <attr>...][-l <list>...] [<input>...]
+    st split (-h | --help)
+    st split --help-vars
 
 Options:
     -n, --num-seqs <N>  Split into chunks of <N> sequences and writes them to

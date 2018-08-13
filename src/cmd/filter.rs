@@ -11,15 +11,14 @@ pub static USAGE: &'static str = concat!(
 Filters sequences by a mathematical expression which may contain any variable.
 
 Usage:
-    seqtool filter [options][-a <attr>...][-l <list>...] <expression> [<input>...]
-    seqtool filter (-h | --help)
-    seqtool filter --help-vars
+    st filter [options][-a <attr>...][-l <list>...] <expression> [<input>...]
+    st filter (-h | --help)
+    st filter --help-vars
 
 Options:
     --dropped <file>    Output file for sequences that were removed by filtering.
                         The extension is autorecognized if possible, fallback
                         is the input format.
-
 ",
     common_opts!()
 );

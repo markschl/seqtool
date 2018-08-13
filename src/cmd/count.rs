@@ -17,8 +17,8 @@ grouping of sequences is possible by supplying or more key strings containing
 variables (-k).
 
 Usage:
-    seqtool count [options] [-l <list>...] [-k <key>...] [<input>...]
-    seqtool count (-h | --help)
+    st count [options] [-l <list>...] [-k <key>...] [<input>...]
+    st count (-h | --help)
 
 Options:
     -k, --key <key>     Summarize over a variable key or a string containing variables.
@@ -27,7 +27,6 @@ Options:
                         Example: 'n:10:{s:seqlen}'
     -n, --no-int        Don't print intervals when using the 'n:<interval>:<key> syntax',
                         instead only upper limits (e.g. '5' instead of '(1,5]')
-
 ",
     common_opts!()
 );

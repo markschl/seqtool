@@ -2,7 +2,7 @@ By default, the count command will return the global count for all files in the
 input:
 
 ```bash
-seqtool count *.fastq
+st count *.fastq
 ```
 
 ```
@@ -12,7 +12,7 @@ seqtool count *.fastq
 If the count for each file is needed, use the `filename` variable:
 
 ```bash
-seqtool count -k filename *.fastq
+st count -k filename *.fastq
 ```
 ```
 file1.fastq    6474547
@@ -26,7 +26,7 @@ annotated as attributes. Now, the mismatch distribution for each primer
 can be analysed:
 
 ```bash
-seqtool count -k {a:f_primer} -k n:{a:f_dist} seqs.fa
+st count -k {a:f_primer} -k n:{a:f_dist} seqs.fa
 ```
 ```
 primer1	0	249640
@@ -50,7 +50,7 @@ If primers on both ends were searched, it might make sense to use a
 for both primers.
 
 ```bash
-seqtool count -k {a:f_primer} -k {a:r_primer} -k "n:{{a:f_dist + a:r_dist}}" primer_trimmed.fq.gz
+st count -k {a:f_primer} -k {a:r_primer} -k "n:{{a:f_dist + a:r_dist}}" primer_trimmed.fq.gz
 ```
 ```
 f_primer1	r_primer1	0	3457490
@@ -70,7 +70,7 @@ a `n:<interval>` prefix. This example shows the GC content
 summarized over 10% windows:
 
 ```bash
-seqtool count -k n:10:{s:gc} seqs.fa
+st count -k n:10:{s:gc} seqs.fa
 ```
 ```
 (20,30]	2

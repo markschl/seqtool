@@ -11,7 +11,7 @@ is searched and only hits matching sequences are returned (`-f`).
 Unmatched sequences are written to a different file.
 
 ```bash
-seqtool find -s AATG -f --dropped not_matched.fa seqs.fa
+st find -s AATG -f --dropped not_matched.fa seqs.fa
 ```
 
 ### Regular expressions
@@ -24,7 +24,7 @@ Genbank format by using a regex group named 'acc' and replaces the ID with
 this group:
 
 ```bash
-seqtool find -ir "gi\|\d+\|[a-z]+\|(?P<acc>.+?)\|.*" seqs.fa \
+st find -ir "gi\|\d+\|[a-z]+\|(?P<acc>.+?)\|.*" seqs.fa \
    --rep "{f:match::acc}" > seqs_accession.fa
 ```
 
@@ -48,7 +48,7 @@ It is possible to search for all matches up to a maximum
 Example:
 
 ```bash
-seqtool find -d 4 ATTAGCG seqs.fa \
+st find -d 4 ATTAGCG seqs.fa \
      -a hit="{f:range}_(dist:{f:dist})" -a range="{m:range}"
 ```
 
@@ -104,7 +104,7 @@ wildcard for all amino acids. The molecule type is automatically determined
 from the pattern. Use `-v` to show which search settings are being used. Example:
 
 ```bash
-seqtool find -v file:primers.fasta -a primer={f:name} -a rng={f:range} input.fasta > output.fasta
+st find -v file:primers.fasta -a primer={f:name} -a rng={f:range} input.fasta > output.fasta
 ```
 
 ```
@@ -130,7 +130,7 @@ distance is always reported first. Other patterns are accessed using
 `<variable>.<pattern_num>`:
 
 ```bash
-seqtool find -d6 file:f_primers.fa seqs.fa \
+st find -d6 file:f_primers.fa seqs.fa \
     -p f_primer={f:name} -p f_dist={f:dist} \
     -p second_best={f:name.2}_({f:dist.2}) > primer_search.fa
 ```
@@ -150,7 +150,7 @@ This can substantially speed up the search.
 
 
 ```bash
-seqtool find -d6 --rng ..23 file:f_primers.fa seqs.fa \
+st find -d6 --rng ..23 file:f_primers.fa seqs.fa \
     -p f_primer={f:name} > primer_search.fa
 ```
 
@@ -191,8 +191,8 @@ The following command searches for all occurrences of a pattern
 and converts them to lowercase:
 
 ```bash
-seqtool find -r -p rng={f:drange:all} [AG]GA seqs.fa \
-  | seqtool mask {a:rng}
+st find -r -p rng={f:drange:all} [AG]GA seqs.fa \
+  | st mask {a:rng}
 ```
 
 Exmaple output:

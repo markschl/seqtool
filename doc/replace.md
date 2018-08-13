@@ -1,7 +1,7 @@
 Example: Conversion of RNA to DNA by replacing all occurrences of `U` with `T`:
 
 ```bash
-seqtool replace U T rna.fa > dna.fa
+st replace U T rna.fa > dna.fa
 ```
 
 Regular expression (regex) groups can be accessed with

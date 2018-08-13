@@ -5,9 +5,9 @@ commands, which don't return any sequences).
 #### Examples
 
 ```bash
-seqtool pass input.fastq.gz -o output.fasta
+st pass input.fastq.gz -o output.fasta
 # equivalent, shorter notation:
-seqtool . input.fastq.gz -o output.fasta
+st . input.fastq.gz -o output.fasta
 ```
 The input and output formats are automatically inferred based on the file
 extensions, assuming GZIP compressed FASTQ input and FASTA output.
@@ -15,7 +15,7 @@ If receiving from STDIN or writing to STDOUT, the format has to be
 specified unless it is FASTA, which is the default.
 
 ```bash
-cat input.fastq.gz | seqtool . --fmt fastq.gz --to fasta > output.fasta
+cat input.fastq.gz | st . --fmt fastq.gz --to fasta > output.fasta
 ```
 Note that GZIP compression can be specified in the format string by adding
 `.gz`.
@@ -52,23 +52,23 @@ BZIP2        |  `.bzip2`,`.bz2`      | `fasta.bz2`
 LZ4          |  `.lz4`               | `fasta.lz4`
 ZSTD         |  `.zst`               | `fasta.zst`
 
-### Delimiter-separated files (CSV, TSV, ...)
+### Delimited formats (CSV, TSV, ...)
 
-Comma / tab delimited input and output can be configured providing the
+Comma / tab / ... delimited input and output can be configured providing the
 `--fields` / `--outfields` argument, or directly using `--csv`/`--to-csv`
-or `--tsv`/`--to-tsv`.
+or `--tsv`/`--to-tsv`. The delimiter is configured with `--delim <delim>`
 
 ```bash
-seqtool . --outfields id,seq -o output.tsv input.fa
+st . --outfields id,seq -o output.tsv input.fa
 
 # equivalent shortcut:
-seqtool . --to-tsv id,seq > output.tsv
+st . --to-tsv id,seq > output.tsv
 ```
 
 [Variables](variables) can also be included:
 
 ```bash
-seqtool . --to-tsv "id,seq,length: {s:seqlen}" input.fa
+st . --to-tsv "id,seq,length: {s:seqlen}" input.fa
 ```
 
 returns:
@@ -84,12 +84,12 @@ Quality scores can be read from several sources.
 [FASTQ](https://en.wikipedia.org/wiki/FASTQ_format) are assumed to be
 in the Sanger / Illumina 1.8+ format. Older formats (Illumina 1.3+ and Solexa)
 can be read, but must be specifically specified. The scores can be
-visualized using the [view command](view.html).
+visualized using the [view command](view).
 
 The following example converts a legacy Illumina 1.3+ file to the Sanger /
 Illumina 1.8+ format:
 
 ```bash
-seqtool . --fmt fq-illumina --to fq illumina_1_3.fq > sanger.fq
+st . --fmt fq-illumina --to fq illumina_1_3.fq > sanger.fq
 ```
-Another useful application is filtering by quality (see [filter command](filter.html#quality-filtering)).
+Another useful application is filtering by quality (see [filter command](filter#quality-filtering)).

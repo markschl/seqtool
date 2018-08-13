@@ -47,11 +47,11 @@ impl VarHelp for BuiltinHelp {
         Some(&[
             (
                 "Adding the sequence number to the ID ",
-                "seqtool set -i {id}_{num}",
+                "st set -i {id}_{num}",
             ),
             (
                 "Counting the number of records per file in the input",
-                "seqtool count -k filename *.fasta",
+                "st count -k filename *.fasta",
             ),
         ])
     }

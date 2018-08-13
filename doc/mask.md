@@ -5,6 +5,6 @@ A comma delimited list of ranges can be supplied, which may contain
 variables, or the [whole range may be a variable](find#variables).
 
 ```bash
-seqtool find -r -a rng={f:drange:all} [AG]GA seqs.fa \
-  | seqtool mask a:rng
+st find -r -a rng={f:drange:all} [AG]GA seqs.fa \
+  | st mask a:rng
 ```

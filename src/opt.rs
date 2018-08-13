@@ -209,10 +209,10 @@ impl Args {
             id_col: id_col - 1,
             attr_opts: var::AttrOpts {
                 delim: self
-                    .opt_string_or_env("--adelim", "SEQTOOL_ATTR_DELIM")
+                    .opt_string_or_env("--adelim", "ST_ATTR_DELIM")
                     .unwrap_or_else(|| " ".to_string()),
                 value_delim: self
-                    .opt_string_or_env("--aval-delim", "SEQTOOL_ATTRVAL_DELIM")
+                    .opt_string_or_env("--aval-delim", "ST_ATTRVAL_DELIM")
                     .unwrap_or_else(|| "=".to_string()),
             },
             allow_missing: self.0.get_bool("--missing"),

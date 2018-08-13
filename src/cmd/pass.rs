@@ -8,10 +8,9 @@ This command is useful for converting from one format to another
 and/or setting attributes.
 
 Usage:
-    seqtool (pass|.) [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool (pass|.) (-h | --help)
-    seqtool (pass|.) --help-vars
-
+    st (pass|.) [options][-a <attr>...][-l <list>...] [<input>...]
+    st (pass|.) (-h | --help)
+    st (pass|.) --help-vars
 ",
     common_opts!()
 );

@@ -12,9 +12,9 @@ by converting to lowercase (soft mask) or replacing with a character (hard
 masking). Reverting soft masking is also possible.
 
 Usage:
-    seqtool mask [options][-a <attr>...][-l <list>...] <ranges> [<input>...]
-    seqtool mask (-h | --help)
-    seqtool mask --help-vars
+    st mask [options][-a <attr>...][-l <list>...] <ranges> [<input>...]
+    st mask (-h | --help)
+    st mask --help-vars
 
 Options:
     <range>             Range in the form 'start..end' or 'start..' or '..end',
@@ -26,7 +26,6 @@ Options:
     -e, --exclude       Exclusive range: excludes start and end positions
                         from the masked sequence.
     -0                  Interpret range as 0-based, with the end not included.
-
 ",
     common_opts!()
 );

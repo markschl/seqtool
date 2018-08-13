@@ -1,6 +1,6 @@
 # Explanation of ranges
 
-Ranges in seqtool are used by commands like [trim](trim) and [mask](mask),
+Ranges in st are used by commands like [trim](trim) and [mask](mask),
 and returned by the [find](find) command.
 
 They look like this: `<start>..<end>`. Open ranges are possible: `<start>..`
@@ -21,14 +21,14 @@ All of the following commands will trim to the range shown in bold:
 
 ```bash
 # 1-based positive
-seqtool trim "3..6" seqs.fa
+st trim "3..6" seqs.fa
 
 # 1-based negative
 # space before range and quote necessary
-seqtool trim " -6..-3" seqs.fa.
+st trim " -6..-3" seqs.fa.
 
 # 0-based
-seqtool trim 2..6 seqs.fa
+st trim 2..6 seqs.fa
 ```
 
 **Note**: There is a problem with ranges starting with a negative number

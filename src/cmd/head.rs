@@ -7,13 +7,12 @@ pub static USAGE: &'static str = concat!(
 Returns the first sequences of the input.
 
 Usage:
-    seqtool head [options][-a <attr>...][-l <list>...] [<input>...]
-    seqtool head (-h | --help)
-    seqtool head --help-vars
+    st head [options][-a <attr>...][-l <list>...] [<input>...]
+    st head (-h | --help)
+    st head --help-vars
 
 Options:
     -n, --num-seqs <N>  Number of sequences to select [default: 10]
-
 ",
     common_opts!()
 );
