@@ -4,16 +4,14 @@ version = "0.1.1"
 authors = ["marcschl <ms201@gmx.net>"]
 
 [dependencies]
-custom_derive = "*"
-newtype_derive = "*"
+bio = "*"
 
 [dev-dependencies]
-bio = "0.16"
-num-bigint = "*"
+bio = "*"
 
 [profile.bench]
-lto = true
+#lto = true
 
 [dependencies.num-traits]
-version = "0.2"
+version = "^0.2.5"
 default-features = false

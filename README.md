@@ -20,7 +20,6 @@ It uses the [Rust-Bio](http://rust-bio.github.io/) and
 and compiles to a standalone binary.
 
 
-
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
 [![Windows build status](https://ci.appveyor.com/api/projects/status/github/markschl/seqtool?svg=true)](https://ci.appveyor.com/project/markschl/seqtool)
 
@@ -30,6 +29,8 @@ and compiles to a standalone binary.
 and/or setting attributes.
 
 ### Information about sequences
+* **[view](https://github.com/markschl/seqtool/wiki/view)**: View biological sequences, coloured by base / amino acid, or by sequence quality.
+The output is automatically forwarded to the 'less' pager on UNIX.
 * **[count](https://github.com/markschl/seqtool/wiki/count)**: This command counts the number of sequences and prints the number to STDOUT. Advanced
 grouping of sequences is possible by supplying or more key strings containing
 variables (-k).

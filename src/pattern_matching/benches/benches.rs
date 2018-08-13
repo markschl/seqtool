@@ -6,10 +6,11 @@ extern crate bio;
 
 use test::Bencher;
 use pattern_matching as pm;
+use bio::alignment::*;
 
 static TEXT: &'static [u8] = b"CGCCGCGGTGTCCGCGCGTGGGTCCTGAGGGAGCTCGTCGGTGTGGGGTTCGGGGCGGTTTGAGTGAGACGAGACGAGACGCGCCCCTCCCACGCGGGGAAGGGCGCCCGCCTGCTCTCGGTGAGCGCACGTCCCGTGCTCCCCTCTGGCGGGTGCGCGCGGGCCGTGTGAGCGATCGCGGTGGGTTCGGGCCGGTGTGACGCGTGCGCCGGCCGGCCGCCGAGGGGCTGCCGTTCTGCCTCCGACCGGTCGTGTGTGGGTTGACTTCGGAGGCGCTCTG";
 static PATTERN: &'static [u8] = b"GAGACCGAGAGAGACGCGACC";
-static K: usize = 5;
+static K: usize = 6;
 
 
 #[bench]
@@ -32,7 +33,7 @@ fn myers(b: &mut Bencher) {
 }
 
 #[bench]
-fn myers_start(b: &mut Bencher) {
+fn myers_pos(b: &mut Bencher) {
     use pm::myers::Myers;
     let mut myers = Myers::new(PATTERN);
     b.iter(|| {

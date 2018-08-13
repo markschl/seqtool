@@ -1,5 +1,5 @@
 
-### Examples:
+### Examples
 
 Removing sequences shorter than 100 bp:
 
@@ -41,7 +41,27 @@ An overview of the syntax can be found
 [ExprTk](http://www.partow.net/programming/exprtk/) C++ library.
 However, the provided binaries include this feature by default.
 
-### Undefined values
+### Quality filtering
+
+The `exp_err` statistics variable represents the total expected number of errors
+in a sequence, as provided by the quality scores. [See here](pass.html#quality-scores)
+for more information on reading them.
+
+This example removes sequences with less than one expected error. The
+output is the same as from `fastq_filter` [USEARCH](https://www.drive5.com/usearch/manual/cmd_fastq_filter.html).
+
+```bash
+seqtool filter 's:exp_err >= 1' input.fq > filtered.fq
+```
+
+Normalization according to sequence length is easily possible with
+a math formula (corresponding to `-fastq_maxee_rate` of USEARCH).
+
+```bash
+seqtool filter 's:exp_err / s:seqlen >= 0.002' input.fq > filtered.fq
+```
+
+### Undefined (missing) values
 
 Undefined variables can occur if a record could not
 be found in an [associated list](lists), an [attribute](attributes) was not present

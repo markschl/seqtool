@@ -2,6 +2,8 @@ Simple conversions can be done using the `pass` command, although every
 other command supports all input/output formats (except for the statistical
 commands, which don't return any sequences).
 
+#### Examples
+
 ```bash
 seqtool pass input.fastq.gz -o output.fasta
 # equivalent, shorter notation:
@@ -13,27 +15,33 @@ If receiving from STDIN or writing to STDOUT, the format has to be
 specified unless it is FASTA, which is the default.
 
 ```bash
-cat input.fastq.gz | seqtool . --format fastq.gz --outformat fasta > output.fasta
+cat input.fastq.gz | seqtool . --fmt fastq.gz --to fasta > output.fasta
 ```
 Note that GZIP compression can be specified in the format string by adding
 `.gz`.
 The output format is always assumed to be the same as the input format
-if not specified otherwise by using `--outformat <format>` or `-o <path>`.
-Writing `--outformat txt --outfields id,seq` is quite verbose, therefore
-a shortcut exists: `--to-txt id,seq`. Similar shortcuts are avialable for uncompressed
+if not specified otherwise by using `--to <format>` or `-o <path>.<extension>`.
+Writing `--to tsv --outfields id,seq` is quite verbose, therefore
+a shortcut exists: `--to-tsv id,seq`. Similar shortcuts are avialable for uncompressed
 input/output in other formats.
+
+
+#### Recognized formats
 
 The following extensions and format strings are auto-recognized:
 
 sequence format      | recognized extensions | format string | shortcut (in) | ..out
 -------------------- | --------------------- | ------------- | ------------- | ----------
-FASTA                |  `.fasta`,`.fa`,`.fna`,`.fsa`| `fasta`       | `--fa`        | `--to-fa`
-FASTQ                |  `.fastq`,`.fq`       | `fastq`       | `--fq`        | `--to-fq`
+FASTA                |  `.fasta`,`.fa`,`.fna`,`.fsa`| `fasta`,`fa`| `--fa`        | `--to-fa`
+FASTQ                |  `.fastq`,`.fq`       | `fastq`,`fq`,`fq-illumina`,`fq-solexa`| `--fq`        | `--to-fq`
 CSV (`,` delimited)  |  `.csv`               | `csv`         | `--csv FIELDS`| `--to-csv FIELDS`
-TXT (`tab` delimited)|  `.txt`,`.tsv`        | `txt`         | `--txt FIELDS`| `--to-txt FIELDS `
+TSV (`tab` delimited)|  `.tsv`,`.tsv`        | `tsv`         | `--tsv FIELDS`| `--to-tsv FIELDS `
 
 **Note:** Multiline FASTA is parsed and written (`--wrap`), but only single-line
 FASTQ is parsed and written.
+
+Quality scores can also be parsed from and written to 454 (Roche) style `QUAL`
+files using `--qual <file>` and `--to-qual <file>`.
 
 Compression formats (no shortcuts available, use `--[out]format`):
 
@@ -44,23 +52,23 @@ BZIP2        |  `.bzip2`,`.bz2`      | `fasta.bz2`
 LZ4          |  `.lz4`               | `fasta.lz4`
 ZSTD         |  `.zst`               | `fasta.zst`
 
-#### CSV / TXT files
+### Delimiter-separated files (CSV, TSV, ...)
 
 Comma / tab delimited input and output can be configured providing the
 `--fields` / `--outfields` argument, or directly using `--csv`/`--to-csv`
-or `--txt`/`--to-txt`.
+or `--tsv`/`--to-tsv`.
 
 ```bash
-seqtool . --outfields id,seq -o output.txt input.fa
+seqtool . --outfields id,seq -o output.tsv input.fa
 
 # equivalent shortcut:
-seqtool . --to-txt id,seq > output.txt
+seqtool . --to-tsv id,seq > output.tsv
 ```
 
 [Variables](variables) can also be included:
 
 ```bash
-seqtool . --to-txt "id,seq,length: {s:seqlen}" input.fa
+seqtool . --to-tsv "id,seq,length: {s:seqlen}" input.fa
 ```
 
 returns:
@@ -69,3 +77,19 @@ returns:
 id1	ATGC(...)	length: 231
 id2	TTGC(...)	length: 250
 ```
+
+#### Quality scores
+
+Quality scores can be read from several sources.
+[FASTQ](https://en.wikipedia.org/wiki/FASTQ_format) are assumed to be
+in the Sanger / Illumina 1.8+ format. Older formats (Illumina 1.3+ and Solexa)
+can be read, but must be specifically specified. The scores can be
+visualized using the [view command](view.html).
+
+The following example converts a legacy Illumina 1.3+ file to the Sanger /
+Illumina 1.8+ format:
+
+```bash
+seqtool . --fmt fq-illumina --to fq illumina_1_3.fq > sanger.fq
+```
+Another useful application is filtering by quality (see [filter command](filter.html#quality-filtering)).

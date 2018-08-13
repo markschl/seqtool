@@ -1,4 +1,8 @@
 
+extern crate num_traits;
+extern crate bio;
+
+
 pub type Text = Vec<u8>;
 /// Type alias for a text slice, i.e. ``&[u8]``.
 pub type TextSlice<'a> = &'a [u8];

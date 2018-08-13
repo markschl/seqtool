@@ -14,7 +14,7 @@ printf "\n## Commands" >> $main
 
 cmd=(
   ">Basic conversion / editing" pass
-  ">Information about sequences" count stat
+  ">Information about sequences" view count stat
   ">Subsetting/shuffling sequences" head tail slice sample filter split interleave
   ">Searching and replacing" find replace
   ">Modifying commands" del set trim mask upper lower revcomp concat
@@ -41,9 +41,15 @@ for c in "${cmd[@]}"; do
   echo "* **[$c](wiki/$c)**: $desc" >> $main
 
   # add custom descriptions
-  if [ -f doc/$c.md ]; then
+
+  desc_f=doc/$c.md
+  if [ -f $desc_f ]; then
+    toc=`grep '^### ' $desc_f | sed -E 's/^### (.*)/* [\1]\t#\1/g' | awk -F$'\t' '{ rep=gsub(" ", "-", $2); print sprintf("%s(%s)", $1, $2) }'`
+    if [ `printf "$toc" | wc -l` -gt 1 ]; then
+      printf "## Contents\n\n$toc\n\n" >> $out
+    fi
     echo "## Description" >> $out
-    cat doc/$c.md >> $out
+    cat $desc_f >> $out
   fi
 
   # variable help
