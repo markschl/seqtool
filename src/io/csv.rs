@@ -1,11 +1,11 @@
-use std::io;
-use std::convert::AsRef;
+use std::borrow::{Cow, ToOwned};
 use std::collections::HashMap;
-use std::borrow::{Cow,ToOwned};
+use std::convert::AsRef;
+use std::io;
 
 use csv;
-use lib::util::match_fields;
 use error::CliResult;
+use lib::util::match_fields;
 
 use super::*;
 
@@ -66,21 +66,19 @@ impl<R: io::Read> CsvReader<R> {
                 })
                 .unzip();
 
-            let idx: Result<Vec<_>, _> = columns
-                .iter()
-                .map(|c| c.parse::<usize>())
-                .collect();
+            let idx: Result<Vec<_>, _> = columns.iter().map(|c| c.parse::<usize>()).collect();
 
             let indices: CliResult<Vec<usize>> = match idx {
-                Ok(indices) => {
-                    indices.into_iter().map(|i|
+                Ok(indices) => indices
+                    .into_iter()
+                    .map(|i| {
                         if i == 0 {
                             fail!("List column numbers should be > 1")
                         } else {
                             Ok(i - 1)
                         }
-                    ).collect()
-                }
+                    })
+                    .collect(),
                 Err(_) => {
                     // need to look up the indices
                     if !has_header {
@@ -132,17 +130,14 @@ pub struct Columns {
     other_cols: Vec<(String, usize)>,
 }
 
-
 impl<R, O> SeqReader<O> for CsvReader<R>
-    where
-        R: io::Read,
+where
+    R: io::Read,
 {
     fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
         self.next().map(|r| r.map(|r| func(&r)))
     }
 }
-
-
 
 // method used by seq_io::parallel module
 impl<R: io::Read> CsvReader<R> {

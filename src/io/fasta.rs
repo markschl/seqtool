@@ -1,25 +1,23 @@
-
-use std::io;
-use std::borrow::{Cow,ToOwned};
+use std::borrow::{Cow, ToOwned};
 use std::cell::Cell;
+use std::io;
 
 use memchr::memchr;
 
-use error::CliResult;
-use seq_io::BufStrategy;
-use seq_io::fasta::{self, Record as FR, Reader};
-use var;
 use super::*;
-
+use error::CliResult;
+use seq_io::fasta::{self, Reader, Record as FR};
+use seq_io::BufStrategy;
+use var;
 
 // Reader
 
 pub struct FastaReader<R: io::Read, S: BufStrategy>(pub Reader<R, S>);
 
 impl<R, S> FastaReader<R, S>
-    where
-        R: io::Read,
-        S: BufStrategy,
+where
+    R: io::Read,
+    S: BufStrategy,
 {
     pub fn new(rdr: R, cap: usize, strategy: S) -> Self {
         FastaReader(Reader::with_cap_and_strategy(rdr, cap, strategy))
@@ -27,9 +25,9 @@ impl<R, S> FastaReader<R, S>
 }
 
 impl<R, S, O> SeqReader<O> for FastaReader<R, S>
-    where
-        R: io::Read,
-        S: BufStrategy,
+where
+    R: io::Read,
+    S: BufStrategy,
 {
     fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
         self.0.next().map(|r| {
@@ -39,12 +37,11 @@ impl<R, S, O> SeqReader<O> for FastaReader<R, S>
     }
 }
 
-
 // Wrapper for FASTA record
 
 pub struct FastaRecord<'a> {
     rec: fasta::RefRecord<'a>,
-    delim: Cell<Option<Option<usize>>>
+    delim: Cell<Option<Option<usize>>>,
 }
 
 impl<'a> FastaRecord<'a> {
@@ -52,7 +49,7 @@ impl<'a> FastaRecord<'a> {
     pub fn new(inner: fasta::RefRecord<'a>) -> FastaRecord<'a> {
         FastaRecord {
             rec: inner,
-            delim: Cell::new(None)
+            delim: Cell::new(None),
         }
     }
 
@@ -120,7 +117,6 @@ impl<W: io::Write> FastaWriter<W> {
         }
     }
 }
-
 
 impl<W: io::Write> SeqWriter<W> for FastaWriter<W> {
     fn write(&mut self, record: &Record, _: &var::Vars) -> CliResult<()> {

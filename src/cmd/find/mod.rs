@@ -1,18 +1,18 @@
-use std::str;
-use std::fmt::Display;
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::str;
 
 use itertools::Itertools;
 
-use error::CliResult;
-use opt;
 use cfg;
-use var::{varstring, VarHelp, VarProvider};
-use io::{SeqAttr, RecordEditor};
+use error::CliResult;
 use io::output::writer::Writer;
-use lib::util::{parse_range, replace_iter};
+use io::{RecordEditor, SeqAttr};
 use lib::rng::Range;
 use lib::seqtype::{guess_seqtype, SeqType};
+use lib::util::{parse_range, replace_iter};
+use opt;
+use var::{varstring, VarHelp, VarProvider};
 
 use self::matcher::*;
 use self::matches::*;
@@ -22,7 +22,8 @@ mod matcher;
 mod matches;
 mod vars;
 
-static USAGE: &'static str = concat!("
+static USAGE: &'static str = concat!(
+    "
 Fast searching for one or more patterns in sequences or ids/descriptions,
 with optional multithreading.
 
@@ -83,20 +84,20 @@ lazy_static! {
         b'B' => b"CGTSYKB".to_vec(),
         b'N' => b"ACGTMRWSYKVHDBN".to_vec(),
     };
-
     static ref AMBIG_RNA: HashMap<u8, Vec<u8>> = AMBIG_DNA
         .iter()
         .map(|(&b, eq)| {
-            let eq = eq.into_iter().map(|&b| if b == b'T' { b'U' } else { b }).collect();
+            let eq = eq
+                .into_iter()
+                .map(|&b| if b == b'T' { b'U' } else { b })
+                .collect();
             (b, eq)
         })
         .collect();
-
     static ref AMBIG_PROTEIN: HashMap<u8, Vec<u8>> = hashmap!{
         b'X' => b"CDEFGHIKLMNOPQRSTUVWY".to_vec(),
     };
 }
-
 
 use self::Algorithm::*;
 
@@ -125,7 +126,6 @@ struct MatchOpts {
     max_dist: u16,
     seqtype: SeqType,
 }
-
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
@@ -195,8 +195,15 @@ pub fn run() -> CliResult<()> {
 
     // determine sequence type for each pattern
     let typehint = typehint.as_ref().map(|s| s.as_str());
-    let (seqtype, algorithms) = analyse_patterns(&patterns, algo_override, typehint,
-                                                 ambig, regex, dist, verbose)?;
+    let (seqtype, algorithms) = analyse_patterns(
+        &patterns,
+        algo_override,
+        typehint,
+        ambig,
+        regex,
+        dist,
+        verbose,
+    )?;
 
     // run
     cfg.writer_with(
@@ -225,9 +232,10 @@ pub fn run() -> CliResult<()> {
                 match_vars.bounds_needed().0 || match_vars.bounds_needed().1 || max_shift.is_some();
 
             report!(
-              verbose,
-              "Sort by distance: {:?}. Find full position: {:?}",
-              sorted, needs_alignment
+                verbose,
+                "Sort by distance: {:?}. Find full position: {:?}",
+                sorted,
+                needs_alignment
             );
 
             let opts = MatchOpts {
@@ -368,14 +376,13 @@ where
             is_ambig = ambig_override.unwrap_or(is_ambig);
 
             // decide which algorithm should be used
-            let mut algorithm =
-                if regex {
-                    Regex
-                } else if dist > 0 || is_ambig {
-                    Myers
-                } else {
-                    Exact
-                };
+            let mut algorithm = if regex {
+                Regex
+            } else if dist > 0 || is_ambig {
+                Myers
+            } else {
+                Exact
+            };
 
             // override with user choice
             if let Some(a) = algo_override {
@@ -386,10 +393,18 @@ where
                 }
             }
 
-            report!(verbose,
-                "{}: {:?}{}, search algorithm: {:?}{}", name, seqtype,
-                if is_ambig { " with ambiguities" } else { "" },  algorithm,
-                if dist > 0 { format!(", max. distance: {}", dist) } else { "".to_string() },
+            report!(
+                verbose,
+                "{}: {:?}{}, search algorithm: {:?}{}",
+                name,
+                seqtype,
+                if is_ambig { " with ambiguities" } else { "" },
+                algorithm,
+                if dist > 0 {
+                    format!(", max. distance: {}", dist)
+                } else {
+                    "".to_string()
+                },
             );
 
             Ok((seqtype, (algorithm, is_ambig)))
@@ -436,7 +451,6 @@ where
     Ok((t, out))
 }
 
-
 fn get_matcher<'a>(
     pattern: &str,
     algorithm: Algorithm,
@@ -467,7 +481,6 @@ fn get_matcher<'a>(
         }
     })
 }
-
 
 fn read_pattern_file(path: &str) -> CliResult<Vec<(String, String)>> {
     use seq_io::fasta::*;

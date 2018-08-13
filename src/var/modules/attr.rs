@@ -1,5 +1,5 @@
-use io::Record;
 use error::CliResult;
+use io::Record;
 
 use var::*;
 
@@ -74,7 +74,10 @@ impl VarProvider for AttrVars {
     fn set(&mut self, rec: &Record, data: &mut Data) -> CliResult<()> {
         for &(ref name, attr_id, id) in &self.attrs {
             //let (id_bytes, desc_bytes) = (b"", None); // rec.id_desc_bytes();
-            match data.attrs.get_value(attr_id, rec.id_bytes(), rec.desc_bytes()) {
+            match data
+                .attrs
+                .get_value(attr_id, rec.id_bytes(), rec.desc_bytes())
+            {
                 Some(value) => {
                     data.symbols.set_text(id, value);
                 }

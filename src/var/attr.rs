@@ -4,15 +4,12 @@ use memchr::memchr;
 
 use lib::key_value;
 
-
-
 #[derive(Debug, Clone, Default)]
 pub struct AttrPosition {
     pub start: usize,
     pub value_start: usize,
     pub end: usize,
 }
-
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Action {
@@ -55,7 +52,7 @@ impl Attrs {
     // Not a "smart" function, names must be added in order of IDs (just supplied to ensure
     // consistency). Only used for importing attributes from VarStore, which assigns the IDs
     pub fn add_attr(&mut self, name: &str, id: usize, action: Option<Action>) {
-        if let Some(a) =  action {
+        if let Some(a) = action {
             self.actions.push((id, a));
         }
         self.parser.register_attr(name, id);
@@ -87,7 +84,7 @@ impl Attrs {
                 match seq_attr {
                     SeqAttr::Id => self._id_actions.push((attr_id, action, pos.clone())),
                     SeqAttr::Desc => self._desc_actions.push((attr_id, action, pos.clone())),
-                    _ => panic!()
+                    _ => panic!(),
                 }
             } else if action != Action::Delete {
                 self._append_ids.push(attr_id);
@@ -116,7 +113,6 @@ impl Attrs {
 
         if self.append_attr == SeqAttr::Id {
             self.append_missing(out_id, &self._append_ids, true, &mut push_fn);
-
         } else if self.append_attr == SeqAttr::Desc {
             let delim_before = !(self.adelim_is_space && out_desc.is_empty());
             self.append_missing(out_desc, &self._append_ids, delim_before, &mut push_fn);
@@ -154,8 +150,13 @@ impl Attrs {
         new_text.extend_from_slice(&text[prev_end..]);
     }
 
-    fn append_missing<F>(&self, new_text: &mut Vec<u8>, ids: &[usize], delim_before: bool, mut push_fn: F)
-    where
+    fn append_missing<F>(
+        &self,
+        new_text: &mut Vec<u8>,
+        ids: &[usize],
+        delim_before: bool,
+        mut push_fn: F,
+    ) where
         F: FnMut(usize, &mut Vec<u8>),
     {
         let mut delim_before = delim_before;
@@ -173,9 +174,12 @@ impl Attrs {
         }
     }
 
-    pub fn get_value<'a>(&self, attr_id: usize, id_text: &'a [u8], desc_text: Option<&'a [u8]>)
-        -> Option<&'a [u8]>
-    {
+    pub fn get_value<'a>(
+        &self,
+        attr_id: usize,
+        id_text: &'a [u8],
+        desc_text: Option<&'a [u8]>,
+    ) -> Option<&'a [u8]> {
         let (_, position) = self.parser.get(attr_id);
         position.and_then(|&(seq_attr, ref pos)| {
             let text = match seq_attr {
@@ -193,7 +197,6 @@ impl Attrs {
         })
     }
 }
-
 
 #[derive(Debug)]
 struct AttrData {
@@ -218,7 +221,8 @@ impl AttrData {
 
     // returns true if the position already exists for this search ID
     fn set_pos(&mut self, attr: SeqAttr, pos: AttrPosition, search_id: usize) -> bool {
-        if search_id != self.search_id { // position was not yet found in this round
+        if search_id != self.search_id {
+            // position was not yet found in this round
             self.pos = (attr, pos);
             self.search_id = search_id;
             return true;
@@ -226,7 +230,6 @@ impl AttrData {
         false
     }
 }
-
 
 #[derive(Debug)]
 struct Parser {
@@ -238,7 +241,6 @@ struct Parser {
 }
 
 impl Parser {
-
     pub fn new(delim: u8, value_delim: u8) -> Parser {
         Parser {
             data: vec![],
@@ -286,12 +288,15 @@ impl Parser {
     // consistency). Only used for importing attributes from VarStore, which assigns the IDs
     pub fn register_attr(&mut self, name: &str, id: usize) {
         assert!(id == self.data.len());
-        self.data.insert(id, AttrData {
-            name: name.to_string(),
-            // initial values, will be replaced
-            pos: (SeqAttr::Id, AttrPosition::default()),
-            search_id: 0,
-        });
+        self.data.insert(
+            id,
+            AttrData {
+                name: name.to_string(),
+                // initial values, will be replaced
+                pos: (SeqAttr::Id, AttrPosition::default()),
+                search_id: 0,
+            },
+        );
     }
 
     pub fn reset(&mut self) {
@@ -306,7 +311,7 @@ impl Parser {
     pub fn set_attr_pos(&mut self, name: &[u8], attr: SeqAttr, pos: AttrPosition) {
         for d in &mut self.data {
             if name == d.name.as_bytes() {
-                if ! d.set_pos(attr, pos, self.search_id) {
+                if !d.set_pos(attr, pos, self.search_id) {
                     self.num_found += 1;
                 }
                 break;
@@ -323,8 +328,6 @@ impl Parser {
         !self.data.is_empty()
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -419,7 +422,6 @@ mod tests {
         });
         assert_eq!(&out_desc, b"desc c=2");
     }
-
 
     #[test]
     fn del_multiple() {

@@ -1,27 +1,26 @@
-
+use super::*;
+use itertools::Itertools;
+use seq_io::fasta::{self, Record};
 use std::fs::File;
 use std::str;
-use seq_io::fasta::{self, Record};
-use itertools::Itertools;
-use super::*;
-
 
 #[test]
 fn split_n() {
     let t = Tester::new();
 
     for size in 1..5 {
-
         t.temp_dir("split_n", |tmp_dir| {
-
             let key = tmp_dir.path().join("f_{split:chunk}.{default_ext}");
 
-            t.succeeds(&["split", "-n", &format!("{}", size), "-po", &key.to_str().unwrap()], *FASTA);
+            t.succeeds(
+                &["split", "-n", &format!("{}", size), "-po", &key.to_str().unwrap()],
+                *FASTA,
+            );
 
             for (i, seqs) in SEQS.iter().chunks(size).into_iter().enumerate() {
                 let p = tmp_dir.path().join(format!("f_{}.fasta", i + 1));
-                let mut reader = fasta::Reader::from_path(&p)
-                    .expect(&format!("file {:?} not found", p));
+                let mut reader =
+                    fasta::Reader::from_path(&p).expect(&format!("file {:?} not found", p));
                 for seq in seqs {
                     let rec = reader.next().expect("Not enough records").unwrap();
                     assert_eq!(
@@ -40,7 +39,6 @@ fn split_n() {
     }
 }
 
-
 #[test]
 fn split_key() {
     let t = Tester::new();
@@ -55,11 +53,14 @@ fn split_key() {
 
         for (i, k) in expected.iter().enumerate() {
             let p = subdir.join(format!("{}.fa", k));
-            let mut reader = fasta::Reader::from_path(&p)
-                .expect(&format!("file {:?} not found", p));
+            let mut reader =
+                fasta::Reader::from_path(&p).expect(&format!("file {:?} not found", p));
             let rec = reader.next().unwrap().unwrap().to_owned_record();
             assert_eq!(
-                &format!(">{} {}\n{}\n", rec.id().unwrap(), rec.desc().unwrap().unwrap(),
+                &format!(
+                    ">{} {}\n{}\n",
+                    rec.id().unwrap(),
+                    rec.desc().unwrap().unwrap(),
                     str::from_utf8(rec.seq()).unwrap()
                 ),
                 &SEQS[i]
@@ -68,7 +69,6 @@ fn split_key() {
         }
     });
 }
-
 
 #[test]
 fn split_key_seqlen() {
@@ -84,7 +84,6 @@ fn split_key_seqlen() {
     });
 }
 
-
 #[test]
 fn split_compression() {
     let t = Tester::new();
@@ -98,16 +97,24 @@ fn split_compression() {
 
         let expected: &[&str] = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
 
-        let f = MultiFileInput(expected.iter()
-            .map(|e| subdir.join(e.to_string() + ".fa.gz")
-            .to_string_lossy().into())
-            .collect());
+        let f = MultiFileInput(
+            expected
+                .iter()
+                .map(|e| {
+                    subdir
+                        .join(e.to_string() + ".fa.gz")
+                        .to_string_lossy()
+                        .into()
+                })
+                .collect(),
+        );
 
-        t.fails(&[".", "--fmt", "fasta"], f.clone(),
-            "FASTA parse error: expected '>' but found '\\u{1f}' at file start"
+        t.fails(
+            &[".", "--fmt", "fasta"],
+            f.clone(),
+            "FASTA parse error: expected '>' but found '\\u{1f}' at file start",
         );
 
         t.cmp(&["."], f, *FASTA);
-
     });
 }

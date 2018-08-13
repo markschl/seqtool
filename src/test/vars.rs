@@ -1,6 +1,4 @@
-
 use super::*;
-
 
 #[test]
 fn attrs() {
@@ -27,6 +25,10 @@ seq3\t10
 seq2\t11";
     t.temp_file("lists", Some(list), |p, _| {
         let path = p.to_str().unwrap();
-        t.cmp(&[".", "-l", path, "--to-tsv", "{{ a:p - l:2 }}"], *FASTA, "0\n0\n0\n0\n");
+        t.cmp(
+            &[".", "-l", path, "--to-tsv", "{{ a:p - l:2 }}"],
+            *FASTA,
+            "0\n0\n0\n0\n",
+        );
     });
 }

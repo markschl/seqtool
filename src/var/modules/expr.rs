@@ -1,10 +1,9 @@
-
 use std::collections::HashMap;
 use std::f64::NAN;
 use std::str;
 
-use io::Record;
 use error::CliResult;
+use io::Record;
 use var::*;
 
 use meval;
@@ -42,9 +41,8 @@ impl VarHelp for ExprHelp {
 }
 
 lazy_static! {
-    static ref VAR_RE: regex::Regex = regex::Regex::new(
-        r"[A-Za-z][A-Za-z0-9_]*(:[A-Za-z0-9][A-Za-z0-9\._]*)+"
-    ).unwrap();
+    static ref VAR_RE: regex::Regex =
+        regex::Regex::new(r"[A-Za-z][A-Za-z0-9_]*(:[A-Za-z0-9][A-Za-z0-9\._]*)+").unwrap();
 }
 
 #[derive(Debug)]

@@ -1,4 +1,6 @@
-macro_rules! common_opts { () => (r"
+macro_rules! common_opts {
+    () => {
+        r"
 Input options:
     --fmt <format>      Input format: fasta(default), fastq (fastq-illumina,
                         fastq-solexa), or csv / tsv (=txt).
@@ -60,10 +62,13 @@ Advanced Options:
     --write-thread      Write in a different thread. Enabled with compressed output.
     --read-tbufsize S   Buffer size of threaded reader (default: auto)
     --write-tbufsize S  Buffer size of threaded reader (default: auto)
-")}
+"
+    };
+}
 
-
-macro_rules! command_list { () => ("
+macro_rules! command_list {
+    () => {
+        "
     pass        No processing done, useful for converting and attribute setting
     .           shorthand for 'pass'
 
@@ -102,9 +107,12 @@ List and explain available variables:
     seqtool --help-vars
     seqtool <command> --help-vars
 
-")}
+"
+    };
+}
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Tool for processing of biological sequences. It can read and write the formats
 FASTA, FASTQ and CSV/TSV.
 
@@ -120,4 +128,6 @@ Options:
     --help-vars   Display variables accepted by all commands
 
 Commands:
-", command_list!());
+",
+    command_list!()
+);

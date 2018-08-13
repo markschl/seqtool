@@ -1,9 +1,10 @@
-use error::CliResult;
-use opt;
 use cfg;
+use error::CliResult;
 use lib::util::parse_range;
+use opt;
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Get a slice of the sequences within a defined range.
 
 Usage:
@@ -14,8 +15,9 @@ Usage:
 Options:
     <range>             Range in form 'start..end' or '..end' or 'start..'
 
-", common_opts!());
-
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;

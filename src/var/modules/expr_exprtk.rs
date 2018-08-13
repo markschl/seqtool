@@ -1,12 +1,11 @@
-
-use std::f64::NAN;
 use std::collections::HashMap;
+use std::f64::NAN;
 use std::str;
 
-use io::Record;
 use error::CliResult;
+use exprtk_rs::{Expression, SymbolTable};
+use io::Record;
 use var::*;
-use exprtk_rs::{SymbolTable,Expression};
 
 use regex;
 
@@ -52,12 +51,9 @@ impl VarHelp for ExprHelp {
 }
 
 lazy_static! {
-    static ref VAR_RE: regex::Regex = regex::Regex::new(
-        r"(\.?[A-Za-z][A-Za-z0-9_]*)(:[A-Za-z0-9][A-Za-z0-9\._]*)*"
-    ).unwrap();
-    static ref DEF: regex::Regex = regex::Regex::new(
-        r"def\(\s*([A-Za-z0-9_:\.]+)\s*\)"
-    ).unwrap();
+    static ref VAR_RE: regex::Regex =
+        regex::Regex::new(r"(\.?[A-Za-z][A-Za-z0-9_]*)(:[A-Za-z0-9][A-Za-z0-9\._]*)*").unwrap();
+    static ref DEF: regex::Regex = regex::Regex::new(r"def\(\s*([A-Za-z0-9_:\.]+)\s*\)").unwrap();
 }
 
 #[derive(Debug)]
@@ -78,9 +74,7 @@ pub struct ExprVars {
 
 impl ExprVars {
     pub fn new() -> CliResult<ExprVars> {
-        Ok(ExprVars {
-            exprs: vec![],
-        })
+        Ok(ExprVars { exprs: vec![] })
     }
 }
 
@@ -98,7 +92,6 @@ impl VarProvider for ExprVars {
         expr_id: usize,
         vars: &mut VarStore,
     ) -> CliResult<bool> {
-
         let mut symbols = SymbolTable::new();
 
         // def() function
@@ -109,7 +102,11 @@ impl VarProvider for ExprVars {
         let mut def = vec![];
         let expr_string = DEF.replace_all(expr_string, |m: &regex::Captures| {
             let name = m.get(1).unwrap().as_str().to_string();
-            let name = if name.starts_with(".") { &name[1..] } else { &name };
+            let name = if name.starts_with(".") {
+                &name[1..]
+            } else {
+                &name
+            };
             let v = format!("def_{}", name.replace(':', "_").replace('.', ""));
             let (var_id, _) = vars.register_var(name);
             let expr_var_id = symbols
@@ -145,15 +142,18 @@ impl VarProvider for ExprVars {
         }
 
         // expression
-        let (expr, expr_vars) = Expression::with_vars(&expr_string, symbols)
-            .map_err(|e| {
-                if e.message.to_lowercase().contains("invalid string operation") {
-                    // make error message more clear
-                    return "Invalid string operation in math expression. Is it possible that there \
-                    are string variables without the '.' prefix (.variable)?".to_string();
-                }
-                format!("{}", e)
-            })?;
+        let (expr, expr_vars) = Expression::with_vars(&expr_string, symbols).map_err(|e| {
+            if e.message
+                .to_lowercase()
+                .contains("invalid string operation")
+            {
+                // make error message more clear
+                return "Invalid string operation in math expression. Is it possible that there \
+                        are string variables without the '.' prefix (.variable)?"
+                    .to_string();
+            }
+            format!("{}", e)
+        })?;
         let mut var_ids = vec![];
         for (name, expr_var_id) in expr_vars {
             let orig_name = replacements.get(&name).unwrap_or(&name);
@@ -184,7 +184,11 @@ impl VarProvider for ExprVars {
             }
             // def() "function"
             for &(var_id, expr_var_id) in def {
-                let v = if data.symbols.is_empty(var_id) { 0. } else { 1. };
+                let v = if data.symbols.is_empty(var_id) {
+                    0.
+                } else {
+                    1.
+                };
                 expr.symbols().set_value(expr_var_id, v);
             }
 

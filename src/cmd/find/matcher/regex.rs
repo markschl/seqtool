@@ -1,5 +1,5 @@
-use regex;
 use error::CliResult;
+use regex;
 
 use super::*;
 

@@ -1,9 +1,9 @@
 use std::fs::File;
 
 use error::CliResult;
-use lib::util::parse_delimiter;
 use io::input::InFormat;
-use io::{SeqAttr, QualFormat};
+use io::{QualFormat, SeqAttr};
+use lib::util::parse_delimiter;
 
 pub use self::var::*;
 
@@ -12,13 +12,11 @@ use self::modules::expr as expr_module;
 #[cfg(feature = "exprtk")]
 use self::modules::expr_exprtk as expr_module;
 
-mod var;
-pub mod modules;
 pub mod attr;
+pub mod modules;
 pub mod symbols;
+mod var;
 pub mod varstring;
-
-
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct VarOpts<'a> {
@@ -74,32 +72,39 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
     };
     // quality converter is not related to variables,
     // therefore stored in InFormat
-    let qual_converter =
-        match *informat {
-            InFormat::FASTQ { format } => format,
-            InFormat::FaQual { .. } => QualFormat::Phred,
-            _ => QualFormat::Sanger
-        }
-        .get_converter();
+    let qual_converter = match *informat {
+        InFormat::FASTQ { format } => format,
+        InFormat::FaQual { .. } => QualFormat::Phred,
+        _ => QualFormat::Sanger,
+    }.get_converter();
 
     let mut vars = Vars::new(delim, value_delim, append_attr, qual_converter);
 
     // lists
     let list_delim = parse_delimiter(o.list_delim)?;
     for (i, &list) in o.lists.iter().enumerate() {
-        let csv_file = File::open(list)
-            .map_err(|e| format!("Error opening '{}': {}", list, e))?;
+        let csv_file = File::open(list).map_err(|e| format!("Error opening '{}': {}", list, e))?;
         if o.unordered {
             let finder = modules::list::Unordered::new();
             vars.add_module(modules::list::ListVars::new(
-                i + 1, csv_file, finder,
-                o.id_col, list_delim, o.has_header, o.allow_missing,
+                i + 1,
+                csv_file,
+                finder,
+                o.id_col,
+                list_delim,
+                o.has_header,
+                o.allow_missing,
             ));
         } else {
             let finder = modules::list::SyncIds;
             vars.add_module(modules::list::ListVars::new(
-                i + 1, csv_file, finder,
-                o.id_col, list_delim, o.has_header, o.allow_missing,
+                i + 1,
+                csv_file,
+                finder,
+                o.id_col,
+                list_delim,
+                o.has_header,
+                o.allow_missing,
             ));
         }
     }

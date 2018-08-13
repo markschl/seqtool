@@ -1,18 +1,18 @@
-
 use std::cmp::min;
 use std::io;
 
-use rand::*;
 use bit_vec::BitVec;
 use byteorder::{BigEndian, WriteBytesExt};
+use rand::*;
 
+use cfg;
 use error::CliResult;
+use io::output::Writer;
 use opt;
 use var::*;
-use cfg;
-use io::output::Writer;
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Return a random subset of sequences.
 
 Usage:
@@ -28,17 +28,18 @@ Options:
     -s, --seed <s>      Use this seed to make the sampling reproducible.
                         Useful e.g. for randomly selecting from paired end reads.
 
-", common_opts!());
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
     let cfg = cfg::Config::from_args(&args)?;
-    let seed = args.opt_value("--seed")?
-        .map(|s| {
-            let mut seed_array = [0; 32];
-            (&mut seed_array[..]).write_u64::<BigEndian>(s).unwrap();
-            seed_array
-        });
+    let seed = args.opt_value("--seed")?.map(|s| {
+        let mut seed_array = [0; 32];
+        (&mut seed_array[..]).write_u64::<BigEndian>(s).unwrap();
+        seed_array
+    });
 
     cfg.writer(|writer, mut vars| {
         if let Some(n_rand) = args.opt_value("--num-seqs")? {
@@ -121,7 +122,6 @@ fn sample_prob<R: Rng, W: io::Write>(
     writer: &mut Writer<W>,
     mut vars: &mut Vars,
 ) -> CliResult<()> {
-
     assert!(prob >= 0. && prob <= 1.);
 
     cfg.read_sequential_var(&mut vars, |record, vars| {

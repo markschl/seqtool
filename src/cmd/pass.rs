@@ -1,8 +1,9 @@
+use cfg;
 use error::CliResult;
 use opt;
-use cfg;
 
-static USAGE: &'static str = concat!("
+static USAGE: &'static str = concat!(
+    "
 This command is useful for converting from one format to another
 and/or setting attributes.
 

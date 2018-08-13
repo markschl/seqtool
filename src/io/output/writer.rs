@@ -1,11 +1,9 @@
-
 use std::io;
 
-use var;
-use io::Record;
-use error::CliResult;
 use super::WriteFinish;
-
+use error::CliResult;
+use io::Record;
+use var;
 
 pub trait Writer<W: io::Write> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()>;

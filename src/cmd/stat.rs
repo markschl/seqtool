@@ -1,10 +1,11 @@
 use csv;
 
+use cfg;
 use error::CliResult;
 use opt;
-use cfg;
 
-static USAGE: &'static str = concat!("
+static USAGE: &'static str = concat!(
+    "
 Returns per sequence statistics as tab delimited list. All statistical variables
 (s:<variable>) can be used.
 
@@ -16,8 +17,9 @@ Options:
     <stats>             Comma delimited list of statistics. The 's:' prefix
                         is not necessary.
 
-",  common_opts!());
-
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;

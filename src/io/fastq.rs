@@ -1,25 +1,23 @@
-
-use std::io::Write;
 use error::CliResult;
 use std::borrow::Cow;
 use std::cell::Cell;
+use std::io::Write;
 
 use memchr::memchr;
 
-use seq_io::BufStrategy;
-use seq_io::fastq::{self, Record as FR, Reader};
-use var;
 use super::*;
-
+use seq_io::fastq::{self, Reader, Record as FR};
+use seq_io::BufStrategy;
+use var;
 
 // Reader
 
 pub struct FastqReader<R: io::Read, S: BufStrategy>(pub Reader<R, S>);
 
 impl<R, S> FastqReader<R, S>
-    where
-        R: io::Read,
-        S: BufStrategy,
+where
+    R: io::Read,
+    S: BufStrategy,
 {
     pub fn new(rdr: R, cap: usize, strategy: S) -> Self {
         FastqReader(Reader::with_cap_and_strategy(rdr, cap, strategy))
@@ -27,9 +25,9 @@ impl<R, S> FastqReader<R, S>
 }
 
 impl<R, S, O> SeqReader<O> for FastqReader<R, S>
-    where
-        R: io::Read,
-        S: BufStrategy,
+where
+    R: io::Read,
+    S: BufStrategy,
 {
     fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
         self.0.next().map(|r| {
@@ -39,12 +37,11 @@ impl<R, S, O> SeqReader<O> for FastqReader<R, S>
     }
 }
 
-
 // Wrapper for FASTQ record
 
 pub struct FastqRecord<'a> {
     rec: fastq::RefRecord<'a>,
-    delim: Cell<Option<Option<usize>>>
+    delim: Cell<Option<Option<usize>>>,
 }
 
 impl<'a> FastqRecord<'a> {
@@ -52,7 +49,7 @@ impl<'a> FastqRecord<'a> {
     pub fn new(inner: fastq::RefRecord<'a>) -> FastqRecord<'a> {
         FastqRecord {
             rec: inner,
-            delim: Cell::new(None)
+            delim: Cell::new(None),
         }
     }
 
@@ -102,7 +99,6 @@ impl<'a> Record for FastqRecord<'a> {
     }
 }
 
-
 // Writer
 
 pub struct FastqWriter<W: io::Write> {
@@ -113,7 +109,6 @@ pub struct FastqWriter<W: io::Write> {
 
 impl<W: io::Write> FastqWriter<W> {
     pub fn new(io_writer: W, qual_fmt: Option<QualFormat>) -> FastqWriter<W> {
-
         FastqWriter {
             writer: io_writer,
             qual_fmt: qual_fmt,
@@ -122,21 +117,25 @@ impl<W: io::Write> FastqWriter<W> {
     }
 }
 
-
 impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
     fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
-        let qual =
-            if let Some(fmt) = self.qual_fmt {
-                self.qual_vec.clear();
-                vars.data().qual_converter
-                    .convert_quals(qual, &mut self.qual_vec, fmt)
-                    .map_err(|e| format!(
+        let qual = if let Some(fmt) = self.qual_fmt {
+            self.qual_vec.clear();
+            vars.data()
+                .qual_converter
+                .convert_quals(qual, &mut self.qual_vec, fmt)
+                .map_err(|e| {
+                    format!(
                         "Error writing record '{}'. {}",
-                        String::from_utf8_lossy(record.id_bytes()), e
-                    ))?;
-                &self.qual_vec
-            } else { qual };
+                        String::from_utf8_lossy(record.id_bytes()),
+                        e
+                    )
+                })?;
+            &self.qual_vec
+        } else {
+            qual
+        };
 
         // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
 
@@ -152,7 +151,7 @@ impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
             }
             SeqHeader::FullHeader(h) => {
                 self.writer.write_all(h)?;
-            },
+            }
         }
 
         self.writer.write_all(b"\n")?;

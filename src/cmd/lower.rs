@@ -1,9 +1,10 @@
+use cfg;
 use error::CliResult;
 use io::SeqQualRecord;
 use opt;
-use cfg;
 
-static USAGE: &'static str = concat!("
+static USAGE: &'static str = concat!(
+    "
 Converts all characters in the sequence to lowercase.
 
 Usage:
@@ -11,7 +12,8 @@ Usage:
     seqtool lower (-h | --help)
     seqtool lower --help-vars
 
-", common_opts!()
+",
+    common_opts!()
 );
 
 pub fn run() -> CliResult<()> {

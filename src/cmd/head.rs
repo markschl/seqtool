@@ -1,8 +1,9 @@
+use cfg;
 use error::CliResult;
 use opt;
-use cfg;
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Returns the first sequences of the input.
 
 Usage:

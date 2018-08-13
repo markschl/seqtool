@@ -1,12 +1,12 @@
-
 use error::CliResult;
-use opt;
 use io::SeqQualRecord;
 use lib::rng::*;
+use opt;
 
 use cfg;
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Masks the sequence within a given range or comma delimited list of ranges
 by converting to lowercase (soft mask) or replacing with a character (hard
 masking). Reverting soft masking is also possible.
@@ -41,45 +41,41 @@ pub fn run() -> CliResult<()> {
     let exclusive = args.get_bool("--exclude");
     let unmask = args.get_bool("--unmask");
 
-    cfg.writer(
-        |writer, mut vars| {
+    cfg.writer(|writer, mut vars| {
+        let mut ranges = VarRanges::from_str(ranges, &mut vars)?;
+        let mut seq = vec![];
 
-            let mut ranges = VarRanges::from_str(ranges, &mut vars)?;
-            let mut seq = vec![];
+        cfg.read_sequential_var(&mut vars, |record, vars| {
+            let seqlen = record.seq_len();
 
-            cfg.read_sequential_var(&mut vars, |record, vars| {
+            seq.clear();
+            for s in record.seq_segments() {
+                seq.extend_from_slice(s);
+            }
 
-                let seqlen = record.seq_len();
+            let calc_ranges = ranges.get(seqlen, rng0, exclusive, vars.symbols())?;
 
-                seq.clear();
-                for s in record.seq_segments() {
-                    seq.extend_from_slice(s);
-                }
-
-                let calc_ranges = ranges.get(seqlen, rng0, exclusive, vars.symbols())?;
-
-                if let Some(h) = hard_mask {
-                    for &(start, end) in calc_ranges {
-                        for c in &mut seq[start..end] {
-                            *c = h;
-                        }
-                    }
-                } else {
-                    for &(start, end) in calc_ranges {
-                        for c in &mut seq[start..end] {
-                            if unmask {
-                                c.make_ascii_uppercase()
-                            } else {
-                                c.make_ascii_lowercase()
-                            };
-                        }
+            if let Some(h) = hard_mask {
+                for &(start, end) in calc_ranges {
+                    for c in &mut seq[start..end] {
+                        *c = h;
                     }
                 }
+            } else {
+                for &(start, end) in calc_ranges {
+                    for c in &mut seq[start..end] {
+                        if unmask {
+                            c.make_ascii_uppercase()
+                        } else {
+                            c.make_ascii_lowercase()
+                        };
+                    }
+                }
+            }
 
-                writer.write(&SeqQualRecord::new(&record, &seq, None), vars)?;
+            writer.write(&SeqQualRecord::new(&record, &seq, None), vars)?;
 
-                Ok(true)
-            })
-        },
-    )
+            Ok(true)
+        })
+    })
 }

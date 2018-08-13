@@ -1,21 +1,19 @@
-
-use std::cmp::min;
-use std::path::Path;
-use std::io::{self, BufRead, Write};
-use std::fs::File;
-use std::borrow::{Cow,ToOwned};
+use std::borrow::{Cow, ToOwned};
 use std::cell::Cell;
+use std::cmp::min;
+use std::fs::File;
+use std::io::{self, BufRead, Write};
+use std::path::Path;
 
-use memchr::memchr;
 use itertools::Itertools;
+use memchr::memchr;
 
 use error::CliResult;
-use seq_io::BufStrategy;
 use seq_io::fasta::{self, Record as FR};
+use seq_io::BufStrategy;
 use var;
 
 use super::*;
-
 
 // Reader
 
@@ -26,15 +24,21 @@ pub struct FaQualReader<R: io::Read, S: BufStrategy> {
 }
 
 impl<R, S> FaQualReader<R, S>
-    where
-        R: io::Read,
-        S: BufStrategy + Clone,
+where
+    R: io::Read,
+    S: BufStrategy + Clone,
 {
     pub fn new<Q>(rdr: R, cap: usize, strategy: S, qfile: Q) -> CliResult<Self>
-    where Q: AsRef<Path>,
+    where
+        Q: AsRef<Path>,
     {
-        let qhandle = File::open(&qfile)
-            .map_err(|e| format!("Error opening '{}': {}", qfile.as_ref().to_string_lossy(), e))?;
+        let qhandle = File::open(&qfile).map_err(|e| {
+            format!(
+                "Error opening '{}': {}",
+                qfile.as_ref().to_string_lossy(),
+                e
+            )
+        })?;
 
         Ok(FaQualReader {
             fa_rdr: fasta::Reader::with_cap_and_strategy(rdr, cap, strategy.clone()),
@@ -45,9 +49,9 @@ impl<R, S> FaQualReader<R, S>
 }
 
 impl<R, S, O> SeqReader<O> for FaQualReader<R, S>
-    where
-        R: io::Read,
-        S: BufStrategy,
+where
+    R: io::Read,
+    S: BufStrategy,
 {
     fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
         let quals = &mut self.quals;
@@ -58,12 +62,12 @@ impl<R, S, O> SeqReader<O> for FaQualReader<R, S>
 
             // quality info
             quals.clear();
-            let qrec = qual_rdr
-                .next()
-                .ok_or_else(|| format!(
+            let qrec = qual_rdr.next().ok_or_else(|| {
+                format!(
                     "Quality scores in QUAL file missing for record '{}'",
                     String::from_utf8_lossy(rec.id_bytes())
-                ))??;
+                )
+            })??;
 
             if qrec.id() != rec.id() {
                 return fail!(format!(
@@ -79,8 +83,7 @@ impl<R, S, O> SeqReader<O> for FaQualReader<R, S>
 
             // check sequence length
             // this may have a performance impact
-            let seqlen = rec.seq_lines()
-                               .fold(0, |l, seq| l + seq.len());
+            let seqlen = rec.seq_lines().fold(0, |l, seq| l + seq.len());
 
             if seqlen != quals.len() {
                 return fail!(format!(
@@ -101,9 +104,12 @@ impl<R, S, O> SeqReader<O> for FaQualReader<R, S>
 
 fn parse_quals(line: &[u8], out: &mut Vec<u8>) -> Result<(), String> {
     for qual in line.split(|c| *c == b' ') {
-        let q = parse_int(qual).map_err(|_|
-            format!("Invalid quality score found: '{}'", String::from_utf8_lossy(qual))
-        )?;
+        let q = parse_int(qual).map_err(|_| {
+            format!(
+                "Invalid quality score found: '{}'",
+                String::from_utf8_lossy(qual)
+            )
+        })?;
         out.push(min(q as u8, 255));
     }
     Ok(())
@@ -123,12 +129,11 @@ fn parse_int(bytes: &[u8]) -> Result<usize, ()> {
     Ok(out)
 }
 
-
 // Wrapper for FASTA record
 
 pub struct FaQualRecord<'a> {
     fa_rec: super::fasta::FastaRecord<'a>,
-    qual: &'a[u8],
+    qual: &'a [u8],
 }
 
 impl<'a> Record for FaQualRecord<'a> {
@@ -173,13 +178,20 @@ pub struct FaQualWriter<W: io::Write> {
 }
 
 impl<W: io::Write> FaQualWriter<W> {
-    pub fn new<Q>(fa_writer: W, wrap: Option<usize>, qual_path: Q)
-    -> CliResult<FaQualWriter<W>>
-    where Q: AsRef<Path>,
+    pub fn new<Q>(fa_writer: W, wrap: Option<usize>, qual_path: Q) -> CliResult<FaQualWriter<W>>
+    where
+        Q: AsRef<Path>,
     {
-        let q_handle = File::create(&qual_path)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other,
-                format!("Error creating '{}': {}", qual_path.as_ref().to_string_lossy(), e)))?;
+        let q_handle = File::create(&qual_path).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "Error creating '{}': {}",
+                    qual_path.as_ref().to_string_lossy(),
+                    e
+                ),
+            )
+        })?;
 
         Ok(FaQualWriter {
             fa_writer: super::fasta::FastaWriter::new(fa_writer, wrap),
@@ -205,13 +217,18 @@ impl<W: io::Write> SeqWriter<W> for FaQualWriter<W> {
         // quality lines
         for qline in qual.chunks(self.wrap) {
             if qline.len() > 0 {
-                let mut q_iter = qline.into_iter().map(|&q|
-                    vars.data().qual_converter
+                let mut q_iter = qline.into_iter().map(|&q| {
+                    vars.data()
+                        .qual_converter
                         .convert(q, QualFormat::Phred)
-                        .map_err(|e| format!(
-                            "Error writing record '{}'. {}",
-                            String::from_utf8_lossy(record.id_bytes()), e
-                        )));
+                        .map_err(|e| {
+                            format!(
+                                "Error writing record '{}'. {}",
+                                String::from_utf8_lossy(record.id_bytes()),
+                                e
+                            )
+                        })
+                });
 
                 for q in q_iter.by_ref().take(qline.len() - 1) {
                     write!(self.qual_writer, "{} ", q?)?;

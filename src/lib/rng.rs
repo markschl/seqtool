@@ -1,12 +1,11 @@
 /// Methods for working with variable ranges
-
 use std::cmp::max;
 // use attr;
 // use attr::KeyGetter;
-use var;
 use error::CliResult;
-use lib::util;
 use lib::inner_result::MapRes;
+use lib::util;
+use var;
 use var::varstring::VarString;
 
 /// Represents a range bound integer stored either directly or in a `VarString`
@@ -31,9 +30,10 @@ impl RngBound {
     pub fn value(&self, symbols: &var::symbols::Table) -> CliResult<isize> {
         Ok(match *self {
             RngBound::Number(n) => n,
-            RngBound::Expr(ref e) => e.get_int(symbols)?
-                .ok_or("Range bound results in empty string.")?
-                as isize,
+            RngBound::Expr(ref e) => {
+                e.get_int(symbols)?
+                    .ok_or("Range bound results in empty string.")? as isize
+            }
         })
     }
 }
@@ -108,10 +108,12 @@ impl VarRanges {
             let varstring = vars.build(|b| VarString::var_or_composed(s, b))?;
             VarRangesType::Full(varstring)
         } else {
-            VarRangesType::Split(ranges
-                .into_iter()
-                .map(|r| VarRange::from_str(r, vars))
-                .collect::<CliResult<_>>()?)
+            VarRangesType::Split(
+                ranges
+                    .into_iter()
+                    .map(|r| VarRange::from_str(r, vars))
+                    .collect::<CliResult<_>>()?,
+            )
         };
         Ok(VarRanges {
             ty: ty,

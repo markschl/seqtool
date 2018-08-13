@@ -1,14 +1,13 @@
-
 use std::iter::repeat;
 
-use error::CliResult;
-use opt;
 use cfg;
-use lib::inner_result::MapRes;
+use error::CliResult;
 use io::OwnedRecord;
+use lib::inner_result::MapRes;
+use opt;
 
-
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Concatenates sequences/alignments from different files in the order
 in which they are provided. Fails if the IDs don't match.
 
@@ -37,11 +36,18 @@ pub fn run() -> CliResult<()> {
     let cfg = cfg::Config::from_args(&args)?;
     let id_check = !args.get_bool("--no-id-check");
     let spacer_n = args.opt_value("--spacer")?;
-    let s_char = args.get_str("--s-char").as_bytes().get(0).ok_or("Sequence spacer character empty")?;
-    let q_char = args.get_str("--q-char").as_bytes().get(0).ok_or("Quality spacer character empty")?;
+    let s_char = args
+        .get_str("--s-char")
+        .as_bytes()
+        .get(0)
+        .ok_or("Sequence spacer character empty")?;
+    let q_char = args
+        .get_str("--q-char")
+        .as_bytes()
+        .get(0)
+        .ok_or("Quality spacer character empty")?;
 
     cfg.writer(|writer, vars| {
-
         let mut record = OwnedRecord::default();
         let num_readers = cfg.num_readers();
         if num_readers == 0 {
@@ -50,7 +56,6 @@ pub fn run() -> CliResult<()> {
         let max_idx = num_readers - 1;
 
         cfg.all_readers(|i, rec| {
-
             let rec_id = rec.id_bytes();
 
             if i == 0 {
@@ -63,11 +68,12 @@ pub fn run() -> CliResult<()> {
                     desc.extend(d);
                 }
                 record.seq.clear();
-
             } else if id_check && rec_id != record.id.as_slice() {
                 return fail!(format!(
                     "ID of record #{} ({}) does not match the ID of the first one ({})",
-                    i + 1, String::from_utf8_lossy(rec_id), String::from_utf8_lossy(&record.id)
+                    i + 1,
+                    String::from_utf8_lossy(rec_id),
+                    String::from_utf8_lossy(&record.id)
                 ));
             }
 
@@ -88,11 +94,11 @@ pub fn run() -> CliResult<()> {
             // spacer
             if let Some(n) = spacer_n {
                 if i < max_idx {
-                   record.seq.extend(repeat(s_char).take(n));
-                   if let Some(q) = record.qual.as_mut() {
-                       q.extend(repeat(q_char).take(n));
-                   }
-               }
+                    record.seq.extend(repeat(s_char).take(n));
+                    if let Some(q) = record.qual.as_mut() {
+                        q.extend(repeat(q_char).take(n));
+                    }
+                }
             }
 
             // write at last

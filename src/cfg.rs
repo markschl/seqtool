@@ -1,11 +1,10 @@
-use std::io;
 use std::cell::Cell;
+use std::io;
 
-use var;
+use error::CliResult;
 use io::*;
 use opt;
-use error::CliResult;
-
+use var;
 
 #[derive(Debug, Clone)]
 pub struct Config<'a> {
@@ -228,9 +227,7 @@ impl<'a> Config<'a> {
         path: &str,
         vars: Option<&mut var::Vars>,
         other_mod: Option<&mut var::VarProvider>,
-    )
-    -> CliResult<Box<output::Writer<Box<output::WriteFinish>> + 'c>>
-    {
+    ) -> CliResult<Box<output::Writer<Box<output::WriteFinish>> + 'c>> {
         let mut o = self.output_opts.clone();
         o.kind = output::OutputKind::File(path.into());
         let io_writer = output::io_writer_from_kind(&o.kind)?;

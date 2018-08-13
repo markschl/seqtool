@@ -1,6 +1,4 @@
-
 use super::*;
-
 
 #[test]
 fn mask() {
@@ -13,6 +11,6 @@ fn mask() {
         .cmp(
             &["mask", "--unmask", "4.."],
             ">seq\nATGcatgc\n",
-            ">seq\nATGCATGC\n"
+            ">seq\nATGCATGC\n",
         );
 }

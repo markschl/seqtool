@@ -1,17 +1,17 @@
 use std::borrow::ToOwned;
 use std::convert::From;
+use std::error;
 use std::fmt;
 use std::io;
-use std::error;
-use std::str::Utf8Error;
 use std::num::{ParseFloatError, ParseIntError};
+use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
-use seq_io;
 use docopt;
-use regex;
 #[cfg(feature = "exprtk")]
 use exprtk_rs;
+use regex;
+use seq_io;
 
 //use lib::selective_csv;
 use csv;

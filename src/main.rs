@@ -24,21 +24,21 @@ extern crate vec_map;
 // used by specific commands
 extern crate bit_vec;
 extern crate bytecount;
-extern crate meval;
 #[cfg(feature = "exprtk")]
 extern crate exprtk_rs;
+extern crate meval;
 extern crate rand;
 extern crate regex;
 extern crate twoway;
 #[macro_use]
 extern crate maplit;
 extern crate byteorder;
+extern crate ordered_float;
 #[cfg(target_family = "unix")]
 extern crate pager;
-extern crate read_color;
 extern crate palette;
+extern crate read_color;
 extern crate termcolor;
-extern crate ordered_float;
 
 // compression
 extern crate bzip2;
@@ -46,30 +46,30 @@ extern crate flate2;
 extern crate lz4;
 extern crate zstd;
 
-use std::process;
 use self::error::*;
+use std::process;
 
 #[macro_use]
 mod macros;
 #[macro_use]
 mod help;
+mod cfg;
+#[allow(unused_imports)]
+mod cmd;
 mod error;
-#[allow(unused)]
-mod lib;
 #[allow(unused_imports)] // silence std::ascii::AsciiExt import warnings
 mod io;
-mod cfg;
+#[allow(unused)]
+mod lib;
 #[allow(unused_imports)]
 mod opt;
 mod var;
-#[allow(unused_imports)]
-mod cmd;
 
 #[cfg(test)]
+#[cfg_attr(rustfmt, rustfmt_skip)]
 mod test;
 #[cfg(test)]
 extern crate assert_cli;
-
 
 fn main() {
     let args = docopt::Docopt::new(help::USAGE)

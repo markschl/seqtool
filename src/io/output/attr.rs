@@ -1,4 +1,3 @@
-
 use std::io;
 use std::marker::PhantomData;
 use vec_map::VecMap;
@@ -6,10 +5,9 @@ use vec_map::VecMap;
 use error::CliResult;
 use var;
 
-use io::SeqWriter;
-use super::{Record, Writer, WriteFinish};
+use super::{Record, WriteFinish, Writer};
 use io::DefRecord;
-
+use io::SeqWriter;
 
 pub struct AttrWriter<W: io::Write, S: SeqWriter<W>> {
     inner: S,
@@ -26,7 +24,7 @@ impl<W: io::Write, S: SeqWriter<W>> AttrWriter<W, S> {
             attrs: attrs,
             compiled_attrs: VecMap::new(),
             temp: (vec![], vec![]),
-            _w: PhantomData
+            _w: PhantomData,
         }
     }
 }
@@ -59,7 +57,8 @@ impl<W: io::Write, S: SeqWriter<W>> Writer<W> for AttrWriter<W, S> {
             } else {
                 Some(desc_out.as_ref())
             };
-            self.inner.write(&DefRecord::new(&record, id_out, desc), vars)
+            self.inner
+                .write(&DefRecord::new(&record, id_out, desc), vars)
         } else {
             self.inner.write(record, vars)
         }

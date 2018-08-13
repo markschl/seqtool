@@ -1,8 +1,8 @@
 use std::iter::Skip;
 use std::slice::Iter;
 
-use vec_map::VecMap;
 use itertools::{Itertools, Step};
+use vec_map::VecMap;
 
 use super::matcher::{Match, Matcher};
 use super::*;
@@ -69,12 +69,18 @@ impl Matches {
                 self.offset,
             );
         } else {
-            for (i, ((ref mut matcher, ref mut matches),
-                    &mut (ref mut best_dist, ref mut idx, ref mut has_matches))) in matchers
-                        .into_iter()
-                        .zip(self.matches.iter_mut())
-                        .zip(self.dist_order.iter_mut())
-                        .enumerate() {
+            for (
+                i,
+                (
+                    (ref mut matcher, ref mut matches),
+                    &mut (ref mut best_dist, ref mut idx, ref mut has_matches),
+                ),
+            ) in matchers
+                .into_iter()
+                .zip(self.matches.iter_mut())
+                .zip(self.dist_order.iter_mut())
+                .enumerate()
+            {
                 *has_matches = self.pos.collect_matches(
                     text,
                     matcher,
@@ -117,7 +123,8 @@ impl Matches {
 
     pub fn pattern_name(&self, pattern_rank: usize) -> Option<&str> {
         if self.multiple_matchers {
-            return self.dist_order
+            return self
+                .dist_order
                 .get(pattern_rank)
                 .and_then(|&(_, i, has_matches)| {
                     if has_matches {
@@ -198,7 +205,6 @@ impl SearchPositions {
         let mut num_found = 0;
 
         matcher.iter_matches(text, &mut |h| {
-
             let (start, end) = h.pos();
 
             // pre-filter

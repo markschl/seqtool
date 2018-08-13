@@ -1,29 +1,28 @@
-
 use std::cmp::max;
-use std::str;
-use std::io::{self, Write};
-use std::env::var;
 use std::cmp::min;
 use std::collections::HashMap;
+use std::env::var;
+use std::io::{self, Write};
+use std::str;
 
-use termcolor::{self, WriteColor};
-use read_color;
-use palette;
 use ordered_float::OrderedFloat;
+use palette;
+use read_color;
+use termcolor::{self, WriteColor};
 use vec_map::VecMap;
 
 #[cfg(target_family = "unix")]
 use pager::Pager;
 
-use error::CliResult;
-use opt;
 use cfg;
-use io::{QualFormat, qual_to_prob};
-use lib::seqtype::{guess_seqtype, SeqType};
+use error::CliResult;
+use io::{qual_to_prob, QualFormat};
 use lib::inner_result::MapRes;
+use lib::seqtype::{guess_seqtype, SeqType};
+use opt;
 
-
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 View biological sequences, coloured by base / amino acid, or by sequence quality.
 The output is automatically forwarded to the 'less' pager on UNIX.
 
@@ -73,7 +72,6 @@ Coloring:
     common_opts!()
 );
 
-
 lazy_static! {
     static ref PALETTES: HashMap<&'static str, &'static str> = hashmap!{
         "rasmol" =>
@@ -94,7 +92,6 @@ lazy_static! {
             "ee0000,0000ee"
     };
 }
-
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
@@ -133,7 +130,7 @@ pub fn run() -> CliResult<()> {
     let pager = setup_pager(
         args.opt_str("--pager"),
         args.get_bool("--break"),
-        args.get_bool("--no-pager")
+        args.get_bool("--no-pager"),
     );
 
     // setup colors
@@ -168,12 +165,11 @@ pub fn run() -> CliResult<()> {
 
     // terminal encoding
     // TODO: reasonable?
-    let utf8 = cfg!(target_family = "unix") &&
-        var("LANG")
+    let utf8 = cfg!(target_family = "unix")
+        && var("LANG")
             .unwrap_or_else(|_| "".to_string())
             .to_ascii_lowercase()
-            .contains("utf-8") ||
-        cfg!(target_os = "windows");
+            .contains("utf-8") || cfg!(target_os = "windows");
 
     // run
 
@@ -209,12 +205,15 @@ pub fn run() -> CliResult<()> {
             let mut seqlen = 0;
 
             for seq in record.seq_segments() {
-                if !writer.initialized() { // TODO: initializing with first sequence line -> enough?
+                if !writer.initialized() {
+                    // TODO: initializing with first sequence line -> enough?
                     writer.init(seq)?;
                 }
 
                 for &symbol in seq {
-                    let q = *qual_iter.next().expect("BUG: Sequence length != Length of qual.");
+                    let q = *qual_iter
+                        .next()
+                        .expect("BUG: Sequence length != Length of qual.");
 
                     let phred = vars.data().qual_converter.convert(q, QualFormat::Phred)?;
 
@@ -234,9 +233,7 @@ pub fn run() -> CliResult<()> {
             } else {
                 write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
             }
-
         } else {
-
             for seq in record.seq_segments() {
                 if !writer.initialized() {
                     writer.init(seq)?;
@@ -257,22 +254,28 @@ pub fn run() -> CliResult<()> {
     })
 }
 
-
 #[cfg(target_family = "unix")]
 fn setup_pager(cmd: Option<&str>, break_lines: bool, no_pager: bool) {
-    if ! no_pager {
+    if !no_pager {
         let env_pager = var("SEQTOOL_PAGER");
         let pager = env_pager
             .as_ref()
             .ok()
             .map(|s| s.as_str())
             .or(cmd)
-            .unwrap_or(if break_lines {"less -R"} else {"less -RS"});
+            .unwrap_or(if break_lines { "less -R" } else { "less -RS" });
         Pager::with_pager(pager).setup();
     }
 }
 
-fn write_id<W: io::Write>(id: &[u8], desc: Option<&[u8]>, mut writer: W, total_len: usize, show_desc: bool, utf8: bool) -> CliResult<()> {
+fn write_id<W: io::Write>(
+    id: &[u8],
+    desc: Option<&[u8]>,
+    mut writer: W,
+    total_len: usize,
+    show_desc: bool,
+    utf8: bool,
+) -> CliResult<()> {
     let id = str::from_utf8(id)?;
 
     let ellipsis = if utf8 { '…' } else { ' ' };
@@ -300,8 +303,6 @@ fn write_id<W: io::Write>(id: &[u8], desc: Option<&[u8]>, mut writer: W, total_l
     Ok(())
 }
 
-
-
 type Rgb = (u8, u8, u8);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -314,7 +315,7 @@ impl Color {
     fn from_rgb(rgb: Rgb) -> Color {
         Color {
             rgb: rgb,
-            ansi256: find_nearest_col256(rgb)
+            ansi256: find_nearest_col256(rgb),
         }
     }
 
@@ -333,7 +334,6 @@ enum ColorMode {
     Fg,
     Bg,
 }
-
 
 struct ColorWriter {
     writer: termcolor::StandardStream,
@@ -361,8 +361,14 @@ impl ColorWriter {
             current_fg: None,
             current_bg: None,
             textcols: (
-                Color { rgb: (0, 0, 0), ansi256: 16},
-                Color { rgb: (255, 255, 255), ansi256: 213}
+                Color {
+                    rgb: (0, 0, 0),
+                    ansi256: 16,
+                },
+                Color {
+                    rgb: (255, 255, 255),
+                    ansi256: 213,
+                },
             ),
             actions: vec![],
             initialized: false,
@@ -394,10 +400,7 @@ impl ColorWriter {
     }
 
     fn textcols(mut self, dark: &str, bright: &str) -> Result<Self, String> {
-        self.textcols = (
-            parse_color(dark)?,
-            parse_color(bright)?,
-        );
+        self.textcols = (parse_color(dark)?, parse_color(bright)?);
         Ok(self)
     }
 
@@ -430,14 +433,11 @@ impl ColorWriter {
                         palette = match seqtype {
                             SeqType::DNA | SeqType::RNA => Some(&self.dna_pal),
                             SeqType::Protein => Some(&self.protein_pal),
-                            _ => None
+                            _ => None,
                         }
                     }
                     palette.map_res(|pal| {
-                        let pal = PALETTES
-                            .get(pal.trim())
-                            .map(|p| *p)
-                            .unwrap_or(pal.as_str());
+                        let pal = PALETTES.get(pal.trim()).map(|p| *p).unwrap_or(pal.as_str());
                         Ok::<_, String>((parse_colormap(pal)?, false))
                     })?
                 }
@@ -496,8 +496,18 @@ impl ColorWriter {
         write!(self.writer, "{}", symbol as char)
     }
 
-    fn _get_color(&self, symbol: u8, qual: Option<u8>, map: &VecMap<Color>, load_qual: bool) -> Option<termcolor::Color> {
-        let symbol = if load_qual { qual.expect("BUG: no qual") } else { symbol };
+    fn _get_color(
+        &self,
+        symbol: u8,
+        qual: Option<u8>,
+        map: &VecMap<Color>,
+        load_qual: bool,
+    ) -> Option<termcolor::Color> {
+        let symbol = if load_qual {
+            qual.expect("BUG: no qual")
+        } else {
+            symbol
+        };
         if let Some(c) = map.get(symbol as usize) {
             if self.truecolor {
                 Some(termcolor::Color::Rgb(c.rgb.0, c.rgb.1, c.rgb.2))
@@ -527,7 +537,6 @@ impl io::Write for ColorWriter {
     }
 }
 
-
 fn has_truecolor() -> bool {
     if let Ok(v) = var("COLORTERM") {
         if v == "truecolor" {
@@ -538,7 +547,6 @@ fn has_truecolor() -> bool {
     // 256-color: $TERM contains 256
     // see also https://github.com/chalk/supports-color/blob/master/index.js
 }
-
 
 fn parse_colormap(colors: &str) -> Result<VecMap<Color>, String> {
     let mut out = VecMap::new();
@@ -552,16 +560,17 @@ fn parse_colormap(colors: &str) -> Result<VecMap<Color>, String> {
                 out.insert(s as usize, col.clone());
             }
         } else {
-            return fail!(format!("Invalid color mapping: '{}'. Use 'XY:rrggbb' for mapping X and Y to a given color", c));
+            return fail!(format!(
+                "Invalid color mapping: '{}'. Use 'XY:rrggbb' for mapping X and Y to a given color",
+                c
+            ));
         }
     }
 
     Ok(out)
 }
 
-
 fn load_phred_colors(scale: &str, qmax: u8) -> Result<VecMap<Color>, String> {
-
     // HSV color gradient
     let scale: Vec<_> = scale
         .split(',')
@@ -569,11 +578,19 @@ fn load_phred_colors(scale: &str, qmax: u8) -> Result<VecMap<Color>, String> {
         .collect::<Result<_, String>>()?;
 
     let mut out = VecMap::new();
-    for (i, c) in palette::Gradient::new(scale).take(qmax as usize).enumerate() {
+    for (i, c) in palette::Gradient::new(scale)
+        .take(qmax as usize)
+        .enumerate()
+    {
         let c: palette::LinSrgb = c.into();
-        out.insert(i, Color::from_rgb(
-            (c.red.round() as u8, c.green.round() as u8, c.blue.round() as u8)
-        ));
+        out.insert(
+            i,
+            Color::from_rgb((
+                c.red.round() as u8,
+                c.green.round() as u8,
+                c.blue.round() as u8,
+            )),
+        );
     }
     Ok(out)
 }
@@ -589,17 +606,16 @@ fn parse_color(c: &str) -> Result<Color, String> {
     Ok(Color::from_rgb(c))
 }
 
-
 lazy_static! {
-    static ref GREYS256: Vec<(f32, f32, f32)> = (0..24).map(|i| {
-        let c = (8 + 10 * i) as f32;
-        (c, c, c)
-    }).collect();
+    static ref GREYS256: Vec<(f32, f32, f32)> = (0..24)
+        .map(|i| {
+            let c = (8 + 10 * i) as f32;
+            (c, c, c)
+        })
+        .collect();
 }
 
-
 fn find_nearest_col256(col: Rgb) -> u8 {
-
     fn up(c: f32) -> f32 {
         (c / 255. * 5.).ceil() / 5. * 255.
     }
@@ -616,7 +632,6 @@ fn find_nearest_col256(col: Rgb) -> u8 {
     }
 
     let mut dists = vec![];
-
 
     let c = palette::LinSrgb::new(col.0 as f32, col.1 as f32, col.2 as f32);
 
@@ -635,16 +650,14 @@ fn find_nearest_col256(col: Rgb) -> u8 {
     // get color with smallest distance to desired color
     // according to CIE76 color difference
     dists.clear();
-    dists.extend(
-        possible
+    dists.extend(possible
             .into_iter()
             // also check all grey tones
             .chain(&GREYS256 as &[_])
             .map(|c2| {
                 let c2 = palette::LinSrgb::new(c2.0, c2.1, c2.2);
                 (dist(c, c2), c2)
-            })
-        );
+            }));
     dists.sort_by_key(|&(d, _)| OrderedFloat(d));
     let nearest = dists[0].1;
 

@@ -2,12 +2,13 @@ use std::ops::DerefMut;
 
 use bio::alphabets::dna::complement;
 
+use cfg;
 use error::CliResult;
 use io::SeqQualRecord;
 use opt;
-use cfg;
 
-static USAGE: &'static str = concat!("
+static USAGE: &'static str = concat!(
+    "
 Reverse complements DNA sequences. If quality scores are present,
 their order is just reversed.
 
@@ -19,7 +20,9 @@ Usage:
 Options:
     -t, --threads <N>   Number of threads to use [default: 1]
 
-", common_opts!());
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;

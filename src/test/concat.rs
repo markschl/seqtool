@@ -1,8 +1,6 @@
-
 use std::fs::File;
 
 use super::*;
-
 
 #[test]
 fn concat() {
@@ -37,20 +35,29 @@ fn concat() {
             p3.to_str().unwrap().to_string(),
         ]);
 
-        t.cmp(&["concat"], input.clone(),
-            "@id1\nAAABBBCCC\n+\nAAABBBCCC\n@id2\nAAABBBCCC\n+\nAAABBBCCC\n"
+        t.cmp(
+            &["concat"],
+            input.clone(),
+            "@id1\nAAABBBCCC\n+\nAAABBBCCC\n@id2\nAAABBBCCC\n+\nAAABBBCCC\n",
         );
-        t.cmp(&["concat", "-s2"], input.clone(),
-            "@id1\nAAANNBBBNNCCC\n+\nAAAJJBBBJJCCC\n@id2\nAAANNBBBNNCCC\n+\nAAAJJBBBJJCCC\n"
+        t.cmp(
+            &["concat", "-s2"],
+            input.clone(),
+            "@id1\nAAANNBBBNNCCC\n+\nAAAJJBBBJJCCC\n@id2\nAAANNBBBNNCCC\n+\nAAAJJBBBJJCCC\n",
         );
-        t.cmp(&["concat", "-s2", "-c", "-", "--q-char", "~"], input.clone(),
-            "@id1\nAAA--BBB--CCC\n+\nAAA~~BBB~~CCC\n@id2\nAAA--BBB--CCC\n+\nAAA~~BBB~~CCC\n"
+        t.cmp(
+            &["concat", "-s2", "-c", "-", "--q-char", "~"],
+            input.clone(),
+            "@id1\nAAA--BBB--CCC\n+\nAAA~~BBB~~CCC\n@id2\nAAA--BBB--CCC\n+\nAAA~~BBB~~CCC\n",
         );
 
         t.fails(
             &["concat"],
-            MultiFileInput(vec![p1.to_str().unwrap().to_string(), p4.to_str().unwrap().to_string()]),
-            "ID of record #2 (id) does not match the ID of the first one (id1)"
+            MultiFileInput(vec![
+                p1.to_str().unwrap().to_string(),
+                p4.to_str().unwrap().to_string(),
+            ]),
+            "ID of record #2 (id) does not match the ID of the first one (id1)",
         );
     });
 }

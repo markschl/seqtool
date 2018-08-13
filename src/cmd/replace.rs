@@ -1,18 +1,18 @@
 use std::borrow::ToOwned;
 use std::str;
 
-use regex;
 use memchr::Memchr;
+use regex;
 
-use lib::twoway_iter::TwowayIter;
-use error::CliResult;
-use opt;
-use io::{SeqAttr, RecordEditor};
 use cfg;
+use error::CliResult;
+use io::{RecordEditor, SeqAttr};
+use lib::twoway_iter::TwowayIter;
 use lib::util::replace_iter;
+use opt;
 
-
-static USAGE: &'static str = concat!("
+static USAGE: &'static str = concat!(
+    "
 This command does fast search and replace for patterns in sequences
 or ids/descriptions.
 
@@ -110,7 +110,6 @@ impl Replacer for SingleByteReplacer {
         Ok(())
     }
 }
-
 
 struct BytesReplacer(Vec<u8>);
 

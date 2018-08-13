@@ -1,16 +1,13 @@
-
 extern crate pattern_matching;
 extern crate ref_slice;
 
-
-use std::collections::HashMap;
 use super::*;
 use error::CliResult;
+use std::collections::HashMap;
 
 use itertools::Itertools;
 
 use self::pattern_matching::myers::Myers;
-
 
 pub struct MyersMatcher {
     myers: Myers,
@@ -18,7 +15,6 @@ pub struct MyersMatcher {
     needs_start: bool,
     sort_vec: Option<Vec<Match>>,
 }
-
 
 impl MyersMatcher {
     pub fn new(
@@ -28,21 +24,18 @@ impl MyersMatcher {
         sorted: bool,
         ambig_trans: Option<&HashMap<u8, Vec<u8>>>,
     ) -> CliResult<MyersMatcher> {
-
-        let myers =
-            if let Some(t) = ambig_trans {
-                let variants = pattern
-                    .into_iter()
-                    .map(|b| t.get(b)
-                        .map(|v| v.as_slice())
-                        .unwrap_or(ref_slice::ref_slice(b))
-                        .iter()
-                        .cloned()
-                    );
-                Myers::from_variants(variants)
-            } else {
-                Myers::new(pattern)
-            };
+        let myers = if let Some(t) = ambig_trans {
+            let variants = pattern.into_iter().map(|b| {
+                t.get(b)
+                    .map(|v| v.as_slice())
+                    .unwrap_or(ref_slice::ref_slice(b))
+                    .iter()
+                    .cloned()
+            });
+            Myers::from_variants(variants)
+        } else {
+            Myers::new(pattern)
+        };
 
         Ok(MyersMatcher {
             myers: myers,
@@ -57,42 +50,54 @@ impl Matcher for MyersMatcher {
     fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool) {
         if self.needs_start {
             // group hits by start position
-            let by_start = self.myers
+            let by_start = self
+                .myers
                 .find_all_pos(text, self.max_dist)
                 .group_by(|&(start, _, _)| start);
 
-            let iter = by_start.into_iter().map(|(_, mut it)| {
-                let mut out = None;
-                let mut best_dist = ::std::u8::MAX;
-                while let Some(m) = it.next() {
-                    if (m.2) < best_dist {
-                        best_dist = m.2;
-                        out = Some(m.clone());
+            let iter = by_start
+                .into_iter()
+                .map(|(_, mut it)| {
+                    let mut out = None;
+                    let mut best_dist = ::std::u8::MAX;
+                    while let Some(m) = it.next() {
+                        if (m.2) < best_dist {
+                            best_dist = m.2;
+                            out = Some(m.clone());
+                        }
                     }
-                }
-                out.unwrap()
-            })
-            .map(|(start, end, dist)| Match::new(start, end, dist as u16, 0, 0, 0));
+                    out.unwrap()
+                })
+                .map(|(start, end, dist)| Match::new(start, end, dist as u16, 0, 0, 0));
 
-            opt_sorted(iter, self.sort_vec.as_mut(), |m| m.dist, |m| {
-                let h = SimpleHit(m);
-                func(&h)
-            });
-
+            opt_sorted(
+                iter,
+                self.sort_vec.as_mut(),
+                |m| m.dist,
+                |m| {
+                    let h = SimpleHit(m);
+                    func(&h)
+                },
+            );
         } else {
             // only end position needed
-            let iter = self.myers
+            let iter = self
+                .myers
                 .find_all_end(text, self.max_dist)
                 .map(|(end, dist)| Match::new(0, end + 1, dist as u16, 0, 0, 0));
 
-            opt_sorted(iter, self.sort_vec.as_mut(), |m| m.dist, |m| {
-                let h = SimpleHit(m);
-                func(&h)
-            });
+            opt_sorted(
+                iter,
+                self.sort_vec.as_mut(),
+                |m| m.dist,
+                |m| {
+                    let h = SimpleHit(m);
+                    func(&h)
+                },
+            );
         }
     }
 }
-
 
 #[inline(always)]
 fn opt_sorted<T, U, I, K, F>(iter: I, sort_vec: Option<&mut Vec<T>>, ord_key: K, mut func: F)

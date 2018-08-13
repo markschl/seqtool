@@ -1,10 +1,11 @@
 use std::cmp::max;
 
+use cfg;
 use error::CliResult;
 use opt;
-use cfg;
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Returns the last sequences of the input.
 
 Usage:
@@ -15,8 +16,9 @@ Usage:
 Options:
     -n, --num-seqs <N>   Number of sequences to select [default: 10]
 
-", common_opts!());
-
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;

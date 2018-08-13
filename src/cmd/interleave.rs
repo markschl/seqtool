@@ -1,10 +1,10 @@
-use error::CliResult;
-use opt;
 use cfg;
+use error::CliResult;
 use lib::inner_result::MapRes;
+use opt;
 
-
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Interleaves records of all files in the input. The records will returned in
 the same order as the files.
 
@@ -27,7 +27,6 @@ pub fn run() -> CliResult<()> {
     let id_check = !args.get_bool("--no-id-check");
 
     cfg.writer(|writer, vars| {
-
         let mut id = vec![];
 
         cfg.all_readers(|i, rec| {
@@ -40,7 +39,9 @@ pub fn run() -> CliResult<()> {
                     if rec_id != id.as_slice() {
                         return fail!(format!(
                             "ID of record #{} ({}) does not match the ID of the first one ({})",
-                            i + 1, String::from_utf8_lossy(rec_id), String::from_utf8_lossy(&id)
+                            i + 1,
+                            String::from_utf8_lossy(rec_id),
+                            String::from_utf8_lossy(&id)
                         ));
                     }
                 }

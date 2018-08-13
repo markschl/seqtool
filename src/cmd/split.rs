@@ -1,17 +1,17 @@
-use std::path::Path;
 use std::fs::create_dir_all;
+use std::path::Path;
 
 use fxhash::FxHashMap;
 
-use error::{CliError, CliResult};
-use opt;
 use cfg;
-use var::{symbols, varstring, VarHelp, VarProvider, VarStore};
+use error::{CliError, CliResult};
+use io::output::{WriteFinish, Writer};
 use lib::inner_result::MapRes;
-use io::output::{Writer, WriteFinish};
+use opt;
+use var::{symbols, varstring, VarHelp, VarProvider, VarStore};
 
-
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 This command distributes sequences into multiple files based on different
 criteria. In contrast to other commands, the output (-o) argument can
 contain variables in order to determine the file path for each sequence.
@@ -27,8 +27,9 @@ Options:
                         variable string which can be changed using -o/--output.
     -p, --parents       Automatically create all parent directories found in -o
 
-", common_opts!());
-
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
@@ -107,9 +108,7 @@ pub fn run() -> CliResult<()> {
     // file handles from Config::other_writer() have to be finished
     for (_, f) in outfiles {
         f.into_inner()
-         .map_res(|w| Ok::<_, CliError>(
-             w?.finish()?.flush()?
-         ))?;
+            .map_res(|w| Ok::<_, CliError>(w?.finish()?.flush()?))?;
     }
     Ok(())
 }
@@ -124,14 +123,12 @@ impl VarHelp for CunkVarHelp {
         "split:<variable>"
     }
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "split:chunk",
-                "Chunk number starting with 1. With the -n argument, it will \
-                 increment by one each time the size limit <N> is reached. \
-                 Otherwise, it will always be 1.",
-            ),
-        ])
+        Some(&[(
+            "split:chunk",
+            "Chunk number starting with 1. With the -n argument, it will \
+             increment by one each time the size limit <N> is reached. \
+             Otherwise, it will always be 1.",
+        )])
     }
 }
 

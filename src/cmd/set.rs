@@ -1,11 +1,12 @@
 use error::CliResult;
+use io::{RecordEditor, SeqAttr};
 use opt;
-use io::{SeqAttr, RecordEditor};
 use var::*;
 
 use cfg;
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Replaces the contents of sequence IDs, descriptions or sequences.
 
 Usage:
@@ -18,7 +19,9 @@ Options:
     -d, --desc <expr>   New description (variables allowed)
     -s, --seq <expr>    New sequence (variables allowed)
 
-", common_opts!());
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;

@@ -1,14 +1,13 @@
-
 use std::f64::NAN;
 
+use cfg;
 use error::CliResult;
 use opt;
-use cfg;
 
 use lib::inner_result::MapRes;
 
-
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Filters sequences by a mathematical expression which may contain any variable.
 
 Usage:
@@ -21,8 +20,9 @@ Options:
                         The extension is autorecognized if possible, fallback
                         is the input format.
 
-", common_opts!());
-
+",
+    common_opts!()
+);
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
@@ -32,11 +32,12 @@ pub fn run() -> CliResult<()> {
 
     cfg.writer(|writer, mut vars| {
         let expr_id = vars.build(|b| b.register_with_prefix(Some("expr_"), expr))?;
-        let mut dropped_file = dropped_file.map_res(|s| cfg.other_writer(s, Some(&mut vars), None))?;
+        let mut dropped_file =
+            dropped_file.map_res(|s| cfg.other_writer(s, Some(&mut vars), None))?;
 
         cfg.read_sequential_var(&mut vars, |record, vars| {
-
-            let result = vars.symbols()
+            let result = vars
+                .symbols()
                 .get_float(expr_id)?
                 .expect("Bug: expression value not in symbol table!");
 
@@ -46,7 +47,8 @@ pub fn run() -> CliResult<()> {
                 if let Some(w) = dropped_file.as_mut() {
                     w.write(&record, vars)?;
                 }
-            } else if result == NAN { // cannot use match because of NAN
+            } else if result == NAN {
+                // cannot use match because of NAN
                 return fail!(format!(
                     "Undefined result of math expression for record '{}'",
                     String::from_utf8_lossy(record.id_bytes())

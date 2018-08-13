@@ -1,8 +1,8 @@
-use io::Record;
-use error::CliResult;
-use var::*;
 use self::Stat::*;
 use bytecount;
+use error::CliResult;
+use io::Record;
+use var::*;
 
 pub struct StatHelp;
 
@@ -35,12 +35,10 @@ impl VarHelp for StatHelp {
         ])
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "Get absolute GC content (not relative to sequence length)",
-                "seqtool stat count:GC input.fa",
-            ),
-        ])
+        Some(&[(
+            "Get absolute GC content (not relative to sequence length)",
+            "seqtool stat count:GC input.fa",
+        )])
     }
 }
 
@@ -93,7 +91,7 @@ impl VarProvider for StatVars {
                 } else {
                     return fail!("Please specify one or more characters to count.");
                 }
-            },
+            }
             "exp_err" => ExpErr,
             _ => return Ok(false),
         };
@@ -108,20 +106,17 @@ impl VarProvider for StatVars {
     fn set(&mut self, rec: &Record, data: &mut Data) -> CliResult<()> {
         for &(ref stat, id) in &self.stats {
             match *stat {
-                SeqLen => data.symbols
-                    .set_int(id, rec.seq_len() as i64),
+                SeqLen => data.symbols.set_int(id, rec.seq_len() as i64),
 
-                GC => data.symbols
+                GC => data
+                    .symbols
                     .set_float(id, get_gc(rec.seq_segments()) * 100.),
 
-                UngappedLen => data.symbols
-                    .set_int(id, get_ungapped_len(rec, b'-') as i64),
+                UngappedLen => data.symbols.set_int(id, get_ungapped_len(rec, b'-') as i64),
 
-                Count(byte) => data.symbols
-                    .set_int(id, count_byte(rec, byte) as i64),
+                Count(byte) => data.symbols.set_int(id, count_byte(rec, byte) as i64),
 
-                MultiCount(ref bytes) => data.symbols
-                    .set_int(id, count_bytes(rec, bytes) as i64),
+                MultiCount(ref bytes) => data.symbols.set_int(id, count_bytes(rec, bytes) as i64),
 
                 ExpErr => {
                     let q = rec.qual().ok_or("No quality scores in input.")?;
@@ -152,7 +147,8 @@ fn count_byte<R: Record>(rec: R, byte: u8) -> usize {
 fn count_bytes<R: Record>(rec: R, bytes: &[u8]) -> usize {
     let mut n = 0;
     for seq in rec.seq_segments() {
-        n += seq.iter()
+        n += seq
+            .iter()
             .filter(|&b| {
                 for b0 in bytes {
                     if b == b0 {
@@ -168,7 +164,8 @@ fn count_bytes<R: Record>(rec: R, bytes: &[u8]) -> usize {
 
 #[inline]
 fn get_gc<'a, I>(seqs: I) -> f64
-where I: Iterator<Item=&'a [u8]>
+where
+    I: Iterator<Item = &'a [u8]>,
 {
     let mut n = 0u64;
     let mut gc = 0u64;

@@ -4,8 +4,8 @@ use error::CliResult;
 use var;
 use var::varstring;
 
-use io::SeqAttr;
 use super::{Record, Writer};
+use io::SeqAttr;
 
 use csv;
 

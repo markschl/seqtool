@@ -1,7 +1,6 @@
 //! Small function that parses memory sizes, accepting
 //! different units (K, M, G, T)
 
-
 pub fn parse_bytesize(size: &str) -> Result<f64, String> {
     let size = size.trim();
     if size.is_empty() {

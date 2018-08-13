@@ -162,7 +162,7 @@ fn fasta_record(seq: &str) -> String {
     format!(">seq \n{}\n", seq)
 }
 
-fn fastq_records<Q1, Q2>(q1: Q1, q2: Q2) -> String
+fn fq_records<Q1, Q2>(q1: Q1, q2: Q2) -> String
 where Q1: AsRef<[u8]>,
       Q2: AsRef<[u8]>
 {

@@ -1,8 +1,8 @@
 use std::io::Write;
 
-use var;
 use error::CliResult;
 use io::Record;
+use var;
 
 use super::*;
 
@@ -86,8 +86,10 @@ impl FindVars {
                 let i: usize = parts[0]
                     .parse()
                     .map_err(|_| format!("Invalid match index: {}", parts[0]))?;
-                Some(i.checked_sub(1)
-                    .ok_or("The match index must be greater than zero")?)
+                Some(
+                    i.checked_sub(1)
+                        .ok_or("The match index must be greater than zero")?,
+                )
             }
         };
 
@@ -110,9 +112,10 @@ impl FindVars {
 
     /// returns: (name, positions, pattern_rank)
     /// where positions = Some(hit_index, group_index) or None if all hits were requested
-    pub fn parse_code<'a>(&self, code: &'a str)
-        -> CliResult<(&'a str, Option<usize>, usize, usize)>
-    {
+    pub fn parse_code<'a>(
+        &self,
+        code: &'a str,
+    ) -> CliResult<(&'a str, Option<usize>, usize, usize)> {
         let mut parts: Vec<&str> = code.splitn(2, ':').collect();
 
         let mut name = parts.remove(0);
@@ -185,7 +188,6 @@ impl FindVars {
         symbols: &mut var::symbols::Table,
         text: &[u8],
     ) -> CliResult<()> {
-
         for &(ref var, var_id, ref position, group, pattern_rank) in &self.vars {
             if *var == Name {
                 let name = matches.pattern_name(pattern_rank).unwrap_or("");
@@ -204,11 +206,17 @@ impl FindVars {
                         Dist => symbols.set_int(var_id, m.dist as i64),
                         Range(ref delim) => write!(
                             symbols.mut_text(var_id),
-                            "{}{}{}", m.start + 1, delim, m.end
+                            "{}{}{}",
+                            m.start + 1,
+                            delim,
+                            m.end
                         )?,
                         NegRange(ref delim) => write!(
-                            symbols.mut_text(var_id), "{}{}{}",
-                            m.neg_start1(rec.seq_len()), delim, m.neg_end1(rec.seq_len())
+                            symbols.mut_text(var_id),
+                            "{}{}{}",
+                            m.neg_start1(rec.seq_len()),
+                            delim,
+                            m.neg_end1(rec.seq_len())
                         )?,
                         Match => symbols.set_text(var_id, &text[m.start..m.end]),
                         _ => unreachable!(),
@@ -231,8 +239,11 @@ impl FindVars {
                             Dist => write!(out, "{}", m.dist)?,
                             Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
                             NegRange(ref delim) => write!(
-                                out, "{}{}{}",
-                                m.neg_start1(rec.seq_len()), delim, m.neg_end1(rec.seq_len())
+                                out,
+                                "{}{}{}",
+                                m.neg_start1(rec.seq_len()),
+                                delim,
+                                m.neg_end1(rec.seq_len())
                             )?,
                             Match => out.extend_from_slice(&text[m.start..m.end]),
                             _ => unreachable!(),

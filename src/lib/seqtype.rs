@@ -1,5 +1,5 @@
-use bio::alphabets::{dna, protein, rna, Alphabet};
 use self::SeqType::*;
+use bio::alphabets::{dna, protein, rna, Alphabet};
 
 // TODO: maybe use lazy_static to initialize all alphabets. However, these
 // function are rarely called...
@@ -13,14 +13,11 @@ pub enum SeqType {
 }
 
 // For exclusing certain characters when running recognition
-fn filter_iter<'a>(text: &'a [u8]) -> impl Iterator<Item=&'a u8>
-{
-    text.into_iter().filter(|&s|
-        match s {
-            b'-'|b'.'|b'?'|b' ' => false,
-            _ => true
-        }
-    )
+fn filter_iter<'a>(text: &'a [u8]) -> impl Iterator<Item = &'a u8> {
+    text.into_iter().filter(|&s| match s {
+        b'-' | b'.' | b'?' | b' ' => false,
+        _ => true,
+    })
 }
 
 // returns (`SeqType`, has_wildcard (N/X), has_ambiguities(IUPAC))
@@ -65,9 +62,7 @@ pub fn guess_rna(text: &[u8]) -> Option<(SeqType, bool, bool)> {
 }
 
 pub fn guess_protein(text: &[u8]) -> Option<(SeqType, bool, bool)> {
-    let protein_x = Alphabet::new(
-        &b"ARNDCEQGHILKMFPSTWYVXarndceqghilkmfpstwyvx"[..]
-    );
+    let protein_x = Alphabet::new(&b"ARNDCEQGHILKMFPSTWYVXarndceqghilkmfpstwyvx"[..]);
     if protein_x.is_word(filter_iter(text)) {
         Some((Protein, true, false))
     } else if protein::alphabet().is_word(filter_iter(text)) {

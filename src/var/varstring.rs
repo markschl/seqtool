@@ -1,19 +1,15 @@
-
-use std::str;
 use std::cell::RefCell;
+use std::str;
 
 use regex;
 
-use var;
 use error::CliResult;
-
+use var;
 
 lazy_static! {
-    static ref VAR_RE: regex::Regex = regex::Regex::new(
-        r"(\{\{([^\}]+)\}\}|\{([^\{\}]+)\})"
-    ).unwrap();
+    static ref VAR_RE: regex::Regex =
+        regex::Regex::new(r"(\{\{([^\}]+)\}\}|\{([^\{\}]+)\})").unwrap();
 }
-
 
 #[derive(Debug)]
 pub struct VarString {
@@ -43,22 +39,20 @@ impl VarString {
 
     /// Parses a string containing variables in the form " {varname} "
     pub fn parse_register(expr: &str, vars: &mut var::VarBuilder) -> CliResult<VarString> {
-
         let mut outvars = vec![];
         let mut prev_pos = 0;
 
         for m in VAR_RE.find_iter(expr) {
             let var = m.as_str();
-            let var_id =
-                if var.starts_with("{{") {
-                    // math expression
-                    let expr = &var[2 .. var.len() - 2];
-                    vars.register_with_prefix(Some("expr_"), expr)?
-                } else {
-                    // regular variable
-                    let name = &var[1 .. var.len() - 1];
-                    vars.register_var(name)?
-                };
+            let var_id = if var.starts_with("{{") {
+                // math expression
+                let expr = &var[2..var.len() - 2];
+                vars.register_with_prefix(Some("expr_"), expr)?
+            } else {
+                // regular variable
+                let name = &var[1..var.len() - 1];
+                vars.register_var(name)?
+            };
             let str_before = expr[prev_pos..m.start()].as_bytes().to_owned();
             outvars.push((str_before, var_id));
             prev_pos = m.end();
@@ -66,10 +60,7 @@ impl VarString {
 
         let rest = expr[prev_pos..].as_bytes().to_owned();
 
-        let one_var =
-            outvars.len() == 1 &&
-            outvars[0].0.is_empty() &&
-            rest.is_empty();
+        let one_var = outvars.len() == 1 && outvars[0].0.is_empty() && rest.is_empty();
 
         Ok(VarString {
             parts: outvars,

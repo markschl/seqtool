@@ -22,7 +22,11 @@ fn drop_file() {
         let out_path = out.to_str().expect("invalid path");
 
         let fa = ">id1\nSEQ\n>id2\nOTHER";
-        t.cmp(&["filter", ".seq != 'SEQ'", "-a", "i={num}", "--dropped", out_path], fa, ">id2 i=2\nOTHER\n");
+        t.cmp(
+            &["filter", ".seq != 'SEQ'", "-a", "i={num}", "--dropped", out_path],
+            fa,
+            ">id2 i=2\nOTHER\n"
+        );
 
         let mut f = File::open(out_path).expect("File not there");
         let mut s = String::new();

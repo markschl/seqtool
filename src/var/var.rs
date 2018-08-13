@@ -1,18 +1,17 @@
 extern crate textwrap;
 
-use std::fmt::{Debug, Write};
+use std::clone::Clone;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::clone::Clone;
+use std::fmt::{Debug, Write};
 
-use io::{SeqAttr, Record, QualConverter};
+use error::CliResult;
 use io::input::InputOptions;
 use io::output::OutputOptions;
-use error::CliResult;
+use io::{QualConverter, Record, SeqAttr};
 
-use super::symbols::Table;
 use super::attr;
-
+use super::symbols::Table;
 
 pub trait VarProvider: Debug + Send {
     fn prefix(&self) -> Option<&str>;
@@ -147,8 +146,7 @@ impl<'a> Vars<'a> {
         attr_value_delim: u8,
         append_attr: SeqAttr,
         qual_converter: QualConverter,
-    ) -> Vars<'a>
-    {
+    ) -> Vars<'a> {
         Vars {
             varstore: VarStore::new(),
             used_modules: vec![],
@@ -189,7 +187,8 @@ impl<'a> Vars<'a> {
     }
 
     fn find_used_modules(&mut self) {
-        self.used_modules = self.modules
+        self.used_modules = self
+            .modules
             .iter()
             .enumerate()
             .filter_map(|(i, m)| if m.has_vars() { Some(i) } else { None })
@@ -299,7 +298,6 @@ impl<'a, 'b> VarBuilder<'a, 'b> {
     }
 
     pub fn register_with_prefix(&mut self, prefix: Option<&str>, name: &str) -> CliResult<usize> {
-
         let key = (prefix.map(|s| s.to_string()), name.to_string());
 
         let (id, exists) = self.varstore.register_with_prefix(prefix, name);
@@ -425,7 +423,8 @@ impl VarStore {
     fn remove_last_var(&mut self) {
         if self.num_vars > 0 {
             self.num_vars -= 1;
-            self.vars = self.vars
+            self.vars = self
+                .vars
                 .iter()
                 .filter_map(|(k, v)| {
                     if v.0 != self.num_vars {

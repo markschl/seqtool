@@ -1,6 +1,4 @@
-
 use super::*;
-
 
 #[test]
 fn trim() {
@@ -56,8 +54,9 @@ fn trim_multiline() {
     for start in 0..seq.len() - 1 {
         for end in start..seq.len() {
             t.cmp(
-                &["trim", "-0", &format!("{}..{}", start, end)], &fa,
-                &format!(">id\n{}\n", &seq[start..end])
+                &["trim", "-0", &format!("{}..{}", start, end)],
+                &fa,
+                &format!(">id\n{}\n", &seq[start..end]),
             );
         }
     }

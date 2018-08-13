@@ -1,8 +1,6 @@
 /// See also https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2847217/pdf/gkp1137.pdf
-
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use std::fmt::Debug;
-
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum QualFormat {
@@ -24,7 +22,6 @@ impl QualFormat {
 
 use self::QualFormat::*;
 
-
 #[derive(Debug)]
 pub struct QualConverter {
     fmt: QualFormat,
@@ -35,7 +32,12 @@ impl QualConverter {
         QualConverter { fmt: fmt }
     }
 
-    pub fn convert_quals(&self, qual: &[u8], out: &mut Vec<u8>, format: QualFormat) -> Result<(), String> {
+    pub fn convert_quals(
+        &self,
+        qual: &[u8],
+        out: &mut Vec<u8>,
+        format: QualFormat,
+    ) -> Result<(), String> {
         for &q in qual {
             out.push(self.convert(q, format)?);
         }
@@ -51,16 +53,15 @@ impl QualConverter {
     }
 
     pub fn convert(&self, q: u8, to: QualFormat) -> Result<u8, String> {
-
         Ok(match self.fmt {
             Sanger => {
                 let q = validate_sanger(q)?;
                 match to {
                     // TODO: should there be a warning about truncated qualities?
                     Illumina => min(q, 95) + 31,
-                    Phred  => q - 33,
-                    Solexa   => qual_to_solexa(q - 33),
-                    Sanger => q
+                    Phred => q - 33,
+                    Solexa => qual_to_solexa(q - 33),
+                    Sanger => q,
                 }
             }
             Phred => {
@@ -70,7 +71,7 @@ impl QualConverter {
                 match to {
                     // TODO: should there be a warning about truncated qualities?
                     Sanger => min(q, 92) + 33,
-                    Illumina  => min(q, 62) + 64,
+                    Illumina => min(q, 62) + 64,
                     Solexa => qual_to_solexa(min(q, 62)),
                     Phred => q,
                 }
@@ -79,7 +80,7 @@ impl QualConverter {
                 let q = validate_illumina(q)?;
                 match to {
                     Sanger => q - 31,
-                    Phred  => q - 64,
+                    Phred => q - 64,
                     Solexa => qual_to_solexa(q - 64),
                     Illumina => q,
                 }
@@ -109,7 +110,6 @@ impl QualConverter {
     // }
 
     pub fn get_prob(&self, q: u8) -> Result<f64, String> {
-
         Ok(match self.fmt {
             Sanger => qual_to_prob(validate_sanger(q)? - 33),
             Phred => qual_to_prob(q),
@@ -119,64 +119,73 @@ impl QualConverter {
     }
 }
 
-
 macro_rules! validate_impl {
     ($name:ident, $min_ascii:expr, $min_char:expr, $fmt:expr) => {
         #[inline(always)]
         fn $name(q: u8) -> Result<u8, String> {
             if q > 126 {
-                return Err(high_qual_err(q))
+                return Err(high_qual_err(q));
             } else if q < $min_ascii {
-                return Err(low_qual_err(q, $min_ascii, $fmt))
+                return Err(low_qual_err(q, $min_ascii, $fmt));
             }
             Ok(q)
         }
-    }
+    };
 }
 
 #[inline(never)]
 fn high_qual_err(q: u8) -> String {
-    format!(concat!(
-        "Invalid quality score encountered ({}). ASCII codes > 126 ",
-        "(= PHRED scores > 93) are not valid. "
-    ), q)
+    format!(
+        concat!(
+            "Invalid quality score encountered ({}). ASCII codes > 126 ",
+            "(= PHRED scores > 93) are not valid. "
+        ),
+        q
+    )
 }
 
 #[inline(never)]
 fn low_qual_err(q: u8, min_ascii: u8, fmt: &str) -> String {
-    let fmt_guess = guess_format(q)
-        .unwrap_or_else(|| "".to_string());
-    format!(concat!(
-        "Invalid quality score encountered ({}). In the {} FASTQ format, ",
-        "the values should be in the ASCII range {}-126 ('{}' to '~').{}"
-    ), q, fmt, min_ascii, min_ascii as char, fmt_guess
+    let fmt_guess = guess_format(q).unwrap_or_else(|| "".to_string());
+    format!(
+        concat!(
+            "Invalid quality score encountered ({}). In the {} FASTQ format, ",
+            "the values should be in the ASCII range {}-126 ('{}' to '~').{}"
+        ),
+        q,
+        fmt,
+        min_ascii,
+        min_ascii as char,
+        fmt_guess
     )
 }
 
-validate_impl!(validate_sanger,   33, '!', "Sanger/Illumina 1.8+");
+validate_impl!(validate_sanger, 33, '!', "Sanger/Illumina 1.8+");
 validate_impl!(validate_illumina, 64, '@', "Illumina 1.3+");
-validate_impl!(validate_solexa,   59, ';', "Solexa");
-
+validate_impl!(validate_solexa, 59, ';', "Solexa");
 
 #[inline]
 fn guess_format(q: u8) -> Option<String> {
-    let s =
-        match q {
-            0  ... 32 => None,
-            33 ... 58 => Some(("Sanger/Illumina 1.8+", "'--fmt fq'")),
-            59 ... 63 => Some(("Sanger/Illumina 1.8+ or eventually Solexa", "'--fmt fq' or '--fmt fq-solexa'")),
-            _ => None
-        };
-    s.map(|(name, usage)| format!(
-        " It seems that the file is in the {} format. If so, use the option {}.",
-        name, usage
-    ))
+    let s = match q {
+        0...32 => None,
+        33...58 => Some(("Sanger/Illumina 1.8+", "'--fmt fq'")),
+        59...63 => Some((
+            "Sanger/Illumina 1.8+ or eventually Solexa",
+            "'--fmt fq' or '--fmt fq-solexa'",
+        )),
+        _ => None,
+    };
+    s.map(|(name, usage)| {
+        format!(
+            " It seems that the file is in the {} format. If so, use the option {}.",
+            name, usage
+        )
+    })
 }
 
 #[inline]
 fn solexa_to_qual(q: u8) -> u8 {
-    (10. * (10f64.powf((q as f64 - 64.) / 10.) + 1.).log10())
-        .round() as u8
+    (10. * (10f64.powf((q as f64 - 64.) / 10.) + 1.).log10()).round() as u8
 }
 
 #[inline]
@@ -195,25 +204,29 @@ pub fn qual_to_prob(q: u8) -> f64 {
     10f64.powf(-(q as f64) / 10.)
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::QualFormat::*;
+    use super::*;
 
     #[test]
     fn solexa_qual() {
-
         // according to https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2847217/
-        let qual        = [ 1u8,  1,  1,  2,  2,  3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10, 10, 11];
-        let solexa      = [-5i8, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8,  9, 10, 11];
-        let solexa_back = [-5i8, -5, -5, -2, -2,  0, 0, 2, 2, 3, 3, 5, 6, 7, 8, 10, 10, 11];
+        let qual = [1u8, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10, 10, 11];
+        let solexa = [
+            -5i8, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+        ];
+        let solexa_back = [
+            -5i8, -5, -5, -2, -2, 0, 0, 2, 2, 3, 3, 5, 6, 7, 8, 10, 10, 11,
+        ];
 
         assert_eq!(qual_to_solexa(0), 59);
 
-        for ((&q, &s), &sb) in (&qual[..]).into_iter()
-                                   .zip(&solexa[..])
-                                   .zip(&solexa_back[..]) {
+        for ((&q, &s), &sb) in (&qual[..])
+            .into_iter()
+            .zip(&solexa[..])
+            .zip(&solexa_back[..])
+        {
             let s = (s + 64) as u8;
             let sb = (sb + 64) as u8;
             assert_eq!(solexa_to_qual(s), q);
@@ -233,7 +246,7 @@ mod tests {
     fn probs() {
         let mapping = [
             (0u8, 1f64),
-            ( 1, 0.7943282347),
+            (1, 0.7943282347),
             (10, 0.1),
             (40, 0.0001000000),
             (93, 0.0000000005),
@@ -248,8 +261,8 @@ mod tests {
     fn probs_solexa() {
         let mapping = [
             (-5i8, 0.7597469f64),
-            ( 0, 0.5),
-            ( 1, 0.4426884),
+            (0, 0.5),
+            (1, 0.4426884),
             (10, 0.0909091),
             (40, 0.0001000),
             (62, 0.0000006),
@@ -262,7 +275,6 @@ mod tests {
 
     #[test]
     fn convert_sanger() {
-
         let q = QualConverter::new(Sanger);
 
         assert_eq!(q.convert(33, Sanger), Ok(33));
@@ -284,7 +296,6 @@ mod tests {
 
     #[test]
     fn convert_phred() {
-
         let q = QualConverter::new(Phred);
 
         assert_eq!(q.convert(0, Sanger), Ok(33));
@@ -306,7 +317,6 @@ mod tests {
 
     #[test]
     fn convert_illumina() {
-
         let q = QualConverter::new(Illumina);
 
         assert_eq!(q.convert(64, Sanger), Ok(33));
@@ -328,7 +338,6 @@ mod tests {
 
     #[test]
     fn convert_solexa() {
-
         let q = QualConverter::new(Solexa);
 
         assert_eq!(q.convert(59, Sanger), Ok(34));

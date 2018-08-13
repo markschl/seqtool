@@ -1,13 +1,13 @@
-use std::str;
 use std::ffi::OsStr;
 use std::path::Path;
+use std::str;
 
-use io::Record;
+use self::BuiltinVar::*;
+use error::CliResult;
 use io::input::{InputOptions, InputType};
 use io::output::OutputOptions;
-use error::CliResult;
+use io::Record;
 use var::*;
-use self::BuiltinVar::*;
 
 pub struct BuiltinHelp;
 
@@ -32,9 +32,15 @@ impl VarHelp for BuiltinHelp {
                 "filename",
                 "Name of the current input file with extension (or '-')",
             ),
-            ("filestem", "Name of the current input file without extension (or '-')"),
+            (
+                "filestem",
+                "Name of the current input file without extension (or '-')",
+            ),
             ("extension", "Extension of the current input file."),
-            ("dirname", "Name of the base directory of the current file (or '')"),
+            (
+                "dirname",
+                "Name of the base directory of the current file (or '')",
+            ),
         ])
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
@@ -144,7 +150,8 @@ impl VarProvider for BuiltinVars {
         for &(var, id) in &self.vars {
             match var {
                 Id => data.symbols.set_text(id, record.id_bytes()),
-                Desc => data.symbols
+                Desc => data
+                    .symbols
                     .set_text(id, record.desc_bytes().unwrap_or(b"")),
                 Seq => {
                     let concatenated = data.symbols.mut_text(id);
@@ -153,15 +160,20 @@ impl VarProvider for BuiltinVars {
                     }
                 }
                 Num => data.symbols.set_int(id, self.num as i64),
-                InPath => data.symbols
+                InPath => data
+                    .symbols
                     .set_text(id, self.path_info.path.as_ref().unwrap()),
-                InName => data.symbols
+                InName => data
+                    .symbols
                     .set_text(id, self.path_info.name.as_ref().unwrap()),
-                InStem => data.symbols
+                InStem => data
+                    .symbols
                     .set_text(id, self.path_info.stem.as_ref().unwrap()),
-                Ext => data.symbols
+                Ext => data
+                    .symbols
                     .set_text(id, self.path_info.ext.as_ref().unwrap()),
-                Dir => data.symbols
+                Dir => data
+                    .symbols
                     .set_text(id, self.path_info.dir.as_ref().unwrap()),
                 DefaultExt => data.symbols.set_text(id, &self.path_info.out_ext),
             }

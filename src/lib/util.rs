@@ -1,7 +1,7 @@
 //use std::ops::Deref;
-use std::str::FromStr;
-use std::convert::AsRef;
 use std::collections::HashMap;
+use std::convert::AsRef;
+use std::str::FromStr;
 
 use error::CliResult;
 use lib::inner_result::MapRes;
@@ -54,10 +54,7 @@ where
 }
 
 pub fn parse_range_str(range: &str) -> CliResult<(Option<&str>, Option<&str>)> {
-    let rng: Vec<&str> = range
-        .splitn(2, "..")
-        .map(|r| r.trim())
-        .collect();
+    let rng: Vec<&str> = range.splitn(2, "..").map(|r| r.trim()).collect();
 
     if rng.len() != 2 {
         return fail!(format!(
@@ -95,7 +92,6 @@ pub fn parse_range<T: FromStr>(range: &str) -> CliResult<(Option<T>, Option<T>)>
     ))
 }
 
-
 #[inline]
 pub fn replace_iter<M>(text: &[u8], replacement: &[u8], out: &mut Vec<u8>, matches: M)
 where
@@ -107,7 +103,7 @@ where
         out.extend_from_slice(replacement);
         last_end = end;
     }
-    out.extend_from_slice(&text[last_end..  ]);
+    out.extend_from_slice(&text[last_end..]);
 }
 
 // pub unsafe fn replace_iter_unchecked<M>(text: &[u8], replacement: &[u8], out: &mut Vec<u8>, matches: M)
@@ -129,16 +125,11 @@ where
 //     ::std::slice::from_raw_parts(ptr, end - start)
 // }
 
-
 #[cfg(test)]
 mod tests {
     #[test]
     fn replace_iter() {
-        let pos = &[
-            (1, 2),
-            (4, 6),
-            (7, 8)
-        ];
+        let pos = &[(1, 2), (4, 6), (7, 8)];
         let text = b"012345678";
         let replaced = b"0x23x6x8";
 
@@ -149,6 +140,5 @@ mod tests {
         // let mut out = vec![];
         // unsafe { super::replace_iter_unchecked(text, b"x", &mut out, pos.iter().cloned()) };
         // assert_eq!(&out, replaced)
-
     }
 }

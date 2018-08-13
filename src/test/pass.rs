@@ -1,6 +1,4 @@
-
 use super::*;
-
 
 #[test]
 fn pass() {
@@ -28,6 +26,5 @@ fn pipe() {
 
 #[test]
 fn thread_io() {
-    Tester::new()
-        .cmp(&[".", "-T", "--write-thread"], *FASTA, &FASTA);
+    Tester::new().cmp(&[".", "-T", "--write-thread"], *FASTA, &FASTA);
 }

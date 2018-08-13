@@ -1,7 +1,6 @@
-
+use super::QualFormat;
 use std::borrow::Cow;
 use std::str::{self, Utf8Error};
-use super::QualFormat;
 
 use seq_io::fasta;
 
@@ -78,9 +77,8 @@ pub trait Record {
 #[derive(Clone, Debug)]
 pub enum SeqHeader<'a> {
     IdDesc(&'a [u8], Option<&'a [u8]>),
-    FullHeader(&'a [u8])
+    FullHeader(&'a [u8]),
 }
-
 
 /// Not to be confused with key=value attributes
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -98,8 +96,7 @@ impl SeqAttr {
             SeqAttr::Desc
         } else if attr.eq_ignore_ascii_case("seq") {
             SeqAttr::Seq
-        }
-        else {
+        } else {
             return None;
         })
     }
@@ -213,7 +210,6 @@ impl<'b, R: Record> Record for DefRecord<'b, R> {
     }
 }
 
-
 // Wrapper storing sequence/quality data
 
 pub struct SeqQualRecord<'a, R: Record> {
@@ -265,7 +261,6 @@ impl<'b, R: Record> Record for SeqQualRecord<'b, R> {
     }
 }
 
-
 // Record that owns all data
 
 #[derive(Default, Clone)]
@@ -275,7 +270,6 @@ pub struct OwnedRecord {
     pub seq: Vec<u8>,
     pub qual: Option<Vec<u8>>,
 }
-
 
 impl Record for OwnedRecord {
     fn id_bytes(&self) -> &[u8] {
@@ -300,8 +294,6 @@ impl Record for OwnedRecord {
         false
     }
 }
-
-
 
 // Wrapper for retrieving and editing record attributes
 
@@ -345,7 +337,7 @@ impl RecordEditor {
         match attr {
             SeqAttr::Id => rec.id_bytes(),
             SeqAttr::Desc => rec.desc_bytes().unwrap_or(b""),
-            SeqAttr::Seq => self.seq_cache.get_seq(rec, get_cached)
+            SeqAttr::Seq => self.seq_cache.get_seq(rec, get_cached),
         }
     }
 

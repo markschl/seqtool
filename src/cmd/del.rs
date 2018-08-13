@@ -1,11 +1,12 @@
 use error::CliResult;
-use opt;
 use io::DefRecord;
+use opt;
 use var::*;
 
 use cfg;
 
-pub static USAGE: &'static str = concat!("
+pub static USAGE: &'static str = concat!(
+    "
 Deletes description field or attributes.
 
 Usage:

@@ -1,12 +1,12 @@
-use std::io;
 use std::fmt;
+use std::io;
 
 use csv::{self, ByteRecord, Reader, ReaderBuilder};
 use fxhash::FxHashMap;
 
 use error::{CliError, CliResult};
-use var::*;
 use io::Record;
+use var::*;
 
 pub struct ListHelp;
 
@@ -26,12 +26,10 @@ impl VarHelp for ListHelp {
         )
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "Extracting sequences with coordinates stored in a BED file",
-                "seqtool trim -l coordinates.bed -0 {l:2}..{l:3} input.fa > output.fa",
-            ),
-        ])
+        Some(&[(
+            "Extracting sequences with coordinates stored in a BED file",
+            "seqtool trim -l coordinates.bed -0 {l:2}..{l:3} input.fa > output.fa",
+        )])
     }
 }
 
@@ -120,7 +118,8 @@ where
         // look up column name
         self.has_header = true; // switch to header mode
         if self.header.is_none() {
-            let map = self.rdr
+            let map = self
+                .rdr
                 .headers()?
                 .iter()
                 .enumerate()
@@ -148,7 +147,8 @@ where
 
         let id = record.id_bytes();
 
-        match self.handler
+        match self
+            .handler
             .find(self.id_col, id, &mut self.rdr, &mut self.record)
         {
             Err(_) if self.allow_missing => for &(var_id, _) in &self.columns {
@@ -202,7 +202,8 @@ impl<R: io::Read> IdFinder<R> for SyncIds {
         if !rdr.read_byte_record(rec)? {
             return Err(ListError::ListTooShort(id.to_owned()));
         }
-        let row_id = rec.get(id_col)
+        let row_id = rec
+            .get(id_col)
             .ok_or_else(|| ListError::NoId(rdr.position().clone()))?;
         if row_id != id {
             return Err(ListError::IdMismatch(id.to_owned(), row_id.to_owned()));
@@ -233,7 +234,8 @@ impl<R: io::Read> IdFinder<R> for Unordered {
         }
 
         while rdr.read_byte_record(rec)? {
-            let row_id = rec.get(id_col)
+            let row_id = rec
+                .get(id_col)
                 .ok_or_else(|| ListError::NoId(rdr.position().clone()))?;
 
             self.0
@@ -279,7 +281,7 @@ impl From<ListError> for CliError {
             ),
             ListError::EntryMissing(ref list_id) => format!(
                 "ID '{}' not found in associated list. Use -m/--missing if you expect \
-                missing entries.",
+                 missing entries.",
                 String::from_utf8_lossy(list_id)
             ),
             ListError::NoId(ref pos) => format!(

@@ -1,8 +1,6 @@
-
 use std::fs::File;
 
 use super::*;
-
 
 #[test]
 fn convert() {
@@ -17,7 +15,11 @@ fn convert() {
         .cmp(&[".", "--fq", "--to-fa"], fq, fa)
         .cmp(&[".", "--tsv", "id,seq", "--to-fa"], txt, fa)
         .fails(&[".", "--to-fq"], fa, "No quality scores")
-        .fails(&[".", "--tsv", "id,seq", "--to-fq"], txt, "No quality scores");
+        .fails(
+            &[".", "--tsv", "id,seq", "--to-fq"],
+            txt,
+            "No quality scores",
+        );
 }
 
 #[test]
@@ -28,7 +30,8 @@ fn txt_input() {
 
     Tester::new()
         .cmp(&[".", "--tsv", "id,seq,desc", "--to-tsv", "id,seq,desc"], txt, txt)
-        .cmp(&[".", "--fmt", "tsv", "--fields", "id,seq,desc", "--to", "tsv", "--outfields", "id,seq,desc"], txt, txt)
+        .cmp(&[".", "--fmt", "tsv", "--fields", "id,seq,desc",
+               "--to", "tsv", "--outfields", "id,seq,desc"], txt, txt)
         .cmp(&[".", "--csv", "id,seq,desc", "--to-tsv", "id,seq,desc"], &csv, txt)
         .cmp(&[".", "--csv", "id,seq,desc", "--to-csv", "id,seq,desc"], &csv, &csv)
         .cmp(&[".", "--tsv", "id:1,desc:3,seq:2", "--to-tsv", "id,seq,desc"], txt, txt)
@@ -42,51 +45,50 @@ fn qual_convert() {
         // qual. in second record are truncated automatically
         .cmp(
             &[".", "--fq", "--to", "fq-illumina"],
-            &fastq_records([33, 53,  73], [ 93, 103, 126]),
-            &fastq_records([64, 84, 104], [124, 126, 126]),
+            &fq_records([33, 53,  73], [ 93, 103, 126]),
+            &fq_records([64, 84, 104], [124, 126, 126]),
         )
         // Illumina 1.3 -> Sanger
         .cmp(
             &[".", "--fq-illumina", "--to", "fq"],
-            &fastq_records([64, 84, 104], [124, 126]),
-            &fastq_records([33, 53,  73], [ 93,  95]),
+            &fq_records([64, 84, 104], [124, 126]),
+            &fq_records([33, 53,  73], [ 93,  95]),
         )
         // Sanger -> Solexa
         .cmp(
             &[".", "--fq", "--to", "fq-solexa"],
-            &fastq_records([33, 34, 42, 43,  73], [ 93, 103, 126]),
-            &fastq_records([59, 59, 72, 74, 104], [124, 126, 126]),
+            &fq_records([33, 34, 42, 43,  73], [ 93, 103, 126]),
+            &fq_records([59, 59, 72, 74, 104], [124, 126, 126]),
         )
         // Solexa -> Sanger
         .cmp(
             &[".", "--fmt", "fq-solexa", "--to", "fq"],
-            &fastq_records([59, 72, 74, 104], [124, 126]),
-            &fastq_records([34, 42, 43,  73], [ 93, 95]),
+            &fq_records([59, 72, 74, 104], [124, 126]),
+            &fq_records([34, 42, 43,  73], [ 93, 95]),
         )
         // Illumina -> Solexa
         .cmp(
             &[".", "--fq-illumina", "--to", "fq-solexa"],
-            &fastq_records([64, 65, 73, 74, 104], [124, 126]),
-            &fastq_records([59, 59, 72, 74, 104], [124, 126]),
+            &fq_records([64, 65, 73, 74, 104], [124, 126]),
+            &fq_records([59, 59, 72, 74, 104], [124, 126]),
         )
         // Solexa -> Illumina
         .cmp(
             &[".", "--fmt", "fq-solexa", "--to", "fq-illumina"],
-            &fastq_records([59, 72, 74, 104], [124, 126]),
-            &fastq_records([65, 73, 74, 104], [124, 126]),
+            &fq_records([59, 72, 74, 104], [124, 126]),
+            &fq_records([65, 73, 74, 104], [124, 126]),
         )
         // Validation errors
-        .fails(&[".", "--fq", "--to", "fq-illumina"], &fastq_records([31], []), "Invalid quality")
-        .fails(&[".", "--fq", "--to", "fq-illumina"], &fastq_records([127], []), "Invalid quality")
-        .fails(&[".", "--fq-illumina", "--to", "fq"], &fastq_records([63], []), "Invalid quality")
-        .fails(&[".", "--fq-illumina", "--to", "fq"], &fastq_records([127], []), "Invalid quality")
-        .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fastq_records([58], []), "Invalid quality")
-        .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fastq_records([127], []), "Invalid quality");
+        .fails(&[".", "--fq", "--to", "fq-illumina"], &fq_records([31], []), "Invalid quality")
+        .fails(&[".", "--fq", "--to", "fq-illumina"], &fq_records([127], []), "Invalid quality")
+        .fails(&[".", "--fq-illumina", "--to", "fq"], &fq_records([63], []), "Invalid quality")
+        .fails(&[".", "--fq-illumina", "--to", "fq"], &fq_records([127], []), "Invalid quality")
+        .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fq_records([58], []), "Invalid quality")
+        .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fq_records([127], []), "Invalid quality");
 }
 
 #[test]
 fn qfile() {
-
     let fa = ">seq\nATGC\n";
     let qual = ">seq\n40 40 40 30\n";
 
@@ -106,30 +108,22 @@ fn qfile() {
     });
 
     t.temp_file("qfile.qual", Some(">seq1\n40 40 40 30\n"), |p, _| {
-        t.fails(&[".", "--qual", p],
+        t.fails(
+            &[".", "--qual", p],
             ">seq1\nATGC\n>seq2\nATGC\n",
-            "Quality scores in QUAL file missing for record 'seq2'"
+            "Quality scores in QUAL file missing for record 'seq2'",
         );
     });
 
     t.temp_file("qfile.qual", Some(">seq\n40\n"), |p, _| {
-        t.fails(
-            &[".", "--qual", p], fa,
-            "is not equal to sequence length"
-        );
+        t.fails(&[".", "--qual", p], fa, "is not equal to sequence length");
     });
 
     t.temp_file("qfile.qual", Some(">seq2\n40 40 40 30\n"), |p, _| {
-        t.fails(
-            &[".", "--qual", p], fa,
-            "ID mismatch"
-        );
+        t.fails(&[".", "--qual", p], fa, "ID mismatch");
     });
 
     t.temp_file("qfile.qual", Some(">seq\n40 40 40  30\n"), |p, _| {
-        t.fails(
-            &[".", "--qual", p], fa,
-            "Invalid quality score"
-        );
+        t.fails(&[".", "--qual", p], fa, "Invalid quality score");
     });
 }

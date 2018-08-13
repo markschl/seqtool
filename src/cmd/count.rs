@@ -1,17 +1,17 @@
-
-use std::fmt::Write;
 use std::fmt::Debug;
+use std::fmt::Write;
 use std::mem;
 
 use csv;
 
-use error::CliResult;
-use opt;
 use cfg;
-use var::varstring;
+use error::CliResult;
 use fxhash::FxHashMap;
+use opt;
+use var::varstring;
 
-static USAGE: &'static str = concat!("
+static USAGE: &'static str = concat!(
+    "
 This command counts the number of sequences and prints the number to STDOUT. Advanced
 grouping of sequences is possible by supplying or more key strings containing
 variables (-k).
@@ -65,7 +65,8 @@ fn count_simple(cfg: &cfg::Config) -> CliResult<()> {
 fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) -> CliResult<()> {
     cfg.io_writer(|writer, mut vars| {
         // register variables & parse types
-        let var_keys: Vec<_> = keys.iter()
+        let var_keys: Vec<_> = keys
+            .iter()
             .map(|k| {
                 let (interval, key) = parse_key(k, 1., 0);
                 let var_key = vars.build(|b| varstring::VarString::var_or_composed(key, b))?;
@@ -81,8 +82,10 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
         let mut key = vec![(Category::Text(vec![]), false); var_keys.len()];
 
         cfg.read_sequential_var(&mut vars, |_, vars| {
-            for ((&(ref key, ref interval), ref mut value), &mut (ref mut cat, ref mut is_different)) in
-                var_keys.iter().zip(&mut values).zip(&mut key)
+            for (
+                (&(ref key, ref interval), ref mut value),
+                &mut (ref mut cat, ref mut is_different),
+            ) in var_keys.iter().zip(&mut values).zip(&mut key)
             {
                 if let Some(&(int, _)) = interval.as_ref() {
                     if let Some(v) = key.get_float(vars.symbols())? {
@@ -139,16 +142,19 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
                     Category::Num(n) => {
                         let &(int, precision) = &interval.unwrap();
                         if print_intervals && is_different {
-                            write!(field,
+                            write!(
+                                field,
                                 "({0:.2$},{1:.2$}]",
-                                n as f64 * int, (n + 1) as f64 * int, precision
+                                n as f64 * int,
+                                (n + 1) as f64 * int,
+                                precision
                             )?;
                         } else {
                             write!(field, "{0:.1$}", n as f64 * int, precision)?;
                         }
-                    },
+                    }
                     Category::NaN => field.push_str("NaN"),
-                    Category::NA => field.push_str("N/A")
+                    Category::NA => field.push_str("N/A"),
                 }
             }
             {
@@ -173,7 +179,8 @@ fn parse_key(
         if let Some(end) = s.chars().skip(3).position(|c| c == ':') {
             let num = &s[2..3 + end];
             if let Ok(int) = num.parse() {
-                let precision = num.chars()
+                let precision = num
+                    .chars()
                     .position(|c| c == '.')
                     .map(|pos| num.len() - pos - 1)
                     .unwrap_or(0);
@@ -190,5 +197,5 @@ enum Category<T: Debug> {
     Text(T),
     Num(i64),
     NaN,
-    NA
+    NA,
 }

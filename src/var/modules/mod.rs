@@ -1,8 +1,8 @@
-pub mod builtins;
-pub mod list;
 pub mod attr;
-pub mod stats;
+pub mod builtins;
 #[cfg(not(feature = "exprtk"))]
 pub mod expr;
 #[cfg(feature = "exprtk")]
 pub mod expr_exprtk;
+pub mod list;
+pub mod stats;
