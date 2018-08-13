@@ -10,11 +10,11 @@ readme = "README.md"
 
 [dependencies]
 docopt = "1.0"
-bio = "0.21"
-seq_io = "0.2.4"
+bio = "0.22"
+seq_io = "0.2.5"
 thread_io = { version="0.1", path="src/thread_io" }
-crossbeam = "0.3"
-lazy_static = "1.0"
+crossbeam = "0.4"
+lazy_static = "1.1"
 regex = "1.0"
 csv = "1.0"
 itertools = "0.7"
