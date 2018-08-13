@@ -39,6 +39,13 @@ maplit = "1.0"
 pattern_matching = { path = "src/pattern_matching", version = "0.1.1" }
 ref_slice = "1.1"
 byteorder = "1.2"
+read_color = "1.0"
+palette = "0.4"
+termcolor = "1.0"
+ordered-float = "0.5"
+
+[target.'cfg(unix)'.dependencies]
+pager = "0.14"
 
 [dev-dependencies]
 assert_cli = "0.6"

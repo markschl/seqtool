@@ -98,15 +98,15 @@ impl QualConverter {
         })
     }
 
-    pub fn get_phred(&self, q: u8) -> Result<u8, String> {
-
-        Ok(match self.fmt {
-            Sanger => validate_sanger(q)? - 33,
-            Phred => q,
-            Illumina => validate_illumina(q)? - 64,
-            Solexa => solexa_to_qual(q),
-        })
-    }
+    // pub fn get_phred(&self, q: u8) -> Result<u8, String> {
+    //
+    //     Ok(match self.fmt {
+    //         Sanger => validate_sanger(q)? - 33,
+    //         Phred => q,
+    //         Illumina => validate_illumina(q)? - 64,
+    //         Solexa => solexa_to_qual(q),
+    //     })
+    // }
 
     pub fn get_prob(&self, q: u8) -> Result<f64, String> {
 
@@ -191,7 +191,7 @@ fn solexa_to_prob(q: u8) -> f64 {
 }
 
 #[inline]
-fn qual_to_prob(q: u8) -> f64 {
+pub fn qual_to_prob(q: u8) -> f64 {
     10f64.powf(-(q as f64) / 10.)
 }
 

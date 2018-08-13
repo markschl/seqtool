@@ -33,6 +33,12 @@ extern crate twoway;
 #[macro_use]
 extern crate maplit;
 extern crate byteorder;
+#[cfg(target_family = "unix")]
+extern crate pager;
+extern crate read_color;
+extern crate palette;
+extern crate termcolor;
+extern crate ordered_float;
 
 // compression
 extern crate bzip2;
@@ -121,6 +127,7 @@ fn run_cmd(cmd: &str) -> CliResult<()> {
         "revcomp" => cmd::revcomp::run(),
         "interleave" => cmd::interleave::run(),
         "concat" => cmd::concat::run(),
+        "view" => cmd::view::run(),
         _ => Err(CliError::Other(
             concat!("Unknown command! Available commands:\n", command_list!()).to_string(),
         )),

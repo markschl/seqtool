@@ -128,6 +128,16 @@ impl InFormat {
 
         Ok(format)
     }
+
+    pub fn has_qual(&self) -> bool {
+        match self {
+            InFormat::FASTQ { .. } | InFormat::FaQual { .. } =>
+                true,
+            InFormat::CSV { fields, .. } =>
+                fields.iter().any(|f| f.trim_left().starts_with("qual")),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone)]

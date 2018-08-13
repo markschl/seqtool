@@ -21,3 +21,4 @@ pub mod stat;
 pub mod filter;
 pub mod interleave;
 pub mod concat;
+pub mod view;

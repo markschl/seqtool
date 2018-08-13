@@ -57,6 +57,10 @@ impl<'a> Config<'a> {
         Ok(vars)
     }
 
+    pub fn input_opts(&self) -> &[input::InputOptions] {
+        &self.input_opts
+    }
+
     pub fn writer<F, O>(&self, func: F) -> CliResult<O>
     where
         F: FnOnce(&mut output::Writer<&mut io::Write>, var::Vars) -> CliResult<O>,

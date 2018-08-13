@@ -68,6 +68,7 @@ macro_rules! command_list { () => ("
     .           shorthand for 'pass'
 
 Information about sequences
+    view        Colored sequence view
     count       Returns the sequence count
     stat        Per-sequence statistics
 
@@ -78,6 +79,7 @@ Subsetting / shuffling sequences
     sample      Get a random subset of sequences
     filter      Filter based on different criteria
     split       Distribute sequences into multiple files
+    interleave  Interleave seqs. from multiple files
 
 Searching and replacing
     find        Find one or more patterns with optional filtering/replacement
@@ -90,7 +92,8 @@ Modifying commands
     mask        Soft or hard mask sequence ranges
     upper       Convert sequences to uppercase
     lower       Convert sequences to lowercase (soft mask)
-    revcomp     Reverse complement DNA sequences.
+    revcomp     Reverse complement DNA sequences
+    concat      Concatenate seqs. from multiple files
 
 For information about how to use a command use
     seqtool <command> -h/--help
