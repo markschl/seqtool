@@ -26,7 +26,7 @@ a shortcut exists: `--to-tsv id,seq`. Similar shortcuts are avialable for uncomp
 input/output in other formats.
 
 
-#### Recognized formats
+### Recognized formats
 
 The following extensions and format strings are auto-recognized:
 
@@ -78,7 +78,7 @@ id1	ATGC(...)	length: 231
 id2	TTGC(...)	length: 250
 ```
 
-#### Quality scores
+### Quality scores
 
 Quality scores can be read from several sources.
 [FASTQ](https://en.wikipedia.org/wiki/FASTQ_format) are assumed to be
