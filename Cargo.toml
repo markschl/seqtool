@@ -1,6 +1,6 @@
 [package]
 name = "seqtool"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["<markschl19@gmail.com>"]
 description = "General purpose tool for reading, modifying and writing biological sequences."
 license = "MIT"
@@ -30,7 +30,7 @@ memchr = "2.0"
 fxhash = "0.2"
 textwrap = "0.10"
 meval = "0.1"
-exprtk_rs = { version = "0.0.6", optional = true, features = [
+exprtk_rs = { version = "0.0.7", optional = true, features = [
   "comments", "break_continue", "sc_andor", "return_statement",
   "enhanced_features", "superscalar_unroll"
  ] }
