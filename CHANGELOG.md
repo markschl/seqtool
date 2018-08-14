@@ -1,4 +1,4 @@
-## v0.2.4
+## v0.3.0
 
 **Binary renamed:** The binary was renamed from `seqtool` to `st`, because
 typing the rather long name repeatedly can be tiring (-: The documentation
@@ -12,7 +12,7 @@ was updated accordingly
   - Support for converting between FASTQ format variants
   - The `exp_err` statistics variable, which represents the total number of expected
     errors in a sequence, according to the quality scores. This allows filtering
-    by sequence quality, like `fastq_filter` from USEARCH and VSEARCH
+    by sequence quality as done by `fastq_filter` from USEARCH and VSEARCH
   - 454-style QUAL files can be read an written
 
 * `--format` renamed to `--fmt`, and `--outformat` renamed to `--to`
