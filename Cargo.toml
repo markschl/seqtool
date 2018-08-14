@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 docopt = "1.0"
 bio = "0.22"
-seq_io = "0.2.5"
+seq_io = "0.2.6"
 thread_io = { version="0.1", path="src/thread_io" }
 crossbeam = "0.4"
 lazy_static = "1.1"
