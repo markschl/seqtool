@@ -1,23 +1,27 @@
-**st** is a  fast and flexible command line program for dealing with
-large amounts of biological sequences. It can read and write
-**FASTA**, **FASTQ** and **CSV** files and handles different common
-compression formats (GZIP, BZIP2), but also supports newer/faster compression
-algorithms ([LZ4](http://lz4.github.io/lz4) and
-[Zstandard](http://facebook.github.io/zstd)) out of the box.
-
-
+**Seqtool** is a  fast and flexible command line program for dealing with
+large amounts of biological sequences. It can read and write the
+**FASTA**, **FASTQ** and **QUAL** files, as well as **CSV** and other delimited files. It also handles different common compression formats out of the box.
 The tool is written in [Rust](https://www.rust-lang.org) and aims at solving
 simple tasks that might otherwise only be solved by writing
-custom scripts while being very fast. This is possible with the use of
-[variables and mathematical expressions](https://github.com/markschl/seqtool/wiki/variables).
-In contrast to [biopieces](https://github.com/maasha/biopieces),
-no custom format is used for passing information between commands.
-Instead, it is possible to use '[attributes](https://github.com/markschl/seqtool/wiki/attributes)', which are
-key=value strings added to the sequence headers, or custom CSV fields.
+custom scripts while being very fast. It uses
+[seq_io](https://github.com/markschl/seq_io) and
+[Rust-Bio](http://rust-bio.github.io/), amongst others,
+and compiles to a standalone binary named `st`. [See below](#installing) for
+instructions.
 
-It uses the [Rust-Bio](http://rust-bio.github.io/) and
-[seq_io](https://github.com/markschl/seq_io) libraries, amongst others
-and compiles to a standalone binary.
+
+**Features:**
+
+* [Format conversion](https://github.com/markschl/seqtool/wiki/pass), including different FASTQ variants.
+  File extensions are auto-recognized if possible
+* Many commands for summarizing, viewing, searching, shuffling
+  and modifying sequences
+* [Variables](https://github.com/markschl/seqtool/wiki/variables) are accepted by many commands, allowing
+  to integrate sequence statistics, metadata from
+  [sequence headers](https://github.com/markschl/seqtool/wiki/attributes) and from [other files](https://github.com/markschl/seqtool/wiki/lists).
+* Flexible [filtering](https://github.com/markschl/seqtool/wiki/filter) using mathematical expressions which
+  can include any variable
+* Many commands can be connected using the pipe (`|`) operator.
 
 
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
@@ -34,8 +38,7 @@ The output is automatically forwarded to the 'less' pager on UNIX.
 * **[count](https://github.com/markschl/seqtool/wiki/count)**: This command counts the number of sequences and prints the number to STDOUT. Advanced
 grouping of sequences is possible by supplying or more key strings containing
 variables (-k).
-* **[stat](https://github.com/markschl/seqtool/wiki/stat)**: Returns per sequence statistics as tab delimited list. All statistical variables
-(s:<variable>) can be used.
+* **[stat](https://github.com/markschl/seqtool/wiki/stat)**: Invalid arguments.
 
 ### Subsetting/shuffling sequences
 * **[head](https://github.com/markschl/seqtool/wiki/head)**: Returns the first sequences of the input.
@@ -68,6 +71,7 @@ masking). Reverting soft masking is also possible.
 their order is just reversed.
 * **[concat](https://github.com/markschl/seqtool/wiki/concat)**: Concatenates sequences/alignments from different files in the order
 in which they are provided. Fails if the IDs don't match.
+
 ## Installing
 
 Binaries for Linux, Mac OS X and Windows can be

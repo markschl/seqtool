@@ -62,7 +62,7 @@ Coloring:
                         low to high [default: blue-red] (available: blue-red).
     --qmax <value>      Upper limit of Phred score visualization (-q)
                         [default: 42]
-    --textcols <c>      Text colors if there is background coloring.
+    --textcols <c>      Text colors used with background coloring.
                         Specify as: <dark>,<bright>. Which one is used will be
                         chosen depending on the brightness of the background.
                         [default: 333333,eeeeee]

@@ -2,7 +2,7 @@
 
 cargo build --features=exprtk
 
-seqtool=target/debug/seqtool
+seqtool=target/debug/st
 wiki=../seqtool.wiki
 main=_README.md
 
@@ -59,6 +59,7 @@ for c in "${cmd[@]}"; do
   fi
 done
 
+echo >> $main
 cat doc/_desc.md >> $main
 
 # variables

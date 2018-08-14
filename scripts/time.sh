@@ -7,7 +7,7 @@ seq1=$2
 seq2=$3
 
 
-alias s=target/release/seqtool
+alias s=target/release/st
 
 # prepare
 # s . -a gc={s:gc} $f > $f.with_gc.fq
