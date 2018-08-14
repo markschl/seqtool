@@ -44,7 +44,7 @@ for c in "${cmd[@]}"; do
 
   desc_f=doc/$c.md
   if [ -f $desc_f ]; then
-    toc=`grep '^### ' $desc_f | sed -E 's/^### (.*)/* [\1]\t#\1/g' | awk -F$'\t' '{ rep=gsub(" ", "-", $2); print sprintf("%s(%s)", $1, $2) }'`
+    toc=`grep '^### ' $desc_f | sed -E 's/^### (.*)/* [\1]   #\1/g' | awk -F'   ' '{ gsub(" ", "-", $2); rep=gsub("[()]", "", $2); print sprintf("%s(%s)", $1, tolower($2)) }'`
     if [ `printf "$toc" | wc -l` -gt 1 ]; then
       printf "## Contents\n\n$toc\n\n" >> $out
     fi
