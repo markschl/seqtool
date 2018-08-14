@@ -21,7 +21,16 @@ pub struct Args(docopt::ArgvMap);
 
 impl Args {
     pub fn new(usage: &str) -> Result<Args, docopt::Error> {
-        let d = docopt::Docopt::new(usage)?.help(true).parse()?;
+        // work around https://github.com/docopt/docopt.rs/issues/240
+        let mut argv: Vec<_> = ::std::env::args().collect();
+        if argv.len() > 1 && argv[1].starts_with("st") {
+            argv[1] = argv[1][2..].to_string();
+        }
+        
+        let d = docopt::Docopt::new(usage)?
+            .argv(argv)
+            .help(true)
+            .parse()?;
 
         Ok(Args(d))
     }

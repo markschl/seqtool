@@ -72,9 +72,17 @@ mod test;
 extern crate assert_cli;
 
 fn main() {
+
+    // work around https://github.com/docopt/docopt.rs/issues/240
+    let mut argv: Vec<_> = ::std::env::args().collect();
+    if argv.len() > 1 && argv[1].starts_with("st") {
+        argv[1] = argv[1][2..].to_string();
+    }
+
     let args = docopt::Docopt::new(help::USAGE)
         .and_then(|d| {
             d.version(Some(lib::util::version()))
+                .argv(argv)
                 .options_first(true)
                 .help(false)
                 .parse()
@@ -120,7 +128,7 @@ fn run_cmd(cmd: &str) -> CliResult<()> {
         #[cfg(feature = "exprtk")]
         "filter" => cmd::filter::run(),
         "count" => cmd::count::run(),
-        "stat" => cmd::stat::run(),
+        "at" => cmd::stat::run(),
         "upper" => cmd::upper::run(),
         "lower" => cmd::lower::run(),
         "mask" => cmd::mask::run(),
