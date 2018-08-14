@@ -9,7 +9,7 @@ main() {
         return
     fi
 
-    cross test --features=exprtk --target $TARGET
+    RUST_BACKTRACE=1 cross test --features=exprtk --target $TARGET
     cross run --features=exprtk --target $TARGET
 }
 
