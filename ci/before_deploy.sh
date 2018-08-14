@@ -17,10 +17,10 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
-    cross rustc --bin seqtool --target $TARGET --release --features=exprtk -- -C lto -C panic=abort
-    strip target/$TARGET/release/seqtool
+    cross rustc --bin st --target $TARGET --release --features=exprtk -- -C lto -C panic=abort
+    strip target/$TARGET/release/st
 
-    cp target/$TARGET/release/seqtool $stage/
+    cp target/$TARGET/release/st $stage/
 
     cd $stage
     tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$TARGET.tar.gz *
