@@ -30,33 +30,43 @@ for c in "${cmd[@]}"; do
   fi
 
   out=$wiki/$c.md
+  echo -n > $out
+
   opts=$($seqtool "$c" -h 2>&1 | sed -n '/Input options/q;p')
   desc=$(echo "$opts" | sed -n '/Usage:/q;p')
-  usage=$(echo "$opts" | sed '/Usage:/,$!d' | sed 's/\[-p <prop>\.\.\.\] *\[-l <list>\.\.\.\]//g')
-  printf "$desc\n\n" > $out
-  printf "\`\`\`\n$usage\n\`\`\`\n\n" >> $out
-  printf "[See this page](opts) for the options common to all commands.\n\n" >> $out
 
-  # add to overview
+  # add command to overview
   echo "* **[$c](wiki/$c)**: $desc" >> $main
 
-  # add custom descriptions
-
+  # add custom help content if file exists in doc dir
   desc_f=doc/$c.md
   if [ -f $desc_f ]; then
-    toc=`grep '^### ' $desc_f | sed -E 's/^### (.*)/* [\1]   #\1/g' | awk -F'   ' '{ gsub(" ", "-", $2); rep=gsub("[()]", "", $2); print sprintf("%s(%s)", $1, tolower($2)) }'`
-    if [ `printf "$toc" | wc -l` -gt 1 ]; then
-      printf "## Contents\n\n$toc\n\n" >> $out
-    fi
     echo "## Description" >> $out
     cat $desc_f >> $out
   fi
 
-  # variable help
+  # add variable help if present
   vars=$($seqtool $c --help-vars 2>&1 | sed -n '/Standard variables/q;p' )
   if [ ! -z "$vars" -a "$vars" != " "  ] && [[ "$vars" != Invalid* ]]; then
     printf "\n\n### Provided variables\n\`\`\`\n$vars\n\`\`\`\n\n" >> $out
   fi
+
+  # prepend table of contents if there are H3 headings
+  toc=`grep '^### ' $out |
+    sed -E 's/^### (.*)/* [\1]   #\1/g' |
+    awk -F'   ' '{ gsub(" ", "-", $2); rep=gsub("[()]", "", $2); print sprintf("%s(%s)", $1, tolower($2)) }'`
+
+  if [ `printf "$toc" | wc -l` -gt 1 ]; then
+    printf "## Contents\n\n$toc\n\n" | cat - $out > tmp_out
+    mv tmp_out $out
+  fi
+
+  # prepend usage info
+  usage=$(echo "$opts" | sed '/Usage:/,$!d' | sed 's/\[-p <prop>\.\.\.\] *\[-l <list>\.\.\.\]//g')
+  printf "$desc\n\n\`\`\`\n$usage\n\`\`\`\n\n[See this page](opts) for the options common to all commands.\n\n" |
+    cat - $out > tmp_out
+    mv tmp_out $out
+
 done
 
 echo >> $main

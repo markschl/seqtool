@@ -21,7 +21,11 @@ instructions.
   and enable a flexible configuration of commands
 * [Filtering](wiki/filter) of sequences using mathematical expressions containing
   variables
+* Passing metadata of FASTA/FASTQ sequences between commands is made easy by
+  the ability to write and parse [sequence attributes](wiki/attributes), which
+  are key=value annotations in the sequence headers.
 * Commands can be connected using the pipe (`|`) operator.
+
 
 
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)

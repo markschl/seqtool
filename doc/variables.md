@@ -15,8 +15,8 @@ The variables can be categorized into different categories. Aside from
 variable name with a colon (`<prefix>:<varible>`). Categories:
 
 * 'Basic' variables (id, desc, num, filename, ...): no prefix
-* [attributes](attributes): `a:<name>`
-* Data from [associated lists](lists): `l:<fieldname>` or `l:<column_index>`
+* Sequence [attributes](attributes) in the form 'key=value': `a:<key>`
+* Metadata from [associated lists](lists): `l:<fieldname>` or `l:<column_index>`
 * Sequence statistics: `s:<name>` (also available in dedicated [stat](stat) command)
 * Variables provided by commands, currently: [find](find) (`f:`) and
   [split](split) (`split:`)
@@ -29,7 +29,7 @@ See [below](#variables-available-to-all-commands) for a full list of all availab
 **Note**  that the variable is written inbetween curly brackets: `{<a:otu>}`.
 This is also required when using them in [attributes](#attributes).
 
-### Writing to output
+## Writing to output
 
 Variables provided by commands (and all others) can be written to the output
 in two ways: [attributes](attributes) and [CSV/TXT output](pass).

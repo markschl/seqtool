@@ -21,7 +21,11 @@ instructions.
   and enable a flexible configuration of commands
 * [Filtering](https://github.com/markschl/seqtool/wiki/filter) of sequences using mathematical expressions containing
   variables
+* Passing metadata of FASTA/FASTQ sequences between commands is made easy by
+  the ability to write and parse [sequence attributes](https://github.com/markschl/seqtool/wiki/attributes), which
+  are key=value annotations in the sequence headers.
 * Commands can be connected using the pipe (`|`) operator.
+
 
 
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
@@ -104,7 +108,7 @@ containing 1.73 million Illumina reads of 150-500 bp length was used. They were
 run on a Mac Pro (Mid 2010, 2.8 GHz Quad-Core Intel Xeon, OS X 10.9)
 ([script](https://github.com/markschl/seqtool/blob/master/scripts/time.sh)).
 
-|      | st | [4 threads] | [seqtk](https://github.com/lh3/seqtk) | [seqkit](https://github.com/shenwei356/seqkit/) | [FASTX](https://github.com/agordon/fastx_toolkit) | [biopieces](http://maasha.github.io/biopieces/) |
+|      | seqtool | [4 threads] | [seqtk](https://github.com/lh3/seqtk) | [seqkit](https://github.com/shenwei356/seqkit/) | [FASTX](https://github.com/agordon/fastx_toolkit) | [biopieces](http://maasha.github.io/biopieces/) |
 |-----------------------------------------|-------|-----------|--------|--------|------------|-----------|
 | Simple [counting](https://github.com/markschl/seqtool/wiki/count)           | 0.62s |           |        |        |            | 46.99s    |
 | [Conversion](https://github.com/markschl/seqtool/wiki/pass) to FASTA       | 1.20s  |           | 2.85s | 4.93s | 3min 38.4s | 3min 37.8s  |
