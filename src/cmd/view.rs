@@ -79,11 +79,11 @@ lazy_static! {
         "polarity" => // similar as Geneious
             "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff",
         "dna" =>
-            "A:ce0000:,C:0000ce,G:ffde00,TU:00bb00,RYSWKMBDHVN:8f8f8f",
+            "A:ce0000,C:0000ce,G:ffde00,TU:00bb00,RYSWKMBDHVN:8f8f8f",
         "dna-bright" =>
-            "A:ff3333:,C:3333ff,G:ffe747,TU:00db00,RYSWKMBDHVN:b8b8b8",
+            "A:ff3333,C:3333ff,G:ffe747,TU:00db00,RYSWKMBDHVN:b8b8b8",
         "dna-dark" =>
-            "A:940000:,C:00008f,G:9e8900,TU:006b00,RYSWKMBDHVN:8f8f8f",
+            "A:940000,C:00008f,G:9e8900,TU:006b00,RYSWKMBDHVN:8f8f8f",
         "pur-pyrimid" =>
             "AGR:e4cff,CTUY:25bdff",
         "gc-at" =>
