@@ -44,7 +44,7 @@ However, the provided binaries include this feature by default.
 ### Quality filtering
 
 The `exp_err` statistics variable represents the total expected number of errors
-in a sequence, as provided by the quality scores. [See here](pass.html#quality-scores)
+in a sequence, as provided by the quality scores. [See here](pass#quality-scores)
 for more information on reading them.
 
 This example removes sequences with less than one expected error. The

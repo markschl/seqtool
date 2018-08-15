@@ -16,12 +16,12 @@ instructions.
   File extensions are auto-recognized if possible
 * Many commands for summarizing, viewing, searching, shuffling
   and modifying sequences
-* [Variables](wiki/variables) are accepted by many commands, allowing
-  to integrate sequence statistics, metadata from
-  [sequence headers](wiki/attributes) and from [other files](wiki/lists).
-* Flexible [filtering](wiki/filter) using mathematical expressions which
-  can include any variable
-* Many commands can be connected using the pipe (`|`) operator.
+* [Variables](wiki/variables) allow to integrate sequence properties, metadata
+  from [sequence headers](wiki/attributes) and from [other files](wiki/lists),
+  and enable a flexible configuration of commands
+* [Filtering](wiki/filter) of sequences using mathematical expressions containing
+  variables
+* Commands can be connected using the pipe (`|`) operator.
 
 
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)

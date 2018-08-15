@@ -2,7 +2,7 @@ Simple conversions can be done using the `pass` command, although every
 other command supports all input/output formats (except for the statistical
 commands, which don't return any sequences).
 
-#### Examples
+### Examples
 
 ```bash
 st pass input.fastq.gz -o output.fasta
@@ -33,9 +33,9 @@ The following extensions and format strings are auto-recognized:
 sequence format      | recognized extensions | format string | shortcut (in) | ..out
 -------------------- | --------------------- | ------------- | ------------- | ----------
 FASTA                |  `.fasta`,`.fa`,`.fna`,`.fsa`| `fasta`,`fa`| `--fa`        | `--to-fa`
-FASTQ                |  `.fastq`,`.fq`       | `fastq`,`fq`,`fq-illumina`,`fq-solexa`| `--fq`        | `--to-fq`
-CSV (`,` delimited)  |  `.csv`               | `csv`         | `--csv FIELDS`| `--to-csv FIELDS`
-TSV (`tab` delimited)|  `.tsv`,`.tsv`        | `tsv`         | `--tsv FIELDS`| `--to-tsv FIELDS `
+FASTQ                |  `.fastq`,`.fq`       | `fastq`,`fq`,`fq—illumina`,`fq—solexa`| `--fq`| `--to—fq`
+CSV (`,` delimited)  |  `.csv`               | `csv`         | `--csv FIELDS`| `--to—csv FIELDS`
+TSV (`tab` delimited)|  `.tsv`,`.tsv`        | `tsv`         | `--tsv FIELDS`| `--to—tsv FIELDS `
 
 **Note:** Multiline FASTA is parsed and written (`--wrap`), but only single-line
 FASTQ is parsed and written.
@@ -43,7 +43,7 @@ FASTQ is parsed and written.
 Quality scores can also be parsed from and written to 454 (Roche) style `QUAL`
 files using `--qual <file>` and `--to-qual <file>`.
 
-Compression formats (no shortcuts available, use `--[out]format`):
+Compression formats (no shortcuts available, use `--fmt <input_format>` / `--to <output_format>`):
 
 format       | recognized extensions | format string (FASTA)
 ------------ | --------------------- | ---------------------
@@ -51,6 +51,7 @@ GZIP         |  `.gzip`,`.gz`        | `fasta.gz`
 BZIP2        |  `.bzip2`,`.bz2`      | `fasta.bz2`
 LZ4          |  `.lz4`               | `fasta.lz4`
 ZSTD         |  `.zst`               | `fasta.zst`
+
 
 ### Delimited formats (CSV, TSV, ...)
 
@@ -78,13 +79,19 @@ id1	ATGC(...)	length: 231
 id2	TTGC(...)	length: 250
 ```
 
+
 ### Quality scores
 
 Quality scores can be read from several sources.
-[FASTQ](https://en.wikipedia.org/wiki/FASTQ_format) are assumed to be
+[FASTQ](https://en.wikipedia.org/wiki/FASTQ_format) files are assumed to be
 in the Sanger / Illumina 1.8+ format. Older formats (Illumina 1.3+ and Solexa)
-can be read, but must be specifically specified. The scores can be
-visualized using the [view command](view).
+can be read and written using `--fmt/--to fq-illumina` or `fq-solexa`. Automatic
+unambiguous recognition of the formats is not possible, therefore the formats have
+to be explicitly specified. Invalid characters generate an error during conversion.
+If no conversion is done (e.g. both input and output in Sanger/Illumina 1.8+ format),
+scores are not automatically checked for errors.
+
+Quality scores can be visualized using the [view command](view).
 
 The following example converts a legacy Illumina 1.3+ file to the Sanger /
 Illumina 1.8+ format:

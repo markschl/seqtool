@@ -16,12 +16,12 @@ instructions.
   File extensions are auto-recognized if possible
 * Many commands for summarizing, viewing, searching, shuffling
   and modifying sequences
-* [Variables](https://github.com/markschl/seqtool/wiki/variables) are accepted by many commands, allowing
-  to integrate sequence statistics, metadata from
-  [sequence headers](https://github.com/markschl/seqtool/wiki/attributes) and from [other files](https://github.com/markschl/seqtool/wiki/lists).
-* Flexible [filtering](https://github.com/markschl/seqtool/wiki/filter) using mathematical expressions which
-  can include any variable
-* Many commands can be connected using the pipe (`|`) operator.
+* [Variables](https://github.com/markschl/seqtool/wiki/variables) allow to integrate sequence properties, metadata
+  from [sequence headers](https://github.com/markschl/seqtool/wiki/attributes) and from [other files](https://github.com/markschl/seqtool/wiki/lists),
+  and enable a flexible configuration of commands
+* [Filtering](https://github.com/markschl/seqtool/wiki/filter) of sequences using mathematical expressions containing
+  variables
+* Commands can be connected using the pipe (`|`) operator.
 
 
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
