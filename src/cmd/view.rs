@@ -33,7 +33,7 @@ Usage:
 General command options:
     -n, --num-seqs <N>  Number of sequences to select
     -i, --id-len <N>    Length of IDs in characters. Longer IDs are truncated
-                        (default: 15 - 50 depending on ID length)
+                        (default: 10 - 100 depending on ID length)
     -d, --show-desc     Show descriptions along IDs if there is enough space.
     -f, --foreground    Color base / amino acid letters instead of background.
                         If base qualities are present, background coloration
@@ -191,7 +191,7 @@ pub fn run() -> CliResult<()> {
 
         if id_len == 0 {
             // determine ID width of first ID
-            id_len = min(50, max(15, ::std::str::from_utf8(id)?.chars().count() + 3));
+            id_len = min(100, max(10, ::std::str::from_utf8(id)?.chars().count() + 3));
         }
 
         write_id(id, desc, &mut writer, id_len, show_desc, utf8)?;
