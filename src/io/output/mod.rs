@@ -98,11 +98,18 @@ impl OutFormat {
         attrs: &[(String, String)],
         wrap_fasta: Option<usize>,
         csv_delim: Option<&str>,
-        csv_fields: &str,
+        csv_fields: Option<&str>,
         informat: Option<&InFormat>,
         qfile: Option<&str>,
     ) -> CliResult<OutFormat> {
-        let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
+        let in_fields = match informat {
+            Some(InFormat::CSV { fields, .. }) => Some(fields),
+            _ => None
+        };
+        let csv_fields: Vec<String> = csv_fields
+            .map(|f| f.split(',').map(|s| s.to_string()).collect())
+            .or(in_fields.map(|f| f.clone()))
+            .unwrap_or_else(|| vec!["id".to_string(),"desc".to_string(),"seq".to_string()]);
 
         let mut format = match string {
             "fasta" | "fna" | "fa" | "<FASTA/QUAL>" => OutFormat::FASTA {

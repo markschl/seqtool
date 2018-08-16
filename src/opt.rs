@@ -84,7 +84,7 @@ impl Args {
         delim = self.opt_str("--delim").or(delim);
         let fields = fields
             .or(var_fields.as_ref().map(String::as_str))
-            .unwrap_or_else(|| self.0.get_str("--fields"));
+            .or(self.opt_str("--fields"));
         let header = self.0.get_bool("--header");
         let qfile = self.opt_str("--qual");
         let cap = parse_bytesize(self.get_str("--buf-cap"))?.floor() as usize;
@@ -171,7 +171,7 @@ impl Args {
         let attrs = self.parse_attrs()?;
         let wrap_fasta = wrap_fasta;
         let csv_delim = self.opt_str("--out-delim").or(delim);
-        let csv_fields = fields.unwrap_or_else(|| self.0.get_str("--outfields"));
+        let csv_fields = fields.or(self.opt_str("--outfields"));
         let thread_bufsize = self
             .opt_str("--write-tbufsize")
             .map_res(|s| parse_bytesize(s))?

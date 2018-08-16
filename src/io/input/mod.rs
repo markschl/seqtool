@@ -82,11 +82,14 @@ impl InFormat {
     pub fn from_opts(
         string: &str,
         csv_delim: Option<&str>,
-        csv_fields: &str,
+        csv_fields: Option<&str>,
         header: bool,
         qfile: Option<&str>,
     ) -> CliResult<InFormat> {
-        let csv_fields = csv_fields.split(',').map(|s| s.to_string()).collect();
+        let csv_fields = csv_fields
+            .unwrap_or("id,desc,seq")
+            .split(',')
+            .map(|s| s.to_string()).collect();
 
         let format = match string {
             "fasta" | "fa" | "fna" | "<FASTA/QUAL>" => InFormat::FASTA,

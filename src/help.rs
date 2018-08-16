@@ -24,7 +24,8 @@ Output options:
                         if not guessed from the extension (default: input format).
     --wrap <width>      Wrap FASTA sequences to maximum <width> characters
     --out-delim <d>     TSV/CSV delimiter. Defaults: '\t' for tsv/txt; ',' for csv
-    --outfields <f>     TSV/CSV fields (variables allowed). [default: id,seq,desc]
+    --outfields <f>     TSV/CSV fields (variables allowed). (default: input fields
+                        or 'id,seq,desc')
     --to-fa             FASTA output. Short for: '--to fasta'
     --to-fq             FASTQ output. Short for: '--to fastq'
     --to-csv <fields>   CSV output. Short for '--to csv --outfields <f>'
