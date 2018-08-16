@@ -403,7 +403,9 @@ impl VarStore {
     }
 
     fn var_validated(&mut self, key: &(Option<String>, String), flag: bool) {
-        self.vars.get_mut(key).map(|i| i.1 = flag);
+        if let Some(i) = self.vars.get_mut(key) {
+            i.1 = flag;
+        }
     }
 
     fn get_new_vars(&self) -> Vec<((Option<String>, String), usize)> {

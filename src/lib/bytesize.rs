@@ -33,13 +33,13 @@ mod tests {
 
     #[test]
     fn test_bytesize() {
-        assert_eq!(parse_bytesize("1.").unwrap(), 1.);
-        assert_eq!(parse_bytesize(" 1 B").unwrap(), 1.);
-        assert_eq!(parse_bytesize(" 100K ").unwrap(), 100. * 1024.);
-        assert_eq!(parse_bytesize("2.3M").unwrap(), 2.3 * 1024. * 1024.);
-        assert_eq!(parse_bytesize("2.3M").unwrap(), 2.3 * 1024. * 1024.);
-        assert_eq!(parse_bytesize("9 g").unwrap(), 9. * 1024. * 1024. * 1024.);
-        assert_eq!(
+        assert_relative_eq!(parse_bytesize("1.").unwrap(), 1.);
+        assert_relative_eq!(parse_bytesize(" 1 B").unwrap(), 1.);
+        assert_relative_eq!(parse_bytesize(" 100K ").unwrap(), 100. * 1024.);
+        assert_relative_eq!(parse_bytesize("2.3M").unwrap(), 2.3 * 1024. * 1024.);
+        assert_relative_eq!(parse_bytesize("2.3M").unwrap(), 2.3 * 1024. * 1024.);
+        assert_relative_eq!(parse_bytesize("9 g").unwrap(), 9. * 1024. * 1024. * 1024.);
+        assert_relative_eq!(
             parse_bytesize("1T").unwrap(),
             1. * 1024. * 1024. * 1024. * 1024.
         );

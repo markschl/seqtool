@@ -158,7 +158,7 @@ impl Tester {
             .stdout(Stdio::piped())
             .spawn()
             .expect("could not run 1");
-        p1.stdin.unwrap().write(input.as_bytes()).expect("write error");
+        p1.stdin.unwrap().write_all(input.as_bytes()).expect("write error");
 
         let p2 = Command::new(&self.bin)
             .args(args2)

@@ -194,7 +194,7 @@ where
         // read in different thread
         let thread_bufsize = o
             .thread_bufsize
-            .unwrap_or(o.compression.best_read_bufsize());
+            .unwrap_or_else(|| o.compression.best_read_bufsize());
         thread_io::read::reader(thread_bufsize, 2, rdr, |r| func(Box::new(r)))
     } else {
         func(rdr)

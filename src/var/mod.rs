@@ -114,7 +114,8 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
 
     vars.add_module(modules::stats::StatVars::new());
 
-    vars.add_module(modules::attr::AttrVars::new(o.allow_missing));
+    // TODO: allow_missing may not be used at all, a separate option may not make sense
+    vars.add_module(modules::attr::AttrVars::new(true));
 
     vars.add_module(expr_module::ExprVars::new()?);
 

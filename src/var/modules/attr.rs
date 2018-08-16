@@ -82,7 +82,7 @@ impl VarProvider for AttrVars {
                     data.symbols.set_text(id, value);
                 }
                 None => {
-                    if false && !self.allow_missing {
+                    if !self.allow_missing {
                         return fail!(format!(
                             "Attribute '{}' not found in record '{}'",
                             name,

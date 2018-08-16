@@ -108,7 +108,10 @@ pub fn run() -> CliResult<()> {
     // file handles from Config::other_writer() have to be finished
     for (_, f) in outfiles {
         f.into_inner()
-            .map_res(|w| Ok::<_, CliError>(w?.finish()?.flush()?))?;
+            .map_res(|w| {
+                w?.finish()?.flush()?;
+                Ok::<_, CliError>(())
+            })?;
     }
     Ok(())
 }

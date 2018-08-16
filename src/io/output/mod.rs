@@ -108,7 +108,7 @@ impl OutFormat {
         };
         let csv_fields: Vec<String> = csv_fields
             .map(|f| f.split(',').map(|s| s.to_string()).collect())
-            .or(in_fields.map(|f| f.clone()))
+            .or_else(|| in_fields.cloned())
             .unwrap_or_else(|| vec!["id".to_string(),"desc".to_string(),"seq".to_string()]);
 
         let mut format = match string {
@@ -224,7 +224,7 @@ impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
     }
 }
 
-pub fn writer<'a, 'b, F, O>(o: &OutputOptions, func: F) -> CliResult<O>
+pub fn writer<F, O>(o: &OutputOptions, func: F) -> CliResult<O>
 where
     F: FnOnce(&mut Writer<&mut io::Write>) -> CliResult<O>,
 {
@@ -241,7 +241,7 @@ where
     if o.compression != Compression::None || o.threaded {
         let thread_bufsize = o
             .thread_bufsize
-            .unwrap_or(o.compression.best_write_bufsize());
+            .unwrap_or_else(|| o.compression.best_write_bufsize());
 
         thread_io::write::writer_init_finish(
             thread_bufsize,
@@ -312,7 +312,7 @@ pub fn compr_writer(
     Ok(match compression {
         Compression::GZIP => Box::new(flate2::write::GzEncoder::new(
             writer,
-            flate2::Compression::new(level.unwrap_or(6) as u32),
+            flate2::Compression::new(u32::from(level.unwrap_or(6))),
         )),
         Compression::BZIP2 => {
             let c = match level {
@@ -324,7 +324,7 @@ pub fn compr_writer(
             Box::new(bzip2::write::BzEncoder::new(writer, c))
         }
         Compression::LZ4 => Box::new(lz4::EncoderBuilder::new().build(writer)?),
-        Compression::ZSTD => Box::new(zstd::Encoder::new(writer, level.unwrap_or(0) as i32)?),
+        Compression::ZSTD => Box::new(zstd::Encoder::new(writer, i32::from(level.unwrap_or(0)))?),
         Compression::None => writer,
     })
 }

@@ -19,8 +19,8 @@ fn split_n() {
 
             for (i, seqs) in SEQS.iter().chunks(size).into_iter().enumerate() {
                 let p = tmp_dir.path().join(format!("f_{}.fasta", i + 1));
-                let mut reader =
-                    fasta::Reader::from_path(&p).expect(&format!("file {:?} not found", p));
+                let mut reader = fasta::Reader::from_path(&p)
+                        .unwrap_or_else(|_| panic!(format!("file {:?} not found", p)));
                 for seq in seqs {
                     let rec = reader.next().expect("Not enough records").unwrap();
                     assert_eq!(
@@ -54,7 +54,8 @@ fn split_key() {
         for (i, k) in expected.iter().enumerate() {
             let p = subdir.join(format!("{}.fa", k));
             let mut reader =
-                fasta::Reader::from_path(&p).expect(&format!("file {:?} not found", p));
+                fasta::Reader::from_path(&p)
+                    .unwrap_or_else(|_| panic!(format!("file {:?} not found", p)));
             let rec = reader.next().unwrap().unwrap().to_owned_record();
             assert_eq!(
                 &format!(

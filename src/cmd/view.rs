@@ -127,7 +127,7 @@ pub fn run() -> CliResult<()> {
 
     #[cfg(target_family = "unix")]
     #[allow(unused_variables)]
-    let pager = setup_pager(
+    setup_pager(
         args.opt_str("--pager"),
         args.get_bool("--break"),
         args.get_bool("--no-pager"),
@@ -155,12 +155,10 @@ pub fn run() -> CliResult<()> {
                 writer = writer.dna_pal("dna-bright");
             }
         }
+    } else if foreground {
+        writer.set(ColorSource::Symbol, ColorMode::Fg);
     } else {
-        if foreground {
-            writer.set(ColorSource::Symbol, ColorMode::Fg);
-        } else {
-            writer.set(ColorSource::Symbol, ColorMode::Bg);
-        }
+        writer.set(ColorSource::Symbol, ColorMode::Bg);
     }
 
     // terminal encoding
@@ -321,7 +319,7 @@ impl Color {
 
     fn to_palette_col(&self) -> palette::LinSrgb {
         let c = &self.rgb;
-        palette::LinSrgb::new(c.0 as f32, c.1 as f32, c.2 as f32)
+        palette::LinSrgb::new(f32::from(c.0), f32::from(c.1), f32::from(c.2))
     }
 }
 
@@ -421,10 +419,11 @@ impl ColorWriter {
 
             *store_to = match *source {
                 ColorSource::Qual { qmax } => {
+                    let qscale = &self.qual_scale;
                     let scale = PALETTES
-                        .get(self.qual_scale.trim())
+                        .get(qscale.trim())
                         .map(|p| *p)
-                        .unwrap_or(self.qual_scale.as_str());
+                        .unwrap_or_else(|| qscale);
                     Some((load_phred_colors(scale, qmax)?, true))
                 }
                 ColorSource::Symbol => {
@@ -437,7 +436,7 @@ impl ColorWriter {
                         }
                     }
                     palette.map_res(|pal| {
-                        let pal = PALETTES.get(pal.trim()).map(|p| *p).unwrap_or(pal.as_str());
+                        let pal = PALETTES.get(pal.trim()).map(|p| *p).unwrap_or_else(|| pal.as_str());
                         Ok::<_, String>((parse_colormap(pal)?, false))
                     })?
                 }
@@ -633,7 +632,7 @@ fn find_nearest_col256(col: Rgb) -> u8 {
 
     let mut dists = vec![];
 
-    let c = palette::LinSrgb::new(col.0 as f32, col.1 as f32, col.2 as f32);
+    let c = palette::LinSrgb::new(f32::from(col.0), f32::from(col.1), f32::from(col.2));
 
     // nearest possible ANSI 256 colors
     let possible = [

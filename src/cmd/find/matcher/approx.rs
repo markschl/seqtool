@@ -28,7 +28,7 @@ impl MyersMatcher {
             let variants = pattern.into_iter().map(|b| {
                 t.get(b)
                     .map(|v| v.as_slice())
-                    .unwrap_or(ref_slice::ref_slice(b))
+                    .unwrap_or_else(|| ref_slice::ref_slice(b))
                     .iter()
                     .cloned()
             });
@@ -57,18 +57,18 @@ impl Matcher for MyersMatcher {
 
             let iter = by_start
                 .into_iter()
-                .map(|(_, mut it)| {
+                .map(|(_, it)| {
                     let mut out = None;
                     let mut best_dist = ::std::u8::MAX;
-                    while let Some(m) = it.next() {
+                    for m in it {
                         if (m.2) < best_dist {
                             best_dist = m.2;
-                            out = Some(m.clone());
+                            out = Some(m);
                         }
                     }
                     out.unwrap()
                 })
-                .map(|(start, end, dist)| Match::new(start, end, dist as u16, 0, 0, 0));
+                .map(|(start, end, dist)| Match::new(start, end, u16::from(dist), 0, 0, 0));
 
             opt_sorted(
                 iter,
@@ -84,7 +84,7 @@ impl Matcher for MyersMatcher {
             let iter = self
                 .myers
                 .find_all_end(text, self.max_dist)
-                .map(|(end, dist)| Match::new(0, end + 1, dist as u16, 0, 0, 0));
+                .map(|(end, dist)| Match::new(0, end + 1, u16::from(dist), 0, 0, 0));
 
             opt_sorted(
                 iter,

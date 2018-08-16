@@ -13,7 +13,7 @@ pub enum SeqType {
 }
 
 // For exclusing certain characters when running recognition
-fn filter_iter<'a>(text: &'a [u8]) -> impl Iterator<Item = &'a u8> {
+fn filter_iter(text: &[u8]) -> impl Iterator<Item = &u8> {
     text.into_iter().filter(|&s| match s {
         b'-' | b'.' | b'?' | b' ' => false,
         _ => true,

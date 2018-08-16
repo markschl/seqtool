@@ -1,12 +1,3 @@
-/*!
-
-*/
-
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
-
-//#![feature(alloc_system)] extern crate alloc_system;
-
 // used everywhere
 extern crate bio;
 extern crate csv;
@@ -70,6 +61,8 @@ mod var;
 mod test;
 #[cfg(test)]
 extern crate assert_cli;
+#[macro_use]
+extern crate approx;
 
 fn main() {
 
