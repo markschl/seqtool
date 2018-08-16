@@ -14,7 +14,8 @@ fn convert() {
         .cmp(&[".", "--tsv", "id,seq"], txt, txt)
         .cmp(&[".", "--tsv", "id,seq", "--to", "tsv"], txt, txt)
         .cmp(&[".", "--tsv", "id,seq", "--to", "csv"], txt, "seq,ATGC\n")
-        .cmp(&[".", "--to", "tsv"], fa, txt)
+        // no input fields -> fall back to id,desc,seq
+        .cmp(&[".", "--to", "tsv"], fa, "seq\t\tATGC\n")
         .cmp(&[".", "--to-tsv", "id,seq"], fa, txt)
         .cmp(&[".", "--fq", "--to-fa"], fq, fa)
         .cmp(&[".", "--tsv", "id,seq", "--to-fa"], txt, fa)
@@ -27,7 +28,7 @@ fn convert() {
 }
 
 #[test]
-fn txt_input() {
+fn var_format() {
     let fa = ">seq\nATGC\n";
     let fq = "@seq\nATGC\n+\nXXXX\n";
     let tsv = "seq\tATGC\n";
@@ -38,11 +39,11 @@ fn txt_input() {
     t.var("ST_FORMAT", "fastq").cmp(&["."], fq, fq);
     t.var("ST_FORMAT", "tsv:id,seq").cmp(&["."], tsv, tsv);
     t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-fa"], fq, fa);
-    t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-tsv", "id,seq"], fa, tsv);
+    t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-tsv", "id,seq"], fq, tsv);
 }
 
 #[test]
-fn format_var() {
+fn txt_input() {
     let txt = "seq1\tATGC\tdesc1\nseq2\tATGC\tdesc2\n";
     let csv = txt.replace('\t', ",");
     let txt_header = format!("i\ts\td\n{}", txt);
