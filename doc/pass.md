@@ -79,6 +79,36 @@ id1	ATGC(...)	length: 231
 id2	TTGC(...)	length: 250
 ```
 
+### Setting default via environment variable
+
+The `ST_FORMAT` environment variable can be used to set a default format other
+than FASTA. This is especially useful if connecting many commands via pipe,
+saving the need to specify `--fq` / `--tsv <fields>` / ... repeatedly. Example:
+
+```bash
+export ST_FORMAT=fastq
+
+st trim ..10 input.fastq | st revcomp > trimmed_revcomp.fastq
+```
+
+For delimited files (CSV or TSV), the input fields can be configured
+additionally after a colon (':'):
+
+```bash
+export ST_FORMAT=tsv:id,seq
+
+## Input file:
+# id1 ACGT...
+# id2 ACGT...
+# ...
+
+st trim ..4 input.txt | st revcomp > trimmed_revcomp.txt
+
+## Output:
+# id1 ACGT...
+# id2 ACGT...
+#...
+```
 
 ### Quality scores
 

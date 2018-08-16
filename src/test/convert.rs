@@ -24,6 +24,21 @@ fn convert() {
 
 #[test]
 fn txt_input() {
+    let fa = ">seq\nATGC\n";
+    let fq = "@seq\nATGC\n+\nXXXX\n";
+    let tsv = "seq\tATGC\n";
+
+    let mut t = Tester::new();
+
+    t.var("ST_FORMAT", "fasta").cmp(&["."], fa, fa);
+    t.var("ST_FORMAT", "fastq").cmp(&["."], fq, fq);
+    t.var("ST_FORMAT", "tsv:id,seq").cmp(&["."], tsv, tsv);
+    t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-fa"], fq, fa);
+    t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-tsv", "id,seq"], fa, tsv);
+}
+
+#[test]
+fn format_var() {
     let txt = "seq1\tATGC\tdesc1\nseq2\tATGC\tdesc2\n";
     let csv = txt.replace('\t', ",");
     let txt_header = format!("i\ts\td\n{}", txt);

@@ -26,7 +26,7 @@ impl Args {
         if argv.len() > 1 && argv[1].starts_with("st") {
             argv[1] = argv[1][2..].to_string();
         }
-        
+
         let d = docopt::Docopt::new(usage)?
             .argv(argv)
             .help(true)
@@ -53,6 +53,16 @@ impl Args {
             paths.push("-");
         }
 
+        let (var_fmt, var_fields) = if let Ok(v) = env::var("ST_FORMAT") {
+            let s: Vec<_> = v.split(':').collect();
+            (
+                Some(s[0].trim().to_string()),
+                if s.len() == 1 { None } else { Some(s[1].trim().to_string()) }
+            )
+        } else {
+            (None, None)
+        };
+
         let (mut fmt, mut delim, fields) = if self.0.get_bool("--fa") {
             (Some("fasta"), None, None)
         } else if self.0.get_bool("--fq") {
@@ -67,9 +77,14 @@ impl Args {
             (None, None, None)
         };
 
-        fmt = self.opt_str("--fmt").or(fmt);
+        fmt = self.opt_str("--fmt")
+            .or(fmt)
+            .or(var_fmt.as_ref().map(String::as_str));
+
         delim = self.opt_str("--delim").or(delim);
-        let fields = fields.unwrap_or_else(|| self.0.get_str("--fields"));
+        let fields = fields
+            .or(var_fields.as_ref().map(String::as_str))
+            .unwrap_or_else(|| self.0.get_str("--fields"));
         let header = self.0.get_bool("--header");
         let qfile = self.opt_str("--qual");
         let cap = parse_bytesize(self.get_str("--buf-cap"))?.floor() as usize;

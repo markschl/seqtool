@@ -11,6 +11,8 @@ use std::iter::repeat;
 use std::fs::File;
 use std::convert::AsRef;
 use std::path::PathBuf;
+use std::collections::HashMap;
+
 use assert_cli::Assert;
 
 
@@ -45,7 +47,8 @@ impl Input for MultiFileInput {
 
 struct Tester {
     root: PathBuf,
-    bin: PathBuf
+    bin: PathBuf,
+    vars: HashMap<String, String>,
 }
 
 impl Tester {
@@ -69,6 +72,7 @@ impl Tester {
         Tester {
             bin: root.join(name),
             root: root,
+            vars: HashMap::new(),
         }
     }
 
@@ -109,9 +113,19 @@ impl Tester {
         })
     }
 
+    fn var(&mut self, key: &str, value: &str) -> &mut Self {
+        self.vars.insert(key.to_string(), value.to_string());
+        self
+    }
+
     fn cmd<I: Input>(&self, args: &[&str], input: I) -> Assert {
+        let mut env = assert_cli::Environment::empty();
+        for (ref k, ref v) in &self.vars {
+            env = env.insert(k, v);
+        }
         let a = Assert::command(&[self.bin.to_str().unwrap()])
-            .with_args(args);
+            .with_args(args)
+            .with_env(env);
         input.set(a)
     }
 
