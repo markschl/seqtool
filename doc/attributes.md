@@ -80,7 +80,7 @@ st . --to-txt id,a:size --adelim ";" clusters.fa
 
 # equivalent to:
 
-st_ATTR_DELIM=";"
+ST_ATTR_DELIM=";"
 st . --to-txt id,a:size clusters.fa
 ```
 
