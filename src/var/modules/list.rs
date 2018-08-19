@@ -57,15 +57,7 @@ where
     R: io::Read,
     H: IdFinder<R>,
 {
-    pub fn new(
-        num: usize,
-        reader: R,
-        handler: H,
-        id_col: usize,
-        delim: u8,
-        has_header: bool,
-        allow_missing: bool,
-    ) -> ListVars<R, H> {
+    pub fn new(num: usize, reader: R, handler: H, delim: u8) -> ListVars<R, H> {
         let r = ReaderBuilder::new()
             .delimiter(delim)
             .has_headers(false)
@@ -81,12 +73,27 @@ where
             rdr: r,
             record: ByteRecord::new(),
             columns: vec![],
-            has_header: has_header,
             header: None,
             handler: handler,
-            id_col: id_col,
-            allow_missing: allow_missing,
+            id_col: 0,
+            has_header: false,
+            allow_missing: false,
         }
+    }
+
+    pub fn id_col(mut self, id_col: usize) -> Self {
+        self.id_col = id_col;
+        self
+    }
+
+    pub fn has_header(mut self, has_header: bool) -> Self {
+        self.has_header = has_header;
+        self
+    }
+
+    pub fn allow_missing(mut self, allow_missing: bool) -> Self {
+        self.allow_missing = allow_missing;
+        self
     }
 }
 

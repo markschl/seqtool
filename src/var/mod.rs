@@ -86,26 +86,18 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
         let csv_file = File::open(list).map_err(|e| format!("Error opening '{}': {}", list, e))?;
         if o.unordered {
             let finder = modules::list::Unordered::new();
-            vars.add_module(modules::list::ListVars::new(
-                i + 1,
-                csv_file,
-                finder,
-                o.id_col,
-                list_delim,
-                o.has_header,
-                o.allow_missing,
-            ));
+            vars.add_module(modules::list::ListVars::new(i + 1, csv_file, finder, list_delim)
+                .id_col(o.id_col)
+                .has_header(o.has_header)
+                .allow_missing(o.allow_missing)
+            );
         } else {
             let finder = modules::list::SyncIds;
-            vars.add_module(modules::list::ListVars::new(
-                i + 1,
-                csv_file,
-                finder,
-                o.id_col,
-                list_delim,
-                o.has_header,
-                o.allow_missing,
-            ));
+            vars.add_module(modules::list::ListVars::new(i + 1, csv_file, finder, list_delim)
+                .id_col(o.id_col)
+                .has_header(o.has_header)
+                .allow_missing(o.allow_missing)
+            );
         }
     }
 
