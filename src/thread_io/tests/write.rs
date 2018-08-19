@@ -4,6 +4,7 @@ use thread_io::write::*;
 use std::io::{Write,self};
 use std::cmp::min;
 
+/// a writer that only writes its data to `Writer::data` upon `flush()`
 #[derive(Clone)]
 struct Writer {
     cache: Vec<u8>,
@@ -22,6 +23,10 @@ impl Writer {
             flush_fails: flush_fails,
             bufsize: bufsize,
         }
+    }
+
+    fn data(&self) -> &[u8] {
+        &self.data
     }
 }
 
@@ -52,15 +57,15 @@ fn write_thread() {
     for channel_bufsize in 1..len {
         for writer_bufsize in 1..len {
             for queuelen in 1..len {
-                // without flushing
+                // Test the writer: write without flushing, which should result in empty output
                 let mut w = writer_init_finish(channel_bufsize, queuelen,
                     || Ok(Writer::new(false, false, writer_bufsize)),
                     |w| w.write(text),
                     |w| w
                 ).unwrap().1;
-                assert_eq!(&w.data, b"");
+                assert_eq!(w.data(), b"");
 
-                // with flushing
+                // Write with flushing: the output should be equal to the written data
                 let mut w = writer_init_finish(channel_bufsize, queuelen,
                     || Ok(Writer::new(false, false, writer_bufsize)),
                     |w| w.write(text),
@@ -68,20 +73,19 @@ fn write_thread() {
                         w.flush().unwrap();
                         w
                     }).unwrap().1;
-                if w.data.as_slice() != &text[..] {
+                if w.data() != &text[..] {
                     panic!(format!(
                         "write test failed: {:?} != {:?} at channel buffer size {}, writer bufsize {}, queue length {}",
-                        String::from_utf8_lossy(&w.data), String::from_utf8_lossy(&text[..]),
+                        String::from_utf8_lossy(w.data()), String::from_utf8_lossy(&text[..]),
                         channel_bufsize, writer_bufsize, queuelen
                     ));
                 }
 
-
                 w.flush().unwrap();
-                if w.data.as_slice() != &text[..] {
+                if w.data() != &text[..] {
                     panic!(format!(
                         "write test failed: {:?} != {:?} at channel buffer size {}, writer bufsize {}, queue length {}",
-                        String::from_utf8_lossy(&w.data), String::from_utf8_lossy(&text[..]),
+                        String::from_utf8_lossy(w.data()), String::from_utf8_lossy(&text[..]),
                         channel_bufsize, writer_bufsize, queuelen
                     ));
                 }

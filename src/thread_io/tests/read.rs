@@ -36,6 +36,8 @@ impl<'a> Read for Reader<'a> {
     }
 }
 
+// Repeatedly reads from rdr into a buffer of size `chunksize`. The buffer contents are
+// appended to the output until EOF occurs, and the output is returned.
 fn read_chunks<R: io::Read>(mut rdr: R, chunksize: usize) -> io::Result<Vec<u8>> {
     let mut out = vec![];
     let mut buf = vec![0; chunksize];

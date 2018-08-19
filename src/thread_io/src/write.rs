@@ -77,6 +77,25 @@ impl Write for Writer {
 /// has ended, so calling `flush` within the closure is too early.
 /// In that case, flushing (or any method for finalizing after the last
 /// write) can be called in the `finish` closure supplied to `writer_with_finish()`.
+///
+/// # Example:
+///
+/// ```
+/// # extern crate thread_io;
+/// use thread_io::write::writer;
+/// use std::io::Write;
+///
+/// # fn main() {
+/// let text = b"The quick brown fox jumps over the lazy dog";
+/// let mut buf = vec![0; text.len()];
+///
+/// writer(16, 2, &mut buf[..], |writer| {
+///     writer.write_all(&text[..])
+/// }).expect("write failed");
+///
+/// assert_eq!(&buf[..], &text[..]);
+/// # }
+/// ```
 pub fn writer<W, F, O, E>(bufsize: usize, queuelen: usize, writer: W, func: F) -> Result<O, E>
 where
     F: FnOnce(&mut Writer) -> Result<O, E>,
@@ -88,6 +107,40 @@ where
 
 /// Like `writer()`, but the wrapped writer is initialized using a closure  (`init_writer`)
 /// in the background thread. This allows using writers that don't implement `Send`
+///
+/// # Example:
+///
+/// ```
+/// #![feature(optin_builtin_traits)]
+/// # extern crate thread_io;
+/// use thread_io::write::writer_init;
+/// use std::io::{self, Write};
+///
+/// # fn main() {
+/// let text = b"The quick brown fox jumps over the lazy dog";
+/// let mut buf = vec![0; text.len()];
+///
+/// struct NotSendableWriter<'a>(&'a mut [u8]);
+///
+/// impl<'a> !Send for NotSendableWriter<'a> {}
+///
+/// impl<'a> Write for NotSendableWriter<'a> {
+///     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+///         self.0.write(buf)
+///     }
+///
+///     fn flush(&mut self) -> io::Result<()> {
+///         Ok(())
+///     }
+/// }
+///
+/// writer_init(16, 2, || Ok(NotSendableWriter(&mut buf[..])), |writer| {
+///     writer.write_all(&text[..])
+/// }).expect("write failed");
+///
+/// assert_eq!(&buf[..], &text[..]);
+/// # }
+/// ```
 pub fn writer_init<W, I, F, O, E>(
     bufsize: usize,
     queuelen: usize,
@@ -103,9 +156,34 @@ where
     writer_init_finish(bufsize, queuelen, init_writer, func, |_| ()).map(|(o, _)| o)
 }
 
-/// Like `writer_with()`, but takes another closure that takes the writer by value
+/// Like `writer_init()`, but with another closure that takes the writer by value
 /// before it goes out of scope (and there is no error). Useful e.g. with encoders
-/// for compressed data that require calling a `finish` function.
+/// for compressed data that require calling a `finish` function. If the writer
+/// implements `Send`, it is also possible to return the wrapped writer back to
+/// the main thread.
+///
+/// # Example:
+///
+/// ```
+/// # extern crate thread_io;
+/// use thread_io::write::writer_init_finish;
+/// use std::io::Write;
+///
+/// # fn main() {
+/// let text = b"The quick brown fox jumps over the lazy dog";
+/// let output = vec![];
+///
+/// // `output` is moved
+/// let (_, output) = writer_init_finish(16, 2,
+///     || Ok(output),
+///     |out| out.write_all(&text[..]),
+///     |out| out // output is returned to main thread
+/// ).expect("write failed");
+///
+/// println!("a: {}", std::str::from_utf8(&output[..]).unwrap());
+/// assert_eq!(&output[..], &text[..]);
+/// # }
+/// ```
 pub fn writer_init_finish<W, I, F, O, F2, O2, E>(
     bufsize: usize,
     queuelen: usize,

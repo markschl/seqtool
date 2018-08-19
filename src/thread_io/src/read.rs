@@ -97,6 +97,25 @@ impl io::Read for Reader {
 /// background thread will stop if an error occurrs, except for errors of kind
 /// `ErrorKind::Interrupted`. In this case, reading continues in the background,
 /// although the error is still returned.
+///
+/// # Example:
+///
+/// ```
+/// # extern crate thread_io;
+/// use thread_io::read::reader;
+/// use std::io::Read;
+///
+/// # fn main() {
+/// let text = b"The quick brown fox jumps over the lazy dog";
+/// let mut read = vec![];
+///
+/// reader(16, 2, &text[..], |rdr| {
+///     rdr.read_to_end(&mut read)
+/// }).expect("read failed");
+///
+/// assert_eq!(read.as_slice(), &text[..]);
+/// # }
+/// ```
 pub fn reader<R, F, O, E>(bufsize: usize, queuelen: usize, reader: R, func: F) -> Result<O, E>
 where
     F: FnOnce(&mut Reader) -> Result<O, E>,
@@ -108,6 +127,37 @@ where
 
 /// Like `reader()`, but the wrapped reader is initialized using a closure  (`init_reader`)
 /// in the background thread. This allows using readers that don't implement `Send`
+///
+/// # Example:
+///
+/// ```
+/// #![feature(optin_builtin_traits)]
+/// # extern crate thread_io;
+///
+/// use thread_io::read::reader_init;
+/// use std::io::{self, Read};
+///
+/// struct NotSendableReader<'a>(&'a [u8]);
+///
+/// impl<'a> !Send for NotSendableReader<'a> {}
+///
+/// impl<'a> Read for NotSendableReader<'a> {
+///     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+///         self.0.read(buf)
+///     }
+/// }
+///
+/// # fn main() {
+/// let text = b"The quick brown fox jumps over the lazy dog";
+/// let mut read = vec![];
+///
+/// reader_init(16, 2, || Ok(NotSendableReader(&text[..])), |rdr| {
+///     rdr.read_to_end(&mut read)
+/// }).expect("read failed");
+///
+/// assert_eq!(read.as_slice(), &text[..]);
+/// # }
+/// ```
 pub fn reader_init<R, I, F, O, E>(
     bufsize: usize,
     queuelen: usize,
