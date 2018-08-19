@@ -30,6 +30,7 @@ instructions.
 
 [![UNIX build status](https://travis-ci.org/markschl/seqtool.svg?branch=master)](https://travis-ci.org/markschl/seqtool/)
 [![Windows build status](https://ci.appveyor.com/api/projects/status/github/markschl/seqtool?svg=true)](https://ci.appveyor.com/project/markschl/seqtool)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fmarkschl%2Fseqtool.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fmarkschl%2Fseqtool?ref=badge_shield)
 
 ## Commands
 ### Basic conversion / editing
