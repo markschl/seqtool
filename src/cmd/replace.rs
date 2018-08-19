@@ -59,17 +59,15 @@ pub fn run() -> CliResult<()> {
             let replacer = RegexReplacer(regex::Regex::new(pattern)?, has_backrefs);
             run_replace(&cfg, attr, replacement, replacer, num_threads)?;
         }
+    } else if pattern.len() == 1 {
+        let replacer = SingleByteReplacer(pattern.as_bytes()[0]);
+        run_replace(&cfg, attr, replacement, replacer, num_threads)?;
     } else {
-        if pattern.len() == 1 {
-            let replacer = SingleByteReplacer(pattern.as_bytes()[0]);
-            run_replace(&cfg, attr, replacement, replacer, num_threads)?;
-        } else {
-            let replacer = BytesReplacer(pattern.as_bytes().to_owned());
-            run_replace(&cfg, attr, replacement, replacer, num_threads)?;
-        }
+        let replacer = BytesReplacer(pattern.as_bytes().to_owned());
+        run_replace(&cfg, attr, replacement, replacer, num_threads)?;
     }
-    Ok(())
-}
+        Ok(())
+    }
 
 fn run_replace<R: Replacer + Sync>(
     cfg: &cfg::Config,

@@ -15,8 +15,8 @@ pub enum QualFormat {
 }
 
 impl QualFormat {
-    pub fn get_converter<'a>(&self) -> QualConverter {
-        QualConverter::new(*self)
+    pub fn get_converter(self) -> QualConverter {
+        QualConverter::new(self)
     }
 }
 
@@ -185,23 +185,23 @@ fn guess_format(q: u8) -> Option<String> {
 
 #[inline]
 fn solexa_to_qual(q: u8) -> u8 {
-    (10. * (10f64.powf((q as f64 - 64.) / 10.) + 1.).log10()).round() as u8
+    (10. * (10f64.powf((f64::from(q) - 64.) / 10.) + 1.).log10()).round() as u8
 }
 
 #[inline]
 fn qual_to_solexa(q: u8) -> u8 {
-    let s = ((10. * (10f64.powf(q as f64 / 10.) - 1.).log10()).round() + 64.) as u8;
+    let s = ((10. * (10f64.powf(f64::from(q) / 10.) - 1.).log10()).round() + 64.) as u8;
     min(126, max(59, s))
 }
 
 #[inline]
 fn solexa_to_prob(q: u8) -> f64 {
-    1f64 / (10f64.powf((q as f64 - 64.) / 10.) + 1.)
+    1f64 / (10f64.powf((f64::from(q) - 64.) / 10.) + 1.)
 }
 
 #[inline]
 pub fn qual_to_prob(q: u8) -> f64 {
-    10f64.powf(-(q as f64) / 10.)
+    10f64.powf(-f64::from(q) / 10.)
 }
 
 #[cfg(test)]
@@ -246,30 +246,30 @@ mod tests {
     fn probs() {
         let mapping = [
             (0u8, 1f64),
-            (1, 0.7943282347),
+            (1, 0.794_328_234_7),
             (10, 0.1),
-            (40, 0.0001000000),
-            (93, 0.0000000005),
+            (40, 0.000_100_000_0),
+            (93, 0.000_000_000_5),
         ];
         let f = 10f64.powi(10);
         for &(q, p) in &mapping[..] {
-            assert_eq!((qual_to_prob(q) * f).round() / f, p);
+            assert_relative_eq!((qual_to_prob(q) * f).round() / f, p);
         }
     }
 
     #[test]
     fn probs_solexa() {
         let mapping = [
-            (-5i8, 0.7597469f64),
+            (-5i8, 0.759_746_9_f64),
             (0, 0.5),
-            (1, 0.4426884),
-            (10, 0.0909091),
-            (40, 0.0001000),
-            (62, 0.0000006),
+            (1, 0.442_688_4),
+            (10, 0.090_909_1),
+            (40, 0.000_100_0),
+            (62, 0.000_000_6),
         ];
         let f = 10f64.powi(7);
         for &(q, p) in &mapping[..] {
-            assert_eq!((solexa_to_prob((q + 64) as u8) * f).round() / f, p);
+            assert_relative_eq!((solexa_to_prob((q + 64) as u8) * f).round() / f, p);
         }
     }
 

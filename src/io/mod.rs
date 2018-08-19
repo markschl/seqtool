@@ -35,15 +35,15 @@ impl Compression {
         }
     }
 
-    pub fn best_read_bufsize(&self) -> usize {
-        match *self {
+    pub fn best_read_bufsize(self) -> usize {
+        match self {
             Compression::ZSTD => zstd::Decoder::<io::Empty>::recommended_output_size(),
             _ => 1 << 22,
         }
     }
 
-    pub fn best_write_bufsize(&self) -> usize {
-        match *self {
+    pub fn best_write_bufsize(self) -> usize {
+        match self {
             Compression::ZSTD => zstd::Encoder::<io::Sink>::recommended_input_size(),
             _ => 1 << 22,
         }

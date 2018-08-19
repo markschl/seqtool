@@ -65,7 +65,9 @@ pub trait Record {
                 out.extend_from_slice(self.id_bytes());
             }
             SeqAttr::Desc => {
-                self.desc_bytes().map(|d| out.extend_from_slice(d));
+                if let Some(d) = self.desc_bytes() {
+                    out.extend_from_slice(d);
+                }
             }
             SeqAttr::Seq => for s in self.seq_segments() {
                 out.extend_from_slice(s);

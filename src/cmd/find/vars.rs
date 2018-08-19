@@ -203,7 +203,7 @@ impl FindVars {
                         End => symbols.set_int(var_id, (m.end) as i64),
                         NegStart => symbols.set_int(var_id, m.neg_start1(rec.seq_len())),
                         NegEnd => symbols.set_int(var_id, m.neg_end1(rec.seq_len())),
-                        Dist => symbols.set_int(var_id, m.dist as i64),
+                        Dist => symbols.set_int(var_id, i64::from(m.dist)),
                         Range(ref delim) => write!(
                             symbols.mut_text(var_id),
                             "{}{}{}",

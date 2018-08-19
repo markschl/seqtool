@@ -91,7 +91,7 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
                         if !v.is_nan() {
                             let v = v / int as f64;
                             let f = v.floor();
-                            if v != f {
+                            if relative_ne!(v, f) {
                                 *is_different = true;
                             }
                             *cat = Category::Num(f as i64);

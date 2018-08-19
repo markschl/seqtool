@@ -116,7 +116,7 @@ fn parse_quals(line: &[u8], out: &mut Vec<u8>) -> Result<(), String> {
 }
 
 fn parse_int(bytes: &[u8]) -> Result<usize, ()> {
-    if bytes.len() == 0 {
+    if bytes.is_empty() {
         return Err(());
     }
     let mut out = 0;
@@ -216,7 +216,7 @@ impl<W: io::Write> SeqWriter<W> for FaQualWriter<W> {
 
         // quality lines
         for qline in qual.chunks(self.wrap) {
-            if qline.len() > 0 {
+            if !qline.is_empty() {
                 let mut q_iter = qline.into_iter().map(|&q| {
                     vars.data()
                         .qual_converter

@@ -23,7 +23,7 @@ fn sample() {
 
         let mut seed = [0; 32];
         seed[0] = 9;
-        for &p in [0., 0.5, 1.].into_iter() {
+        for &p in &[0., 0.5, 1.] {
             let mut rng = rand::StdRng::from_seed(seed);
             let expected = SEQS
                 .iter()
