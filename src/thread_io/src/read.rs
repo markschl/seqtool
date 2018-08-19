@@ -11,7 +11,7 @@ struct Buffer {
     pos: usize,
     end: usize,
     // read returned n = 0 -> EOF
-    maybe_finished: bool,
+    eof: bool,
 }
 
 impl Buffer {
@@ -21,7 +21,7 @@ impl Buffer {
             data: vec![0; size].into_boxed_slice(),
             pos: 0,
             end: 0,
-            maybe_finished: false,
+            eof: false,
         }
     }
 
@@ -31,13 +31,14 @@ impl Buffer {
         n
     }
 
-    fn refill<R: Read>(&mut self, mut reader: R) -> io::Result<usize> {
+    // Fill the whole buffer, unless EOF occurs. ErrorKind::Interrupted is not handled.
+    fn refill<R: Read>(&mut self, mut reader: R) -> io::Result<()> {
         let mut n_read = 0;
         let mut buf = &mut *self.data;
         while !buf.is_empty() {
             let n = reader.read(buf)?;
             if n == 0 {
-                self.maybe_finished = true;
+                self.eof = true;
                 break
             }
             let tmp = buf;
@@ -46,7 +47,7 @@ impl Buffer {
         }
         self.pos = 0;
         self.end = n_read;
-        Ok(n_read)
+        Ok(())
     }
 }
 
@@ -78,7 +79,7 @@ impl io::Read for Reader {
             let n = self.buffer.read(buf);
             if n > 0 {
                 return Ok(n);
-            } else if self.buffer.maybe_finished {
+            } else if self.buffer.eof {
                 return Ok(0);
             } else {
                 let data = self.full_recv.recv().ok().unwrap()?;
@@ -89,6 +90,13 @@ impl io::Read for Reader {
     }
 }
 
+/// Wraps `reader` in a background thread and provides a reader within a closure
+/// in the main thread.
+/// **Note**: Errors will not be returned immediately, but after `queuelen`
+/// reads, or after reads is finished and the closure ends. The reader in the
+/// background thread will stop if an error occurrs, except for errors of kind
+/// `ErrorKind::Interrupted`. In this case, reading continues in the background,
+/// although the error is still returned.
 pub fn reader<R, F, O, E>(bufsize: usize, queuelen: usize, reader: R, func: F) -> Result<O, E>
 where
     F: FnOnce(&mut Reader) -> Result<O, E>,
@@ -98,6 +106,8 @@ where
     reader_init(bufsize, queuelen, || Ok(reader), func)
 }
 
+/// Like `reader()`, but the wrapped reader is initialized using a closure  (`init_reader`)
+/// in the background thread. This allows using readers that don't implement `Send`
 pub fn reader_init<R, I, F, O, E>(
     bufsize: usize,
     queuelen: usize,
@@ -151,126 +161,4 @@ where
 
         Ok(out)
     })
-}
-
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::{Read,self};
-    use std::cmp::min;
-
-    struct Reader<'a> {
-        data: &'a [u8],
-        block_size: usize,
-        // used to test what happens to errors that are
-        // stuck in the queue
-        fails_after: usize
-    }
-
-    impl<'a> Reader<'a> {
-        fn new(data: &'a [u8], block_size: usize, fails_after: usize) -> Reader {
-            Reader {
-                data: data,
-                block_size: block_size,
-                fails_after: fails_after
-            }
-        }
-    }
-
-    impl<'a> Read for Reader<'a> {
-        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            if self.fails_after == 0 {
-                return Err(io::Error::new(io::ErrorKind::Other, "read err"));
-            }
-            self.fails_after -= 1;
-            let amt = min(self.data.len(), min(buf.len(), self.block_size));
-            let (a, b) = self.data.split_at(amt);
-            buf[..amt].copy_from_slice(a);
-            self.data = b;
-            Ok(amt)
-        }
-    }
-
-    fn read_chunks<R: io::Read>(mut rdr: R, chunksize: usize) -> io::Result<Vec<u8>> {
-        let mut out = vec![];
-        let mut buf = vec![0; chunksize];
-        loop {
-            let n = rdr.read(buf.as_mut_slice())?;
-            out.extend_from_slice(&buf[..n]);
-            if n == 0 {
-                break;
-            }
-        }
-        Ok(out)
-    }
-
-    #[test]
-    fn read() {
-        let text = b"The quick brown fox";
-        let len = text.len();
-
-        for channel_bufsize in 1..len {
-            for rdr_block_size in 1..len {
-                for out_bufsize in 1..len {
-                    for queuelen in 1..len {
-                        // test the mock reader itself
-                        let mut rdr = Reader::new(text, rdr_block_size, ::std::usize::MAX);
-                        assert_eq!(read_chunks(rdr, out_bufsize).unwrap().as_slice(), &text[..]);
-
-                        // test threaded reader
-                        let mut rdr = Reader::new(text, rdr_block_size, ::std::usize::MAX);
-                        let out = reader(channel_bufsize, queuelen, rdr, |r| read_chunks(r, out_bufsize)).unwrap();
-
-                        if out.as_slice() != &text[..] {
-                            panic!(format!(
-                                "left != right at channel bufsize: {}, reader bufsize: {}, final reader bufsize {}, queue length: {}\nleft:  {:?}\nright: {:?}",
-                                channel_bufsize, rdr_block_size, out_bufsize, queuelen, &out, &text[..]
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-    #[test]
-    fn read_fail() {
-        let text = b"The quick brown fox";
-        let len = text.len();
-
-        for channel_bufsize in 1..len {
-            for queuelen in 1..len {
-                let mut out = vec![0];
-                let mut rdr = Reader::new(text, channel_bufsize, len / channel_bufsize);
-                let res: io::Result<_> = reader(channel_bufsize, queuelen, rdr, |r| {
-                    while r.read(&mut out)? > 0 {
-                    }
-                    Ok(())
-                });
-
-                if let Err(e) = res {
-                    assert_eq!(&format!("{}", e), "read err");
-                } else {
-                    panic!(format!(
-                        "read should fail at bufsize: {}, queue length: {}",
-                        channel_bufsize, queuelen
-                    ));
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn reader_init_fail() {
-        let e = io::Error::new(io::ErrorKind::Other, "init err");
-        let res = reader_init(5, 2, || Err::<&[u8], _>(e), |_| {Ok(())});
-        if let Err(e) = res {
-            assert_eq!(&format!("{}", e), "init err");
-        } else {
-            panic!("init should fail");
-        }
-    }
 }
