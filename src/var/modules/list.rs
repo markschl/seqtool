@@ -12,17 +12,17 @@ pub struct ListHelp;
 
 impl VarHelp for ListHelp {
     fn name(&self) -> &'static str {
-        "Entries of associated lists."
+        "Entries of associated lists"
     }
     fn usage(&self) -> &'static str {
         "l:<field>"
     }
     fn desc(&self) -> Option<&'static str> {
         Some(
-            "Fields from associated lists. (-l argument). Specify either a column number \
-            e.g. {l:4}, or a column name ({l:<fieldname>}) if there is a header. With
+            "Fields from associated lists. (`-l` argument). Specify either a column number \
+            e.g. `{l:4}`, or a column name (`{l:<fieldname>}`) if there is a header. With
             multiple -l arguments, the lists can be selected in the same order using
-            l:<field>, l2:<field>, l3:<field>, and so on.",
+            `l:<field>`, `l2:<field>`, `l3:<field>`, and so on.",
         )
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {

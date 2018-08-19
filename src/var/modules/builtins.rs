@@ -20,8 +20,8 @@ impl VarHelp for BuiltinHelp {
     }
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
-            ("id", "Record ID (in FASTA/FASTQ: string before space)"),
-            ("desc", "Record description (everything after space)"),
+            ("id", "Record ID (in FASTA/FASTQ: everything before first space)"),
+            ("desc", "Record description (everything after first space)"),
             ("seq", "Record sequence"),
             ("num", "Sequence number starting with 1"),
             (

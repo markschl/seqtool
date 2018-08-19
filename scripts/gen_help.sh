@@ -6,6 +6,20 @@ seqtool=target/debug/st
 wiki=../seqtool.wiki
 main=_README.md
 
+# prepend table of contents if there are H3 headings
+prepend_toc() {
+  contents=$1
+  toc=`grep '^### ' $contents |
+    sed -E 's/^### (.*)/* [\1]   #\1/g' |
+    awk -F'   ' '{ gsub(" ", "-", $2); rep=gsub("[()]", "", $2); print sprintf("%s(%s)", $1, tolower($2)) }'`
+
+  if [ `printf "$toc" | wc -l` -gt 1 ]; then
+    printf "## Contents\n\n$toc\n\n" | cat - $contents > tmp_out
+    mv tmp_out $contents
+  fi
+}
+
+
 cat doc/_head.md > $main
 
 # generate command files
@@ -19,6 +33,9 @@ cmd=(
   ">Searching and replacing" find replace
   ">Modifying commands" del set trim mask upper lower revcomp concat
 )
+
+# create one MD file per command
+
 for c in "${cmd[@]}"; do
   echo "$c"
 
@@ -51,15 +68,7 @@ for c in "${cmd[@]}"; do
     printf "\n\n### Provided variables\n\`\`\`\n$vars\n\`\`\`\n\n" >> $out
   fi
 
-  # prepend table of contents if there are H3 headings
-  toc=`grep '^### ' $out |
-    sed -E 's/^### (.*)/* [\1]   #\1/g' |
-    awk -F'   ' '{ gsub(" ", "-", $2); rep=gsub("[()]", "", $2); print sprintf("%s(%s)", $1, tolower($2)) }'`
-
-  if [ `printf "$toc" | wc -l` -gt 1 ]; then
-    printf "## Contents\n\n$toc\n\n" | cat - $out > tmp_out
-    mv tmp_out $out
-  fi
+  prepend_toc $out
 
   # prepend usage info
   usage=$(echo "$opts" | sed '/Usage:/,$!d' | sed 's/\[-p <prop>\.\.\.\] *\[-l <list>\.\.\.\]//g')
@@ -69,15 +78,15 @@ for c in "${cmd[@]}"; do
 
 done
 
+
 echo >> $main
 cat doc/_desc.md >> $main
 
 # variables
 out=$wiki/variables.md
-cat doc/variables.md > $out
-printf "\n## Variables available to all commands\n\n\`\`\`\n" >> $out
-$seqtool --help-vars >> $out 2>&1
-echo "\`\`\`" >> $out
+cp doc/variables.md $out
+printf "\n## List of variables\n" >> $out
+$seqtool --help-vars 2>&1 | scripts/parse_varhelp.py >> $out
 
 # global opts
 out=$wiki/opts.md

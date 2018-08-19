@@ -29,8 +29,9 @@ impl VarHelp for StatHelp {
             ),
             (
                 "s:exp_err",
-                "Expected errors for the whole sequence calculated based on quality scores \
-                 as the sum of all error probabilities.",
+                "Total number of errors expected in the sequence, calculated from the quality scores \
+                 as the sum of all error probabilities. For FASTQ, make sure to specify the correct \
+                 format (--fmt) in case the scores are not in the Sanger/Illumina 1.8+ format.",
             ),
         ])
     }
