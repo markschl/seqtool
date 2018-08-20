@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["marcschl <ms201@gmx.net>"]
 
 [dependencies]
-crossbeam = "0.3"
+crossbeam = "0.4"
 
 [profile.bench]
 lto = true

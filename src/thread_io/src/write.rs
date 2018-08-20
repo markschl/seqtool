@@ -1,4 +1,4 @@
-//! Wrap a writer in a background thread.
+//! Wrap an io::Write instance in a background thread.
 
 use std::mem::replace;
 use std::io::{self, Write};
@@ -250,7 +250,7 @@ where
 
         writer.done()?;
 
-        let of = handle.join()?;
+        let of = handle.join().unwrap()?;
 
         writer.get_errors()?;
 

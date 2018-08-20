@@ -1,4 +1,4 @@
-//! Wrap a reader in a background thread.
+//! Wrap an io::Read instance in a background thread.
 
 use std::mem::replace;
 use std::io::{self, Read, Write};
@@ -205,7 +205,7 @@ where
 
         reader.done();
 
-        handle.join()?;
+        handle.join().unwrap()?;
 
         reader.get_errors()?;
 
