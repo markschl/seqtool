@@ -28,7 +28,7 @@ macro_rules! bench {
             b.iter(move || {
                 thread_io::write::writer($bufsize, $queuelen, &mut out, |w| {
                     for chunk in data.chunks(1024) {
-                        w.write(chunk)?;
+                        w.write_all(chunk)?;
                     }
                     Ok::<(), ::std::io::Error>(())
                 }).unwrap();
@@ -47,7 +47,7 @@ macro_rules! bench_native {
             let mut out = sink();
             b.iter(move || {
                 for chunk in data.chunks(1024) {
-                    out.write(chunk).expect("Write error");
+                    out.write_all(chunk).expect("Write error");
                 }
             });
         }
