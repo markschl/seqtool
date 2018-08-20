@@ -1,3 +1,7 @@
+/*
+ Fast and flexible tool for reading, modifying and writing biological sequences 
+*/
+
 // used everywhere
 extern crate bio;
 extern crate csv;
@@ -59,8 +63,6 @@ mod var;
 #[cfg(test)]
 #[cfg_attr(rustfmt, rustfmt_skip)]
 mod test;
-#[cfg(test)]
-extern crate assert_cli;
 #[macro_use]
 extern crate approx;
 

@@ -1,10 +1,11 @@
 
 extern crate tempdir;
-extern crate assert_cli;
+extern crate assert_cmd;
+extern crate predicates;
 
 #[allow(unused_imports)]
 use std::io::{Read,Write};
-use std::process::{Command,Stdio};
+use std::process::{Command, Stdio};
 use std::env;
 use std::str;
 use std::iter::repeat;
@@ -13,16 +14,20 @@ use std::convert::AsRef;
 use std::path::PathBuf;
 use std::collections::HashMap;
 
-use assert_cli::Assert;
+use self::assert_cmd::prelude::*;
+use self::assert_cmd::assert::Assert;
+use self::predicates::str::contains;
+use self::predicates::ord::eq;
+use self::predicates::prelude::*;
 
 
 trait Input {
-    fn set(&self, a: Assert) -> Assert;
+    fn set(&self, a: &mut Command) -> Assert;
 }
 
 impl<T> Input for T where T: AsRef<str> {
-    fn set(&self, a: Assert) -> Assert {
-        a.stdin(self.as_ref())
+    fn set(&self, a: &mut Command) -> Assert {
+        a.with_stdin().buffer(self.as_ref()).assert()
     }
 }
 
@@ -30,8 +35,8 @@ impl<T> Input for T where T: AsRef<str> {
 struct FileInput<'a>(&'a str);
 
 impl<'a> Input for FileInput<'a> {
-    fn set(&self, a: Assert) -> Assert {
-        a.with_args(&[self.0])
+    fn set(&self, a: &mut Command) -> Assert {
+        a.args(&[self.0]).assert()
     }
 }
 
@@ -39,8 +44,8 @@ impl<'a> Input for FileInput<'a> {
 struct MultiFileInput(Vec<String>);
 
 impl Input for MultiFileInput {
-    fn set(&self, a: Assert) -> Assert {
-        a.with_args(&self.0.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+    fn set(&self, a: &mut Command) -> Assert {
+        a.args(&self.0.iter().map(|s| s.as_str()).collect::<Vec<_>>()).assert()
     }
 }
 
@@ -53,11 +58,12 @@ struct Tester {
 
 impl Tester {
     fn new() -> Tester {
-        let mut a = Assert::command(&["cargo", "run"]);
+        let mut a = Command::new("cargo");
+        a.args(&["run"]);
         if cfg!(feature="exprtk") {
-            a = a.with_args(&["--features=exprtk"]);
+            a.args(&["--features=exprtk"]);
         }
-        a.succeeds().execute().unwrap();
+        a.unwrap();
 
         // then return the path
         let root = Self::root();
@@ -119,35 +125,28 @@ impl Tester {
     }
 
     fn cmd<I: Input>(&self, args: &[&str], input: I) -> Assert {
-        let mut env = assert_cli::Environment::empty();
-        for (ref k, ref v) in &self.vars {
-            env = env.insert(k, v);
-        }
-        let a = Assert::command(&[self.bin.to_str().unwrap()])
-            .with_args(args)
-            .with_env(env);
-        input.set(a)
+        let mut a = Command::new(self.bin.to_str().unwrap());
+        a.args(args).envs(&self.vars);
+        input.set(&mut a)
     }
 
     fn cmp<I: Input>(&self, args: &[&str], input: I, expected: &str) -> &Self {
         self.cmd(args, input)
-            .stdout().is(expected)
-            .execute().unwrap();
+            .stdout(eq(expected).from_utf8())
+            .success();
         self
     }
 
     fn succeeds<I: Input>(&self, args: &[&str], input: I) -> &Self {
         self.cmd(args, input)
-            .succeeds()
-            .execute().unwrap();
+            .success();
         self
     }
 
     fn fails<I: Input>(&self, args: &[&str], input: I, msg: &str) -> &Self {
         self.cmd(args, input)
-            .fails()
-            .stderr().contains(msg)
-            .execute().unwrap();
+            .failure()
+            .stderr(contains(msg).from_utf8());
         self
     }
 

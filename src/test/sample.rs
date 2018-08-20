@@ -9,7 +9,7 @@ fn sample() {
 
     t.temp_file("sample", Some(*FASTA), |path, _| {
         t.cmp(&["sample", "-n", "4"], FileInput(path), &FASTA)
-            .cmp(&["sample", "-n", "0"], FileInput(path), "\n")
+            .cmp(&["sample", "-n", "0"], FileInput(path), "")
             .fails(
                 &["sample", "-f", "2"],
                 FileInput(path),
@@ -21,16 +21,18 @@ fn sample() {
                 "Fractions should be between 0 and 1",
             );
 
+        // this is how it is done by seqtool
         let mut seed = [0; 32];
         seed[0] = 9;
         for &p in &[0., 0.5, 1.] {
             let mut rng = rand::StdRng::from_seed(seed);
-            let expected = SEQS
+            let mut expected = SEQS
                 .iter()
                 .cloned()
                 .filter(|_| rng.gen::<f32>() < p)
                 .collect::<Vec<_>>()
                 .concat();
+                
             t.cmp(
                 &["sample", "-f", &format!("{}", p), "-s", "9"],
                 FileInput(path),

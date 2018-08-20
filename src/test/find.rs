@@ -205,24 +205,24 @@ fn ambig() {
     //    .cmp(&["find", "--ambig", "--to-csv", vars, "--dist", "1", "--gap-penalties", "-2,-1", &subseq_indel], fasta, ",")
 
     // matching is asymmetric
-    let seq_orig = "ACACTGTGGAGTTTTC";
+    let seq_orig_ = "ACACTGTGGAGTTTTC";
     //                 R        N
     let seq_ambig = "ACRCTGTGGAGNTTTC";
     // TODO: working around Ukkonen bug in rust-bio
     Tester::new()
         .cmp(
             &["find", "--to-csv", "id,f:range", "--ambig", "yes", &seq_ambig[1..]],
-            &*format!(">seq\n{}\n", seq_orig),
+            &*format!(">seq\n{}\n", seq_orig_),
             "seq,2-16\n"
         )
         .cmp(
-            &["find", "--to-csv", "id,f:range", "--ambig", "yes", &seq_orig[1..]],
+            &["find", "--to-csv", "id,f:range", "--ambig", "yes", &seq_orig_[1..]],
             &*format!(">seq\n{}\n", seq_ambig),
-            "seq,"
+            "seq,\n"
         )
         // fuzzy matching however will work
         .cmp(
-            &["find", "--to-csv", "id,f:range", "--ambig", "yes", "--dist", "2", &seq_orig[1..]],
+            &["find", "--to-csv", "id,f:range", "--ambig", "yes", "--dist", "2", &seq_orig_[1..]],
             &*format!(">seq\n{}\n", seq_ambig),
             "seq,2-16\n"
         );
@@ -239,15 +239,11 @@ fn threaded() {
                     "-t", &format!("{}", t),
                     "--buf-cap", &format!("{}", cap), "seq"
                 ], *FASTA)
-                .stdout()
-                .contains("seq0")
-                .stdout()
-                .contains("seq1")
-                .stdout()
-                .contains("seq2")
-                .stdout()
-                .contains("seq3")
-                .unwrap();
+                .stdout(contains("seq0").from_utf8())
+                .stdout(contains("seq1").from_utf8())
+                .stdout(contains("seq2").from_utf8())
+                .stdout(contains("seq3").from_utf8())
+                .success();
             cap += 10;
         }
     }
