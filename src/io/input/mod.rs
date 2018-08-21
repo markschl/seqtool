@@ -144,12 +144,12 @@ impl InFormat {
 }
 
 #[derive(Clone)]
-pub struct LimitedBufStrategy {
+pub struct LimitedBuffer {
     double_until: usize,
     limit: usize,
 }
 
-impl seq_io::BufStrategy for LimitedBufStrategy {
+impl seq_io::BufPolicy for LimitedBuffer {
     fn grow_to(&mut self, current_size: usize) -> Option<usize> {
         if current_size < self.double_until {
             Some(current_size * 2)
@@ -307,7 +307,7 @@ pub fn get_reader<'a, O, R>(
 where
     R: io::Read + 'a,
 {
-    let strategy = LimitedBufStrategy {
+    let strategy = LimitedBuffer {
         double_until: 1 << 23,
         limit: max_mem,
     };

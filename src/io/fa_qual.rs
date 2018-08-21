@@ -10,25 +10,25 @@ use memchr::memchr;
 
 use error::CliResult;
 use seq_io::fasta::{self, Record as FR};
-use seq_io::BufStrategy;
+use seq_io::BufPolicy;
 use var;
 
 use super::*;
 
 // Reader
 
-pub struct FaQualReader<R: io::Read, S: BufStrategy> {
-    fa_rdr: fasta::Reader<R, S>,
-    qual_rdr: fasta::Reader<File, S>,
+pub struct FaQualReader<R: io::Read, P: BufPolicy> {
+    fa_rdr: fasta::Reader<R, P>,
+    qual_rdr: fasta::Reader<File, P>,
     quals: Vec<u8>,
 }
 
-impl<R, S> FaQualReader<R, S>
+impl<R, P> FaQualReader<R, P>
 where
     R: io::Read,
-    S: BufStrategy + Clone,
+    P: BufPolicy + Clone,
 {
-    pub fn new<Q>(rdr: R, cap: usize, strategy: S, qfile: Q) -> CliResult<Self>
+    pub fn new<Q>(rdr: R, cap: usize, policy: P, qfile: Q) -> CliResult<Self>
     where
         Q: AsRef<Path>,
     {
@@ -41,17 +41,17 @@ where
         })?;
 
         Ok(FaQualReader {
-            fa_rdr: fasta::Reader::with_cap_and_strategy(rdr, cap, strategy.clone()),
-            qual_rdr: fasta::Reader::with_cap_and_strategy(qhandle, cap, strategy),
+            fa_rdr: fasta::Reader::with_capacity(rdr, cap).set_policy(policy.clone()),
+            qual_rdr: fasta::Reader::with_capacity(qhandle, cap).set_policy(policy),
             quals: vec![],
         })
     }
 }
 
-impl<R, S, O> SeqReader<O> for FaQualReader<R, S>
+impl<R, P, O> SeqReader<O> for FaQualReader<R, P>
 where
     R: io::Read,
-    S: BufStrategy,
+    P: BufPolicy,
 {
     fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
         let quals = &mut self.quals;

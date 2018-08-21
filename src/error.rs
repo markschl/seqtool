@@ -13,7 +13,6 @@ use exprtk_rs;
 use regex;
 use seq_io;
 
-//use lib::selective_csv;
 use csv;
 use meval;
 

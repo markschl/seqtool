@@ -7,27 +7,27 @@ use memchr::memchr;
 use super::*;
 use error::CliResult;
 use seq_io::fasta::{self, Reader, Record as FR};
-use seq_io::BufStrategy;
+use seq_io::BufPolicy;
 use var;
 
 // Reader
 
-pub struct FastaReader<R: io::Read, S: BufStrategy>(pub Reader<R, S>);
+pub struct FastaReader<R: io::Read, P: BufPolicy>(pub Reader<R, P>);
 
-impl<R, S> FastaReader<R, S>
+impl<R, P> FastaReader<R, P>
 where
     R: io::Read,
-    S: BufStrategy,
+    P: BufPolicy,
 {
-    pub fn new(rdr: R, cap: usize, strategy: S) -> Self {
-        FastaReader(Reader::with_cap_and_strategy(rdr, cap, strategy))
+    pub fn new(rdr: R, cap: usize, policy: P) -> Self {
+        FastaReader(Reader::with_capacity(rdr, cap).set_policy(policy))
     }
 }
 
-impl<R, S, O> SeqReader<O> for FastaReader<R, S>
+impl<R, P, O> SeqReader<O> for FastaReader<R, P>
 where
     R: io::Read,
-    S: BufStrategy,
+    P: BufPolicy,
 {
     fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
         self.0.next().map(|r| {
