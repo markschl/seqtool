@@ -28,12 +28,12 @@ zstd = "0.4"
 twoway = "0.2"
 memchr = "2.1"
 fxhash = "0.2"
-exprtk_rs = { version = "0.0.7", optional = true, features = [
 textwrap = "0.11"
 meval = "0.2"
+exprtk_rs = { version = "0.1", default-features = false, features = [
   "comments", "break_continue", "sc_andor", "return_statement",
-  "enhanced_features", "superscalar_unroll"
- ] }
+  "superscalar_unroll"
+ ], optional = true }
 bytecount = "0.4"
 maplit = "1.0"
 byteorder = "1.2"

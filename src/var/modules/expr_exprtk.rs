@@ -135,14 +135,14 @@ impl VarProvider for ExprVars {
         for (new_name, var) in &replacements {
             if var.starts_with(".") {
                 let (var_id, _) = vars.register_var(&var[1..]);
-                if let Some(expr_var_id) = symbols.add_stringvar(&new_name, b"")? {
+                if let Some(expr_var_id) = symbols.add_stringvar(&new_name, "")? {
                     string_ids.push((var_id, expr_var_id));
                 }
             }
         }
 
         // expression
-        let (expr, expr_vars) = Expression::with_vars(&expr_string, symbols).map_err(|e| {
+        let (expr, expr_vars) = Expression::parse_vars(&expr_string, symbols).map_err(|e| {
             if e.message
                 .to_lowercase()
                 .contains("invalid string operation")
@@ -175,12 +175,16 @@ impl VarProvider for ExprVars {
             // scalars
             for &(var_id, expr_var_id) in var_ids {
                 let value = data.symbols.get_float(var_id)?.unwrap_or(NAN);
-                expr.symbols().set_value(expr_var_id, value);
+                expr.symbols().value(expr_var_id).unwrap().set(value);
             }
             // strings
             for &(var_id, expr_var_id) in string_ids {
-                let s = data.symbols.get_text(var_id).unwrap_or(b"");
-                expr.symbols().set_string(expr_var_id, s);
+                let s = data
+                    .symbols
+                    .get_text(var_id)
+                    .map(|s| String::from_utf8_lossy(s))
+                    .unwrap_or("".into());
+                expr.symbols_mut().set_string(expr_var_id, &s);
             }
             // def() "function"
             for &(var_id, expr_var_id) in def {
@@ -189,7 +193,7 @@ impl VarProvider for ExprVars {
                 } else {
                     1.
                 };
-                expr.symbols().set_value(expr_var_id, v);
+                expr.symbols().value(expr_var_id).unwrap().set(v);
             }
 
             data.symbols.set_float(expr_id, expr.value());
