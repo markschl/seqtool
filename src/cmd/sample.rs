@@ -1,9 +1,9 @@
 use std::cmp::min;
-use std::io;
+use std::io::{self, Write};
 
 use bit_vec::BitVec;
 use byteorder::{BigEndian, WriteBytesExt};
-use rand::*;
+use rand::prelude::*;
 
 use cfg;
 use error::CliResult;
@@ -27,6 +27,8 @@ Options:
                         STDIN because records have to be counted before.
     -s, --seed <s>      Use this seed to make the sampling reproducible.
                         Useful e.g. for randomly selecting from paired end reads.
+                        Either a number (can be very big) or a string, from which
+                        the first 32 bytes are used.
 ",
     common_opts!()
 );
@@ -34,16 +36,23 @@ Options:
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
     let cfg = cfg::Config::from_args(&args)?;
-    let seed = args.opt_value("--seed")?.map(|s| {
-        let mut seed_array = [0; 32];
-        (&mut seed_array[..]).write_u64::<BigEndian>(s).unwrap();
-        seed_array
+
+    // parse seed
+    let seed_str = args.opt_str("--seed");
+    let seed = seed_str.map(|s| {
+        let mut seed = [0; 32];
+        if let Ok(num) = s.parse() {
+            (&mut seed[..]).write_u64::<BigEndian>(num).unwrap();
+        } else {
+            (&mut seed[..]).write(s.as_bytes()).unwrap();
+        }
+        seed
     });
 
     cfg.writer(|writer, mut vars| {
         if let Some(n_rand) = args.opt_value("--num-seqs")? {
             if let Some(s) = seed {
-                let rng: IsaacRng = SeedableRng::from_seed(s);
+                let rng: StdRng = SeedableRng::from_seed(s);
                 sample_n(&cfg, n_rand, rng, writer, &mut vars)
             } else {
                 sample_n(&cfg, n_rand, thread_rng(), writer, &mut vars)

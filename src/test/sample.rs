@@ -1,5 +1,5 @@
 extern crate rand;
-use rand::{Rng, SeedableRng};
+use rand::prelude::*;
 
 use super::*;
 
@@ -21,23 +21,35 @@ fn sample() {
                 "Fractions should be between 0 and 1",
             );
 
-        // this is how it is done by seqtool
-        let mut seed = [0; 32];
-        seed[0] = 9;
-        for &p in &[0., 0.5, 1.] {
-            let mut rng = rand::StdRng::from_seed(seed);
-            let mut expected = SEQS
-                .iter()
-                .cloned()
-                .filter(|_| rng.gen::<f32>() < p)
-                .collect::<Vec<_>>()
-                .concat();
-                
-            t.cmp(
-                &["sample", "-f", &format!("{}", p), "-s", "9"],
-                FileInput(path),
-                &expected,
-            );
+        // integer seed
+        let mut seed1 = [0; 32];
+        seed1[0] = 9;
+        let seed2_vec: Vec<_> = (65..97).collect();
+        // string seed
+        let mut seed2 = [0; 32];
+        (&mut seed2[..]).write(&seed2_vec).unwrap();
+
+        let seeds = vec![
+            (seed1, "9"),
+            (seed2, ::std::str::from_utf8(&seed2[..]).unwrap())
+        ];
+
+        for (seed, seed_str) in seeds {
+            for &p in &[0., 0.5, 1.] {
+                let mut rng = StdRng::from_seed(seed);
+                let mut expected = SEQS
+                    .iter()
+                    .cloned()
+                    .filter(|_| rng.gen::<f32>() < p)
+                    .collect::<Vec<_>>()
+                    .concat();
+
+                t.cmp(
+                    &["sample", "-f", &format!("{}", p), "-s", seed_str],
+                    FileInput(path),
+                    &expected,
+                );
+            }
         }
     });
 }
