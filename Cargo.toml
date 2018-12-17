@@ -13,36 +13,34 @@ docopt = "1.0"
 bio = "0.25"
 seq_io = "0.3"
 thread_io = { version="0.1", path="src/thread_io" }
-crossbeam = "0.4"
-lazy_static = "1.1"
-regex = "1.0"
+crossbeam = "0.6"
+lazy_static = "1.2"
+regex = "1.1"
 csv = "1.0"
-itertools = "0.7"
+itertools = "0.8"
 bit-vec = "0.5"
 vec_map = "0.8"
 rand = "0.6"
 flate2 = "1.0"
 bzip2 = "0.3"
-lz4 = "1.22"
+lz4 = "1.23"
 zstd = "0.4"
-twoway = "0.1"
-memchr = "2.0"
+twoway = "0.2"
+memchr = "2.1"
 fxhash = "0.2"
-textwrap = "0.10"
-meval = "0.1"
 exprtk_rs = { version = "0.0.7", optional = true, features = [
+textwrap = "0.11"
+meval = "0.2"
   "comments", "break_continue", "sc_andor", "return_statement",
   "enhanced_features", "superscalar_unroll"
  ] }
-bytecount = "0.3"
+bytecount = "0.4"
 maplit = "1.0"
-pattern_matching = { path = "src/pattern_matching", version = "0.1.1" }
-ref_slice = "1.1"
 byteorder = "1.2"
 read_color = "1.0"
 palette = "0.4"
 termcolor = "1.0"
-ordered-float = "0.5"
+ordered-float = "1.0"
 approx = "0.3"
 
 [target.'cfg(unix)'.dependencies]
@@ -53,13 +51,12 @@ path = "src/main.rs"
 name = "st"
 
 [dev-dependencies]
-assert_cmd = "0.9"
-predicates = "0.9"
+assert_cmd = "0.10"
+predicates = "1.0"
 tempdir = "0.3"
 
 [features]
 default = []
-nightly = ["twoway/pcmp"]
 exprtk = ["exprtk_rs"]
 
 [profile.release]

@@ -1,7 +1,6 @@
-use std::iter::Skip;
+use std::iter::{Skip, StepBy};
 use std::slice::Iter;
 
-use itertools::{Itertools, Step};
 use vec_map::VecMap;
 
 use super::matcher::{Match, Matcher};
@@ -244,7 +243,7 @@ impl SearchPositions {
     fn matches_iter<'a>(&self, group: usize, matches: &'a [Option<Match>]) -> MatchesIter<'a> {
         let group_idx = self.group_idx[group];
         MatchesIter {
-            matches: matches.iter().skip(group_idx).step(self.groups.len()),
+            matches: matches.iter().skip(group_idx).step_by(self.groups.len()),
         }
     }
 
@@ -260,7 +259,7 @@ impl SearchPositions {
 }
 
 pub struct MatchesIter<'a> {
-    matches: Step<Skip<Iter<'a, Option<Match>>>>,
+    matches: StepBy<Skip<Iter<'a, Option<Match>>>>,
 }
 
 impl<'a> Iterator for MatchesIter<'a> {

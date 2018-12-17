@@ -136,7 +136,7 @@ impl InFormat {
         match self {
             InFormat::FASTQ { .. } | InFormat::FaQual { .. } => true,
             InFormat::CSV { fields, .. } => {
-                fields.iter().any(|f| f.trim_left().starts_with("qual"))
+                fields.iter().any(|f| f.trim_start().starts_with("qual"))
             }
             _ => false,
         }
