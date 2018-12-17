@@ -1,5 +1,3 @@
-extern crate pattern_matching;
-extern crate ref_slice;
 
 use super::*;
 use error::CliResult;
@@ -7,38 +5,33 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 
-use self::pattern_matching::myers::Myers;
+use bio::pattern_matching::myers::{Myers, MyersBuilder, BitVec};
 
-pub struct MyersMatcher {
-    myers: Myers,
+pub struct MyersMatcher<T: BitVec> {
+    myers: Myers<T>,
     max_dist: u8,
     needs_start: bool,
     sort_vec: Option<Vec<Match>>,
 }
 
-impl MyersMatcher {
+impl<T: BitVec> MyersMatcher<T> {
     pub fn new(
         pattern: &[u8],
         max_dist: u8,
         needs_start: bool,
         sorted: bool,
         ambig_trans: Option<&HashMap<u8, Vec<u8>>>,
-    ) -> CliResult<MyersMatcher> {
-        let myers = if let Some(t) = ambig_trans {
-            let variants = pattern.into_iter().map(|b| {
-                t.get(b)
-                    .map(|v| v.as_slice())
-                    .unwrap_or_else(|| ref_slice::ref_slice(b))
-                    .iter()
-                    .cloned()
-            });
-            Myers::from_variants(variants)
-        } else {
-            Myers::new(pattern)
-        };
+    ) -> CliResult<Self>
+    {
+        let mut builder = MyersBuilder::new();
+        if let Some(trans) = ambig_trans {
+            for (&symbol, equivalents) in trans {
+                builder.ambig(symbol, equivalents);
+            }
+        }
 
         Ok(MyersMatcher {
-            myers: myers,
+            myers: builder.build(pattern),
             max_dist: max_dist,
             needs_start: needs_start,
             sort_vec: if sorted { Some(vec![]) } else { None },
@@ -46,13 +39,16 @@ impl MyersMatcher {
     }
 }
 
-impl Matcher for MyersMatcher {
+impl<T> Matcher for MyersMatcher<T>
+where T: BitVec<DistType=u8>,
+
+{
     fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool) {
         if self.needs_start {
             // group hits by start position
             let by_start = self
                 .myers
-                .find_all_pos(text, self.max_dist)
+                .find_all(text, self.max_dist)
                 .group_by(|&(start, _, _)| start);
 
             let iter = by_start

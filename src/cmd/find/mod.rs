@@ -71,17 +71,17 @@ Actions:
 
 lazy_static! {
     static ref AMBIG_DNA: HashMap<u8, Vec<u8>> = hashmap!{
-        b'M' => b"ACM".to_vec(),
-        b'R' => b"AGR".to_vec(),
-        b'W' => b"ATW".to_vec(),
-        b'S' => b"CGS".to_vec(),
-        b'Y' => b"CTY".to_vec(),
-        b'K' => b"GTK".to_vec(),
-        b'V' => b"ACGMRSV".to_vec(),
-        b'H' => b"ACTMWYH".to_vec(),
-        b'D' => b"AGTRWKD".to_vec(),
-        b'B' => b"CGTSYKB".to_vec(),
-        b'N' => b"ACGTMRWSYKVHDBN".to_vec(),
+        b'M' => b"AC".to_vec(),
+        b'R' => b"AG".to_vec(),
+        b'W' => b"AT".to_vec(),
+        b'S' => b"CG".to_vec(),
+        b'Y' => b"CT".to_vec(),
+        b'K' => b"GT".to_vec(),
+        b'V' => b"ACGMRS".to_vec(),
+        b'H' => b"ACTMWY".to_vec(),
+        b'D' => b"AGTRWK".to_vec(),
+        b'B' => b"CGTSYK".to_vec(),
+        b'N' => b"ACGTMRWSYKVHDB".to_vec(),
     };
     static ref AMBIG_RNA: HashMap<u8, Vec<u8>> = AMBIG_DNA
         .iter()
@@ -471,12 +471,24 @@ fn get_matcher<'a>(
                         SeqType::Protein => Some(&AMBIG_PROTEIN as &HashMap<_, _>),
                         SeqType::Other => None,
                     }
-                } else { None };
-            Box::new(MyersMatcher::new(
-              pattern.as_bytes(), o.max_dist as u8,
-              o.needs_alignment, o.sorted,
-              ambig_map
-            )?)
+                } else {
+                    None
+                };
+            if pattern.len() <= 64 {
+                Box::new(MyersMatcher::<u64>::new(
+                  pattern.as_bytes(), o.max_dist as u8,
+                  o.needs_alignment, o.sorted,
+                  ambig_map
+                )?)
+            } else if pattern.len() <= 128 {
+                Box::new(MyersMatcher::<u128>::new(
+                  pattern.as_bytes(), o.max_dist as u8,
+                  o.needs_alignment, o.sorted,
+                  ambig_map
+                )?)
+            } else {
+                return fail!("Patterns longer than 128 are not supported.");
+            }
         }
     })
 }
