@@ -12,7 +12,7 @@ readme = "README.md"
 docopt = "1.0"
 bio = "0.25"
 seq_io = "0.3"
-thread_io = { version="0.1", path="src/thread_io" }
+thread_io = { version="0.1", git="https://github.com/markschl/thread_io.git" }
 crossbeam = "0.6"
 lazy_static = "1.2"
 regex = "1.1"
