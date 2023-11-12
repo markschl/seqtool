@@ -3,14 +3,14 @@ use std::fmt::Write;
 use std::mem;
 
 use csv;
-
-use cfg;
-use error::CliResult;
 use fxhash::FxHashMap;
-use opt;
-use var::varstring;
 
-static USAGE: &'static str = concat!(
+use crate::config;
+use crate::error::CliResult;
+use crate::opt;
+use crate::var::varstring;
+
+static USAGE: &str = concat!(
     "
 This command counts the number of sequences and prints the number to STDOUT. Advanced
 grouping of sequences is possible by supplying or more key strings containing
@@ -21,7 +21,7 @@ Usage:
     st count (-h | --help)
 
 Options:
-    -k, --key <key>     Summarize over a variable key or a string containing variables.
+    -k, --key <key>     Summarize over a variable/function or a string containing variables.
                         For numeric key insert 'n:' before. Values are counted
                         in intervals of 1. To change, specify 'n:<interval>:<key>'.
                         Example: 'n:10:{s:seqlen}'
@@ -33,7 +33,7 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let keys = args.get_vec("--key");
     let print_intervals = !args.get_bool("--no-int");
@@ -45,11 +45,11 @@ pub fn run() -> CliResult<()> {
     }
 }
 
-fn count_simple(cfg: &cfg::Config) -> CliResult<()> {
+fn count_simple(cfg: &config::Config) -> CliResult<()> {
     cfg.io_writer(|writer, _| {
         let mut n = 0;
 
-        cfg.read_sequential(|_| {
+        cfg.read_simple(|_| {
             n += 1;
             Ok(true)
         })?;
@@ -61,8 +61,8 @@ fn count_simple(cfg: &cfg::Config) -> CliResult<()> {
     Ok(())
 }
 
-fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) -> CliResult<()> {
-    cfg.io_writer(|writer, mut vars| {
+fn count_categorized(cfg: &config::Config, keys: &[&str], print_intervals: bool) -> CliResult<()> {
+    cfg.io_writer(|writer, vars| {
         // register variables & parse types
         let var_keys: Vec<_> = keys
             .iter()
@@ -80,16 +80,15 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
         // reusable key that is only cloned when not present in the hash map
         let mut key = vec![(Category::Text(vec![]), false); var_keys.len()];
 
-        cfg.read_sequential_var(&mut vars, |_, vars| {
-            for (
-                (&(ref key, ref interval), ref mut value),
-                &mut (ref mut cat, ref mut is_different),
-            ) in var_keys.iter().zip(&mut values).zip(&mut key)
+        cfg.read(vars, |record, vars| {
+            for (((key, ref interval), value), &mut (ref mut cat, ref mut is_different)) in
+                var_keys.iter().zip(&mut values).zip(&mut key)
             {
                 if let Some(&(int, _)) = interval.as_ref() {
-                    if let Some(v) = key.get_float(vars.symbols())? {
+                    if let Some(v) = key.get_float(vars.symbols(), record) {
+                        let v = v?;
                         if !v.is_nan() {
-                            let v = v / int as f64;
+                            let v = v / int;
                             let f = v.floor();
                             if relative_ne!(v, f) {
                                 *is_different = true;
@@ -103,7 +102,7 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
                     }
                 } else {
                     value.clear();
-                    key.compose(value, vars.symbols());
+                    key.compose(value, vars.symbols(), record);
                     if let Category::Text(ref mut v) = *cat {
                         mem::swap(v, value);
                     } else {
@@ -132,12 +131,12 @@ fn count_categorized(cfg: &cfg::Config, keys: &[&str], print_intervals: bool) ->
 
         let mut record = vec![String::new(); var_keys.len() + 1];
         for (ref keys, count) in sorted {
-            for ((ref mut field, &(ref c, is_different)), &(_, ref interval)) in
+            for ((ref mut field, &(ref c, is_different)), (_, interval)) in
                 record.iter_mut().zip(keys).zip(&var_keys)
             {
                 field.clear();
                 match *c {
-                    Category::Text(ref s) => field.push_str(::std::str::from_utf8(s)?),
+                    Category::Text(ref s) => field.push_str(std::str::from_utf8(s)?),
                     Category::Num(n) => {
                         let &(int, precision) = &interval.unwrap();
                         if print_intervals && is_different {

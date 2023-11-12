@@ -1,4 +1,4 @@
-use lib::twoway_iter::TwowayIter;
+use crate::helpers::twoway_iter::TwowayIter;
 
 use super::*;
 
@@ -11,7 +11,7 @@ impl ExactMatcher {
 }
 
 impl Matcher for ExactMatcher {
-    fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool) {
+    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
         let l = self.0.len();
         for start in TwowayIter::new(text, &self.0) {
             let h = SimpleHit(Match::new(start, start + l, 0, 0, 0, 0));

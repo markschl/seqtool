@@ -1,34 +1,27 @@
 use std::io;
 
-use error::CliResult;
-use var;
-use var::varstring;
-
 use super::{Record, Writer};
-use io::SeqAttr;
+use crate::var;
+use crate::var::varstring;
+use crate::{error::CliResult, var::varstring::register_var_list};
 
 use csv;
 
-enum Field {
-    SeqAttr(SeqAttr),
-    Expr(varstring::VarString),
-}
-
 pub struct CsvWriter<W: io::Write> {
     writer: csv::Writer<W>,
-    fields: Vec<String>,
-    compiled_fields: Vec<Field>,
+    field_list: String,
+    compiled_fields: Vec<varstring::VarString>,
     row: Vec<Vec<u8>>,
 }
 
 impl<W: io::Write> CsvWriter<W> {
-    pub fn new(writer: W, fields: Vec<String>, delim: u8) -> CsvWriter<W> {
+    pub fn new(writer: W, field_list: String, delim: u8) -> CsvWriter<W> {
         let writer = csv::WriterBuilder::new()
             .delimiter(delim)
             .from_writer(writer);
         CsvWriter {
-            writer: writer,
-            fields: fields,
+            writer,
+            field_list,
             compiled_fields: vec![],
             row: vec![],
         }
@@ -39,32 +32,24 @@ impl<W: io::Write> Writer<W> for CsvWriter<W> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()> {
         self.compiled_fields.clear();
         self.row.clear();
-        for field in &self.fields {
-            let compiled = match SeqAttr::from_str(field) {
-                Some(a) => Field::SeqAttr(a),
-                None => {
-                    let expr = varstring::VarString::var_or_composed(field, builder)?;
-                    Field::Expr(expr)
-                }
-            };
-            self.compiled_fields.push(compiled);
-            self.row.push(vec![]);
-        }
+        // progressively parse fields; this is necessary because there can be
+        // commas in functions as well
+        self.compiled_fields.clear();
+        register_var_list(&self.field_list, ',', builder, &mut self.compiled_fields)?;
+        self.row
+            .extend((0..self.compiled_fields.len()).map(|_| vec![]));
         Ok(())
     }
 
     #[inline]
     fn has_vars(&self) -> bool {
-        !self.fields.is_empty()
+        !self.compiled_fields.is_empty()
     }
 
-    fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
-        for (field, parsed) in self.compiled_fields.iter().zip(&mut self.row) {
+    fn write(&mut self, record: &dyn Record, vars: &var::Vars) -> CliResult<()> {
+        for (expr, parsed) in self.compiled_fields.iter().zip(&mut self.row) {
             parsed.clear();
-            match *field {
-                Field::SeqAttr(attr) => record.write_attr(attr, parsed),
-                Field::Expr(ref expr) => expr.compose(parsed, vars.symbols()),
-            }
+            expr.compose(parsed, vars.symbols(), record);
         }
         self.writer.write_record(&self.row)?;
         Ok(())

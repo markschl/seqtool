@@ -1,9 +1,8 @@
-use cfg;
-use error::CliResult;
-use lib::inner_result::MapRes;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::opt;
 
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Interleaves records of all files in the input. The records will returned in
 the same order as the files.
@@ -21,14 +20,14 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let id_check = !args.get_bool("--no-id-check");
 
     cfg.writer(|writer, vars| {
         let mut id = vec![];
 
-        cfg.all_readers(|i, rec| {
+        cfg.read_alongside(|i, rec| {
             if id_check {
                 let rec_id = rec.id_bytes();
                 if i == 0 {
@@ -43,7 +42,7 @@ pub fn run() -> CliResult<()> {
                     ));
                 }
             }
-            writer.write(rec, &vars)
+            writer.write(rec, vars)
         })
     })
 }

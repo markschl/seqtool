@@ -1,8 +1,9 @@
-use self::Stat::*;
 use bytecount;
-use error::CliResult;
-use io::Record;
-use var::*;
+
+use self::Stat::*;
+use crate::error::CliResult;
+use crate::io::Record;
+use crate::var::*;
 
 pub struct StatHelp;
 
@@ -10,25 +11,24 @@ impl VarHelp for StatHelp {
     fn name(&self) -> &'static str {
         "Sequence statistics"
     }
-    fn usage(&self) -> &'static str {
-        "s:<variable>[:opts]"
-    }
+
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
-            ("s:seqlen", "Sequence length"),
-            ("s:ungapped_len", "Sequence length without gaps (-)"),
+            ("seqlen", "Sequence length"),
+            ("ungapped_seqlen", "Sequence length without gaps (-)"),
             (
-                "s:gc",
+                "gc",
                 "GC content as percentage of total bases. Lowercase (=masked) letters \
-                 / characters other than ACGTU are not counted.",
+                 / characters other than ACGTU are not taken into account.",
             ),
             (
-                "s:count",
-                "Count occurrence one or more characters. Usage: `s:count:<characters>`. \
-                 Note that some characters (like '-') cannot be specified in math expressions.",
+                "charcount",
+                "Count occurrence one or more characters. \
+                Example counting count non-ambiguous bases: \
+                `charcount(\"ACGT\")` or `charcount('ACGT')`.",
             ),
             (
-                "s:exp_err",
+                "exp_err",
                 "Total number of errors expected in the sequence, calculated from the quality scores \
                  as the sum of all error probabilities. For FASTQ, make sure to specify the correct \
                  format (--fmt) in case the scores are not in the Sanger/Illumina 1.8+ format.",
@@ -38,7 +38,7 @@ impl VarHelp for StatHelp {
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[(
             "Get absolute GC content (not relative to sequence length)",
-            "st stat count:GC input.fa",
+            "st stat gc input.fa",
         )])
     }
 }
@@ -65,38 +65,28 @@ impl StatVars {
 }
 
 impl VarProvider for StatVars {
-    fn prefix(&self) -> Option<&str> {
-        Some("s")
-    }
-
-    fn name(&self) -> &'static str {
-        "statistics"
-    }
-
-    fn register_var(&mut self, name: &str, id: usize, _: &mut VarStore) -> CliResult<bool> {
-        let parts: Vec<_> = name.splitn(2, ':').collect();
-        let args = parts.get(1);
-        let name = parts[0];
-        let stat = match name {
-            "seqlen" => SeqLen,
-            "ungapped_len" => UngappedLen,
-            "gc" => GC,
-            "count" => {
-                if let Some(c) = args {
-                    let c = c.as_bytes();
-                    if c.len() == 1 {
-                        Stat::Count(c[0])
-                    } else {
-                        Stat::MultiCount(c.to_owned())
-                    }
-                } else {
-                    return fail!("Please specify one or more characters to count.");
-                }
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
+        let name = func.name.as_str();
+        let stat = if name == "charcount" {
+            let v = func.one_arg_as::<String>()?;
+            let c = v.as_bytes();
+            if c.len() == 1 {
+                Stat::Count(c[0])
+            } else {
+                Stat::MultiCount(c.to_owned())
             }
-            "exp_err" => ExpErr,
-            _ => return Ok(false),
+        } else {
+            let stat = match name {
+                "seqlen" => SeqLen,
+                "ungapped_seqlen" => UngappedLen,
+                "gc" => GC,
+                "exp_err" => ExpErr,
+                _ => return Ok(false),
+            };
+            func.ensure_no_args()?;
+            stat
         };
-        self.stats.push((stat, id));
+        self.stats.push((stat, b.symbol_id()));
         Ok(true)
     }
 
@@ -104,24 +94,19 @@ impl VarProvider for StatVars {
         !self.stats.is_empty()
     }
 
-    fn set(&mut self, rec: &Record, data: &mut Data) -> CliResult<()> {
+    fn set(&mut self, rec: &dyn Record, data: &mut MetaData) -> CliResult<()> {
         for &(ref stat, id) in &self.stats {
+            let sym = data.symbols.get_mut(id);
             match *stat {
-                SeqLen => data.symbols.set_int(id, rec.seq_len() as i64),
-
-                GC => data
-                    .symbols
-                    .set_float(id, get_gc(rec.seq_segments()) * 100.),
-
-                UngappedLen => data.symbols.set_int(id, get_ungapped_len(rec, b'-') as i64),
-
-                Count(byte) => data.symbols.set_int(id, count_byte(rec, byte) as i64),
-
-                MultiCount(ref bytes) => data.symbols.set_int(id, count_bytes(rec, bytes) as i64),
-
+                SeqLen => sym.set_int(rec.seq_len() as i64),
+                GC => sym.set_float(get_gc(rec.seq_segments()) * 100.),
+                UngappedLen => sym.set_int(get_ungapped_len(rec, b'-') as i64),
+                Count(byte) => sym.set_int(count_byte(rec, byte) as i64),
+                MultiCount(ref bytes) => sym.set_int(count_bytes(rec, bytes) as i64),
                 ExpErr => {
                     let q = rec.qual().ok_or("No quality scores in input.")?;
-                    data.symbols.set_float(id, data.qual_converter.prob_sum(q)?);
+                    let ee = data.qual_converter.prob_sum(q)?;
+                    sym.set_float(ee);
                 }
             }
         }

@@ -3,24 +3,25 @@ use std::path::Path;
 use std::str;
 
 use self::BuiltinVar::*;
-use error::CliResult;
-use io::input::{InputOptions, InputType};
-use io::output::OutputOptions;
-use io::Record;
-use var::*;
+use crate::error::CliResult;
+use crate::io::input::{InputOptions, InputType};
+use crate::io::output::OutputOptions;
+use crate::io::Record;
+use crate::var::*;
 
 pub struct BuiltinHelp;
 
 impl VarHelp for BuiltinHelp {
     fn name(&self) -> &'static str {
-        "Standard variables without prefix"
+        "Data from records and input files"
     }
-    fn usage(&self) -> &'static str {
-        "<variable>"
-    }
+
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
-            ("id", "Record ID (in FASTA/FASTQ: everything before first space)"),
+            (
+                "id",
+                "Record ID (in FASTA/FASTQ: everything before first space)",
+            ),
             ("desc", "Record description (everything after first space)"),
             ("seq", "Record sequence"),
             ("num", "Sequence number starting with 1"),
@@ -99,16 +100,8 @@ impl BuiltinVars {
 }
 
 impl VarProvider for BuiltinVars {
-    fn prefix(&self) -> Option<&str> {
-        None
-    }
-
-    fn name(&self) -> &'static str {
-        "builtin"
-    }
-
-    fn register_var(&mut self, name: &str, id: usize, _: &mut VarStore) -> CliResult<bool> {
-        let var = match name {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
+        let var = match func.name.as_str() {
             "id" => Id,
             "desc" => Desc,
             "seq" => Seq,
@@ -136,7 +129,8 @@ impl VarProvider for BuiltinVars {
             "default_ext" => DefaultExt,
             _ => return Ok(false),
         };
-        self.vars.push((var, id));
+        func.ensure_num_args(0)?;
+        self.vars.push((var, b.symbol_id()));
         Ok(true)
     }
 
@@ -144,44 +138,33 @@ impl VarProvider for BuiltinVars {
         !self.vars.is_empty()
     }
 
-    fn set(&mut self, record: &Record, data: &mut Data) -> CliResult<()> {
+    fn set(&mut self, record: &dyn Record, data: &mut MetaData) -> CliResult<()> {
         self.num += 1;
 
         for &(var, id) in &self.vars {
+            let sym = data.symbols.get_mut(id);
             match var {
-                Id => data.symbols.set_text(id, record.id_bytes()),
-                Desc => data
-                    .symbols
-                    .set_text(id, record.desc_bytes().unwrap_or(b"")),
+                Id => sym.set_text(record.id_bytes()),
+                Desc => sym.set_text(record.desc_bytes().unwrap_or(b"")),
                 Seq => {
-                    let concatenated = data.symbols.mut_text(id);
+                    let concatenated = sym.mut_text();
                     for s in record.seq_segments() {
                         concatenated.extend_from_slice(s);
                     }
                 }
-                Num => data.symbols.set_int(id, self.num as i64),
-                InPath => data
-                    .symbols
-                    .set_text(id, self.path_info.path.as_ref().unwrap()),
-                InName => data
-                    .symbols
-                    .set_text(id, self.path_info.name.as_ref().unwrap()),
-                InStem => data
-                    .symbols
-                    .set_text(id, self.path_info.stem.as_ref().unwrap()),
-                Ext => data
-                    .symbols
-                    .set_text(id, self.path_info.ext.as_ref().unwrap()),
-                Dir => data
-                    .symbols
-                    .set_text(id, self.path_info.dir.as_ref().unwrap()),
-                DefaultExt => data.symbols.set_text(id, &self.path_info.out_ext),
+                Num => sym.set_int(self.num as i64),
+                InPath => sym.set_text(self.path_info.path.as_ref().unwrap()),
+                InName => sym.set_text(self.path_info.name.as_ref().unwrap()),
+                InStem => sym.set_text(self.path_info.stem.as_ref().unwrap()),
+                Ext => sym.set_text(self.path_info.ext.as_ref().unwrap()),
+                Dir => sym.set_text(self.path_info.dir.as_ref().unwrap()),
+                DefaultExt => sym.set_text(&self.path_info.out_ext),
             }
         }
         Ok(())
     }
 
-    fn out_opts(&mut self, out_opts: &OutputOptions) -> CliResult<()> {
+    fn init(&mut self, out_opts: &OutputOptions) -> CliResult<()> {
         self.path_info.out_ext = out_opts.format.default_ext().as_bytes().to_owned();
         Ok(())
     }

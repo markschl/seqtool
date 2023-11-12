@@ -4,24 +4,28 @@ use std::collections::HashMap;
 use std::env::var;
 use std::io::{self, Write};
 use std::str;
+use std::str::FromStr;
 
-use ordered_float::OrderedFloat;
-use palette;
-use read_color;
+use ansi_colours::ansi256_from_rgb;
+use enterpolation::{linear::Linear, Curve, Merge};
+use palette::named;
+use palette::rgb::Rgb;
+use palette::white_point::D65;
+use palette::Hsv;
+use palette::{FromColor, IntoColor, LinSrgb, Mix};
 use termcolor::{self, WriteColor};
 use vec_map::VecMap;
 
 #[cfg(target_family = "unix")]
 use pager::Pager;
 
-use cfg;
-use error::CliResult;
-use io::{qual_to_prob, QualFormat};
-use lib::inner_result::MapRes;
-use lib::seqtype::{guess_seqtype, SeqType};
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::{qual_to_prob, QualFormat};
+use crate::helpers::seqtype::{guess_seqtype, SeqType};
+use crate::opt;
 
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 View biological sequences, coloured by base / amino acid, or by sequence quality.
 The output is automatically forwarded to the 'less' pager on UNIX.
@@ -95,7 +99,7 @@ lazy_static! {
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let nmax: Option<usize> = args.opt_value("--num-seqs")?;
     let mut id_len: Option<usize> = args.opt_value("--id-len")?;
@@ -113,14 +117,14 @@ pub fn run() -> CliResult<()> {
     }
 
     if args.get_bool("--list-pal") {
-        println!(concat!(
+        eprintln!(concat!(
             "List of palette names their color mappings, which are in the form\n",
             "<symbol>:<colors>. Colors are specified as HEX codes. The colors can be\n",
             "directly configured using --dna-pal / --aa-pal / --qscale. These options\n",
             "accept both palette names and color mappings.\n"
         ));
         for (pal, mapping) in PALETTES.iter() {
-            println!("{:<10} {}", pal, mapping);
+            eprintln!("{:<10} {}", pal, mapping);
         }
         return Ok(());
     }
@@ -167,88 +171,88 @@ pub fn run() -> CliResult<()> {
         && var("LANG")
             .unwrap_or_else(|_| "".to_string())
             .to_ascii_lowercase()
-            .contains("utf-8") || cfg!(target_os = "windows");
+            .contains("utf-8")
+        || cfg!(target_os = "windows");
 
     // run
-
-    let vars = cfg.vars()?;
-
     let mut i = 0;
     let mut id_len = id_len.unwrap_or(0);
-
-    cfg.read_sequential(|record| {
-        if let Some(n) = nmax {
-            if i >= n {
-                return Ok(false);
-            }
-        }
-
-        // write seq. ids / desc
-
-        let (id, desc) = record.id_desc_bytes();
-
-        if id_len == 0 {
-            // determine ID width of first ID
-            id_len = min(100, max(10, ::std::str::from_utf8(id)?.chars().count() + 3));
-        }
-
-        write_id(id, desc, &mut writer, id_len, show_desc, utf8)?;
-
-        // write seq
-
-        if let Some(qual) = record.qual() {
-            let mut qual_iter = qual.into_iter();
-
-            let mut prob = 0.;
-            let mut seqlen = 0;
-
-            for seq in record.seq_segments() {
-                if !writer.initialized() {
-                    // TODO: initializing with first sequence line -> enough?
-                    writer.init(seq)?;
+    // TODO: not actually required, currently
+    cfg.with_vars(|vars| {
+        cfg.read(vars, |record, vars| {
+            if let Some(n) = nmax {
+                if i >= n {
+                    return Ok(false);
                 }
-
-                for &symbol in seq {
-                    let q = *qual_iter
-                        .next()
-                        .expect("BUG: Sequence length != Length of qual.");
-
-                    let phred = vars.data().qual_converter.convert(q, QualFormat::Phred)?;
-
-                    writer.write_symbol(symbol, Some(phred))?;
-
-                    prob += qual_to_prob(phred);
-                }
-
-                seqlen += seq.len();
             }
 
-            writer.reset()?;
+            // write seq. ids / desc
 
-            let rate = prob / seqlen as f64;
-            if prob < 0.001 {
-                write!(writer, " err: {:>3.2e} ({:.4e} / pos.)", prob, rate)?;
+            let (id, desc) = record.id_desc_bytes();
+
+            if id_len == 0 {
+                // determine ID width of first ID
+                id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3));
+            }
+
+            write_id(id, desc, &mut writer, id_len, show_desc, utf8)?;
+
+            // write seq
+
+            if let Some(qual) = record.qual() {
+                let mut qual_iter = qual.iter();
+
+                let mut prob = 0.;
+                let mut seqlen = 0;
+
+                for seq in record.seq_segments() {
+                    if !writer.initialized() {
+                        // TODO: initializing with first sequence line -> enough?
+                        writer.init(seq)?;
+                    }
+
+                    for &symbol in seq {
+                        let q = *qual_iter
+                            .next()
+                            .expect("BUG: Sequence length != Length of qual.");
+
+                        let phred = vars.data().qual_converter.convert(q, QualFormat::Phred)?;
+
+                        writer.write_symbol(symbol, Some(phred))?;
+
+                        prob += qual_to_prob(phred);
+                    }
+
+                    seqlen += seq.len();
+                }
+
+                writer.reset()?;
+
+                let rate = prob / seqlen as f64;
+                if prob < 0.001 {
+                    write!(writer, " err: {:>3.2e} ({:.4e} / pos.)", prob, rate)?;
+                } else {
+                    write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
+                }
             } else {
-                write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
-            }
-        } else {
-            for seq in record.seq_segments() {
-                if !writer.initialized() {
-                    writer.init(seq)?;
+                for seq in record.seq_segments() {
+                    if !writer.initialized() {
+                        writer.init(seq)?;
+                    }
+
+                    for &symbol in seq {
+                        writer.write_symbol(symbol, None)?;
+                    }
                 }
 
-                for &symbol in seq {
-                    writer.write_symbol(symbol, None)?;
-                }
+                writer.reset()?;
             }
 
-            writer.reset()?;
-        }
+            writer.write_all(b"\n")?;
 
-        writer.write_all(b"\n")?;
-
-        i += 1;
-        Ok(true)
+            i += 1;
+            Ok(true)
+        })
     })
 }
 
@@ -301,28 +305,6 @@ fn write_id<W: io::Write>(
     Ok(())
 }
 
-type Rgb = (u8, u8, u8);
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-struct Color {
-    rgb: Rgb,
-    ansi256: u8,
-}
-
-impl Color {
-    fn from_rgb(rgb: Rgb) -> Color {
-        Color {
-            rgb: rgb,
-            ansi256: find_nearest_col256(rgb),
-        }
-    }
-
-    fn to_palette_col(&self) -> palette::LinSrgb {
-        let c = &self.rgb;
-        palette::LinSrgb::new(f32::from(c.0), f32::from(c.1), f32::from(c.2))
-    }
-}
-
 enum ColorSource {
     Symbol,
     Qual { qmax: u8 },
@@ -331,6 +313,59 @@ enum ColorSource {
 enum ColorMode {
     Fg,
     Bg,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct Color {
+    rgb: (u8, u8, u8),
+    ansi: AnsiColor,
+}
+
+impl Color {
+    fn from_rgb(c: LinSrgb) -> Self {
+        Self {
+            rgb: (
+                c.red.round() as u8,
+                c.green.round() as u8,
+                c.blue.round() as u8,
+            ),
+            ansi: c.into(),
+        }
+    }
+
+    fn from_str(s: &str) -> Result<Self, String> {
+        parse_color(s).map(Self::from_rgb)
+    }
+
+    fn to_termcolor(&self, rgb: bool) -> termcolor::Color {
+        if rgb {
+            termcolor::Color::Rgb(self.rgb.0, self.rgb.1, self.rgb.2)
+        } else {
+            termcolor::Color::Ansi256(self.ansi.0)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+struct AnsiColor(u8);
+
+impl From<LinSrgb> for AnsiColor {
+    fn from(c: LinSrgb) -> Self {
+        let c: Rgb<_, u8> = c.into();
+        Self(ansi256_from_rgb((c.red, c.green, c.blue)))
+    }
+}
+
+// Necessary since LinSrgb doesn't implement `Merge` automatically, but also to
+// get the correct circular blending.
+// TODO: Lch?
+#[derive(Clone, Copy, Debug)]
+struct Adapter<T>(T);
+
+impl<T: Mix> Merge<T::Scalar> for Adapter<T> {
+    fn merge(self, to: Self, factor: T::Scalar) -> Self {
+        Adapter(self.0.mix(to.0, factor))
+    }
 }
 
 struct ColorWriter {
@@ -359,14 +394,8 @@ impl ColorWriter {
             current_fg: None,
             current_bg: None,
             textcols: (
-                Color {
-                    rgb: (0, 0, 0),
-                    ansi256: 16,
-                },
-                Color {
-                    rgb: (255, 255, 255),
-                    ansi256: 213,
-                },
+                Color::from_rgb(named::BLACK.into_linear()),
+                Color::from_rgb(named::WHITE.into_linear()),
             ),
             actions: vec![],
             initialized: false,
@@ -398,7 +427,7 @@ impl ColorWriter {
     }
 
     fn textcols(mut self, dark: &str, bright: &str) -> Result<Self, String> {
-        self.textcols = (parse_color(dark)?, parse_color(bright)?);
+        self.textcols = (Color::from_str(dark)?, Color::from_str(bright)?);
         Ok(self)
     }
 
@@ -411,7 +440,7 @@ impl ColorWriter {
     }
 
     fn init(&mut self, seq: &[u8]) -> Result<(), String> {
-        for &(ref source, ref mode) in &self.actions {
+        for (source, mode) in &self.actions {
             let store_to = match *mode {
                 ColorMode::Fg => &mut self.fg_map,
                 ColorMode::Bg => &mut self.bg_map,
@@ -420,39 +449,37 @@ impl ColorWriter {
             *store_to = match *source {
                 ColorSource::Qual { qmax } => {
                     let qscale = &self.qual_scale;
-                    let scale = PALETTES
-                        .get(qscale.trim())
-                        .map(|p| *p)
-                        .unwrap_or_else(|| qscale);
+                    let scale = PALETTES.get(qscale.trim()).copied().unwrap_or(qscale);
                     Some((load_phred_colors(scale, qmax)?, true))
                 }
                 ColorSource::Symbol => {
                     let mut palette = None;
                     if let Some((seqtype, _, _)) = guess_seqtype(seq, None) {
                         palette = match seqtype {
-                            SeqType::DNA | SeqType::RNA => Some(&self.dna_pal),
+                            SeqType::Dna | SeqType::Rna => Some(&self.dna_pal),
                             SeqType::Protein => Some(&self.protein_pal),
                             _ => None,
                         }
                     }
-                    palette.map_res(|pal| {
-                        let pal = PALETTES.get(pal.trim()).map(|p| *p).unwrap_or_else(|| pal.as_str());
+                    palette.map(|pal| {
+                        let pal = PALETTES.get(pal.trim()).copied().unwrap_or(pal.as_str());
                         Ok::<_, String>((parse_colormap(pal)?, false))
-                    })?
+                    })
+                    .transpose()?
                 }
             };
         }
 
         // set optimal text color
 
-        if let Some(&(ref bg_map, _)) = self.bg_map.as_ref() {
+        if let Some((bg_map, _)) = self.bg_map.as_ref() {
             if self.fg_map.is_none() {
                 let mut fg_map = VecMap::new();
-                let dark_l = palette::Lab::from(self.textcols.0.to_palette_col()).l;
-                let bright_l = palette::Lab::from(self.textcols.1.to_palette_col()).l;
-                for (ref symbol, ref col) in bg_map {
-                    let l = palette::Lab::from(col.to_palette_col()).l;
-                    let col = if (bright_l - l) / (bright_l - dark_l) < 0.3 {
+                let dark_l = palette::Lab::<D65, _>::from(self.textcols.0.rgb).l;
+                let bright_l = palette::Lab::<D65, _>::from(self.textcols.1.rgb).l;
+                for (ref symbol, col) in bg_map {
+                    let l = palette::Lab::<D65, _>::from(col.rgb).l;
+                    let col = if ((bright_l - l) as f32) / ((bright_l - dark_l) as f32) < 0.3 {
                         &self.textcols.0
                     } else {
                         &self.textcols.1
@@ -476,7 +503,7 @@ impl ColorWriter {
         if let Some(&(ref map, load_qual)) = self.fg_map.as_ref() {
             let c = self._get_color(symbol, qual, map, load_qual);
             if self.current_fg != c {
-                self.current_fg = c.clone();
+                self.current_fg = c;
                 self.colspec.set_fg(c);
                 changed = true;
             }
@@ -484,7 +511,7 @@ impl ColorWriter {
         if let Some(&(ref map, load_qual)) = self.bg_map.as_ref() {
             let c = self._get_color(symbol, qual, map, load_qual);
             if self.current_bg != c {
-                self.current_bg = c.clone();
+                self.current_bg = c;
                 self.colspec.set_bg(c);
                 changed = true;
             }
@@ -507,15 +534,8 @@ impl ColorWriter {
         } else {
             symbol
         };
-        if let Some(c) = map.get(symbol as usize) {
-            if self.truecolor {
-                Some(termcolor::Color::Rgb(c.rgb.0, c.rgb.1, c.rgb.2))
-            } else {
-                Some(termcolor::Color::Ansi256(c.ansi256))
-            }
-        } else {
-            None
-        }
+        map.get(symbol as usize)
+            .map(|c| c.to_termcolor(self.truecolor))
     }
 
     fn reset(&mut self) -> io::Result<()> {
@@ -537,12 +557,9 @@ impl io::Write for ColorWriter {
 }
 
 fn has_truecolor() -> bool {
-    if let Ok(v) = var("COLORTERM") {
-        if v == "truecolor" {
-            return true;
-        }
-    }
-    false
+    var("COLORTERM")
+        .map(|s| s == "truecolor" || s == "24bit")
+        .unwrap_or(false)
     // 256-color: $TERM contains 256
     // see also https://github.com/chalk/supports-color/blob/master/index.js
 }
@@ -554,7 +571,7 @@ fn parse_colormap(colors: &str) -> Result<VecMap<Color>, String> {
         let mut s = c.split(':');
         let symbols = s.next().unwrap().as_bytes().to_vec();
         if let Some(col) = s.next() {
-            let col = parse_color(col)?;
+            let col = Color::from_str(col)?;
             for s in symbols {
                 out.insert(s as usize, col.clone());
             }
@@ -565,102 +582,33 @@ fn parse_colormap(colors: &str) -> Result<VecMap<Color>, String> {
             ));
         }
     }
-
     Ok(out)
 }
 
 fn load_phred_colors(scale: &str, qmax: u8) -> Result<VecMap<Color>, String> {
     // HSV color gradient
+    // TODO: needed?
     let scale: Vec<_> = scale
         .split(',')
-        .map(|code| Ok(palette::Hsv::from(parse_color(code)?.to_palette_col())))
+        .map(|code| Ok(Adapter(Hsv::from_color(parse_color(code)?))))
         .collect::<Result<_, String>>()?;
 
     let mut out = VecMap::new();
-    for (i, c) in palette::Gradient::new(scale)
-        .take(qmax as usize)
-        .enumerate()
-    {
-        let c: palette::LinSrgb = c.into();
-        out.insert(
-            i,
-            Color::from_rgb((
-                c.red.round() as u8,
-                c.green.round() as u8,
-                c.blue.round() as u8,
-            )),
-        );
+    let gradient = Linear::builder()
+        .elements(scale)
+        .equidistant::<f32>()
+        .normalized()
+        .build()
+        .unwrap();
+    for (i, c) in gradient.take(qmax as usize).enumerate() {
+        out.insert(i, Color::from_rgb(c.0.into_color()));
     }
     Ok(out)
 }
 
-fn parse_color(c: &str) -> Result<Color, String> {
-    let c = if let Some(col) = read_color::rgb(&mut c.trim().trim_left_matches('#').chars()) {
-        (col[0], col[1], col[2])
-    } else if let Some(rgb) = palette::named::from_str(c) {
-        (rgb.red, rgb.green, rgb.blue)
-    } else {
-        return fail!(format!("Invalid color code: '{}'. The colors must be in Hex format (rrggbb) or a name (e.g. 'cyan')", c));
-    };
-    Ok(Color::from_rgb(c))
-}
-
-lazy_static! {
-    static ref GREYS256: Vec<(f32, f32, f32)> = (0..24)
-        .map(|i| {
-            let c = (8 + 10 * i) as f32;
-            (c, c, c)
-        })
-        .collect();
-}
-
-fn find_nearest_col256(col: Rgb) -> u8 {
-    fn up(c: f32) -> f32 {
-        (c / 255. * 5.).ceil() / 5. * 255.
+fn parse_color(s: &str) -> Result<LinSrgb, String> {
+    if let Some(c) = named::from_str(s).or_else(|| Rgb::from_str(s).ok()) {
+        return Ok(c.into_linear());
     }
-
-    fn dwn(c: f32) -> f32 {
-        (c / 255. * 5.).floor() / 5. * 255.
-    }
-
-    // CIE76 color difference
-    fn dist<C: Into<palette::Lab>>(c1: C, c2: C) -> f32 {
-        let c1: palette::Lab = c1.into();
-        let c2: palette::Lab = c2.into();
-        ((c2.l - c1.l) + (c2.a - c1.a) + (c2.b - c1.b)).sqrt()
-    }
-
-    let mut dists = vec![];
-
-    let c = palette::LinSrgb::new(f32::from(col.0), f32::from(col.1), f32::from(col.2));
-
-    // nearest possible ANSI 256 colors
-    let possible = [
-        (dwn(c.red), dwn(c.green), dwn(c.blue)),
-        (dwn(c.red), dwn(c.green), up(c.blue)),
-        (dwn(c.red), up(c.green), dwn(c.blue)),
-        (dwn(c.red), up(c.green), up(c.blue)),
-        (up(c.red), dwn(c.green), dwn(c.blue)),
-        (up(c.red), dwn(c.green), up(c.blue)),
-        (up(c.red), up(c.green), dwn(c.blue)),
-        (up(c.red), up(c.green), up(c.blue)),
-    ];
-
-    // get color with smallest distance to desired color
-    // according to CIE76 color difference
-    dists.clear();
-    dists.extend(possible
-            .into_iter()
-            // also check all grey tones
-            .chain(&GREYS256 as &[_])
-            .map(|c2| {
-                let c2 = palette::LinSrgb::new(c2.0, c2.1, c2.2);
-                (dist(c, c2), c2)
-            }));
-    dists.sort_by_key(|&(d, _)| OrderedFloat(d));
-    let nearest = dists[0].1;
-
-    let code = 16. + (36. * nearest.red + 6. * nearest.green + nearest.blue) / 255. * 5.;
-
-    code.round() as u8
+    fail!(format!("Invalid color code: '{}'. The colors must be in Hex format (rrggbb) or a name (e.g. 'cyan')", s))
 }

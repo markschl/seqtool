@@ -2,11 +2,11 @@
 use std::cmp::max;
 // use attr;
 // use attr::KeyGetter;
-use error::CliResult;
-use lib::inner_result::MapRes;
-use lib::util;
-use var;
-use var::varstring::VarString;
+use crate::error::CliResult;
+use crate::io::Record;
+use crate::helpers::util;
+use crate::var;
+use crate::var::varstring::VarString;
 
 /// Represents a range bound integer stored either directly or in a `VarString`
 /// that is evaluated later with `RngBound::value()`.
@@ -27,11 +27,16 @@ impl RngBound {
         })
     }
 
-    pub fn value(&self, symbols: &var::symbols::Table) -> CliResult<isize> {
+    pub fn value(
+        &self,
+        symbols: &var::symbols::SymbolTable,
+        record: &dyn Record,
+    ) -> CliResult<isize> {
         Ok(match *self {
             RngBound::Number(n) => n,
             RngBound::Expr(ref e) => {
-                e.get_int(symbols)?
+                e.get_int(symbols, record)
+                    .transpose()?
                     .ok_or("Range bound results in empty string.")? as isize
             }
         })
@@ -52,8 +57,8 @@ impl VarRange {
     pub fn from_str(s: &str, vars: &mut var::Vars) -> CliResult<VarRange> {
         if let Ok((start, end)) = util::parse_range_str(s) {
             Ok(VarRange::Split(
-                start.map_res(|s| RngBound::from_str(s, vars))?,
-                end.map_res(|e| RngBound::from_str(e, vars))?,
+                start.map(|s| RngBound::from_str(s, vars)).transpose()?,
+                end.map(|e| RngBound::from_str(e, vars)).transpose()?,
             ))
         } else {
             let varstring = vars.build(|b| VarString::var_or_composed(s, b))?;
@@ -66,21 +71,23 @@ impl VarRange {
         length: usize,
         rng0: bool,
         exclusive: bool,
-        symbols: &var::symbols::Table,
+        symbols: &var::symbols::SymbolTable,
+        record: &dyn Record,
     ) -> CliResult<(usize, usize)> {
         Ok(match *self {
             VarRange::Split(ref start, ref end) => Range::new(
-                start.as_ref().map_res(|s| s.value(symbols))?,
-                end.as_ref().map_res(|e| e.value(symbols))?,
+                start.as_ref().map(|s| s.value(symbols, record)).transpose()?,
+                end.as_ref().map(|e| e.value(symbols, record)).transpose()?,
                 length,
                 rng0,
-            )?.get(exclusive),
+            )?
+            .get(exclusive),
             VarRange::Full(ref varstring, ref mut val) => {
                 val.clear();
-                varstring.compose(val, symbols);
+                varstring.compose(val, symbols, record);
                 // "unnecessary" UTF-8 conversion, however it would be complicated
                 // because there is no integer parsing from byte slices in the std. library
-                let s = ::std::str::from_utf8(val)?;
+                let s = std::str::from_utf8(val)?;
                 let (start, end) = util::parse_range(s)?;
                 Range::new(start, end, length, rng0)?.get(exclusive)
             }
@@ -116,7 +123,7 @@ impl VarRanges {
             )
         };
         Ok(VarRanges {
-            ty: ty,
+            ty,
             out: vec![],
             val: vec![],
         })
@@ -127,17 +134,21 @@ impl VarRanges {
         length: usize,
         rng0: bool,
         exclusive: bool,
-        symbols: &var::symbols::Table,
+        symbols: &var::symbols::SymbolTable,
+        record: &dyn Record,
     ) -> CliResult<&[(usize, usize)]> {
         self.out.clear();
         match self.ty {
-            VarRangesType::Split(ref mut rng) => for r in rng {
-                self.out.push(r.get(length, rng0, exclusive, symbols)?);
-            },
+            VarRangesType::Split(ref mut rng) => {
+                for r in rng {
+                    self.out
+                        .push(r.get(length, rng0, exclusive, symbols, record)?);
+                }
+            }
             VarRangesType::Full(ref varstring) => {
                 self.val.clear();
-                varstring.compose(&mut self.val, symbols);
-                let s = ::std::str::from_utf8(&self.val)?;
+                varstring.compose(&mut self.val, symbols, record);
+                let s = std::str::from_utf8(&self.val)?;
                 for r in s.split(',') {
                     let (start, end) = util::parse_range(r)?;
                     let r = Range::new(start, end, length, rng0)?.get(exclusive);

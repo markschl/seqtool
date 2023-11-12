@@ -1,16 +1,11 @@
 use std::fs::File;
 
-use error::CliResult;
-use io::input::InFormat;
-use io::{QualFormat, SeqAttr};
-use lib::util::parse_delimiter;
+use crate::error::CliResult;
+use crate::io::input::InFormat;
+use crate::io::{QualFormat, SeqAttr};
+use crate::helpers::util::parse_delimiter;
 
 pub use self::var::*;
-
-#[cfg(not(feature = "exprtk"))]
-use self::modules::expr as expr_module;
-#[cfg(feature = "exprtk")]
-use self::modules::expr_exprtk as expr_module;
 
 pub mod attr;
 pub mod modules;
@@ -20,13 +15,17 @@ pub mod varstring;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct VarOpts<'a> {
+    // metadata
     pub lists: Vec<&'a str>,
     pub list_delim: &'a str,
     pub has_header: bool,
     pub unordered: bool,
     pub id_col: usize,
-    pub attr_opts: AttrOpts,
     pub allow_missing: bool,
+    // attributes
+    pub attr_opts: AttrOpts,
+    // expressions
+    pub expr_init: Option<&'a str>,
     // Used to remember that the variable help page has to be returned
     pub var_help: bool,
 }
@@ -47,21 +46,21 @@ impl Default for AttrOpts {
 }
 
 pub fn var_help() -> String {
-    let help_mod: &[Box<var::VarHelp>] = &[
+    let help_mod: &[Box<dyn var::VarHelp>] = &[
         Box::new(modules::builtins::BuiltinHelp),
         Box::new(modules::stats::StatHelp),
         Box::new(modules::attr::AttrHelp),
         Box::new(modules::list::ListHelp),
-        Box::new(expr_module::ExprHelp),
+        Box::new(modules::expr::ExprHelp),
     ];
     help_mod
-        .into_iter()
+        .iter()
         .map(|m| m.format())
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
+pub fn get_vars(o: &VarOpts, informat: &InFormat) -> CliResult<Vars> {
     // Vars instance
     let delim = parse_delimiter(&o.attr_opts.delim)?;
     let value_delim = parse_delimiter(&o.attr_opts.value_delim)?;
@@ -73,10 +72,11 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
     // quality converter is not related to variables,
     // therefore stored in InFormat
     let qual_converter = match *informat {
-        InFormat::FASTQ { format } => format,
+        InFormat::Fastq { format } => format,
         InFormat::FaQual { .. } => QualFormat::Phred,
         _ => QualFormat::Sanger,
-    }.get_converter();
+    }
+    .get_converter();
 
     let mut vars = Vars::new(delim, value_delim, append_attr, qual_converter);
 
@@ -86,17 +86,19 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
         let csv_file = File::open(list).map_err(|e| format!("Error opening '{}': {}", list, e))?;
         if o.unordered {
             let finder = modules::list::Unordered::new();
-            vars.add_module(modules::list::ListVars::new(i + 1, csv_file, finder, list_delim)
-                .id_col(o.id_col)
-                .has_header(o.has_header)
-                .allow_missing(o.allow_missing)
+            vars.add_module(
+                modules::list::ListVars::new(i + 1, o.lists.len(), csv_file, finder, list_delim)
+                    .id_col(o.id_col)
+                    .has_header(o.has_header)
+                    .allow_missing(o.allow_missing),
             );
         } else {
             let finder = modules::list::SyncIds;
-            vars.add_module(modules::list::ListVars::new(i + 1, csv_file, finder, list_delim)
-                .id_col(o.id_col)
-                .has_header(o.has_header)
-                .allow_missing(o.allow_missing)
+            vars.add_module(
+                modules::list::ListVars::new(i + 1, o.lists.len(), csv_file, finder, list_delim)
+                    .id_col(o.id_col)
+                    .has_header(o.has_header)
+                    .allow_missing(o.allow_missing),
             );
         }
     }
@@ -107,9 +109,9 @@ pub fn get_vars<'a>(o: &VarOpts, informat: &InFormat) -> CliResult<Vars<'a>> {
     vars.add_module(modules::stats::StatVars::new());
 
     // TODO: allow_missing may not be used at all, a separate option may not make sense
-    vars.add_module(modules::attr::AttrVars::new(true));
+    vars.add_module(modules::attr::AttrVars::new());
 
-    vars.add_module(expr_module::ExprVars::new()?);
+    vars.add_module(modules::expr::ExprVars::new(o.expr_init)?);
 
     Ok(vars)
 }

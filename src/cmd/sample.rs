@@ -3,15 +3,16 @@ use std::io::{self, Write};
 
 use bit_vec::BitVec;
 use byteorder::{BigEndian, WriteBytesExt};
+use rand::distributions::Uniform;
 use rand::prelude::*;
 
-use cfg;
-use error::CliResult;
-use io::output::Writer;
-use opt;
-use var::*;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::output::Writer;
+use crate::opt;
+use crate::var::*;
 
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Return a random subset of sequences.
 
@@ -35,7 +36,7 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     // parse seed
     let seed_str = args.opt_str("--seed");
@@ -44,28 +45,28 @@ pub fn run() -> CliResult<()> {
         if let Ok(num) = s.parse() {
             (&mut seed[..]).write_u64::<BigEndian>(num).unwrap();
         } else {
-            (&mut seed[..]).write(s.as_bytes()).unwrap();
+            (&mut seed[..]).write_all(s.as_bytes()).unwrap();
         }
         seed
     });
 
-    cfg.writer(|writer, mut vars| {
+    cfg.writer(|writer, vars| {
         if let Some(n_rand) = args.opt_value("--num-seqs")? {
             if let Some(s) = seed {
                 let rng: StdRng = SeedableRng::from_seed(s);
-                sample_n(&cfg, n_rand, rng, writer, &mut vars)
+                sample_n(&cfg, n_rand, rng, writer, vars)
             } else {
-                sample_n(&cfg, n_rand, thread_rng(), writer, &mut vars)
+                sample_n(&cfg, n_rand, thread_rng(), writer, vars)
             }
         } else if let Some(p) = args.opt_value::<f32>("--frac")? {
-            if p < 0. || p > 1. {
+            if !(0f32..=1.).contains(&p) {
                 return fail!("Fractions should be between 0 and 1");
             }
             if let Some(s) = seed {
                 let rng: StdRng = SeedableRng::from_seed(s);
-                sample_prob(&cfg, p, rng, writer, &mut vars)
+                sample_prob(&cfg, p, rng, writer, vars)
             } else {
-                sample_prob(&cfg, p, thread_rng(), writer, &mut vars)
+                sample_prob(&cfg, p, thread_rng(), writer, vars)
             }
         } else {
             return fail!("Nothing selected, use either -n or --prob");
@@ -74,11 +75,11 @@ pub fn run() -> CliResult<()> {
 }
 
 fn sample_n<R: Rng, W: io::Write>(
-    cfg: &cfg::Config,
-    n_rand: usize,
+    cfg: &config::Config,
+    k: usize,
     mut rng: R,
-    writer: &mut Writer<W>,
-    mut vars: &mut Vars,
+    writer: &mut dyn Writer<W>,
+    vars: &mut Vars,
 ) -> CliResult<()> {
     if cfg.has_stdin() {
         return fail!("Cannot use STDIN as input, since we need to count all sequences before");
@@ -87,8 +88,7 @@ fn sample_n<R: Rng, W: io::Write>(
     // count
 
     let mut n = 0;
-
-    cfg.read_sequential(|_| {
+    cfg.read_simple(|_| {
         n += 1;
         Ok(true)
     })?;
@@ -98,12 +98,16 @@ fn sample_n<R: Rng, W: io::Write>(
     }
 
     // select randomly
-
+    // TODO: original implementation optimized for small k, becomes very inefficient with large k/n
+    // consider reservoir sampling for sufficiently small k
     let mut chosen = BitVec::from_elem(n, false);
+    let distr = Uniform::new(0usize, n);
+    // TODO: warning if k > n?
+    let n_sample = min(k, n);
 
-    for _ in 0..min(n_rand, n) {
+    for _ in 0..n_sample {
         loop {
-            let x: usize = rng.gen_range(0, n);
+            let x = distr.sample(&mut rng);
             if !chosen[x] {
                 chosen.set(x, true);
                 break;
@@ -115,7 +119,7 @@ fn sample_n<R: Rng, W: io::Write>(
 
     let mut chosen_iter = chosen.into_iter();
 
-    cfg.read_sequential_var(&mut vars, |record, vars| {
+    cfg.read(vars, |record, vars| {
         if chosen_iter.next().unwrap() {
             writer.write(&record, vars)?;
         }
@@ -124,16 +128,18 @@ fn sample_n<R: Rng, W: io::Write>(
 }
 
 fn sample_prob<R: Rng, W: io::Write>(
-    cfg: &cfg::Config,
+    cfg: &config::Config,
     prob: f32,
     mut rng: R,
-    writer: &mut Writer<W>,
-    mut vars: &mut Vars,
+    writer: &mut dyn Writer<W>,
+    vars: &mut Vars,
 ) -> CliResult<()> {
-    assert!(prob >= 0. && prob <= 1.);
+    assert!((0f32..=1.).contains(&prob));
+    // TODO: new_inclusive?
+    let distr = Uniform::new(0f32, 1f32);
 
-    cfg.read_sequential_var(&mut vars, |record, vars| {
-        if rng.gen::<f32>() < prob {
+    cfg.read(vars, |record, vars| {
+        if distr.sample(&mut rng) < prob {
             writer.write(&record, vars)?;
         }
         Ok(true)

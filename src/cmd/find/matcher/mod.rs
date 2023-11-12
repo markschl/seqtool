@@ -9,17 +9,17 @@ pub use self::exact::*;
 pub use self::regex::*;
 
 pub trait Matcher {
-    fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool);
+    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool);
 }
 
 impl<M: Matcher + ?Sized> Matcher for Box<M> {
-    fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool) {
+    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
         (**self).iter_matches(text, func)
     }
 }
 
 impl<'a, M: Matcher> Matcher for &'a mut M {
-    fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool) {
+    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
         (**self).iter_matches(text, func)
     }
 }
@@ -55,12 +55,12 @@ pub struct Match {
 impl Match {
     pub fn new(start: usize, end: usize, dist: u16, subst: u16, ins: u16, del: u16) -> Match {
         Match {
-            start: start,
-            end: end,
-            dist: dist,
-            subst: subst,
-            ins: ins,
-            del: del,
+            start,
+            end,
+            dist,
+            subst,
+            ins,
+            del,
         }
     }
 

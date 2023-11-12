@@ -1,8 +1,8 @@
-use cfg;
-use error::CliResult;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::opt;
 
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Returns the first sequences of the input.
 
@@ -19,15 +19,15 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let n = args.get_str("--num-seqs");
     let n: usize = n.parse().map_err(|_| format!("Invalid number: {}", n))?;
 
-    cfg.writer(|writer, mut vars| {
+    cfg.writer(|writer, vars| {
         let mut i = 0;
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             if i >= n {
                 return Ok(false);
             }

@@ -1,5 +1,5 @@
 extern crate rand;
-use rand::prelude::*;
+use rand::{prelude::*, distributions::Uniform};
 
 use super::*;
 
@@ -27,20 +27,21 @@ fn sample() {
         let seed2_vec: Vec<_> = (65..97).collect();
         // string seed
         let mut seed2 = [0; 32];
-        (&mut seed2[..]).write(&seed2_vec).unwrap();
+        (&mut seed2[..]).write_all(&seed2_vec).unwrap();
 
         let seeds = vec![
             (seed1, "9"),
-            (seed2, ::std::str::from_utf8(&seed2[..]).unwrap())
+            (seed2, std::str::from_utf8(&seed2[..]).unwrap()),
         ];
 
         for (seed, seed_str) in seeds {
             for &p in &[0., 0.5, 1.] {
                 let mut rng = StdRng::from_seed(seed);
-                let mut expected = SEQS
+                let distr = Uniform::new_inclusive(0f32, 1.);
+                let expected = SEQS
                     .iter()
                     .cloned()
-                    .filter(|_| rng.gen::<f32>() < p)
+                    .filter(|_| distr.sample(&mut rng) < p)
                     .collect::<Vec<_>>()
                     .concat();
 

@@ -7,12 +7,13 @@ use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use lz4;
 use seq_io;
+use seq_io::policy::BufPolicy;
+use thread_io;
 use zstd;
 
 use super::*;
-use error::{CliError, CliResult};
-use lib::util;
-use thread_io;
+use crate::error::{CliError, CliResult};
+use crate::helpers::util;
 
 #[allow(dead_code)]
 mod parallel_csv;
@@ -46,14 +47,14 @@ pub struct InputOptions {
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum InFormat {
-    FASTA,
-    FASTQ {
+    Fasta,
+    Fastq {
         format: QualFormat,
     },
     FaQual {
         qfile: PathBuf,
     },
-    CSV {
+    Csv {
         delim: u8,
         fields: Vec<String>,
         has_header: bool,
@@ -63,19 +64,21 @@ pub enum InFormat {
 impl InFormat {
     pub fn name(&self) -> &'static str {
         match *self {
-            InFormat::FASTA => "fasta",
-            InFormat::FASTQ { format } => match format {
+            InFormat::Fasta => "fasta",
+            InFormat::Fastq { format } => match format {
                 QualFormat::Sanger => "fastq",
                 QualFormat::Illumina => "fastq-illumina",
                 QualFormat::Solexa => "fastq-solexa",
                 QualFormat::Phred => unreachable!(),
             },
             InFormat::FaQual { .. } => "<FASTA/QUAL>",
-            InFormat::CSV { delim, .. } => if delim == b'\t' {
-                "tsv"
-            } else {
-                "csv"
-            },
+            InFormat::Csv { delim, .. } => {
+                if delim == b'\t' {
+                    "tsv"
+                } else {
+                    "csv"
+                }
+            }
         }
     }
 
@@ -89,25 +92,26 @@ impl InFormat {
         let csv_fields = csv_fields
             .unwrap_or("id,desc,seq")
             .split(',')
-            .map(|s| s.to_string()).collect();
+            .map(|s| s.to_string())
+            .collect();
 
         let format = match string {
-            "fasta" | "fa" | "fna" | "<FASTA/QUAL>" => InFormat::FASTA,
-            "fastq" | "fq" => InFormat::FASTQ {
+            "fasta" | "fa" | "fna" | "<FASTA/QUAL>" => InFormat::Fasta,
+            "fastq" | "fq" => InFormat::Fastq {
                 format: QualFormat::Sanger,
             },
-            "fastq-illumina" | "fq-illumina" => InFormat::FASTQ {
+            "fastq-illumina" | "fq-illumina" => InFormat::Fastq {
                 format: QualFormat::Illumina,
             },
-            "fastq-solexa" | "fq-solexa" => InFormat::FASTQ {
+            "fastq-solexa" | "fq-solexa" => InFormat::Fastq {
                 format: QualFormat::Solexa,
             },
-            "csv" => InFormat::CSV {
+            "csv" => InFormat::Csv {
                 delim: util::parse_delimiter(csv_delim.unwrap_or(","))?,
                 fields: csv_fields,
                 has_header: header,
             },
-            "tsv" => InFormat::CSV {
+            "tsv" => InFormat::Csv {
                 delim: util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
                 fields: csv_fields,
                 has_header: header,
@@ -121,7 +125,7 @@ impl InFormat {
         };
 
         if let Some(f) = qfile {
-            if format != InFormat::FASTA {
+            if format != InFormat::Fasta {
                 return fail!("Expecting FASTA as input if combined with QUAL files");
             }
             return Ok(InFormat::FaQual {
@@ -134,8 +138,8 @@ impl InFormat {
 
     pub fn has_qual(&self) -> bool {
         match self {
-            InFormat::FASTQ { .. } | InFormat::FaQual { .. } => true,
-            InFormat::CSV { fields, .. } => {
+            InFormat::Fastq { .. } | InFormat::FaQual { .. } => true,
+            InFormat::Csv { fields, .. } => {
                 fields.iter().any(|f| f.trim_start().starts_with("qual"))
             }
             _ => false,
@@ -149,7 +153,7 @@ pub struct LimitedBuffer {
     limit: usize,
 }
 
-impl seq_io::BufPolicy for LimitedBuffer {
+impl BufPolicy for LimitedBuffer {
     fn grow_to(&mut self, current_size: usize) -> Option<usize> {
         if current_size < self.double_until {
             Some(current_size * 2)
@@ -161,8 +165,8 @@ impl seq_io::BufPolicy for LimitedBuffer {
     }
 }
 
-fn get_io_reader<'a>(o: &InputOptions) -> CliResult<Box<io::Read + Send + 'a>> {
-    let rdr: Box<io::Read + Send> = match o.kind {
+fn get_io_reader<'a>(o: &InputOptions) -> CliResult<Box<dyn io::Read + Send + 'a>> {
+    let rdr: Box<dyn io::Read + Send> = match o.kind {
         InputType::File(ref path) => Box::new(
             File::open(path)
                 .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?,
@@ -173,21 +177,21 @@ fn get_io_reader<'a>(o: &InputOptions) -> CliResult<Box<io::Read + Send + 'a>> {
 }
 
 fn get_compr_reader<'a>(
-    rdr: Box<io::Read + Send + 'a>,
+    rdr: Box<dyn io::Read + Send + 'a>,
     compression: Compression,
-) -> io::Result<Box<io::Read + Send + 'a>> {
+) -> io::Result<Box<dyn io::Read + Send + 'a>> {
     Ok(match compression {
-        Compression::GZIP => Box::new(GzDecoder::new(rdr)),
-        Compression::BZIP2 => Box::new(BzDecoder::new(rdr)),
-        Compression::LZ4 => Box::new(lz4::Decoder::new(rdr)?),
-        Compression::ZSTD => Box::new(zstd::Decoder::new(rdr)?),
+        Compression::Gzip => Box::new(GzDecoder::new(rdr)),
+        Compression::Bzip2 => Box::new(BzDecoder::new(rdr)),
+        Compression::Lz4 => Box::new(lz4::Decoder::new(rdr)?),
+        Compression::Zstd => Box::new(zstd::Decoder::new(rdr)?),
         Compression::None => rdr,
     })
 }
 
 fn io_reader<F, O>(o: &InputOptions, func: F) -> CliResult<O>
 where
-    for<'a> F: FnOnce(Box<io::Read + Send + 'a>) -> CliResult<O>,
+    for<'a> F: FnOnce(Box<dyn io::Read + Send + 'a>) -> CliResult<O>,
 {
     let rdr = get_io_reader(o)?;
     if o.compression != Compression::None || o.threaded {
@@ -204,7 +208,7 @@ where
 pub fn io_readers<'a, I, F, O>(opts: I, mut func: F) -> CliResult<Vec<O>>
 where
     I: IntoIterator<Item = &'a InputOptions>,
-    for<'b> F: FnMut(&InputOptions, Box<io::Read + Send + 'b>) -> CliResult<O>,
+    for<'b> F: FnMut(&InputOptions, Box<dyn io::Read + Send + 'b>) -> CliResult<O>,
 {
     opts.into_iter()
         .map(|o| io_reader(&o, |rdr| func(o, rdr)))
@@ -221,8 +225,8 @@ pub fn read_parallel<W, S, Si, Di, F, D, R>(
     mut func: F,
 ) -> CliResult<()>
 where
-    W: Fn(&Record, &mut D, &mut S) -> CliResult<()> + Send + Sync,
-    F: FnMut(&Record, &mut D) -> CliResult<bool>,
+    W: Fn(&dyn Record, &mut D, &mut S) -> CliResult<()> + Send + Sync,
+    F: FnMut(&dyn Record, &mut D) -> CliResult<bool>,
     R: io::Read + Send,
     Di: Fn() -> D + Send + Sync,
     D: Send,
@@ -262,7 +266,7 @@ pub fn run_reader<R>(
     format: &InFormat,
     cap: usize,
     max_mem: usize,
-    func: &mut FnMut(&Record) -> CliResult<bool>,
+    func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
 ) -> CliResult<()>
 where
     R: io::Read,
@@ -276,26 +280,25 @@ where
     Ok(())
 }
 
-pub fn all_readers<'a, I, F>(opts: I, mut func: F) -> CliResult<()>
+pub fn read_alongside<'a, I, F>(opts: I, mut func: F) -> CliResult<()>
 where
     I: IntoIterator<Item = &'a InputOptions>,
-    F: FnMut(usize, &Record) -> CliResult<()>,
+    F: FnMut(usize, &dyn Record) -> CliResult<()>,
 {
     let mut readers: Vec<_> = opts
         .into_iter()
         .map(|o| get_reader(get_io_reader(o)?, &o.format, o.cap, o.max_mem))
         .collect::<CliResult<_>>()?;
 
-    'outer: loop {
+    loop {
         for (i, rdr) in readers.iter_mut().enumerate() {
             if let Some(res) = rdr.read_next(&mut |rec| func(i, rec)) {
                 res??;
             } else {
-                break 'outer;
+                return Ok(());
             }
         }
     }
-    Ok(())
 }
 
 pub fn get_reader<'a, O, R>(
@@ -303,7 +306,7 @@ pub fn get_reader<'a, O, R>(
     format: &InFormat,
     cap: usize,
     max_mem: usize,
-) -> CliResult<Box<SeqReader<O> + 'a>>
+) -> CliResult<Box<dyn SeqReader<O> + 'a>>
 where
     R: io::Read + 'a,
 {
@@ -312,12 +315,12 @@ where
         limit: max_mem,
     };
     Ok(match *format {
-        InFormat::FASTA => Box::new(fasta::FastaReader::new(rdr, cap, strategy)),
-        InFormat::FASTQ { .. } => Box::new(fastq::FastqReader::new(rdr, cap, strategy)),
+        InFormat::Fasta => Box::new(fasta::FastaReader::new(rdr, cap, strategy)),
+        InFormat::Fastq { .. } => Box::new(fastq::FastqReader::new(rdr, cap, strategy)),
         InFormat::FaQual { ref qfile } => {
             Box::new(fa_qual::FaQualReader::new(rdr, cap, strategy, qfile)?)
         }
-        InFormat::CSV {
+        InFormat::Csv {
             ref delim,
             ref fields,
             has_header,
@@ -344,16 +347,18 @@ where
     D: Send,
     Si: Fn() -> CliResult<S> + Send + Sync,
     S: Send,
-    W: Fn(&Record, &mut D, &mut S) + Send + Sync,
-    F: FnMut(&Record, &mut D, &mut S) -> CliResult<bool>,
+    W: Fn(&dyn Record, &mut D, &mut S) + Send + Sync,
+    F: FnMut(&dyn Record, &mut D, &mut S) -> CliResult<bool>,
 {
     // not very nice, but saves some repetitition
     macro_rules! transform_result {
         ($res:expr) => {{
             match $res {
-                Ok(res) => if !res {
-                    return Some(Ok(()));
-                },
+                Ok(res) => {
+                    if !res {
+                        return Some(Ok(()));
+                    }
+                }
                 Err(e) => return Some(Err(e)),
             }
             None
@@ -363,7 +368,7 @@ where
     let queue_len = n_threads as usize * 2;
 
     let out: CliResult<Option<CliResult<()>>> = match *format {
-        InFormat::FASTA => seq_io::parallel::parallel_fasta_init(
+        InFormat::Fasta => seq_io::parallel::parallel_fasta_init(
             n_threads,
             queue_len,
             || Ok::<_, seq_io::fasta::Error>(seq_io::fasta::Reader::new(rdr)),
@@ -371,7 +376,7 @@ where
             rset_data_init,
             |rec, &mut (ref mut d, ref mut delim), s| {
                 let rec = fasta::FastaRecord::new(rec);
-                work(&rec as &Record, d, s);
+                work(&rec as &dyn Record, d, s);
                 *delim = rec.delim();
             },
             |rec, &mut (ref mut d, delim), s| {
@@ -382,7 +387,7 @@ where
                 transform_result!(func(&rec, d, s))
             },
         ),
-        InFormat::FASTQ { .. } => seq_io::parallel::parallel_fastq_init(
+        InFormat::Fastq { .. } => seq_io::parallel::parallel_fastq_init(
             n_threads,
             queue_len,
             || Ok::<_, seq_io::fastq::Error>(seq_io::fastq::Reader::new(rdr)),
@@ -390,7 +395,7 @@ where
             rset_data_init,
             |rec, &mut (ref mut d, ref mut delim), s| {
                 let rec = fastq::FastqRecord::new(rec);
-                work(&rec as &Record, d, s);
+                work(&rec as &dyn Record, d, s);
                 *delim = rec.delim();
             },
             |rec, &mut (ref mut d, delim), s| {
@@ -406,7 +411,7 @@ where
                 "Multithreaded processing of records with qualities from .qual files implemented"
             )
         }
-        InFormat::CSV {
+        InFormat::Csv {
             ref delim,
             ref fields,
             has_header,
@@ -416,8 +421,8 @@ where
             || csv::CsvReader::new(rdr, *delim, fields, has_header),
             record_data_init,
             rset_data_init,
-            |rec, d, s| work(&rec as &Record, d, s),
-            |rec, d, s| transform_result!(func(&rec as &Record, d, s)),
+            |rec, d, s| work(&rec as &dyn Record, d, s),
+            |rec, d, s| transform_result!(func(&rec as &dyn Record, d, s)),
         ),
     };
     match out? {

@@ -1,11 +1,10 @@
-use error::CliResult;
-use io::DefRecord;
-use opt;
-use var::*;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::DefRecord;
+use crate::opt;
+use crate::var::*;
 
-use cfg;
-
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Deletes description field or attributes.
 
@@ -23,12 +22,12 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let del_desc = args.get_bool("--desc");
     let attrs = args.opt_str("--attrs");
 
-    cfg.writer(|writer, mut vars| {
+    cfg.writer(|writer, vars| {
         if let Some(attrs) = attrs {
             vars.build(|b| {
                 for p in attrs.split(',') {
@@ -38,7 +37,7 @@ pub fn run() -> CliResult<()> {
             })?;
         }
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             if del_desc {
                 let id = record.id_bytes();
                 let record = DefRecord::new(&record, id, None);

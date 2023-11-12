@@ -1,8 +1,9 @@
 use std::io;
 use std::slice;
 
-use error::{CliError, CliResult};
 use seq_io::parallel;
+
+use crate::error::{CliError, CliResult};
 
 use super::csv::*;
 

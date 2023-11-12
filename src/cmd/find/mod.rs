@@ -4,15 +4,15 @@ use std::str;
 
 use itertools::Itertools;
 
-use cfg;
-use error::CliResult;
-use io::output::writer::Writer;
-use io::{RecordEditor, SeqAttr};
-use lib::rng::Range;
-use lib::seqtype::{guess_seqtype, SeqType};
-use lib::util::{parse_range, replace_iter};
-use opt;
-use var::{varstring, VarHelp, VarProvider};
+use crate::config;
+use crate::error::{CliError, CliResult};
+use crate::io::output::writer::Writer;
+use crate::io::{RecordEditor, SeqAttr};
+use crate::helpers::rng::Range;
+use crate::helpers::seqtype::{guess_seqtype, SeqType};
+use crate::helpers::util::{parse_range, replace_iter};
+use crate::opt;
+use crate::var::{varstring, VarHelp, VarProvider};
 
 use self::matcher::*;
 use self::matches::*;
@@ -22,7 +22,7 @@ mod matcher;
 mod matches;
 mod vars;
 
-static USAGE: &'static str = concat!(
+static USAGE: &str = concat!(
     "
 Fast searching for one or more patterns in sequences or ids/descriptions,
 with optional multithreading.
@@ -35,7 +35,7 @@ Usage:
 Search Options:
     <pattern>           Pattern string or 'file:<patterns.fasta>'
     -r, --regex         Treat the pattern(s) as regular expressions.
-    -d, --dist <dist>   Approximative string matching with maximum edit distance
+    -d, --dist <dist>   Fuzzy string matching with maximum edit distance
                         of <dist> [default: 0]
     --in-order          Report hits in the order of their occurrence instead
                         of sorting by distance (with -d > 0)
@@ -70,7 +70,7 @@ Actions:
 );
 
 lazy_static! {
-    static ref AMBIG_DNA: HashMap<u8, Vec<u8>> = hashmap!{
+    static ref AMBIG_DNA: HashMap<u8, Vec<u8>> = hashmap! {
         b'M' => b"AC".to_vec(),
         b'R' => b"AG".to_vec(),
         b'W' => b"AT".to_vec(),
@@ -87,13 +87,13 @@ lazy_static! {
         .iter()
         .map(|(&b, eq)| {
             let eq = eq
-                .into_iter()
+                .iter()
                 .map(|&b| if b == b'T' { b'U' } else { b })
                 .collect();
             (b, eq)
         })
         .collect();
-    static ref AMBIG_PROTEIN: HashMap<u8, Vec<u8>> = hashmap!{
+    static ref AMBIG_PROTEIN: HashMap<u8, Vec<u8>> = hashmap! {
         b'X' => b"CDEFGHIKLMNOPQRSTUVWY".to_vec(),
     };
 }
@@ -120,17 +120,17 @@ impl Algorithm {
 
 struct MatchOpts {
     has_groups: bool,
-    needs_alignment: bool,
+    bounds_needed: bool,
     sorted: bool,
-    max_dist: u16,
+    max_dist: usize,
     seqtype: SeqType,
 }
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args_with_help(&args, &FindVarHelp)?;
+    let cfg = config::Config::from_args_with_help(&args, &FindVarHelp)?;
 
-    let dist: u16 = args.value("--dist")?;
+    let max_dist: usize = args.value("--dist")?;
     let sorted = !args.get_bool("--in-order");
     let regex = args.get_bool("--regex");
     let ambig = args.yes_no("--ambig")?;
@@ -144,9 +144,13 @@ pub fn run() -> CliResult<()> {
         SeqAttr::Seq
     };
 
-    let filter = if args.get_bool("--filter") {
+    let flt = args.get_bool("--filter");
+    let filter = if flt {
         Some(true)
     } else if args.get_bool("--exclude") {
+        if flt {
+            return fail!("-f/--filter and -e/--exclude cannot both be specified");
+        }
         Some(false)
     } else {
         None
@@ -156,7 +160,7 @@ pub fn run() -> CliResult<()> {
 
     let pattern = args.get_str("<pattern>");
     let patterns = if !pattern.starts_with("file:") {
-        vec![("pattern".to_string(), pattern.to_string())]
+        vec![("<pattern>".to_string(), pattern.to_string())]
     } else {
         read_pattern_file(&pattern[5..])?
     };
@@ -193,26 +197,32 @@ pub fn run() -> CliResult<()> {
     ///// option parsing end
 
     // determine sequence type for each pattern
-    let typehint = typehint.as_ref().map(|s| s.as_str());
+    let typehint = typehint.as_deref();
     let (seqtype, algorithms) = analyse_patterns(
         &patterns,
         algo_override,
         typehint,
         ambig,
         regex,
-        dist,
+        max_dist,
         verbose,
     )?;
 
-    // run
-    cfg.writer_with(
-        |_| Ok(FindVars::new()),
-        |writer, mut vars, mut match_vars| {
+    cfg.with_vars(|vars| {
+
+        vars.add_module(FindVars::new(patterns.len()));
+
+        // run
+        cfg.writer_with(vars, |writer, mut vars| {
+
+            // make sure all hits for group 0 are collected (group 0 is always searched)
+            // API is somehow awkward
             let replacement = if let Some(r) = replacement {
-                // make sure all hits for group 0 are collected (group 0 is always searched)
-                // API is somehow awkward
-                match_vars.register_all(0);
-                let s = vars.build_with(Some(&mut match_vars), |b| {
+                vars.last_module_as::<FindVars, _>(|v, _| {
+                    v.register_all(0);
+                    Ok(())
+                })?;
+                let s = vars.build(|b| {
                     varstring::VarString::var_or_composed(r, b)
                 })?;
                 Some(s)
@@ -220,47 +230,52 @@ pub fn run() -> CliResult<()> {
                 None
             };
 
-            if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
-                return fail!(
-                    "Match command does nothing. Use -f/-e for filtering, --repl for replacing or \
-                     -a for writing attributes."
+            let (match_cfg, opts) = vars.last_module_as::<FindVars, _>(|match_vars, _| {
+
+                if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
+                    return fail!(
+                        "Find command does nothing. Use -f/-e for filtering, --repl for replacing or \
+                            -a for writing attributes."
+                    );
+                }
+
+                let bounds_needed =
+                    match_vars.bounds_needed().0 || match_vars.bounds_needed().1 || max_shift.is_some();
+
+                report!(
+                    verbose,
+                    "Sort by distance: {:?}. Find full position: {:?}",
+                    sorted,
+                    bounds_needed
                 );
-            }
 
-            let needs_alignment =
-                match_vars.bounds_needed().0 || match_vars.bounds_needed().1 || max_shift.is_some();
+                let match_cfg = match_vars.config().clone();
 
-            report!(
-                verbose,
-                "Sort by distance: {:?}. Find full position: {:?}",
-                sorted,
-                needs_alignment
-            );
+                let opts = MatchOpts {
+                    has_groups: match_cfg.has_groups(),
+                    bounds_needed,
+                    sorted,
+                    max_dist,
+                    seqtype,
+                };
 
-            let opts = MatchOpts {
-                has_groups: match_vars.positions().has_groups(),
-                needs_alignment: needs_alignment,
-                sorted: sorted,
-                max_dist: dist,
-                seqtype: seqtype,
-            };
+                Ok((match_cfg, opts))
+            })?;
 
             let mut replacement_text = vec![];
             let (pattern_names, patterns): (Vec<_>, Vec<_>) = patterns.into_iter().unzip();
 
             let mut dropped_file = if let Some(f) = dropped_file.as_ref() {
-                Some(cfg.other_writer(f, Some(&mut vars), Some(&mut match_vars))?)
+                Some(cfg.other_writer(f, Some(&mut vars))?)
             } else {
                 None
             };
 
-            let pos = match_vars.positions().clone();
-
-            cfg.var_parallel_init(
-                &mut vars,
+            cfg.parallel_init_var(
+                vars,
                 num_threads,
                 || {
-                    // initiate matchers (one per record set)
+                    // initialize matchers (one per record set)
                     algorithms
                         .iter()
                         .zip(&patterns)
@@ -269,10 +284,10 @@ pub fn run() -> CliResult<()> {
                 },
                 || {
                     // initialize per-sequence record data
-                    let editor = Box::new(RecordEditor::default());
+                    let editor = Box::<RecordEditor>::default();
                     let matches = Box::new(Matches::new(
                         &pattern_names,
-                        pos.clone(),
+                        match_cfg.clone(),
                         range,
                         max_shift.clone(),
                     ));
@@ -285,31 +300,28 @@ pub fn run() -> CliResult<()> {
                     Ok(())
                 },
                 |record, &mut (ref mut editor, ref matches), vars| {
-                    // records returned to main thread
-                    if let Some(rep) = replacement.as_ref() {
-                        editor.edit_with_val(attr, &record, true, |text, out| {
-                            match_vars.set_with(
-                                record,
-                                matches,
-                                &mut vars.mut_data().symbols,
-                                text,
-                            )?;
+                    vars.last_module_as::<FindVars, _>(|match_vars, symbols| {
+                        // records returned to main thread
+                        if let Some(rep) = replacement.as_ref() {
+                            editor.edit_with_val(attr, &record, true, |text, out| {
+                                match_vars.set_with(record, matches, symbols, text)?;
+                                replacement_text.clear();
+                                rep.compose(&mut replacement_text, symbols, record);
 
-                            replacement_text.clear();
-                            rep.compose(&mut replacement_text, vars.symbols());
+                                let pos = matches
+                                    .matches_iter(0, 0)
+                                    .flatten()
+                                    .map(|m| (m.start, m.end));
+                                replace_iter(text, &replacement_text, out, pos);
 
-                            let pos = matches
-                                .matches_iter(0, 0)
-                                .filter_map(|m| m)
-                                .map(|m| (m.start, m.end));
-                            replace_iter(text, &replacement_text, out, pos);
-
-                            Ok::<(), ::error::CliError>(())
-                        })?;
-                    } else {
-                        let text = editor.get(attr, &record, true);
-                        match_vars.set_with(record, matches, &mut vars.mut_data().symbols, text)?;
-                    }
+                                Ok::<(), CliError>(())
+                            })?;
+                        } else {
+                            let text = editor.get(attr, &record, true);
+                            match_vars.set_with(record, matches, symbols, text)?;
+                        }
+                        Ok(())
+                    })?;
 
                     // keep / exclude
                     if let Some(keep) = filter {
@@ -327,9 +339,9 @@ pub fn run() -> CliResult<()> {
                 },
             )?;
             Ok(())
-        },
-    )?;
-    Ok(())
+        })?;
+        Ok(())
+    })
 }
 
 fn analyse_patterns<S>(
@@ -338,7 +350,7 @@ fn analyse_patterns<S>(
     typehint: Option<&str>,
     ambig_override: Option<bool>,
     regex: bool,
-    dist: u16,
+    dist: usize,
     verbose: bool,
 ) -> CliResult<(SeqType, Vec<(Algorithm, bool)>)>
 where
@@ -349,7 +361,7 @@ where
 
     let (unique_seqtypes, out): (HashSet<SeqType>, Vec<(Algorithm, bool)>) = patterns
         .iter()
-        .map(|&(ref name, ref pattern)| {
+        .map(|(name, pattern)| {
             let (seqtype, is_n, is_ambig) = guess_seqtype(pattern.as_ref().as_bytes(), typehint)
                 .ok_or_else(|| {
                     format!(
@@ -455,40 +467,35 @@ fn get_matcher<'a>(
     algorithm: Algorithm,
     ambig: bool,
     o: &MatchOpts,
-) -> CliResult<Box<Matcher + Send + 'a>> {
+) -> CliResult<Box<dyn Matcher + Send + 'a>> {
+    if algorithm != Regex && o.has_groups {
+        return fail!("Match groups > 0 can only be used with regular expression searches.");
+    }
     Ok(match algorithm {
-        Exact =>
-          Box::new(ExactMatcher::new(pattern.as_bytes())),
+        Exact => Box::new(ExactMatcher::new(pattern.as_bytes())),
         Regex =>
-          // TODO: string regexes for ID/desc
-          Box::new(BytesRegexMatcher::new(pattern, o.has_groups)?),
+        // TODO: string regexes for ID/desc
+        {
+            Box::new(BytesRegexMatcher::new(pattern, o.has_groups)?)
+        }
         Myers => {
-            let ambig_map =
-                if ambig {
-                    match o.seqtype {
-                        SeqType::DNA => Some(&AMBIG_DNA as &HashMap<_, _>),
-                        SeqType::RNA => Some(&AMBIG_RNA as &HashMap<_, _>),
-                        SeqType::Protein => Some(&AMBIG_PROTEIN as &HashMap<_, _>),
-                        SeqType::Other => None,
-                    }
-                } else {
-                    None
-                };
-            if pattern.len() <= 64 {
-                Box::new(MyersMatcher::<u64>::new(
-                  pattern.as_bytes(), o.max_dist as u8,
-                  o.needs_alignment, o.sorted,
-                  ambig_map
-                )?)
-            } else if pattern.len() <= 128 {
-                Box::new(MyersMatcher::<u128>::new(
-                  pattern.as_bytes(), o.max_dist as u8,
-                  o.needs_alignment, o.sorted,
-                  ambig_map
-                )?)
+            let ambig_map = if ambig {
+                match o.seqtype {
+                    SeqType::Dna => Some(&AMBIG_DNA as &HashMap<_, _>),
+                    SeqType::Rna => Some(&AMBIG_RNA as &HashMap<_, _>),
+                    SeqType::Protein => Some(&AMBIG_PROTEIN as &HashMap<_, _>),
+                    SeqType::Other => None,
+                }
             } else {
-                return fail!("Patterns longer than 128 are not supported.");
-            }
+                None
+            };
+            Box::new(MyersMatcher::new(
+                pattern.as_bytes(),
+                o.max_dist,
+                o.bounds_needed,
+                o.sorted,
+                ambig_map,
+            )?)
         }
     })
 }

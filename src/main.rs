@@ -1,45 +1,16 @@
 /*
- Fast and flexible tool for reading, modifying and writing biological sequences 
+ Fast and flexible tool for reading, modifying and writing biological sequences
 */
 
-// used everywhere
-extern crate bio;
-extern crate csv;
-extern crate docopt;
-extern crate fxhash;
-extern crate itertools;
 #[macro_use]
 extern crate lazy_static;
-extern crate memchr;
 #[macro_use]
 extern crate seq_io;
-extern crate thread_io;
-extern crate vec_map;
-
-// used by specific commands
-extern crate bit_vec;
-extern crate bytecount;
-#[cfg(feature = "exprtk")]
-extern crate exprtk_rs;
-extern crate meval;
-extern crate rand;
-extern crate regex;
-extern crate twoway;
 #[macro_use]
 extern crate maplit;
-extern crate byteorder;
-extern crate ordered_float;
 #[cfg(target_family = "unix")]
 extern crate pager;
-extern crate palette;
-extern crate read_color;
-extern crate termcolor;
-
-// compression
-extern crate bzip2;
-extern crate flate2;
-extern crate lz4;
-extern crate zstd;
+// #[macro_use]
 
 use self::error::*;
 use std::process;
@@ -48,35 +19,30 @@ use std::process;
 mod macros;
 #[macro_use]
 mod help;
-mod cfg;
-#[allow(unused_imports)]
 mod cmd;
+mod config;
 mod error;
-#[allow(unused_imports)] // silence std::ascii::AsciiExt import warnings
 mod io;
-#[allow(unused)]
-mod lib;
-#[allow(unused_imports)]
+mod helpers;
 mod opt;
 mod var;
 
 #[cfg(test)]
-#[cfg_attr(rustfmt, rustfmt_skip)]
+// #[cfg_attr(rustfmt, rustfmt_skip)]
 mod test;
 #[macro_use]
 extern crate approx;
 
 fn main() {
-
     // work around https://github.com/docopt/docopt.rs/issues/240
-    let mut argv: Vec<_> = ::std::env::args().collect();
+    let mut argv: Vec<_> = std::env::args().collect();
     if argv.len() > 1 && argv[1].starts_with("st") {
         argv[1] = argv[1][2..].to_string();
     }
 
     let args = docopt::Docopt::new(help::USAGE)
         .and_then(|d| {
-            d.version(Some(lib::util::version()))
+            d.version(Some(helpers::util::version()))
                 .argv(argv)
                 .options_first(true)
                 .help(false)
@@ -94,9 +60,11 @@ fn main() {
         match run_cmd(cmd) {
             // normal exit
             Ok(()) => {}
-            Err(CliError::Io(e)) => if e.kind() != ::std::io::ErrorKind::BrokenPipe {
-                exit(&format!("{}", e), 1)
-            },
+            Err(CliError::Io(e)) => {
+                if e.kind() != std::io::ErrorKind::BrokenPipe {
+                    exit(&format!("{}", e), 1)
+                }
+            }
             Err(e) => exit(&format!("{}", e), 1),
         }
     }
@@ -120,7 +88,6 @@ fn run_cmd(cmd: &str) -> CliResult<()> {
         "del" => cmd::del::run(),
         "find" => cmd::find::run(),
         "replace" => cmd::replace::run(),
-        #[cfg(feature = "exprtk")]
         "filter" => cmd::filter::run(),
         "count" => cmd::count::run(),
         "at" => cmd::stat::run(),

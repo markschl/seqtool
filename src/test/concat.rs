@@ -9,22 +9,25 @@ fn concat() {
     t.temp_dir("concat", |tmp_dir| {
         let p = tmp_dir.path();
 
-        let p1 = p.join("f1.fq");;
+        let p1 = p.join("f1.fq");
         let mut f1 = File::create(&p1).unwrap();
-        f1.write_all(b"@id1\nAAA\n+\nAAA\n@id2\nAAA\n+\nAAA\n").unwrap();
+        f1.write_all(b"@id1\nAAA\n+\nAAA\n@id2\nAAA\n+\nAAA\n")
+            .unwrap();
         f1.flush().unwrap();
 
-        let p2 = p.join("f2.fq");;
+        let p2 = p.join("f2.fq");
         let mut f2 = File::create(&p2).unwrap();
-        f2.write_all(b"@id1\nBBB\n+\nBBB\n@id2\nBBB\n+\nBBB\n").unwrap();
+        f2.write_all(b"@id1\nBBB\n+\nBBB\n@id2\nBBB\n+\nBBB\n")
+            .unwrap();
         f2.flush().unwrap();
 
-        let p3 = p.join("f3.fq");;
+        let p3 = p.join("f3.fq");
         let mut f3 = File::create(&p3).unwrap();
-        f3.write_all(b"@id1\nCCC\n+\nCCC\n@id2\nCCC\n+\nCCC\n").unwrap();
+        f3.write_all(b"@id1\nCCC\n+\nCCC\n@id2\nCCC\n+\nCCC\n")
+            .unwrap();
         f3.flush().unwrap();
 
-        let p4 = p.join("f4.fq");;
+        let p4 = p.join("f4.fq");
         let mut f4 = File::create(&p4).unwrap();
         f4.write_all(b"@id\n\n+\n\n@id\n\n+\n\n").unwrap();
         f4.flush().unwrap();

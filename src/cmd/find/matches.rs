@@ -6,20 +6,21 @@ use vec_map::VecMap;
 use super::matcher::{Match, Matcher};
 use super::*;
 
-// Sent around between threads and holds the matches found by `Matcher`
+/// Sent around between threads and holds the matches found by `Matcher`
 #[derive(Debug)]
 pub struct Matches {
-    matcher_names: Vec<String>,
-    pos: SearchPositions,
+    pattern_names: Vec<String>,
+    cfg: SearchConfig,
     bounds: Option<(isize, isize)>,
     max_shift: Option<Shift>,
-    multiple_matchers: bool,
+    multiple_patterns: bool,
     calc_bounds: Option<(usize, usize)>,
     // offset introduced by narrowing down search range (calc_bounds)
     offset: usize,
     // vector of matches for each pattern
-    // Vec<Option<Match>> is a flat 2D matrix with dimension has_matches x num_match_groups
-    matches: Vec<Vec<Option<Match>>>,
+    // Vec<Option<Match>> is a flat 2D matrix with dimension
+    // num_patterns x num_match_groups
+    match_vecs: Vec<Vec<Option<Match>>>,
     has_matches: bool,
     // dist, index, has_matches
     dist_order: Vec<(u16, usize, bool)>,
@@ -28,21 +29,21 @@ pub struct Matches {
 
 impl Matches {
     pub fn new(
-        matcher_names: &[String],
-        pos: SearchPositions,
+        pattern_names: &[String],
+        pos: SearchConfig,
         bounds: Option<(isize, isize)>,
         max_shift: Option<Shift>,
     ) -> Matches {
-        let n = matcher_names.len();
+        let n_patterns = pattern_names.len();
         Matches {
-            matcher_names: matcher_names.to_owned(),
-            pos: pos,
-            max_shift: max_shift,
-            multiple_matchers: n > 1,
-            dist_order: vec![(0, 0, false); n],
-            matches: vec![vec![]; n],
+            pattern_names: pattern_names.to_owned(),
+            cfg: pos,
+            max_shift,
+            multiple_patterns: n_patterns > 1,
+            dist_order: vec![(0, 0, false); n_patterns],
+            match_vecs: vec![vec![]; n_patterns],
             has_matches: false,
-            bounds: bounds,
+            bounds,
             calc_bounds: None,
             offset: 0,
         }
@@ -59,28 +60,22 @@ impl Matches {
             text = &text[self.offset..e];
         }
 
-        if !self.multiple_matchers {
-            self.has_matches = self.pos.collect_matches(
+        if !self.multiple_patterns {
+            self.has_matches = self.cfg.collect_matches(
                 text,
                 &mut matchers[0],
-                &mut self.matches[0],
+                &mut self.match_vecs[0],
                 self.max_shift.as_ref(),
                 self.offset,
             );
         } else {
-            for (
-                i,
-                (
-                    (ref mut matcher, ref mut matches),
-                    &mut (ref mut best_dist, ref mut idx, ref mut has_matches),
-                ),
-            ) in matchers
-                .into_iter()
-                .zip(self.matches.iter_mut())
+            for (i, ((matcher, matches), (best_dist, idx, has_matches))) in matchers
+                .iter_mut()
+                .zip(self.match_vecs.iter_mut())
                 .zip(self.dist_order.iter_mut())
                 .enumerate()
             {
-                *has_matches = self.pos.collect_matches(
+                *has_matches = self.cfg.collect_matches(
                     text,
                     matcher,
                     matches,
@@ -91,7 +86,7 @@ impl Matches {
                 *best_dist = matches
                     .get(0)
                     .and_then(|m| m.as_ref().map(|m| m.dist))
-                    .unwrap_or(::std::u16::MAX);
+                    .unwrap_or(std::u16::MAX);
                 *idx = i;
             }
             // sort -> best matches first
@@ -105,46 +100,45 @@ impl Matches {
     }
 
     fn _matches(&self, pattern_rank: usize) -> &[Option<Match>] {
-        if self.multiple_matchers {
-            &self.matches[self.dist_order[pattern_rank].1]
+        if self.multiple_patterns {
+            &self.match_vecs[self.dist_order[pattern_rank].1]
         } else {
-            &self.matches[pattern_rank]
+            &self.match_vecs[pattern_rank]
         }
     }
 
     pub fn matches_iter(&self, pattern_rank: usize, group: usize) -> MatchesIter {
-        self.pos.matches_iter(group, self._matches(pattern_rank))
+        self.cfg.iter(group, self._matches(pattern_rank))
     }
 
     pub fn get_match(&self, pos: usize, group: usize, pattern_rank: usize) -> Option<&Match> {
-        self.pos.get_match(pos, group, self._matches(pattern_rank))
+        self.cfg.get(pos, group, self._matches(pattern_rank))
     }
 
     pub fn pattern_name(&self, pattern_rank: usize) -> Option<&str> {
-        if self.multiple_matchers {
+        if self.multiple_patterns {
             return self
                 .dist_order
                 .get(pattern_rank)
                 .and_then(|&(_, i, has_matches)| {
                     if has_matches {
-                        return self.matcher_names.get(i).map(String::as_str);
+                        return self.pattern_names.get(i).map(String::as_str);
                     }
                     None
                 });
         } else if self.has_matches {
-            return Some(&self.matcher_names[0]);
+            return Some(&self.pattern_names[0]);
         }
         None
     }
 }
 
-/// `SearchPositions` holds the information about which match indices / match groups are requested.
+/// `SearchConfig` holds the information about which match indices / match groups are requested.
 /// Additionally, it knows how to fill a `Vec<Option<Match>>` (which is a flat 2D matrix)
 /// and provides methods for accessing it.
-/// TODO: This is not optimal as the vector is not owned by `SearchPositions` and does not have a
-/// special type.
+/// TODO: This is not optimal as the vector is not owned by `SearchConfig`.
 #[derive(Debug, Clone)]
-pub struct SearchPositions {
+pub struct SearchConfig {
     search_limit: usize,
     // group numbers
     groups: Vec<usize>,
@@ -152,9 +146,9 @@ pub struct SearchPositions {
     group_idx: VecMap<usize>,
 }
 
-impl SearchPositions {
-    pub fn new() -> SearchPositions {
-        SearchPositions {
+impl SearchConfig {
+    pub fn new() -> SearchConfig {
+        SearchConfig {
             search_limit: 0,
             groups: vec![],
             group_idx: VecMap::new(),
@@ -170,7 +164,6 @@ impl SearchPositions {
         });
     }
 
-    // None means that all matches should be searched
     pub fn register_pos(&mut self, pos: usize, group: usize) {
         if pos >= self.search_limit {
             self.search_limit = pos + 1;
@@ -178,9 +171,8 @@ impl SearchPositions {
         self.add_group(group);
     }
 
-    // None means that all matches should be searched
     pub fn register_all(&mut self, group: usize) {
-        self.search_limit = ::std::usize::MAX;
+        self.search_limit = std::usize::MAX;
         self.add_group(group);
     }
 
@@ -223,10 +215,10 @@ impl SearchPositions {
             }
 
             for group in &self.groups {
-                let m = h.group(*group).and_then(|mut m| {
+                let m = h.group(*group).map(|mut m| {
                     m.start += offset;
                     m.end += offset;
-                    Some(m)
+                    m
                 });
                 matches.push(m);
             }
@@ -240,14 +232,14 @@ impl SearchPositions {
         num_found > 0
     }
 
-    fn matches_iter<'a>(&self, group: usize, matches: &'a [Option<Match>]) -> MatchesIter<'a> {
+    fn iter<'a>(&self, group: usize, matches: &'a [Option<Match>]) -> MatchesIter<'a> {
         let group_idx = self.group_idx[group];
         MatchesIter {
             matches: matches.iter().skip(group_idx).step_by(self.groups.len()),
         }
     }
 
-    pub fn get_match<'a>(
+    pub fn get<'a>(
         &self,
         pos: usize,
         group: usize,
@@ -279,11 +271,13 @@ impl Shift {
     pub fn in_range(&self, rng: (usize, usize), len: usize) -> bool {
         match *self {
             Shift::Start(n) => rng.0 <= n,
-            Shift::End(n) => if let Some(diff) = len.checked_sub(rng.1) {
-                diff <= n
-            } else {
-                panic!(format!("Range end greater than len ({} > {})", rng.1, len));
-            },
+            Shift::End(n) => {
+                if let Some(diff) = len.checked_sub(rng.1) {
+                    diff <= n
+                } else {
+                    panic!("Range end greater than len ({} > {})", rng.1, len);
+                }
+            }
         }
     }
 }

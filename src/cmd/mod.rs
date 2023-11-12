@@ -8,7 +8,6 @@ pub mod tail;
 
 pub mod concat;
 pub mod del;
-#[cfg(feature = "exprtk")]
 pub mod filter;
 pub mod find;
 pub mod interleave;
@@ -22,3 +21,4 @@ pub mod stat;
 pub mod trim;
 pub mod upper;
 pub mod view;
+// pub mod consensus;

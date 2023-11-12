@@ -1,11 +1,10 @@
-use error::CliResult;
-use io::SeqQualRecord;
-use lib::rng::*;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::SeqQualRecord;
+use crate::helpers::rng::*;
+use crate::opt;
 
-use cfg;
-
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Masks the sequence within a given range or comma delimited list of ranges
 by converting to lowercase (soft mask) or replacing with a character (hard
@@ -32,7 +31,7 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let ranges = args.get_str("<ranges>");
     let hard_mask = args.opt_str("--hard").map(|c| c.as_bytes()[0]);
@@ -40,11 +39,11 @@ pub fn run() -> CliResult<()> {
     let exclusive = args.get_bool("--exclude");
     let unmask = args.get_bool("--unmask");
 
-    cfg.writer(|writer, mut vars| {
-        let mut ranges = VarRanges::from_str(ranges, &mut vars)?;
+    cfg.writer(|writer, vars| {
+        let mut ranges = VarRanges::from_str(ranges, vars)?;
         let mut seq = vec![];
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             let seqlen = record.seq_len();
 
             seq.clear();
@@ -52,7 +51,7 @@ pub fn run() -> CliResult<()> {
                 seq.extend_from_slice(s);
             }
 
-            let calc_ranges = ranges.get(seqlen, rng0, exclusive, vars.symbols())?;
+            let calc_ranges = ranges.get(seqlen, rng0, exclusive, vars.symbols(), record)?;
 
             if let Some(h) = hard_mask {
                 for &(start, end) in calc_ranges {

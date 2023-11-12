@@ -1,31 +1,33 @@
 use csv;
 
-use cfg;
-use error::CliResult;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::opt;
+use crate::var::Func;
 
-static USAGE: &'static str = concat!(
+static USAGE: &str = concat!(
     "
-Returns per sequence statistics as tab delimited list. All statistical variables
-(s:<variable>) can be used.
+Returns per sequence statistics as tab delimited list. All variables
+(seqlen, exp_err, charcount(...), etc.) can be used (see `st stat --help-vars`).
+The command is equivalent to `st . --to-tsv 'id,var1,var2,...' input`
 
 Usage:
-    st stat <stats> [<input>...]
+    st stat <vars> [<input>...]
     st stat (-h | --help)
 
 Options:
-    <stats>             Comma delimited list of statistics. The 's:' prefix
-                        is not necessary.
+    <vars>             Comma delimited list of statistics variables.
 ",
     common_opts!()
 );
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
     let stats: Vec<_> = args.get_str("<stats>").split(',').collect();
 
-    cfg.io_writer(|writer, mut vars| {
+    // TODO: can be further simplified (--to-tsv...)
+    cfg.io_writer(|writer, vars| {
         let mut csv_writer = csv::WriterBuilder::new()
             .delimiter(b'\t')
             .from_writer(writer);
@@ -33,7 +35,10 @@ pub fn run() -> CliResult<()> {
         let var_ids: Vec<usize> = vars.build(|b| {
             stats
                 .iter()
-                .map(|s| b.register_with_prefix(Some("s"), s))
+                .map(|s| {
+                    b.register_var_or_fail(&Func::var(s.to_string()))
+                        .map(|(id, _)| id)
+                })
                 .collect::<CliResult<_>>()
         })?;
 
@@ -43,7 +48,7 @@ pub fn run() -> CliResult<()> {
         // CSV row
         let mut row = vec![vec![]; stats.len() + 1];
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             {
                 let mut row_iter = row.iter_mut();
                 let id = row_iter.next().unwrap();
@@ -51,9 +56,10 @@ pub fn run() -> CliResult<()> {
                 id.extend_from_slice(record.id_bytes());
 
                 for (&var_id, ref mut field) in var_ids.iter().zip(row_iter) {
-                    let val = vars.symbols().get_text(var_id).unwrap_or(b"");
                     field.clear();
-                    field.extend_from_slice(val);
+                    vars.symbols()
+                        .get(var_id)
+                        .as_text(record, |s| field.extend_from_slice(s));
                 }
             }
 

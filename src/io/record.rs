@@ -1,12 +1,15 @@
-use super::QualFormat;
-use std::borrow::Cow;
-use std::str::{self, Utf8Error};
+use std::{
+    borrow::Cow,
+    str::{self, Utf8Error},
+};
 
 use seq_io::fasta;
+use strum_macros::{Display, EnumString};
 
 pub trait Record {
     fn id_bytes(&self) -> &[u8];
     fn desc_bytes(&self) -> Option<&[u8]>;
+    // TODO: id_desc_bytes()
     fn raw_seq(&self) -> &[u8];
     fn qual(&self) -> Option<&[u8]>;
     fn has_seq_lines(&self) -> bool;
@@ -28,6 +31,18 @@ pub trait Record {
     /// The idea is to prevent allocations and copying, otherwise use `write_seq`
     fn seq_segments(&self) -> SeqLineIter {
         SeqLineIter::Other(Some(self.raw_seq()))
+    }
+
+    fn full_seq<'a>(&'a self, buf: &'a mut Vec<u8>) -> Cow<'a, [u8]> {
+        if !self.has_seq_lines() {
+            self.raw_seq().into()
+        } else {
+            buf.clear();
+            for seq in self.seq_segments() {
+                buf.extend_from_slice(seq);
+            }
+            buf.as_slice().into()
+        }
     }
 
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
@@ -69,9 +84,11 @@ pub trait Record {
                     out.extend_from_slice(d);
                 }
             }
-            SeqAttr::Seq => for s in self.seq_segments() {
-                out.extend_from_slice(s);
-            },
+            SeqAttr::Seq => {
+                for s in self.seq_segments() {
+                    out.extend_from_slice(s);
+                }
+            }
         }
     }
 }
@@ -83,26 +100,26 @@ pub enum SeqHeader<'a> {
 }
 
 /// Not to be confused with key=value attributes
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, EnumString, Display)]
 pub enum SeqAttr {
     Id,
     Desc,
     Seq,
 }
 
-impl SeqAttr {
-    pub fn from_str(attr: &str) -> Option<SeqAttr> {
-        Some(if attr.eq_ignore_ascii_case("id") {
-            SeqAttr::Id
-        } else if attr.eq_ignore_ascii_case("desc") {
-            SeqAttr::Desc
-        } else if attr.eq_ignore_ascii_case("seq") {
-            SeqAttr::Seq
-        } else {
-            return None;
-        })
-    }
-}
+// impl SeqAttr {
+//     pub fn from_str(attr: &str) -> Option<SeqAttr> {
+//         Some(if attr.eq_ignore_ascii_case("id") {
+//             SeqAttr::Id
+//         } else if attr.eq_ignore_ascii_case("desc") {
+//             SeqAttr::Desc
+//         } else if attr.eq_ignore_ascii_case("seq") {
+//             SeqAttr::Seq
+//         } else {
+//             return None;
+//         })
+//     }
+// }
 
 impl<'b, R: Record + ?Sized> Record for &'b R {
     fn id_bytes(&self) -> &[u8] {
@@ -131,6 +148,9 @@ impl<'b, R: Record + ?Sized> Record for &'b R {
     }
     fn seq_segments(&self) -> SeqLineIter {
         (**self).seq_segments()
+    }
+    fn full_seq<'a>(&'a self, buf: &'a mut Vec<u8>) -> Cow<'a, [u8]> {
+        (**self).full_seq(buf)
     }
     fn get_header(&self) -> SeqHeader {
         (**self).get_header()
@@ -173,8 +193,8 @@ impl<'a, R: Record + 'a> DefRecord<'a, R> {
     pub fn new(inner: R, id: &'a [u8], desc: Option<&'a [u8]>) -> DefRecord<'a, R> {
         DefRecord {
             rec: inner,
-            id: id,
-            desc: desc,
+            id,
+            desc,
         }
     }
 }
@@ -224,8 +244,8 @@ impl<'a, R: Record + 'a> SeqQualRecord<'a, R> {
     pub fn new(inner: R, seq: &'a [u8], qual: Option<&'a [u8]>) -> SeqQualRecord<'a, R> {
         SeqQualRecord {
             rec: inner,
-            seq: seq,
-            qual: qual,
+            seq,
+            qual,
         }
     }
 }
@@ -278,7 +298,7 @@ impl Record for OwnedRecord {
         &self.id
     }
     fn desc_bytes(&self) -> Option<&[u8]> {
-        self.desc.as_ref().map(|d| d.as_slice())
+        self.desc.as_deref()
     }
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (self.id_bytes(), self.desc_bytes())
@@ -290,7 +310,7 @@ impl Record for OwnedRecord {
         &self.seq
     }
     fn qual(&self) -> Option<&[u8]> {
-        self.qual.as_ref().map(|d| d.as_slice())
+        self.qual.as_deref()
     }
     fn has_seq_lines(&self) -> bool {
         false
@@ -311,7 +331,7 @@ pub struct RecordEditor {
 struct SeqCache(Vec<u8>);
 
 impl SeqCache {
-    fn get_seq<'a>(&'a mut self, rec: &'a Record, get_cached: bool) -> &'a [u8] {
+    fn get_seq<'a>(&'a mut self, rec: &'a dyn Record, get_cached: bool) -> &'a [u8] {
         if rec.has_seq_lines() {
             if get_cached {
                 self.0.clear();
@@ -335,7 +355,7 @@ impl RecordEditor {
     }
 
     #[inline]
-    pub fn get<'a>(&'a mut self, attr: SeqAttr, rec: &'a Record, get_cached: bool) -> &'a [u8] {
+    pub fn get<'a>(&'a mut self, attr: SeqAttr, rec: &'a dyn Record, get_cached: bool) -> &'a [u8] {
         match attr {
             SeqAttr::Id => rec.id_bytes(),
             SeqAttr::Desc => rec.desc_bytes().unwrap_or(b""),
@@ -346,9 +366,9 @@ impl RecordEditor {
     #[inline]
     pub fn edit(&mut self, attr: SeqAttr) -> &mut Vec<u8> {
         let v = match attr {
-            SeqAttr::Id => self.id.get_or_insert_with(|| vec![]),
-            SeqAttr::Desc => self.desc.get_or_insert_with(|| vec![]),
-            SeqAttr::Seq => self.seq.get_or_insert_with(|| vec![]),
+            SeqAttr::Id => self.id.get_or_insert_with(Vec::new),
+            SeqAttr::Desc => self.desc.get_or_insert_with(Vec::new),
+            SeqAttr::Seq => self.seq.get_or_insert_with(Vec::new),
         };
         v.clear();
         v
@@ -358,7 +378,7 @@ impl RecordEditor {
     pub fn edit_with_val<F, O>(
         &mut self,
         attr: SeqAttr,
-        rec: &Record,
+        rec: &dyn Record,
         get_cached: bool,
         mut func: F,
     ) -> O
@@ -367,18 +387,18 @@ impl RecordEditor {
     {
         match attr {
             SeqAttr::Id => {
-                let v = self.id.get_or_insert_with(|| vec![]);
+                let v = self.id.get_or_insert_with(Vec::new);
                 v.clear();
                 func(rec.id_bytes(), v)
             }
             SeqAttr::Desc => {
-                let v = self.desc.get_or_insert_with(|| vec![]);
+                let v = self.desc.get_or_insert_with(Vec::new);
                 v.clear();
                 func(rec.desc_bytes().unwrap_or(b""), v)
             }
             SeqAttr::Seq => {
                 let seq = self.seq_cache.get_seq(rec, get_cached);
-                let v = self.seq.get_or_insert_with(|| vec![]);
+                let v = self.seq.get_or_insert_with(Vec::new);
                 v.clear();
                 func(seq, v)
             }
@@ -386,25 +406,21 @@ impl RecordEditor {
     }
 
     #[inline]
-    pub fn rec<'r>(&'r self, rec: &'r Record) -> EditedRecord<'r> {
-        EditedRecord {
-            editor: self,
-            rec: rec,
-        }
+    pub fn rec<'r>(&'r self, rec: &'r dyn Record) -> EditedRecord<'r> {
+        EditedRecord { editor: self, rec }
     }
 }
 
 pub struct EditedRecord<'a> {
     editor: &'a RecordEditor,
-    rec: &'a Record,
+    rec: &'a dyn Record,
 }
 
 impl<'r> Record for EditedRecord<'r> {
     fn id_bytes(&self) -> &[u8] {
         self.editor
             .id
-            .as_ref()
-            .map(|i| i.as_slice())
+            .as_deref()
             .unwrap_or_else(|| self.rec.id_bytes())
     }
 
@@ -437,8 +453,7 @@ impl<'r> Record for EditedRecord<'r> {
     fn raw_seq(&self) -> &[u8] {
         self.editor
             .seq
-            .as_ref()
-            .map(|s| s.as_slice())
+            .as_deref()
             .unwrap_or_else(|| self.rec.raw_seq())
     }
 

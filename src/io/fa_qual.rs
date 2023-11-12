@@ -1,19 +1,14 @@
-use std::borrow::{Cow, ToOwned};
-use std::cell::Cell;
 use std::cmp::min;
 use std::fs::File;
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 use std::path::Path;
 
-use itertools::Itertools;
-use memchr::memchr;
-
-use error::CliResult;
 use seq_io::fasta::{self, Record as FR};
-use seq_io::BufPolicy;
-use var;
+use seq_io::policy::BufPolicy;
 
 use super::*;
+use crate::error::CliResult;
+use crate::var;
 
 // Reader
 
@@ -53,7 +48,7 @@ where
     R: io::Read,
     P: BufPolicy,
 {
-    fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
+    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>> {
         let quals = &mut self.quals;
         let qual_rdr = &mut self.qual_rdr;
 
@@ -121,7 +116,7 @@ fn parse_int(bytes: &[u8]) -> Result<usize, ()> {
     }
     let mut out = 0;
     for &b in bytes {
-        if b < b'0' || b > b'9' {
+        if !b.is_ascii_digit() {
             return Err(());
         }
         out = 10 * out + (b - b'0') as usize;
@@ -196,13 +191,13 @@ impl<W: io::Write> FaQualWriter<W> {
         Ok(FaQualWriter {
             fa_writer: super::fasta::FastaWriter::new(fa_writer, wrap),
             qual_writer: io::BufWriter::new(q_handle),
-            wrap: wrap.unwrap_or(::std::usize::MAX),
+            wrap: wrap.unwrap_or(std::usize::MAX),
         })
     }
 }
 
 impl<W: io::Write> SeqWriter<W> for FaQualWriter<W> {
-    fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
+    fn write(&mut self, record: &dyn Record, vars: &var::Vars) -> CliResult<()> {
         self.fa_writer.write(record, vars)?;
 
         // write quality scores
@@ -217,7 +212,7 @@ impl<W: io::Write> SeqWriter<W> for FaQualWriter<W> {
         // quality lines
         for qline in qual.chunks(self.wrap) {
             if !qline.is_empty() {
-                let mut q_iter = qline.into_iter().map(|&q| {
+                let mut q_iter = qline.iter().map(|&q| {
                     vars.data()
                         .qual_converter
                         .convert(q, QualFormat::Phred)
@@ -233,7 +228,7 @@ impl<W: io::Write> SeqWriter<W> for FaQualWriter<W> {
                 for q in q_iter.by_ref().take(qline.len() - 1) {
                     write!(self.qual_writer, "{} ", q?)?;
                 }
-                write!(self.qual_writer, "{}\n", q_iter.next().unwrap()?)?;
+                writeln!(self.qual_writer, "{}", q_iter.next().unwrap()?)?;
             }
         }
 

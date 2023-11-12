@@ -1,13 +1,13 @@
-use std::borrow::{Cow, ToOwned};
+use std::borrow::ToOwned;
 use std::collections::HashMap;
 use std::convert::AsRef;
 use std::io;
 
-use csv;
-use error::CliResult;
-use lib::util::match_fields;
+use ::csv;
 
 use super::*;
+use crate::error::CliResult;
+use crate::helpers::util::match_fields;
 
 // Reader
 
@@ -93,7 +93,7 @@ impl<R: io::Read> CsvReader<R> {
         };
 
         Ok(CsvReader {
-            rdr: rdr,
+            rdr,
             rec: CsvRecord {
                 data: csv::ByteRecord::new(),
                 cols: Columns {
@@ -106,13 +106,13 @@ impl<R: io::Read> CsvReader<R> {
                         .remove("seq")
                         .ok_or("Sequence column must be defined with CSV input")?,
                     qual_col: fieldmap.remove("qual"),
-                    other_cols: fieldmap.into_iter().collect(),
+                    // other_cols: fieldmap.into_iter().collect(),
                 },
             },
         })
     }
 
-    pub fn next(&mut self) -> Option<CliResult<&Record>> {
+    pub fn next(&mut self) -> Option<CliResult<&dyn Record>> {
         if !try_opt!(self.rdr.read_byte_record(&mut self.rec.data)) {
             return None;
         }
@@ -127,14 +127,15 @@ pub struct Columns {
     desc_col: Option<usize>,
     seq_col: usize,
     qual_col: Option<usize>,
-    other_cols: Vec<(String, usize)>,
+    // TODO: allow reading other data
+    // other_cols: Vec<(String, usize)>,
 }
 
 impl<R, O> SeqReader<O> for CsvReader<R>
 where
     R: io::Read,
 {
-    fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
+    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>> {
         self.next().map(|r| r.map(|r| func(&r)))
     }
 }

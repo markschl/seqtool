@@ -1,97 +1,131 @@
-
 use super::*;
-use error::CliResult;
 use std::collections::HashMap;
 
+use bio::pattern_matching::myers;
 use itertools::Itertools;
 
-use bio::pattern_matching::myers::{Myers, MyersBuilder, BitVec};
+use crate::error::CliResult;
 
-pub struct MyersMatcher<T: BitVec> {
-    myers: Myers<T>,
-    max_dist: u8,
-    needs_start: bool,
-    sort_vec: Option<Vec<Match>>,
+#[allow(clippy::large_enum_variant)]
+enum _Myers {
+    Simple(myers::Myers<u64>),
+    Long(myers::long::Myers<u64>),
 }
 
-impl<T: BitVec> MyersMatcher<T> {
-    pub fn new(
-        pattern: &[u8],
-        max_dist: u8,
-        needs_start: bool,
-        sorted: bool,
-        ambig_trans: Option<&HashMap<u8, Vec<u8>>>,
-    ) -> CliResult<Self>
-    {
-        let mut builder = MyersBuilder::new();
+impl _Myers {
+    fn new(pattern: &[u8], ambig_trans: Option<&HashMap<u8, Vec<u8>>>) -> Self {
+        let mut builder = myers::MyersBuilder::new();
         if let Some(trans) = ambig_trans {
             for (&symbol, equivalents) in trans {
                 builder.ambig(symbol, equivalents);
             }
         }
+        if pattern.len() <= 64 {
+            Self::Simple(builder.build(pattern))
+        } else {
+            Self::Long(builder.build_long(pattern))
+        }
+    }
 
+    fn iter_matches(
+        &mut self,
+        text: &[u8],
+        func: &mut dyn FnMut(&dyn Hit) -> bool,
+        needs_start: bool,
+        max_dist: usize,
+        sort_vec: Option<&mut Vec<Match>>,
+    ) {
+        macro_rules! _iter_matches {
+            ($myers:expr, $dist_ty:ty) => {
+                if needs_start {
+                    // group hits by start position
+                    let by_start = $myers
+                        .find_all(text, max_dist as $dist_ty)
+                        .group_by(|&(start, _, _)| start);
+
+                    let iter = by_start
+                        .into_iter()
+                        .map(|(_, it)| {
+                            let mut out = None;
+                            let mut best_dist = <$dist_ty>::MAX;
+                            for m in it {
+                                if (m.2) < best_dist {
+                                    best_dist = m.2;
+                                    out = Some(m);
+                                }
+                            }
+                            out.unwrap()
+                        })
+                        .map(|(start, end, dist)| Match::new(start, end, dist as u16, 0, 0, 0));
+
+                    opt_sorted(
+                        iter,
+                        sort_vec,
+                        |m| m.dist,
+                        |m| {
+                            let h = SimpleHit(m);
+                            func(&h)
+                        },
+                    );
+                } else {
+                    // only end position needed
+                    let iter = $myers
+                        .find_all_end(text, max_dist as $dist_ty)
+                        .map(|(end, dist)| Match::new(0, end + 1, dist as u16, 0, 0, 0));
+
+                    opt_sorted(
+                        iter,
+                        sort_vec,
+                        |m| m.dist,
+                        |m| {
+                            let h = SimpleHit(m);
+                            func(&h)
+                        },
+                    );
+                }
+            };
+        }
+
+        match self {
+            Self::Simple(m) => _iter_matches!(m, u8),
+            Self::Long(m) => _iter_matches!(m, usize),
+        }
+    }
+}
+
+pub struct MyersMatcher {
+    myers: _Myers,
+    max_dist: usize,
+    needs_start: bool,
+    sort_vec: Option<Vec<Match>>,
+}
+
+impl MyersMatcher {
+    pub fn new(
+        pattern: &[u8],
+        max_dist: usize,
+        needs_start: bool,
+        sorted: bool,
+        ambig_trans: Option<&HashMap<u8, Vec<u8>>>,
+    ) -> CliResult<Self> {
         Ok(MyersMatcher {
-            myers: builder.build(pattern),
-            max_dist: max_dist,
-            needs_start: needs_start,
+            myers: _Myers::new(pattern, ambig_trans),
+            max_dist,
+            needs_start,
             sort_vec: if sorted { Some(vec![]) } else { None },
         })
     }
 }
 
-impl<T> Matcher for MyersMatcher<T>
-where T: BitVec<DistType=u8>,
-
-{
-    fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool) {
-        if self.needs_start {
-            // group hits by start position
-            let by_start = self
-                .myers
-                .find_all(text, self.max_dist)
-                .group_by(|&(start, _, _)| start);
-
-            let iter = by_start
-                .into_iter()
-                .map(|(_, it)| {
-                    let mut out = None;
-                    let mut best_dist = ::std::u8::MAX;
-                    for m in it {
-                        if (m.2) < best_dist {
-                            best_dist = m.2;
-                            out = Some(m);
-                        }
-                    }
-                    out.unwrap()
-                })
-                .map(|(start, end, dist)| Match::new(start, end, u16::from(dist), 0, 0, 0));
-
-            opt_sorted(
-                iter,
-                self.sort_vec.as_mut(),
-                |m| m.dist,
-                |m| {
-                    let h = SimpleHit(m);
-                    func(&h)
-                },
-            );
-        } else {
-            // only end position needed
-            let iter = self
-                .myers
-                .find_all_end(text, self.max_dist)
-                .map(|(end, dist)| Match::new(0, end + 1, u16::from(dist), 0, 0, 0));
-
-            opt_sorted(
-                iter,
-                self.sort_vec.as_mut(),
-                |m| m.dist,
-                |m| {
-                    let h = SimpleHit(m);
-                    func(&h)
-                },
-            );
-        }
+impl Matcher for MyersMatcher {
+    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
+        self.myers.iter_matches(
+            text,
+            func,
+            self.needs_start,
+            self.max_dist,
+            self.sort_vec.as_mut(),
+        );
     }
 }
 

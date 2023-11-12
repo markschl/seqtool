@@ -4,14 +4,14 @@ use std::str;
 use memchr::Memchr;
 use regex;
 
-use cfg;
-use error::CliResult;
-use io::{RecordEditor, SeqAttr};
-use lib::twoway_iter::TwowayIter;
-use lib::util::replace_iter;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::{RecordEditor, SeqAttr};
+use crate::helpers::twoway_iter::TwowayIter;
+use crate::helpers::util::replace_iter;
+use crate::opt;
 
-static USAGE: &'static str = concat!(
+static USAGE: &str = concat!(
     "
 This command does fast search and replace for patterns in sequences
 or ids/descriptions.
@@ -33,7 +33,7 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     // what should be replaced?
     let attr = if args.get_bool("--id") {
@@ -66,19 +66,19 @@ pub fn run() -> CliResult<()> {
         let replacer = BytesReplacer(pattern.as_bytes().to_owned());
         run_replace(&cfg, attr, replacement, replacer, num_threads)?;
     }
-        Ok(())
-    }
+    Ok(())
+}
 
 fn run_replace<R: Replacer + Sync>(
-    cfg: &cfg::Config,
+    cfg: &config::Config,
     attr: SeqAttr,
     replacement: &[u8],
     replacer: R,
     num_threads: u32,
 ) -> CliResult<()> {
-    cfg.writer(|writer, mut vars| {
-        cfg.var_parallel::<_, _, RecordEditor>(
-            &mut vars,
+    cfg.writer(|writer, vars| {
+        cfg.parallel_var::<_, _, RecordEditor>(
+            vars,
             num_threads - 1,
             |record, editor| {
                 editor.edit_with_val(attr, &record, false, |text, out| {

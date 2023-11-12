@@ -50,6 +50,10 @@ Associated lists:
     -u, --unordered     Allow lists to in different order than sequences.
     -m, --missing       Allow missing rows with '-u'. Variable output is empty.
 
+Expressions:
+    --js-init <expr>    Javascript code to execute during initialization
+                        (for setting global variables used during parsing).
+
 General Information:
     -v, --verbose       Print more detailed information.
     -h, --help          Display this message
@@ -61,8 +65,8 @@ Advanced Options:
                         [default: 1G]
     -T, --read-thread   Read from a different thread. Enabled with compressed input.
     --write-thread      Write in a different thread. Enabled with compressed output.
-    --read-tbufsize S   Buffer size of threaded reader (default: auto)
-    --write-tbufsize S  Buffer size of threaded reader (default: auto)
+    --read-tbufsize S   Buffer size of background reader (default: auto)
+    --write-tbufsize S  Buffer size of background writer (default: auto)
 "
     };
 }
@@ -112,7 +116,7 @@ List and explain available variables:
     };
 }
 
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Tool for processing of biological sequences. It can read and write the formats
 FASTA, FASTQ and CSV/TSV.

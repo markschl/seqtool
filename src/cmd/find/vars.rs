@@ -1,8 +1,8 @@
 use std::io::Write;
 
-use error::CliResult;
-use io::Record;
-use var;
+use crate::error::CliResult;
+use crate::io::Record;
+use crate::var::{self, Func, VarBuilder};
 
 use super::*;
 
@@ -10,28 +10,62 @@ pub struct FindVarHelp;
 
 impl VarHelp for FindVarHelp {
     fn name(&self) -> &'static str {
-        "Pattern finding variables"
+        "Variables/functions to obtain pattern matches"
     }
-    fn usage(&self) -> &'static str {
-        "f:<variable>[.pattern_rank][:match_num][:group]"
-    }
+
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
-            ("f:match", "The matched sequence/pattern"),
-            ("f:start", "Start of the match."),
-            ("f:end",   "End of the match."),
-            ("f:dist", "Distance of the matched sequence compared to the pattern. Normally, this is \
-              the edit distance, unless --gapw is used"),
-            ("f:neg_start", "Start of the match relative to sequence end (negative number)"),
-            ("f:neg_end",   "End of the match relative to sequence end (negative number)"),
-            ("f:range",  "Range of the match in the form start-end"),
-            ("f:drange",
+            ("match", "The text matched by the pattern. With fuzzy string matching, \
+             this would be the hit with the smallest edit distance, or the \
+             first occurrence if --in-order was specified. With exact/regex \
+             matching, the leftmost hit is always returned. \
+             If there multiple patterns in a pattern file, the best hit of the \
+             best-matching pattern is returned (fuzzy matching), or the first \
+             hit of the first pattern (see below for selecting other hits or \
+             other patterns)."),
+            ("match(h, [p=1])",
+             "The matched text of the h-th hit (or comma delimited list of all if \
+             h='all'); optionally from the p-th matching pattern if several \
+             patterns in file (default: p=1)"),
+            ("match_group(g, [h=1], [p=1])",
+             "Regex match group 'g' of hit 'h' for the p-th matching pattern. \
+              An empty string is returned if the group does not exist."),
+            ("match_dist",
+            "Edit distance (number of mismatches/insertions/deletions) of the search \
+            pattern compared to the sequence."),
+            ("match_dist(n, [p])",
+            "Edit distance of the nth hit of the p-th pattern."),
+            ("match_start", "Start coordinate of the match."),
+            ("match_end",   "End coordinate of the match."),
+            ("match_range",  "Range of the match in the form 'start-end'"),
+            ("match_start(n, [p]); match_end(n, [p]); match_range(n, [p])",
+            "Start/end/range of the nth hit of the p-th pattern."),
+            ("matchgrp_start(g, [n], [p]); matchgrp_end(g, [n], [p]); matchgrp_range(g, [n], [p])",
+            "Start/end/range of regex match group 'g' from the the nth hit \
+             of the p-th pattern."),
+            ("match_neg_start", "Start of the match relative to sequence end (negative number)"),
+            ("match_neg_end",   "End of the match relative to sequence end (negative number)"),
+            ("match_neg_start(n, [p]), match_neg_end(n, [p])",
+            "Start/end of the match relative to sequence end (negative) of the nth hit of \
+             the p-th pattern."),
+            ("matchgrp_neg_start(g, [n], [p]), matchgrp_neg_start(g, [n], [p])",
+             "Negative start/end of regex match group 'g' from the the nth hit \
+              of the p-th pattern."),
+            ("match_drange",
             "Range of the match with two dots as delimiter (start..end). Useful with 'trim'\
-            and 'mask'"),
-            ("f:neg_drange",
+             and 'mask'"),
+            ("match_neg_drange",
             "Range of the match (dot delimiter) relative to the sequence end (-<start>..-<end>)"),
-            ("f:name",
-            "Name of the best matching pattern if there are multiple (read from pattern file)"),
+            ("match_drange(n, [p]), match_neg_drange(n, [p])",
+            "Match ranges (normal/from end) of the nth hit of the p-th pattern."),
+            ("matchgrp_drange(g, [n], [p]), matchgrp_neg_drange(g, [n], [p])",
+            "Match ranges (normal/from end) of regex match group 'g' from \
+             the nth hit of the p-th pattern."),
+            ("pattern_name",
+            "Name of the matching pattern if there are multiple (pattern file), \
+            or <pattern> if one pattern specified in commandline."),
+            ("pattern_name(p)",
+            "Name of the p-th matching pattern"),
         ])
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
@@ -42,7 +76,7 @@ impl VarHelp for FindVarHelp {
 // Variables
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum Var {
+pub enum VarType {
     Start,
     End,
     Range(String),
@@ -54,127 +88,54 @@ pub enum Var {
     Name,
 }
 
-use self::Var::*;
+use self::VarType::*;
+
+#[derive(Debug)]
+pub struct VarPos {
+    var_type: VarType,
+    var_id: usize,
+    // None for all hits
+    hit_pos: Option<usize>,
+    match_group: usize,
+    pattern_rank: usize,
+}
 
 #[derive(Debug)]
 pub struct FindVars {
-    // (var, var_id, position, pattern_rank)
-    // position: Some((pos, group)), or None for all hits
-    vars: Vec<(Var, usize, Option<usize>, usize, usize)>,
-    pos: SearchPositions,
+    vars: Vec<VarPos>,
+    cfg: SearchConfig,
     bounds_needed: (bool, bool),
+    num_patterns: usize,
 }
 
 impl FindVars {
-    pub fn new() -> FindVars {
+    pub fn new(num_patterns: usize) -> FindVars {
         FindVars {
             vars: vec![],
-            pos: SearchPositions::new(),
+            cfg: SearchConfig::new(),
             bounds_needed: (false, false),
+            num_patterns,
         }
     }
 
-    // returns Option<(match_index, group_index)>
-    // returns None if not one, but all indices were requested
-    fn parse_pos(&self, code: &str) -> CliResult<(Option<usize>, usize)> {
-        let parts: Vec<&str> = code.splitn(2, ':').collect();
-
-        let match_idx = match parts[0] {
-            "" => Some(0),
-            "all" => None,
-            _ => {
-                let i: usize = parts[0]
-                    .parse()
-                    .map_err(|_| format!("Invalid match index: {}", parts[0]))?;
-                Some(
-                    i.checked_sub(1)
-                        .ok_or("The match index must be greater than zero")?,
-                )
-            }
-        };
-
-        let group = match parts.len() {
-            1 => 0,
-            2 => if parts[1] == "" {
-                0
-            } else {
-                parts[1]
-                    .parse()
-                    .map_err(|_| format!("Invalid group number: {}", parts[1]))?
-            },
-            // } else {
-            //     MatchGroup::Named(parts[1].to_string())
-            _ => unreachable!(),
-        };
-
-        Ok((match_idx, group))
+    pub fn config(&self) -> &SearchConfig {
+        &self.cfg
     }
 
-    /// returns: (name, positions, pattern_rank)
-    /// where positions = Some(hit_index, group_index) or None if all hits were requested
-    pub fn parse_code<'a>(
-        &self,
-        code: &'a str,
-    ) -> CliResult<(&'a str, Option<usize>, usize, usize)> {
-        let mut parts: Vec<&str> = code.splitn(2, ':').collect();
-
-        let mut name = parts.remove(0);
-
-        // pattern rank:
-        let mut name_parts: Vec<&str> = name.splitn(2, '.').collect();
-        let mut pattern_rank = if name_parts.len() == 2 {
-            name_parts[1]
-                .parse()
-                .map_err(|_| format!("Invalid search pattern number: {}", name_parts[1]))?
+    /// hit_num = None means all hits should be returned/stored
+    /// match_group = 0 means the whole hit
+    fn register_match(&mut self, pos: VarPos) -> CliResult<()> {
+        if let Some(p) = pos.hit_pos {
+            self.cfg.register_pos(p, pos.match_group);
         } else {
-            1
-        };
-
-        if pattern_rank == 0 {
-            return fail!("Pattern rank must be > 0");
+            self.cfg.register_all(pos.match_group);
         }
-        pattern_rank -= 1;
-
-        name = name_parts.remove(0);
-
-        let match_code = if parts.len() == 1 {
-            parts.remove(0)
-        } else {
-            "1"
-        };
-
-        let (pos, group) = self.parse_pos(match_code)?;
-
-        Ok((name, pos, group, pattern_rank))
-    }
-
-    /// returns match ID or
-    /// Ok(None) if not one, but all indices were requested
-    fn register_match(
-        &mut self,
-        var: Var,
-        var_id: usize,
-        pos: Option<usize>,
-        group: usize,
-        rank: usize,
-    ) -> CliResult<()> {
-        self.vars.push((var, var_id, pos, group, rank));
-
-        if let Some(p) = pos {
-            self.pos.register_pos(p, group);
-        } else {
-            self.pos.register_all(group);
-        }
-
+        self.vars.push(pos);
         Ok(())
     }
 
     pub fn register_all(&mut self, group: usize) {
-        self.pos.register_all(group);
-    }
-
-    pub fn positions(&self) -> &SearchPositions {
-        &self.pos
+        self.cfg.register_all(group);
     }
 
     pub fn bounds_needed(&self) -> (bool, bool) {
@@ -183,73 +144,72 @@ impl FindVars {
 
     pub fn set_with(
         &mut self,
-        rec: &Record,
+        rec: &dyn Record,
         matches: &Matches,
-        symbols: &mut var::symbols::Table,
+        symbols: &mut var::symbols::SymbolTable,
         text: &[u8],
     ) -> CliResult<()> {
-        for &(ref var, var_id, ref position, group, pattern_rank) in &self.vars {
-            if *var == Name {
-                let name = matches.pattern_name(pattern_rank).unwrap_or("");
-                symbols.set_text(var_id, name.as_bytes());
+        for pos in &self.vars {
+            let sym = symbols.get_mut(pos.var_id);
+            if pos.var_type == Name {
+                let name = matches.pattern_name(pos.pattern_rank).unwrap_or("");
+                sym.set_text(name.as_bytes());
                 continue;
             }
 
-            if let Some(pos) = position.as_ref() {
+            if let Some(p) = pos.hit_pos.as_ref() {
                 // specific hits requested
-                if let Some(m) = matches.get_match(*pos, group, pattern_rank) {
-                    match *var {
-                        Start => symbols.set_int(var_id, (m.start + 1) as i64),
-                        End => symbols.set_int(var_id, (m.end) as i64),
-                        NegStart => symbols.set_int(var_id, m.neg_start1(rec.seq_len())),
-                        NegEnd => symbols.set_int(var_id, m.neg_end1(rec.seq_len())),
-                        Dist => symbols.set_int(var_id, i64::from(m.dist)),
-                        Range(ref delim) => write!(
-                            symbols.mut_text(var_id),
-                            "{}{}{}",
-                            m.start + 1,
-                            delim,
-                            m.end
-                        )?,
+                if let Some(m) = matches.get_match(*p, pos.match_group, pos.pattern_rank) {
+                    match pos.var_type {
+                        Start => sym.set_int((m.start + 1) as i64),
+                        End => sym.set_int((m.end) as i64),
+                        NegStart => sym.set_int(m.neg_start1(rec.seq_len())),
+                        NegEnd => sym.set_int(m.neg_end1(rec.seq_len())),
+                        Dist => sym.set_int(i64::from(m.dist)),
+                        Range(ref delim) => {
+                            write!(sym.mut_text(), "{}{}{}", m.start + 1, delim, m.end)?
+                        }
                         NegRange(ref delim) => write!(
-                            symbols.mut_text(var_id),
+                            sym.mut_text(),
                             "{}{}{}",
                             m.neg_start1(rec.seq_len()),
                             delim,
                             m.neg_end1(rec.seq_len())
                         )?,
-                        Match => symbols.set_text(var_id, &text[m.start..m.end]),
+                        Match => sym.set_text(&text[m.start..m.end]),
                         _ => unreachable!(),
                     }
                     continue;
                 }
             } else {
-                // list of all matches requested
-                let out = symbols.mut_text(var_id);
-
+                // List of all matches requested:
+                // This is different from above by requiring a string type
+                // in all cases instead of integers.
+                let out = sym.mut_text();
                 let mut n = 0;
-                for maybe_m in matches.matches_iter(pattern_rank, group) {
-                    if let Some(m) = maybe_m {
-                        n += 1;
-                        match *var {
-                            Start => write!(out, "{}", m.start + 1)?,
-                            End => write!(out, "{}", m.end)?,
-                            NegStart => write!(out, "{}", m.neg_start1(rec.seq_len()))?,
-                            NegEnd => write!(out, "{}", m.neg_end1(rec.seq_len()))?,
-                            Dist => write!(out, "{}", m.dist)?,
-                            Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
-                            NegRange(ref delim) => write!(
-                                out,
-                                "{}{}{}",
-                                m.neg_start1(rec.seq_len()),
-                                delim,
-                                m.neg_end1(rec.seq_len())
-                            )?,
-                            Match => out.extend_from_slice(&text[m.start..m.end]),
-                            _ => unreachable!(),
-                        }
-                        out.push(b',');
+                for m in matches
+                    .matches_iter(pos.pattern_rank, pos.match_group)
+                    .flatten()
+                {
+                    n += 1;
+                    match pos.var_type {
+                        Start => write!(out, "{}", m.start + 1)?,
+                        End => write!(out, "{}", m.end)?,
+                        NegStart => write!(out, "{}", m.neg_start1(rec.seq_len()))?,
+                        NegEnd => write!(out, "{}", m.neg_end1(rec.seq_len()))?,
+                        Dist => write!(out, "{}", m.dist)?,
+                        Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
+                        NegRange(ref delim) => write!(
+                            out,
+                            "{}{}{}",
+                            m.neg_start1(rec.seq_len()),
+                            delim,
+                            m.neg_end1(rec.seq_len())
+                        )?,
+                        Match => out.extend_from_slice(&text[m.start..m.end]),
+                        _ => unreachable!(),
                     }
+                    out.push(b',');
                 }
                 if n > 0 {
                     // remove last comma
@@ -258,50 +218,100 @@ impl FindVars {
                 }
             }
             // important: reset previous value if nothing was found
-            symbols.set_none(var_id);
+            sym.set_none();
         }
         Ok(())
     }
 }
 
 impl VarProvider for FindVars {
-    fn prefix(&self) -> Option<&str> {
-        Some("f")
-    }
-    fn name(&self) -> &'static str {
-        "matches"
-    }
-
-    fn register_var(
-        &mut self,
-        code: &str,
-        var_id: usize,
-        _: &mut var::VarStore,
-    ) -> CliResult<bool> {
-        let (name, pos, group, rank) = self.parse_code(code)?;
-
-        let var = match name {
-            "start" => Start,
-            "end" => End,
-            "range" => Range("-".into()),
-            "drange" => Range("..".into()),
-            "neg_drange" => NegRange("..".into()),
-            "neg_start" => NegStart,
-            "neg_end" => NegEnd,
-            "dist" => Dist,
-            "match" => Match,
-            "name" => Name,
-            _ => return Ok(false),
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
+        let name = func.name.as_str();
+        // new-style variables/functions
+        let (var_type, hit_i, pat_i, grp_i, min_args, max_args) = match name {
+            "match_dist" => (Dist, Some(0), 1, None, 0, 2),
+            "match" => (Match, Some(0), 1, None, 0, 2),
+            "match_group" => (Match, Some(1), 2, Some(0), 1, 3),
+            "pattern_name" => (Name, None, 0, None, 0, 1),
+            _ => {
+                #[allow(clippy::manual_strip)]
+                let (grp, name) = if name.starts_with("matchgrp_") {
+                    (true, &name[9..])
+                } else if name.starts_with("match_") {
+                    (false, &name[6..])
+                } else {
+                    return Ok(false);
+                };
+                let var = match name {
+                    "start" => Start,
+                    "end" => End,
+                    "neg_start" => NegStart,
+                    "neg_end" => NegEnd,
+                    "range" => Range("-".into()),
+                    "drange" => Range("..".into()),
+                    "neg_drange" => NegRange("..".into()),
+                    _ => return Ok(false),
+                };
+                if grp {
+                    (var, Some(1), 2, Some(0), 0, 3)
+                } else {
+                    (var, Some(0), 1, None, 0, 2)
+                }
+            }
         };
 
-        if var != End && var != Dist && var != Name {
+        func.ensure_arg_range(min_args, max_args)?;
+
+        // set variable defaults
+        let hit_num = hit_i.and_then(|i| func.arg(i));
+        let hit_pos = match hit_num {
+            None => Some(0),
+            Some("all") => None,
+            Some(num) => {
+                let num: usize = num
+                    .parse()
+                    .map_err(|_| format!("Invalid hit number: {}", num))?;
+                let i = num.checked_sub(1).ok_or("The hit number must be > 0")?;
+                Some(i)
+            }
+        };
+
+        let match_group = grp_i
+            .and_then(|i| func.arg_as::<usize>(i))
+            .transpose()?
+            // we use group = 0 to indicate the whole match
+            .unwrap_or(0);
+
+        // pattern rank:
+        let pattern_rank = func.arg_as::<usize>(pat_i).transpose()?.unwrap_or(1);
+
+        if pattern_rank > self.num_patterns {
+            return fail!(format!(
+                "Pattern rank {} requested, but there are only {} patterns",
+                pattern_rank, self.num_patterns
+            ));
+        }
+        let pattern_rank = pattern_rank
+            .checked_sub(1)
+            .ok_or("The pattern rank must be > 0")?;
+
+        // determine whether the match bounds need to be calculated
+        // (can be slower depending on the algorithm)
+        if var_type != End && var_type != Dist && var_type != Name {
             self.bounds_needed.0 = true;
         }
-        if var != Start && var != Dist && var != Name {
+        if var_type != Start && var_type != Dist && var_type != Name {
             self.bounds_needed.1 = true;
         }
 
-        self.register_match(var, var_id, pos, group, rank)?;
+        let pos = VarPos {
+            var_type,
+            var_id: b.symbol_id(),
+            hit_pos,
+            match_group,
+            pattern_rank,
+        };
+        self.register_match(pos)?;
         Ok(true)
     }
 

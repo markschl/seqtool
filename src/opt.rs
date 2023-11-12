@@ -5,32 +5,25 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use docopt;
-
-use error::CliError;
-use error::CliResult;
-use io::input::*;
-use io::output::{OutFormat, OutputKind, OutputOptions};
-use io::{Compression, QualFormat};
-use lib::bytesize::parse_bytesize;
-use lib::inner_result::MapRes;
-use lib::util;
-use var;
+use crate::error::CliError;
+use crate::error::CliResult;
+use crate::io::input::*;
+use crate::io::output::{OutFormat, OutputKind, OutputOptions};
+use crate::io::Compression;
+use crate::helpers::bytesize::parse_bytesize;
+use crate::var;
 
 pub struct Args(docopt::ArgvMap);
 
 impl Args {
     pub fn new(usage: &str) -> Result<Args, docopt::Error> {
         // work around https://github.com/docopt/docopt.rs/issues/240
-        let mut argv: Vec<_> = ::std::env::args().collect();
+        let mut argv: Vec<_> = std::env::args().collect();
         if argv.len() > 1 && argv[1].starts_with("st") {
             argv[1] = argv[1][2..].to_string();
         }
 
-        let d = docopt::Docopt::new(usage)?
-            .argv(argv)
-            .help(true)
-            .parse()?;
+        let d = docopt::Docopt::new(usage)?.argv(argv).help(true).parse()?;
 
         Ok(Args(d))
     }
@@ -57,7 +50,11 @@ impl Args {
             let s: Vec<_> = v.split(':').collect();
             (
                 Some(s[0].trim().to_string()),
-                if s.len() == 1 { None } else { Some(s[1].trim().to_string()) }
+                if s.len() == 1 {
+                    None
+                } else {
+                    Some(s[1].trim().to_string())
+                },
             )
         } else {
             (None, None)
@@ -77,13 +74,11 @@ impl Args {
             (None, None, None)
         };
 
-        fmt = self.opt_str("--fmt")
-            .or(fmt)
-            .or_else(|| var_fmt.as_ref().map(String::as_str));
+        fmt = self.opt_str("--fmt").or(fmt).or(var_fmt.as_deref());
 
         delim = self.opt_str("--delim").or(delim);
         let fields = fields
-            .or_else(|| var_fields.as_ref().map(String::as_str))
+            .or(var_fields.as_deref())
             .or_else(|| self.opt_str("--fields"));
         let header = self.0.get_bool("--header");
         let qfile = self.opt_str("--qual");
@@ -92,14 +87,16 @@ impl Args {
         let threaded = self.get_bool("--read-thread");
         let thread_bufsize = self
             .opt_str("--read-tbufsize")
-            .map_res(|s| parse_bytesize(s))?
-            .map(|s| s as usize);
+            .map(parse_bytesize)
+            .transpose()?
+            .map(|t| t as usize);
 
         let (arg_fmt, arg_compr) = fmt
-            .map_res(|fmt| {
+            .map(|fmt| {
                 let (fmt, compr) = parse_format_str(fmt)?;
                 Ok::<_, CliError>((Some(fmt), Some(compr)))
-            })?
+            })
+            .transpose()?
             .unwrap_or((None, None));
 
         let input: Vec<_> = paths
@@ -169,12 +166,12 @@ impl Args {
         let path = self.0.get_str("--output");
         let threaded = self.get_bool("--write-thread");
         let attrs = self.parse_attrs()?;
-        let wrap_fasta = wrap_fasta;
         let csv_delim = self.opt_str("--out-delim").or(delim);
         let csv_fields = fields.or_else(|| self.opt_str("--outfields"));
         let thread_bufsize = self
             .opt_str("--write-tbufsize")
-            .map_res(|s| parse_bytesize(s))?
+            .map(parse_bytesize)
+            .transpose()?            
             .map(|s| s as usize);
         let compr_level = self.opt_value("--compr-level")?;
         let qfile = self.opt_str("--qual-out");
@@ -188,13 +185,13 @@ impl Args {
             })
             .unwrap_or(Ok((None, None)))?;
 
-        let arg_fmt = arg_fmt.as_ref().map(String::as_str);
+        let arg_fmt = arg_fmt.as_deref();
 
         let (kind, compr, fmt_opts) = if path == "-" {
             (
                 OutputKind::Stdout,
                 arg_compr,
-                arg_fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name()),
+                arg_fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::Fasta).name()),
             )
         } else {
             let (fmt, compr) = path_info(&path);
@@ -202,20 +199,20 @@ impl Args {
                 OutputKind::File(PathBuf::from(&path)),
                 arg_compr.or(compr),
                 arg_fmt.unwrap_or_else(|| {
-                    fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::FASTA).name())
+                    fmt.unwrap_or_else(|| informat.unwrap_or(&InFormat::Fasta).name())
                 }),
             )
         };
 
         Ok(OutputOptions {
-            kind: kind,
+            kind,
             format: OutFormat::from_opts(
                 fmt_opts, &attrs, wrap_fasta, csv_delim, csv_fields, informat, qfile,
             )?,
             compression: compr.unwrap_or(Compression::None),
             compression_level: compr_level,
-            threaded: threaded,
-            thread_bufsize: thread_bufsize,
+            threaded,
+            thread_bufsize,
         })
     }
 
@@ -231,6 +228,7 @@ impl Args {
             has_header: self.0.get_bool("--lheader"),
             unordered: self.0.get_bool("--unordered"),
             id_col: id_col - 1,
+            allow_missing: self.0.get_bool("--missing"),
             attr_opts: var::AttrOpts {
                 delim: self
                     .opt_string_or_env("--adelim", "ST_ATTR_DELIM")
@@ -239,7 +237,7 @@ impl Args {
                     .opt_string_or_env("--aval-delim", "ST_ATTRVAL_DELIM")
                     .unwrap_or_else(|| "=".to_string()),
             },
-            allow_missing: self.0.get_bool("--missing"),
+            expr_init: self.opt_str("--js-init"),
             var_help: self.0.get_bool("--help-vars"),
         })
     }
@@ -263,7 +261,7 @@ impl Args {
 
     pub fn opt_str(&self, opt: &str) -> Option<&str> {
         let val = self.get_str(opt);
-        if val == "" {
+        if val.is_empty() {
             None
         } else {
             Some(val)
@@ -310,10 +308,10 @@ pub fn path_info<P: AsRef<Path>>(path: &P) -> (Option<&'static str>, Option<Comp
     };
 
     let compr = match ext.to_ascii_lowercase().as_str() {
-        "gz" | "gzip" => Some(Compression::GZIP),
-        "bz2" | "bzip2" => Some(Compression::BZIP2),
-        "lz4" => Some(Compression::LZ4),
-        "zst" => Some(Compression::ZSTD),
+        "gz" | "gzip" => Some(Compression::Gzip),
+        "bz2" | "bzip2" => Some(Compression::Bzip2),
+        "lz4" => Some(Compression::Lz4),
+        "zst" => Some(Compression::Zstd),
         _ => None,
     };
 

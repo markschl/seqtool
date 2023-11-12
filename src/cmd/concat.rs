@@ -1,12 +1,11 @@
 use std::iter::repeat;
 
-use cfg;
-use error::CliResult;
-use io::OwnedRecord;
-use lib::inner_result::MapRes;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::OwnedRecord;
+use crate::opt;
 
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Concatenates sequences/alignments from different files in the order
 in which they are provided. Fails if the IDs don't match.
@@ -32,18 +31,18 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
     let id_check = !args.get_bool("--no-id-check");
     let spacer_n = args.opt_value("--spacer")?;
     let s_char = args
         .get_str("--s-char")
         .as_bytes()
-        .get(0)
+        .first()
         .ok_or("Sequence spacer character empty")?;
     let q_char = args
         .get_str("--q-char")
         .as_bytes()
-        .get(0)
+        .first()
         .ok_or("Quality spacer character empty")?;
 
     cfg.writer(|writer, vars| {
@@ -54,7 +53,7 @@ pub fn run() -> CliResult<()> {
         }
         let max_idx = num_readers - 1;
 
-        cfg.all_readers(|i, rec| {
+        cfg.read_alongside(|i, rec| {
             let rec_id = rec.id_bytes();
 
             if i == 0 {
@@ -62,7 +61,7 @@ pub fn run() -> CliResult<()> {
                 record.id.clear();
                 record.id.extend(rec_id);
                 if let Some(d) = rec.desc_bytes() {
-                    let desc = record.desc.get_or_insert_with(|| vec![]);
+                    let desc = record.desc.get_or_insert_with(Vec::new);
                     desc.clear();
                     desc.extend(d);
                 }
@@ -83,7 +82,7 @@ pub fn run() -> CliResult<()> {
 
             // handle qual
             if let Some(q) = rec.qual() {
-                let qual = record.qual.get_or_insert_with(|| vec![]);
+                let qual = record.qual.get_or_insert(Vec::new());
                 if i == 0 {
                     qual.clear();
                 }
@@ -102,7 +101,7 @@ pub fn run() -> CliResult<()> {
 
             // write at last
             if i == max_idx {
-                writer.write(&record, &vars)?;
+                writer.write(&record, vars)?;
             }
             Ok(())
         })

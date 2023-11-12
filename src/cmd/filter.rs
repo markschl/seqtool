@@ -1,12 +1,10 @@
-use std::f64::NAN;
+use crate::config;
+use crate::error::CliResult;
+use crate::opt;
+use crate::var::symbols::Value;
+use crate::var::Func;
 
-use cfg;
-use error::CliResult;
-use opt;
-
-use lib::inner_result::MapRes;
-
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Filters sequences by a mathematical expression which may contain any variable.
 
@@ -25,38 +23,28 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
     let expr = args.get_str("<expression>");
     let dropped_file = args.opt_str("--dropped");
 
     cfg.writer(|writer, mut vars| {
-        let expr_id = vars.build(|b| b.register_with_prefix(Some("expr_"), expr))?;
-        let mut dropped_file =
-            dropped_file.map_res(|s| cfg.other_writer(s, Some(&mut vars), None))?;
+        let func = Func::expr(expr);
+        let (expr_id, _) = vars.build(|b| b.register_var(&func))?.unwrap();
+        let mut dropped_file = dropped_file
+            .map(|s| cfg.other_writer(s, Some(&mut vars)))
+            .transpose()?;
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
-            let result = vars
-                .symbols()
-                .get_float(expr_id)?
-                .expect("Bug: expression value not in symbol table!");
+        cfg.read(vars, |record, vars| {
+            let v = vars.symbols().get(expr_id);
+            let result = match v.value() {
+                Some(Value::Bool(b)) => *b.get(),
+                _ => return fail!(format!("Filter expression did not return a boolean (true/false) value, found {} instead", v))
+            };
 
-            if result == 1. {
+            if result {
                 writer.write(&record, vars)?;
-            } else if result == 0. {
-                if let Some(w) = dropped_file.as_mut() {
-                    w.write(&record, vars)?;
-                }
-            } else if result == NAN {
-                // cannot use match because of NAN
-                return fail!(format!(
-                    "Undefined result of math expression for record '{}'",
-                    String::from_utf8_lossy(record.id_bytes())
-                ));
-            } else {
-                return fail!(format!(
-                    "Math expressions may only return false (0) or true (1), but the returned value is {}.",
-                    result
-                ));
+            } else if let Some(w) = dropped_file.as_mut() {
+                w.write(&record, vars)?;
             }
             Ok(true)
         })

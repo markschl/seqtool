@@ -9,9 +9,8 @@ fn trim() {
         .cmp(&["trim", "1.."], &fasta, &fasta)
         .cmp(&["trim", "..1"], &fasta, &fasta_record(&seq[..1]))
         .cmp(&["trim", "2..-2"], &fasta, &fasta_record(&seq[1..3]))
-
         .cmp(&["trim", "-e", "1..3"], &fasta, &fasta_record(&seq[1..2]))
-    // empty seq
+        // empty seq
         .cmp(&["trim", "2..1"], &fasta, &fasta_record(""));
 }
 
@@ -40,8 +39,8 @@ fn trim_vars() {
     let fa = format!(">{}\nATGC\n", id);
     let trimmed = format!(">{}\nTG\n", id);
     Tester::new()
-        .cmp(&["trim", "{a:start}..{a:end}"], &fa, &trimmed)
-        .cmp(&["trim", "{a:range}"], &fa, &trimmed);
+        .cmp(&["trim", "{attr(start)}..{attr(end)}"], &fa, &trimmed)
+        .cmp(&["trim", "{attr(range)}"], &fa, &trimmed);
 }
 
 #[test]

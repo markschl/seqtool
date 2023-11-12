@@ -1,11 +1,10 @@
-use error::CliResult;
-use io::{Record, SeqQualRecord};
-use lib::rng::*;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::{Record, SeqQualRecord};
+use crate::helpers::rng::*;
+use crate::opt;
 
-use cfg;
-
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Trims sequences to a given range.
 
@@ -27,22 +26,22 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let range = args.get_str("<range>");
     let rng0 = args.get_bool("-0");
     let exclusive = args.get_bool("--exclude");
 
-    cfg.writer(|writer, mut vars| {
+    cfg.writer(|writer, vars| {
         let mut out_seq = vec![];
         let mut out_qual = vec![];
 
-        let mut rng = VarRange::from_str(range, &mut vars)?;
+        let mut rng = VarRange::from_str(range, vars)?;
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             let seqlen = record.seq_len();
 
-            let (start, end) = rng.get(seqlen, rng0, exclusive, vars.symbols())?;
+            let (start, end) = rng.get(seqlen, rng0, exclusive, vars.symbols(), record)?;
 
             let rec = trim(&record, start, end, &mut out_seq, &mut out_qual);
 
@@ -53,12 +52,12 @@ pub fn run() -> CliResult<()> {
 }
 
 fn trim<'r>(
-    record: &'r Record,
+    record: &'r dyn Record,
     start: usize,
     end: usize,
     out_seq: &'r mut Vec<u8>,
     out_qual: &'r mut Vec<u8>,
-) -> SeqQualRecord<'r, &'r Record> {
+) -> SeqQualRecord<'r, &'r dyn Record> {
     out_seq.clear();
 
     if let Some(qual) = record.qual() {

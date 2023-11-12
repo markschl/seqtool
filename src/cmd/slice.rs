@@ -1,9 +1,9 @@
-use cfg;
-use error::CliResult;
-use lib::util::parse_range;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::helpers::util::parse_range;
+use crate::opt;
 
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Get a slice of the sequences within a defined range.
 
@@ -20,10 +20,10 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
     let rng = args.get_str("<range>");
 
-    cfg.writer(|writer, mut vars| {
+    cfg.writer(|writer, vars| {
         let range = parse_range(rng)?;
 
         // convert from 1-based to 0-based coordinates
@@ -36,7 +36,7 @@ pub fn run() -> CliResult<()> {
 
         let mut i = 0;
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             // if a start value was specified, skip records
             // was thinking about using Itertools::dropping(), but have to check for errors...
             if i >= start {

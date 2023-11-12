@@ -29,7 +29,7 @@ pub struct QualConverter {
 
 impl QualConverter {
     pub fn new(fmt: QualFormat) -> QualConverter {
-        QualConverter { fmt: fmt }
+        QualConverter { fmt }
     }
 
     pub fn convert_quals(
@@ -146,17 +146,13 @@ fn high_qual_err(q: u8) -> String {
 
 #[inline(never)]
 fn low_qual_err(q: u8, min_ascii: u8, fmt: &str) -> String {
-    let fmt_guess = guess_format(q).unwrap_or_else(|| "".to_string());
+    let fmt_guess = guess_format(q).unwrap_or_default();
     format!(
         concat!(
             "Invalid quality score encountered ({}). In the {} FASTQ format, ",
             "the values should be in the ASCII range {}-126 ('{}' to '~').{}"
         ),
-        q,
-        fmt,
-        min_ascii,
-        min_ascii as char,
-        fmt_guess
+        q, fmt, min_ascii, min_ascii as char, fmt_guess
     )
 }
 
@@ -167,9 +163,9 @@ validate_impl!(validate_solexa, 59, ';', "Solexa");
 #[inline]
 fn guess_format(q: u8) -> Option<String> {
     let s = match q {
-        0...32 => None,
-        33...58 => Some(("Sanger/Illumina 1.8+", "'--fmt fq'")),
-        59...63 => Some((
+        0..=32 => None,
+        33..=58 => Some(("Sanger/Illumina 1.8+", "'--fmt fq'")),
+        59..=63 => Some((
             "Sanger/Illumina 1.8+ or eventually Solexa",
             "'--fmt fq' or '--fmt fq-solexa'",
         )),
@@ -206,7 +202,6 @@ pub fn qual_to_prob(q: u8) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::QualFormat::*;
     use super::*;
 
     #[test]
@@ -222,11 +217,7 @@ mod tests {
 
         assert_eq!(qual_to_solexa(0), 59);
 
-        for ((&q, &s), &sb) in (&qual[..])
-            .into_iter()
-            .zip(&solexa[..])
-            .zip(&solexa_back[..])
-        {
+        for ((&q, &s), &sb) in qual[..].iter().zip(&solexa[..]).zip(&solexa_back[..]) {
             let s = (s + 64) as u8;
             let sb = (sb + 64) as u8;
             assert_eq!(solexa_to_qual(s), q);

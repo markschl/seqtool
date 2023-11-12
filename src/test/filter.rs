@@ -1,17 +1,39 @@
-
 use super::*;
-
 
 #[test]
 fn filter() {
     let fa = ">id\nSEQ\n>id2 a=20\nSEQ\n>id3 a=\nSEQ";
     Tester::new()
-        .cmp(&["filter", "s:seqlen > s:ungapped_len and a:p >= 10"], *FASTA, &SEQS[2..].concat())
-        .cmp(&["filter", ".id == 'seq0'"], *FASTA, SEQS[1])
-        .cmp(&["filter", "not(def(id))"], *FASTA, "")
-        .cmp(&["filter", "def(a:a) and a:a >= 20", "--to-tsv", "id"], fa, "id2\n")
-        .cmp(&["filter", "a:a >= 20", "--to-tsv", "id"], fa, "id2\n")
-        .cmp(&["filter", ".id like 'id*'", "--to-tsv", "id"], fa, "id\nid2\nid3\n");
+        .cmp(
+            &["filter", "seqlen > ungapped_seqlen && attr(p) >= 10"],
+            *FASTA,
+            &SEQS[2..].concat(),
+        )
+        .cmp(&["filter", "id == 'seq0'"], *FASTA, SEQS[1])
+        .cmp(&["filter", "id == undefined"], *FASTA, "")
+        // note: comparison with undefined in Javascript returns false, thus only sequences
+        // with defined attributes are kept
+        .cmp(
+            &[
+                "filter",
+                "opt_attr(a) != undefined && opt_attr(a) >= 20",
+                "--to-tsv",
+                "id",
+            ],
+            fa,
+            "id2\n",
+        )
+        .cmp(
+            &["filter", "opt_attr(a) >= 20", "--to-tsv", "id"],
+            fa,
+            "id2\n",
+        )
+        // Javascript Regex
+        .cmp(
+            &["filter", r"(/id\d+/).test(id)", "--to-tsv", "id"],
+            fa,
+            "id2\nid3\n",
+        );
 }
 
 #[test]
@@ -23,9 +45,16 @@ fn drop_file() {
 
         let fa = ">id1\nSEQ\n>id2\nOTHER";
         t.cmp(
-            &["filter", ".seq != 'SEQ'", "-a", "i={num}", "--dropped", out_path],
+            &[
+                "filter",
+                "seq != 'SEQ'",
+                "-a",
+                "i={num}",
+                "--dropped",
+                out_path,
+            ],
             fa,
-            ">id2 i=2\nOTHER\n"
+            ">id2 i=2\nOTHER\n",
         );
 
         let mut f = File::open(out_path).expect("File not there");

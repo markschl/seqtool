@@ -1,8 +1,8 @@
-use cfg;
-use error::CliResult;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::opt;
 
-static USAGE: &'static str = concat!(
+static USAGE: &str = concat!(
     "
 This command is useful for converting from one format to another
 and/or setting attributes.
@@ -17,10 +17,10 @@ Usage:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
-    cfg.writer(|writer, mut vars| {
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+    cfg.writer(|writer, vars| {
+        cfg.read(vars, |record, vars| {
             writer.write(&record, vars)?;
             Ok(true)
         })

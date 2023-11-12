@@ -2,12 +2,11 @@ use std::io;
 use std::marker::PhantomData;
 use vec_map::VecMap;
 
-use error::CliResult;
-use var;
-
-use super::{Record, WriteFinish, Writer};
-use io::DefRecord;
-use io::SeqWriter;
+use super::{Record, Writer};
+use crate::error::CliResult;
+use crate::io::DefRecord;
+use crate::io::SeqWriter;
+use crate::var;
 
 pub struct AttrWriter<W: io::Write, S: SeqWriter<W>> {
     inner: S,
@@ -21,7 +20,7 @@ impl<W: io::Write, S: SeqWriter<W>> AttrWriter<W, S> {
     pub fn new(writer: S, attrs: Vec<(String, String)>) -> AttrWriter<W, S> {
         AttrWriter {
             inner: writer,
-            attrs: attrs,
+            attrs,
             compiled_attrs: VecMap::new(),
             temp: (vec![], vec![]),
             _w: PhantomData,
@@ -31,7 +30,7 @@ impl<W: io::Write, S: SeqWriter<W>> AttrWriter<W, S> {
 
 impl<W: io::Write, S: SeqWriter<W>> Writer<W> for AttrWriter<W, S> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()> {
-        for &(ref name, ref value) in &self.attrs {
+        for (name, value) in &self.attrs {
             let e = var::varstring::VarString::parse_register(value, builder)?;
             let id = builder.register_attr(name, Some(var::attr::Action::Edit));
             self.compiled_attrs.insert(id, e);
@@ -44,13 +43,13 @@ impl<W: io::Write, S: SeqWriter<W>> Writer<W> for AttrWriter<W, S> {
         !self.attrs.is_empty()
     }
 
-    fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
+    fn write(&mut self, record: &dyn Record, vars: &var::Vars) -> CliResult<()> {
         if vars.attrs().has_attrs() {
             let &mut (ref mut id_out, ref mut desc_out) = &mut self.temp;
             let compiled_attrs = &self.compiled_attrs;
             let (id, desc) = record.id_desc_bytes();
             vars.attrs().compose(id, desc, id_out, desc_out, |id, s| {
-                compiled_attrs[id].compose(s, vars.symbols());
+                compiled_attrs[id].compose(s, vars.symbols(), record);
             });
             let desc = if desc_out.is_empty() {
                 None

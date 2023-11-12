@@ -1,8 +1,7 @@
-use io::SeqAttr;
+use crate::io::SeqAttr;
+use crate::helpers::key_value;
 
 use memchr::memchr;
-
-use lib::key_value;
 
 #[derive(Debug, Clone, Default)]
 pub struct AttrPosition {
@@ -42,10 +41,10 @@ impl Attrs {
             _id_actions: vec![],
             _desc_actions: vec![],
             _append_ids: vec![],
-            attr_delim: attr_delim,
-            attr_value_delim: attr_value_delim,
+            attr_delim,
+            attr_value_delim,
             adelim_is_space: attr_delim == b' ',
-            append_attr: append_attr,
+            append_attr,
         }
     }
 
@@ -174,6 +173,11 @@ impl Attrs {
         }
     }
 
+    pub fn has_value(&self, attr_id: usize) -> bool {
+        let (_, position) = self.parser.get(attr_id);
+        position.is_some()
+    }
+
     pub fn get_value<'a>(
         &self,
         attr_id: usize,
@@ -184,13 +188,7 @@ impl Attrs {
         position.and_then(|&(seq_attr, ref pos)| {
             let text = match seq_attr {
                 SeqAttr::Id => id_text,
-                SeqAttr::Desc => {
-                    if let Some(d) = desc_text {
-                        d
-                    } else {
-                        return None;
-                    }
-                }
+                SeqAttr::Desc => desc_text?,
                 _ => panic!(),
             };
             Some(&text[pos.value_start..pos.end])
@@ -212,6 +210,7 @@ struct AttrData {
 
 impl AttrData {
     fn get_pos(&self, search_id: usize) -> Option<&(SeqAttr, AttrPosition)> {
+        // TODO: replace search_id with Option<something>?
         if search_id == self.search_id {
             Some(&self.pos)
         } else {
@@ -246,8 +245,8 @@ impl Parser {
             data: vec![],
             search_id: 1,
             num_found: 0,
-            delim: delim,
-            value_delim: value_delim,
+            delim,
+            value_delim,
         }
     }
 
@@ -320,7 +319,7 @@ impl Parser {
     }
 
     pub fn get(&self, attr_id: usize) -> (&str, Option<&(SeqAttr, AttrPosition)>) {
-        let d = self.data.get(attr_id).expect("Invalid attribute ID");
+        let d = self.data.get(attr_id).unwrap();
         (&d.name, d.get_pos(self.search_id))
     }
 
@@ -459,5 +458,4 @@ mod tests {
     //         a.parse(id, desc);
     //     });
     // }
-
 }

@@ -9,8 +9,8 @@ impl<'p, 't> TwowayIter<'p, 't> {
     #[inline]
     pub fn new(text: &'t [u8], pattern: &'p [u8]) -> TwowayIter<'p, 't> {
         TwowayIter {
-            text: text,
-            pattern: pattern,
+            text,
+            pattern,
             pos: 0,
         }
     }

@@ -1,14 +1,12 @@
-use error::CliResult;
-use std::borrow::Cow;
 use std::cell::Cell;
-use std::io::Write;
 
 use memchr::memchr;
+use seq_io::fastq::{self, Reader, Record as FR};
+use seq_io::policy::BufPolicy;
 
 use super::*;
-use seq_io::fastq::{self, Reader, Record as FR};
-use seq_io::BufPolicy;
-use var;
+use crate::error::CliResult;
+use crate::var;
 
 // Reader
 
@@ -29,7 +27,7 @@ where
     R: io::Read,
     P: BufPolicy,
 {
-    fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
+    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>> {
         self.0.next().map(|r| {
             let r = FastqRecord::new(r?);
             Ok(func(&r))
@@ -111,14 +109,14 @@ impl<W: io::Write> FastqWriter<W> {
     pub fn new(io_writer: W, qual_fmt: Option<QualFormat>) -> FastqWriter<W> {
         FastqWriter {
             writer: io_writer,
-            qual_fmt: qual_fmt,
+            qual_fmt,
             qual_vec: vec![],
         }
     }
 }
 
 impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
-    fn write(&mut self, record: &Record, vars: &var::Vars) -> CliResult<()> {
+    fn write(&mut self, record: &dyn Record, vars: &var::Vars) -> CliResult<()> {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
         let qual = if let Some(fmt) = self.qual_fmt {
             self.qual_vec.clear();

@@ -7,15 +7,6 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
-use docopt;
-#[cfg(feature = "exprtk")]
-use exprtk_rs;
-use regex;
-use seq_io;
-
-use csv;
-use meval;
-
 pub type CliResult<T> = Result<T, CliError>;
 
 #[derive(Debug)]
@@ -28,7 +19,7 @@ impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             CliError::Io(ref e) => e.fmt(f),
-            CliError::Other(ref s) => f.write_str(&**s),
+            CliError::Other(ref s) => f.write_str(s),
         }
     }
 }
@@ -76,8 +67,3 @@ from_err!(FromUtf8Error);
 from_err!(ParseIntError);
 from_err!(ParseFloatError);
 from_err!(csv::Error);
-from_err!(meval::Error);
-#[cfg(feature = "exprtk")]
-from_err!(exprtk_rs::ParseError);
-#[cfg(feature = "exprtk")]
-from_err!(exprtk_rs::InvalidName);

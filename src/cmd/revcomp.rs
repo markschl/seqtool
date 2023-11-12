@@ -2,12 +2,12 @@ use std::ops::DerefMut;
 
 use bio::alphabets::dna::complement;
 
-use cfg;
-use error::CliResult;
-use io::SeqQualRecord;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::SeqQualRecord;
+use crate::opt;
 
-static USAGE: &'static str = concat!(
+static USAGE: &str = concat!(
     "
 Reverse complements DNA sequences. If quality scores are present,
 their order is just reversed.
@@ -25,12 +25,12 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
     let num_threads = args.thread_num()?;
 
-    cfg.writer(|writer, mut vars| {
-        cfg.var_parallel::<_, _, Box<(Vec<u8>, Vec<u8>, bool)>>(
-            &mut vars,
+    cfg.writer(|writer, vars| {
+        cfg.parallel_var::<_, _, Box<(Vec<u8>, Vec<u8>, bool)>>(
+            vars,
             num_threads - 1,
             |record, data| {
                 let (ref mut seq, ref mut qual, ref mut has_qual) = *data.deref_mut();
@@ -40,7 +40,7 @@ pub fn run() -> CliResult<()> {
                 }
                 if let Some(q) = record.qual() {
                     qual.clear();
-                    qual.extend(q.into_iter().rev());
+                    qual.extend(q.iter().rev());
                     *has_qual = true;
                 } else {
                     *has_qual = false;

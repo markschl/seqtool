@@ -1,11 +1,10 @@
-use error::CliResult;
-use io::{RecordEditor, SeqAttr};
-use opt;
-use var::*;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::{RecordEditor, SeqAttr};
+use crate::opt;
+use crate::var::*;
 
-use cfg;
-
-pub static USAGE: &'static str = concat!(
+pub static USAGE: &str = concat!(
     "
 Replaces the contents of sequence IDs, descriptions or sequences.
 
@@ -24,7 +23,7 @@ Options:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
     let mut replacements = vec![];
     if let Some(string) = args.opt_str("--id") {
@@ -37,7 +36,7 @@ pub fn run() -> CliResult<()> {
         replacements.push((string, SeqAttr::Seq));
     }
 
-    cfg.writer(|writer, mut vars| {
+    cfg.writer(|writer, vars| {
         // get String -> VarString
         let replacements: Vec<_> = replacements
             .iter()
@@ -49,10 +48,10 @@ pub fn run() -> CliResult<()> {
 
         let mut editor = RecordEditor::new();
 
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             for &(ref expr, attr) in &replacements {
                 let val = editor.edit(attr);
-                expr.compose(val, vars.symbols())
+                expr.compose(val, vars.symbols(), record);
             }
 
             writer.write(&editor.rec(&record), vars)?;

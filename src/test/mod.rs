@@ -1,42 +1,38 @@
-
-extern crate tempdir;
-extern crate assert_cmd;
-extern crate predicates;
-
-#[allow(unused_imports)]
-use std::io::{Read,Write};
-use std::process::{Command, Stdio};
-use std::env;
-use std::str;
-use std::iter::repeat;
-use std::fs::File;
-use std::convert::AsRef;
-use std::path::PathBuf;
 use std::collections::HashMap;
+use std::convert::AsRef;
+use std::env;
+use std::fs::File;
+#[allow(unused_imports)]
+use std::io::{Read, Write};
+use std::path::PathBuf;
+use std::process::{Command as StdCommand, Stdio};
+use std::str;
 
-use self::assert_cmd::prelude::*;
-use self::assert_cmd::assert::Assert;
-use self::predicates::str::contains;
-use self::predicates::ord::eq;
-use self::predicates::prelude::*;
-
+use assert_cmd::assert::Assert;
+use assert_cmd::Command;
+use predicates::ord::eq;
+use predicates::prelude::*;
+use predicates::str::contains;
 
 trait Input {
-    fn set(&self, a: &mut Command) -> Assert;
+    fn set<'a>(&mut self, a: &'a mut Command) -> &'a mut Command;
 }
 
-impl<T> Input for T where T: AsRef<str> {
-    fn set(&self, a: &mut Command) -> Assert {
-        a.with_stdin().buffer(self.as_ref()).assert()
+impl<T> Input for T
+where
+    T: AsRef<str>,
+{
+    fn set<'a>(&mut self, a: &'a mut Command) -> &'a mut Command {
+        a.write_stdin(self.as_ref().as_bytes().to_owned())
     }
 }
 
 #[derive(Debug, Clone)]
 struct FileInput<'a>(&'a str);
 
-impl<'a> Input for FileInput<'a> {
-    fn set(&self, a: &mut Command) -> Assert {
-        a.args(&[self.0]).assert()
+impl Input for FileInput<'_> {
+    fn set<'a>(&mut self, a: &'a mut Command) -> &'a mut Command {
+        a.args([self.0])
     }
 }
 
@@ -44,11 +40,10 @@ impl<'a> Input for FileInput<'a> {
 struct MultiFileInput(Vec<String>);
 
 impl Input for MultiFileInput {
-    fn set(&self, a: &mut Command) -> Assert {
-        a.args(&self.0.iter().map(|s| s.as_str()).collect::<Vec<_>>()).assert()
+    fn set<'a>(&mut self, a: &'a mut Command) -> &'a mut Command {
+        a.args(&self.0.iter().map(|s| s.as_str()).collect::<Vec<_>>())
     }
 }
-
 
 struct Tester {
     root: PathBuf,
@@ -59,10 +54,7 @@ struct Tester {
 impl Tester {
     fn new() -> Tester {
         let mut a = Command::new("cargo");
-        a.args(&["run"]);
-        if cfg!(feature="exprtk") {
-            a.args(&["--features=exprtk"]);
-        }
+        a.args(["run"]);
         a.unwrap();
 
         // then return the path
@@ -70,14 +62,14 @@ impl Tester {
 
         let name = "st";
         let name = if cfg!(windows) {
-                format!("{}.exe", name)
-            } else {
-                name.to_string()
-            };
+            format!("{}.exe", name)
+        } else {
+            name.to_string()
+        };
 
         Tester {
             bin: root.join(name),
-            root: root,
+            root,
             vars: HashMap::new(),
         }
     }
@@ -97,16 +89,19 @@ impl Tester {
     }
 
     fn temp_dir<F, O>(&self, prefix: &str, mut f: F) -> O
-        where F: FnMut(&mut tempdir::TempDir) -> O
+    where
+        F: FnMut(&mut tempdir::TempDir) -> O,
     {
-        let mut d = tempdir::TempDir::new_in(&self.root, prefix).expect("Could not create temp. dir");
+        let mut d =
+            tempdir::TempDir::new_in(&self.root, prefix).expect("Could not create temp. dir");
         let out = f(&mut d);
         d.close().unwrap();
         out
     }
 
     fn temp_file<F, O>(&self, name: &str, content: Option<&str>, mut func: F) -> O
-        where F: FnMut(&str, &mut File) -> O
+    where
+        F: FnMut(&str, &mut File) -> O,
     {
         self.temp_dir("test", |d| {
             let p = d.path().join(name);
@@ -124,10 +119,10 @@ impl Tester {
         self
     }
 
-    fn cmd<I: Input>(&self, args: &[&str], input: I) -> Assert {
+    fn cmd<I: Input>(&self, args: &[&str], mut input: I) -> Assert {
         let mut a = Command::new(self.bin.to_str().unwrap());
         a.args(args).envs(&self.vars);
-        input.set(&mut a)
+        input.set(&mut a).assert()
     }
 
     fn cmp<I: Input>(&self, args: &[&str], input: I, expected: &str) -> &Self {
@@ -138,8 +133,7 @@ impl Tester {
     }
 
     fn succeeds<I: Input>(&self, args: &[&str], input: I) -> &Self {
-        self.cmd(args, input)
-            .success();
+        self.cmd(args, input).success();
         self
     }
 
@@ -151,15 +145,18 @@ impl Tester {
     }
 
     fn pipe(&self, args1: &[&str], input: &str, args2: &[&str], expected_out: &str) -> &Self {
-        let p1 = Command::new(&self.bin)
+        let p1 = StdCommand::new(&self.bin)
             .args(args1)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
             .expect("could not run 1");
-        p1.stdin.unwrap().write_all(input.as_bytes()).expect("write error");
+        p1.stdin
+            .unwrap()
+            .write_all(input.as_bytes())
+            .expect("write error");
 
-        let p2 = Command::new(&self.bin)
+        let p2 = StdCommand::new(&self.bin)
             .args(args2)
             .stdin(p1.stdout.unwrap())
             .output()
@@ -176,35 +173,35 @@ fn fasta_record(seq: &str) -> String {
 }
 
 fn fq_records<Q1, Q2>(q1: Q1, q2: Q2) -> String
-where Q1: AsRef<[u8]>,
-      Q2: AsRef<[u8]>
+where
+    Q1: AsRef<[u8]>,
+    Q2: AsRef<[u8]>,
 {
     let q1 = q1.as_ref();
     let q2 = q2.as_ref();
-    format!("@seq1\n{}\n+\n{}\n@seq2\n{}\n+\n{}\n",
-        repeat('A').take(q1.len()).collect::<String>(),
+    format!(
+        "@seq1\n{}\n+\n{}\n@seq2\n{}\n+\n{}\n",
+        "A".repeat(q1.len()),
         str::from_utf8(q1).unwrap(),
-        repeat('G').take(q2.len()).collect::<String>(),
+        "G".repeat(q2.len()),
         str::from_utf8(q2).unwrap(),
     )
 }
 
 // used by many tests:
 
-static SEQS: [&'static str; 4] = [
+static SEQS: [&str; 4] = [
     ">seq1 p=2\nTTGGCAGGCCAAGGCCGATGGATCA\n",
     ">seq0 p=1\nCTGGCAGGCC-AGGCCGATGGATCA\n",
     ">seq3 p=10\nCAGGCAGGCC-AGGCCGATGGATCA\n",
     ">seq2 p=11\nACGG-AGGCC-AGGCCGATGGATCA\n",
 ];
 
-
 // id	desc	seq
 // seq1	p=2	    TTGGCAGGCCAAGGCCGATGGATCA	(0)
 // seq0	p=1	    CTGGCAGGCC-AGGCCGATGGATCA	(1)
 // seq3	p=10	CAGGCAGGCC-AGGCCGATGGATCA	(2)
 // seq2	p=11	ACGG-AGGCC-AGGCCGATGGATCA	(3)
-
 
 lazy_static! {
     static ref __FASTA_STRING: String = SEQS.concat();
@@ -213,33 +210,28 @@ lazy_static! {
 }
 
 fn select_fasta(seqs: &[usize]) -> String {
-    seqs.into_iter()
-        .map(|i| SEQS[*i])
-        .collect::<Vec<_>>()
-        .concat()
+    seqs.iter().map(|i| SEQS[*i]).collect::<Vec<_>>().concat()
 }
 
-
-mod pass;
 mod compress;
+mod concat;
 mod convert;
 mod count;
-mod slice;
-mod sample;
-mod head;
-mod tail;
-mod trim;
-mod set;
 mod del;
-mod replace;
+mod filter;
 mod find;
-mod split;
-mod upper;
+mod head;
+mod interleave;
 mod lower;
 mod mask;
+mod pass;
+mod replace;
 mod revcomp;
+mod sample;
+mod set;
+mod slice;
+mod split;
 mod stat;
-#[cfg(feature = "exprtk")]
-mod filter;
-mod interleave;
-mod concat;
+mod tail;
+mod trim;
+mod upper;

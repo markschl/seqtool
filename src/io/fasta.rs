@@ -1,14 +1,13 @@
-use std::borrow::{Cow, ToOwned};
 use std::cell::Cell;
 use std::io;
 
 use memchr::memchr;
+use seq_io::fasta::{self, Reader, Record as FR};
+use seq_io::policy::BufPolicy;
 
 use super::*;
-use error::CliResult;
-use seq_io::fasta::{self, Reader, Record as FR};
-use seq_io::BufPolicy;
-use var;
+use crate::error::CliResult;
+use crate::var;
 
 // Reader
 
@@ -29,7 +28,7 @@ where
     R: io::Read,
     P: BufPolicy,
 {
-    fn read_next(&mut self, func: &mut FnMut(&Record) -> O) -> Option<CliResult<O>> {
+    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>> {
         self.0.next().map(|r| {
             let r = FastaRecord::new(r?);
             Ok(func(&r))
@@ -111,15 +110,12 @@ pub struct FastaWriter<W: io::Write> {
 
 impl<W: io::Write> FastaWriter<W> {
     pub fn new(io_writer: W, wrap: Option<usize>) -> FastaWriter<W> {
-        FastaWriter {
-            io_writer: io_writer,
-            wrap: wrap,
-        }
+        FastaWriter { io_writer, wrap }
     }
 }
 
 impl<W: io::Write> SeqWriter<W> for FastaWriter<W> {
-    fn write(&mut self, record: &Record, _: &var::Vars) -> CliResult<()> {
+    fn write(&mut self, record: &dyn Record, _: &var::Vars) -> CliResult<()> {
         match record.get_header() {
             SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.io_writer, id, desc)?,
             SeqHeader::FullHeader(h) => fasta::write_head(&mut self.io_writer, h)?,

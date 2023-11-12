@@ -1,9 +1,9 @@
-use cfg;
-use error::CliResult;
-use io::SeqQualRecord;
-use opt;
+use crate::config;
+use crate::error::CliResult;
+use crate::io::SeqQualRecord;
+use crate::opt;
 
-static USAGE: &'static str = concat!(
+static USAGE: &str = concat!(
     "
 Converts all characters in the sequence to lowercase.
 
@@ -17,11 +17,11 @@ Usage:
 
 pub fn run() -> CliResult<()> {
     let args = opt::Args::new(USAGE)?;
-    let cfg = cfg::Config::from_args(&args)?;
+    let cfg = config::Config::from_args(&args)?;
 
-    cfg.writer(|writer, mut vars| {
+    cfg.writer(|writer, vars| {
         let mut seq = vec![];
-        cfg.read_sequential_var(&mut vars, |record, vars| {
+        cfg.read(vars, |record, vars| {
             seq.clear();
             for s in record.seq_segments() {
                 seq.extend(s.iter().cloned().map(|ref mut b| {

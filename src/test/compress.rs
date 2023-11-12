@@ -1,28 +1,33 @@
-
 use super::*;
-
 
 #[test]
 fn compress_pipe() {
     Tester::new()
         .pipe(
-            &[".", "--to", "fasta.gz", "--compr-level", "9"], &FASTA,
-            &[".", "--fmt", "fasta.gz"], &FASTA
+            &[".", "--to", "fasta.gz", "--compr-level", "9"],
+            &FASTA,
+            &[".", "--fmt", "fasta.gz"],
+            &FASTA,
         )
         .pipe(
-            &[".", "--to", "fasta.bz2", "--compr-level", "9"], &FASTA,
-            &[".", "--fmt", "fasta.bz2"], &FASTA
+            &[".", "--to", "fasta.bz2", "--compr-level", "9"],
+            &FASTA,
+            &[".", "--fmt", "fasta.bz2"],
+            &FASTA,
         )
         .pipe(
-            &[".", "--to", "fasta.lz4", "--compr-level", "9"], &FASTA,
-            &[".", "--fmt", "fasta.lz4"], &FASTA
+            &[".", "--to", "fasta.lz4", "--compr-level", "9"],
+            &FASTA,
+            &[".", "--fmt", "fasta.lz4"],
+            &FASTA,
         )
         .pipe(
-            &[".", "--to", "fasta.zst", "--compr-level", "9"], &FASTA,
-            &[".", "--fmt", "fasta.zst"], &FASTA
+            &[".", "--to", "fasta.zst", "--compr-level", "9"],
+            &FASTA,
+            &[".", "--fmt", "fasta.zst"],
+            &FASTA,
         );
 }
-
 
 #[test]
 fn compress_file() {

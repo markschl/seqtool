@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::convert::AsRef;
 use std::str::FromStr;
 
-use error::CliResult;
-use lib::inner_result::MapRes;
+use crate::error::CliResult;
+
 
 pub fn version() -> String {
     let (maj, min, pat) = (
@@ -39,13 +39,13 @@ where
     S2: AsRef<str>,
 {
     let other: HashMap<_, _> = other
-        .into_iter()
+        .iter()
         .enumerate()
         .map(|(i, f)| (f.as_ref(), i))
         .collect();
 
     fields
-        .into_iter()
+        .iter()
         .map(|field| match other.get(field.as_ref()) {
             Some(i) => Ok(*i),
             None => Err(field.as_ref()),
@@ -79,16 +79,19 @@ pub fn parse_range_str(range: &str) -> CliResult<(Option<&str>, Option<&str>)> {
 pub fn parse_range<T: FromStr>(range: &str) -> CliResult<(Option<T>, Option<T>)> {
     let (start, end) = parse_range_str(range)?;
     Ok((
-        start.map_res(|s| {
-            s.trim()
-                .parse::<T>()
-                .map_err(|_| format!("Invalid range start: '{}'.", s))
-        })?,
-        end.map_res(|e| {
+        start
+            .map(|s| {
+                s.trim()
+                    .parse::<T>()
+                    .map_err(|_| format!("Invalid range start: '{}'.", s))
+            })
+            .transpose()?,
+        end.map(|e| {
             e.trim()
                 .parse::<T>()
                 .map_err(|_| format!("Invalid range end: '{}'.", e))
-        })?,
+        })
+        .transpose()?,
     ))
 }
 
@@ -122,7 +125,7 @@ where
 // #[inline]
 // unsafe fn get_unchecked(text: &[u8], start: usize, end: usize) -> &[u8] {
 //     let ptr = text.as_ptr().offset(start as isize);
-//     ::std::slice::from_raw_parts(ptr, end - start)
+//     std::slice::from_raw_parts(ptr, end - start)
 // }
 
 #[cfg(test)]

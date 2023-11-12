@@ -39,7 +39,8 @@ fn var_format() {
     t.var("ST_FORMAT", "fastq").cmp(&["."], fq, fq);
     t.var("ST_FORMAT", "tsv:id,seq").cmp(&["."], tsv, tsv);
     t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-fa"], fq, fa);
-    t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-tsv", "id,seq"], fq, tsv);
+    t.var("ST_FORMAT", "fastq")
+        .cmp(&[".", "--to-tsv", "id,seq"], fq, tsv);
 }
 
 #[test]
@@ -49,13 +50,46 @@ fn txt_input() {
     let txt_header = format!("i\ts\td\n{}", txt);
 
     Tester::new()
-        .cmp(&[".", "--tsv", "id,seq,desc", "--to-tsv", "id,seq,desc"], txt, txt)
-        .cmp(&[".", "--fmt", "tsv", "--fields", "id,seq,desc",
-               "--to", "tsv", "--outfields", "id,seq,desc"], txt, txt)
-        .cmp(&[".", "--csv", "id,seq,desc", "--to-tsv", "id,seq,desc"], &csv, txt)
-        .cmp(&[".", "--csv", "id,seq,desc", "--to-csv", "id,seq,desc"], &csv, &csv)
-        .cmp(&[".", "--tsv", "id:1,desc:3,seq:2", "--to-tsv", "id,seq,desc"], txt, txt)
-        .cmp(&[".", "--tsv", "id:i,desc:d,seq:s", "--to-tsv", "id,seq,desc"], &txt_header, txt);
+        .cmp(
+            &[".", "--tsv", "id,seq,desc", "--to-tsv", "id,seq,desc"],
+            txt,
+            txt,
+        )
+        .cmp(
+            &[
+                ".",
+                "--fmt",
+                "tsv",
+                "--fields",
+                "id,seq,desc",
+                "--to",
+                "tsv",
+                "--outfields",
+                "id,seq,desc",
+            ],
+            txt,
+            txt,
+        )
+        .cmp(
+            &[".", "--csv", "id,seq,desc", "--to-tsv", "id,seq,desc"],
+            &csv,
+            txt,
+        )
+        .cmp(
+            &[".", "--csv", "id,seq,desc", "--to-csv", "id,seq,desc"],
+            &csv,
+            &csv,
+        )
+        .cmp(
+            &[".", "--tsv", "id:1,desc:3,seq:2", "--to-tsv", "id,seq,desc"],
+            txt,
+            txt,
+        )
+        .cmp(
+            &[".", "--tsv", "id:i,desc:d,seq:s", "--to-tsv", "id,seq,desc"],
+            &txt_header,
+            txt,
+        );
 }
 
 #[test]
@@ -65,26 +99,26 @@ fn qual_convert() {
         // qual. in second record are truncated automatically
         .cmp(
             &[".", "--fq", "--to", "fq-illumina"],
-            &fq_records([33, 53,  73], [ 93, 103, 126]),
+            &fq_records([33, 53, 73], [93, 103, 126]),
             &fq_records([64, 84, 104], [124, 126, 126]),
         )
         // Illumina 1.3 -> Sanger
         .cmp(
             &[".", "--fq-illumina", "--to", "fq"],
             &fq_records([64, 84, 104], [124, 126]),
-            &fq_records([33, 53,  73], [ 93,  95]),
+            &fq_records([33, 53, 73], [93, 95]),
         )
         // Sanger -> Solexa
         .cmp(
             &[".", "--fq", "--to", "fq-solexa"],
-            &fq_records([33, 34, 42, 43,  73], [ 93, 103, 126]),
+            &fq_records([33, 34, 42, 43, 73], [93, 103, 126]),
             &fq_records([59, 59, 72, 74, 104], [124, 126, 126]),
         )
         // Solexa -> Sanger
         .cmp(
             &[".", "--fmt", "fq-solexa", "--to", "fq"],
             &fq_records([59, 72, 74, 104], [124, 126]),
-            &fq_records([34, 42, 43,  73], [ 93, 95]),
+            &fq_records([34, 42, 43, 73], [93, 95]),
         )
         // Illumina -> Solexa
         .cmp(
@@ -99,12 +133,36 @@ fn qual_convert() {
             &fq_records([65, 73, 74, 104], [124, 126]),
         )
         // Validation errors
-        .fails(&[".", "--fq", "--to", "fq-illumina"], &fq_records([31], []), "Invalid quality")
-        .fails(&[".", "--fq", "--to", "fq-illumina"], &fq_records([127], []), "Invalid quality")
-        .fails(&[".", "--fq-illumina", "--to", "fq"], &fq_records([63], []), "Invalid quality")
-        .fails(&[".", "--fq-illumina", "--to", "fq"], &fq_records([127], []), "Invalid quality")
-        .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fq_records([58], []), "Invalid quality")
-        .fails(&[".", "--fmt", "fq-solexa", "--to", "fq"], &fq_records([127], []), "Invalid quality");
+        .fails(
+            &[".", "--fq", "--to", "fq-illumina"],
+            &fq_records([31], []),
+            "Invalid quality",
+        )
+        .fails(
+            &[".", "--fq", "--to", "fq-illumina"],
+            &fq_records([127], []),
+            "Invalid quality",
+        )
+        .fails(
+            &[".", "--fq-illumina", "--to", "fq"],
+            &fq_records([63], []),
+            "Invalid quality",
+        )
+        .fails(
+            &[".", "--fq-illumina", "--to", "fq"],
+            &fq_records([127], []),
+            "Invalid quality",
+        )
+        .fails(
+            &[".", "--fmt", "fq-solexa", "--to", "fq"],
+            &fq_records([58], []),
+            "Invalid quality",
+        )
+        .fails(
+            &[".", "--fmt", "fq-solexa", "--to", "fq"],
+            &fq_records([127], []),
+            "Invalid quality",
+        );
 }
 
 #[test]

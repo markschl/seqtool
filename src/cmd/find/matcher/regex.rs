@@ -1,5 +1,6 @@
-use error::CliResult;
-use regex;
+use crate::error::CliResult;
+
+use ::regex;
 
 use super::*;
 
@@ -12,13 +13,13 @@ impl BytesRegexMatcher {
     pub fn new(pattern: &str, has_groups: bool) -> CliResult<BytesRegexMatcher> {
         Ok(BytesRegexMatcher {
             re: regex::bytes::Regex::new(pattern)?,
-            has_groups: has_groups,
+            has_groups,
         })
     }
 }
 
 impl Matcher for BytesRegexMatcher {
-    fn iter_matches(&mut self, text: &[u8], func: &mut FnMut(&Hit) -> bool) {
+    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
         if self.has_groups {
             // allocates captures
             for h in self.re.captures_iter(text) {
