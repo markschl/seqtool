@@ -3,8 +3,8 @@ use std::fs::File;
 use std::io;
 use std::path::PathBuf;
 
-use bzip2::read::BzDecoder;
-use flate2::read::GzDecoder;
+use bzip2::read::MultiBzDecoder;
+use flate2::read::MultiGzDecoder;
 use lz4;
 use seq_io;
 use seq_io::policy::BufPolicy;
@@ -181,8 +181,8 @@ fn get_compr_reader<'a>(
     compression: Compression,
 ) -> io::Result<Box<dyn io::Read + Send + 'a>> {
     Ok(match compression {
-        Compression::Gzip => Box::new(GzDecoder::new(rdr)),
-        Compression::Bzip2 => Box::new(BzDecoder::new(rdr)),
+        Compression::Gzip => Box::new(MultiGzDecoder::new(rdr)),
+        Compression::Bzip2 => Box::new(MultiBzDecoder::new(rdr)),
         Compression::Lz4 => Box::new(lz4::Decoder::new(rdr)?),
         Compression::Zstd => Box::new(zstd::Decoder::new(rdr)?),
         Compression::None => rdr,
