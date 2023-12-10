@@ -1,24 +1,19 @@
-use crate::config;
+use clap::Parser;
+
+use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::SeqQualRecord;
-use crate::opt;
+use crate::opt::CommonArgs;
 
-static USAGE: &str = concat!(
-    "
-Converts all characters in the sequence to lowercase.
+/// Converts all characters in the sequence to uppercase.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct LowerCommand {
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-Usage:
-    st lower [options][-a <attr>...] [-l <list>...] [<input>...]
-    st lower (-h | --help)
-    st lower --help-vars
-",
-    common_opts!()
-);
-
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-
+pub fn run(cfg: Config, _args: &LowerCommand) -> CliResult<()> {
     cfg.writer(|writer, vars| {
         let mut seq = vec![];
         cfg.read(vars, |record, vars| {

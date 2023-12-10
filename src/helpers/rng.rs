@@ -1,232 +1,114 @@
-/// Methods for working with variable ranges
-use std::cmp::max;
-// use attr;
-// use attr::KeyGetter;
-use crate::error::CliResult;
-use crate::io::Record;
-use crate::helpers::util;
-use crate::var;
-use crate::var::varstring::VarString;
+use std::str::FromStr;
 
-/// Represents a range bound integer stored either directly or in a `VarString`
-/// that is evaluated later with `RngBound::value()`.
-#[derive(Debug)]
-pub enum RngBound {
-    Number(isize),
-    Expr(VarString),
+/// General and simple range type used in this crate
+/// Unbounded ranges that can be negative (viewed from end of sequence).
+/// They should behave exactly like Python indexing (slicing) indices, which
+/// can be negative as well.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Range {
+    pub start: Option<isize>,
+    pub end: Option<isize>,
 }
-
-impl RngBound {
-    pub fn from_str(value: &str, vars: &mut var::Vars) -> CliResult<RngBound> {
-        Ok(match value.parse::<isize>() {
-            Ok(n) => RngBound::Number(n),
-            Err(_) => {
-                let expr = vars.build(|b| VarString::var_or_composed(value, b))?;
-                RngBound::Expr(expr)
-            }
-        })
-    }
-
-    pub fn value(
-        &self,
-        symbols: &var::symbols::SymbolTable,
-        record: &dyn Record,
-    ) -> CliResult<isize> {
-        Ok(match *self {
-            RngBound::Number(n) => n,
-            RngBound::Expr(ref e) => {
-                e.get_int(symbols, record)
-                    .transpose()?
-                    .ok_or("Range bound results in empty string.")? as isize
-            }
-        })
-    }
-}
-
-/// Represents a range that is either stored directly or evaluated
-/// later
-#[derive(Debug)]
-pub enum VarRange {
-    /// range (..) notation already found in input text
-    Split(Option<RngBound>, Option<RngBound>),
-    /// range notation will be present in composed `VarString`
-    Full(VarString, Vec<u8>),
-}
-
-impl VarRange {
-    pub fn from_str(s: &str, vars: &mut var::Vars) -> CliResult<VarRange> {
-        if let Ok((start, end)) = util::parse_range_str(s) {
-            Ok(VarRange::Split(
-                start.map(|s| RngBound::from_str(s, vars)).transpose()?,
-                end.map(|e| RngBound::from_str(e, vars)).transpose()?,
-            ))
-        } else {
-            let varstring = vars.build(|b| VarString::var_or_composed(s, b))?;
-            Ok(VarRange::Full(varstring, vec![]))
-        }
-    }
-
-    pub fn get(
-        &mut self,
-        length: usize,
-        rng0: bool,
-        exclusive: bool,
-        symbols: &var::symbols::SymbolTable,
-        record: &dyn Record,
-    ) -> CliResult<(usize, usize)> {
-        Ok(match *self {
-            VarRange::Split(ref start, ref end) => Range::new(
-                start.as_ref().map(|s| s.value(symbols, record)).transpose()?,
-                end.as_ref().map(|e| e.value(symbols, record)).transpose()?,
-                length,
-                rng0,
-            )?
-            .get(exclusive),
-            VarRange::Full(ref varstring, ref mut val) => {
-                val.clear();
-                varstring.compose(val, symbols, record);
-                // "unnecessary" UTF-8 conversion, however it would be complicated
-                // because there is no integer parsing from byte slices in the std. library
-                let s = std::str::from_utf8(val)?;
-                let (start, end) = util::parse_range(s)?;
-                Range::new(start, end, length, rng0)?.get(exclusive)
-            }
-        })
-    }
-}
-
-#[derive(Debug)]
-pub enum VarRangesType {
-    Split(Vec<VarRange>),
-    Full(VarString),
-}
-
-#[derive(Debug)]
-pub struct VarRanges {
-    ty: VarRangesType,
-    out: Vec<(usize, usize)>,
-    val: Vec<u8>,
-}
-
-impl VarRanges {
-    pub fn from_str(s: &str, vars: &mut var::Vars) -> CliResult<VarRanges> {
-        let ranges: Vec<_> = s.split(',').collect();
-        let ty = if ranges.len() == 1 {
-            let varstring = vars.build(|b| VarString::var_or_composed(s, b))?;
-            VarRangesType::Full(varstring)
-        } else {
-            VarRangesType::Split(
-                ranges
-                    .into_iter()
-                    .map(|r| VarRange::from_str(r, vars))
-                    .collect::<CliResult<_>>()?,
-            )
-        };
-        Ok(VarRanges {
-            ty,
-            out: vec![],
-            val: vec![],
-        })
-    }
-
-    pub fn get(
-        &mut self,
-        length: usize,
-        rng0: bool,
-        exclusive: bool,
-        symbols: &var::symbols::SymbolTable,
-        record: &dyn Record,
-    ) -> CliResult<&[(usize, usize)]> {
-        self.out.clear();
-        match self.ty {
-            VarRangesType::Split(ref mut rng) => {
-                for r in rng {
-                    self.out
-                        .push(r.get(length, rng0, exclusive, symbols, record)?);
-                }
-            }
-            VarRangesType::Full(ref varstring) => {
-                self.val.clear();
-                varstring.compose(&mut self.val, symbols, record);
-                let s = std::str::from_utf8(&self.val)?;
-                for r in s.split(',') {
-                    let (start, end) = util::parse_range(r)?;
-                    let r = Range::new(start, end, length, rng0)?.get(exclusive);
-                    self.out.push(r);
-                }
-            }
-        }
-        Ok(&self.out)
-    }
-}
-
-// locate range with negative numbers on sequence once the length is known
-// requires and returns 1-based coordinates according to R's start:end range notation
-
-// 0-based range
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Range(usize, usize);
 
 impl Range {
-    pub fn new(
-        start: Option<isize>,
-        end: Option<isize>,
-        length: usize,
-        rng0: bool,
-    ) -> Result<Range, &'static str> {
-        if rng0 {
-            let start = start.unwrap_or(0);
-            let end = end.unwrap_or(length as isize);
-            if start < 0 || end < 0 {
-                return Err("0-based ranges must not contain negative numbers.");
+    #[cfg(test)]
+    pub fn new1(start: Option<isize>, end: Option<isize>) -> Result<Self, String> {
+        Self::new(start, end).adjust(false, false)
+    }
+
+    #[cfg(test)]
+    pub fn new0(start: Option<isize>, end: Option<isize>) -> Self {
+        Self::new(start, end)
+    }
+
+    pub fn new(start: Option<isize>, end: Option<isize>) -> Self {
+        Self { start, end }
+    }
+
+    pub fn adjust(mut self, range0: bool, exclusive: bool) -> Result<Self, String> {
+        if !range0 {
+            // input is 1-based -> convert to 0-based coordinates,
+            // which are used internally:
+            // start coordinate - 1
+            if let Some(s) = self.start.as_mut() {
+                if *s >= 1 {
+                    *s -= 1;
+                }
             }
-            Ok(Self::from_rng0(start as usize, end as usize, length))
-        } else {
-            let start = start.unwrap_or(1);
-            let end = end.unwrap_or(-1);
-            Ok(Self::from_rng1(start, end, length))
+            // negative coordinates: end coordinate + 1
+            if self.end == Some(-1) {
+                self.end = None;
+            } else if let Some(e) = self.end.as_mut() {
+                if *e <= -2 {
+                    *e += 1;
+                }
+            }
         }
+        // TODO: check
+        if exclusive {
+            self.start = Some(self.start.unwrap_or(0) + 1);
+            self.end = Some(
+                self.end
+                    .map(|e| if e != 0 { e - 1 } else { 0 })
+                    .unwrap_or(-1),
+            );
+        }
+        Ok(self)
     }
 
-    // takes *1-based* inclusive range as input with optional negative numbers and seq. length
-    // to normalize with
-    pub fn from_rng1(start: isize, end: isize, length: usize) -> Range {
-        let s = Self::_cnv_neg(start, length);
-        let e = Self::_cnv_neg(end, length);
-        Self::from_rng0(s - 1, e, length)
-    }
-
-    pub fn from_rng0(start: usize, end: usize, length: usize) -> Range {
-        let mut end = end;
-        if start > end {
+    pub fn obtain(&self, length: usize) -> (usize, usize) {
+        // resolve negative bounds
+        let mut start = self.start.unwrap_or(0);
+        if start < 0 {
+            start = (length as isize + start).max(0);
+        }
+        let mut end = self.end.unwrap_or(length as isize);
+        if end < 0 {
+            end = (length as isize + end).max(0);
+        }
+        // silently adjust the end bound if it is smaller than the start
+        // we don't want a hard error, just return an empty slice
+        // TODO: make configurable?
+        if end < start {
+            // this will result in an empty slice
             end = start;
         }
-        if end > length {
-            end = length;
-        }
-        Range(start, end)
+        (start as usize, end as usize)
     }
+}
 
-    // 1-based (with negative) -> 1-based (positive)
-    pub fn _cnv_neg(pos: isize, length: usize) -> usize {
-        let pos = if pos < 0 {
-            length as isize + pos + 1
-        } else {
-            pos
-        };
-        max(pos, 1) as usize
-    }
+impl FromStr for Range {
+    type Err = String;
 
-    pub fn get(&self, exclusive: bool) -> (usize, usize) {
-        let mut start = self.0;
-        let mut end = self.1;
-        if exclusive && start < end {
-            start += 1;
-            if end > 0 && start < end {
-                end -= 1;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.splitn(2, "..").map(|s| s.trim());
+        let start = parts.next().unwrap();
+        if let Some(end) = parts.next() {
+            if let None = parts.next() {
+                let start = if start.is_empty() {
+                    None
+                } else {
+                    Some(
+                        start
+                            .parse()
+                            .map_err(|_| format!("Invalid range start: '{}'", start))?,
+                    )
+                };
+                let end = if end.is_empty() {
+                    None
+                } else {
+                    Some(
+                        end.parse()
+                            .map_err(|_| format!("Invalid range end: '{}'", end))?,
+                    )
+                };
+                return Ok(Self { start, end });
             }
         }
-        (start, end)
+        Err(format!(
+            "Invalid range: '{}'. Possible notations: 'start..end', 'start..', '..end', or '..'",
+            s
+        ))
     }
 }
 
@@ -237,26 +119,61 @@ mod tests {
     #[test]
     fn test_rng() {
         // 0-based range as input
-        assert_eq!(Range::from_rng0(3, 10, 10), Range(3, 10));
-        assert_eq!(Range::from_rng0(5, 4, 10), Range(5, 5));
+        assert_eq!(Range::new0(Some(3), Some(10)).obtain(10), (3, 10));
+        // start > end -> range adjusted
+        assert_eq!(Range::new0(Some(5), Some(4)).obtain(10), (5, 5));
         // 1-based range as input
-        assert_eq!(Range::from_rng1(4, 10, 10), Range(3, 10));
-        assert_eq!(Range::from_rng1(4, -1, 10), Range(3, 10));
-        assert_eq!(Range::from_rng1(-10, -1, 10), Range(0, 10));
-        assert_eq!(Range::from_rng1(4, 11, 10), Range(3, 10));
-        assert_eq!(Range::from_rng1(0, 11, 10), Range(0, 10));
-        assert_eq!(Range::from_rng1(6, 6, 10), Range(5, 6));
-        assert_eq!(Range::from_rng1(6, 5, 10), Range(5, 5));
-        assert_eq!(Range::from_rng1(6, 4, 10), Range(5, 5));
+        assert_eq!(Range::new1(Some(4), Some(10)).unwrap().obtain(10), (3, 10));
+        assert_eq!(Range::new1(Some(4), Some(-1)).unwrap().obtain(10), (3, 10));
+        assert_eq!(
+            Range::new1(Some(-10), Some(-1)).unwrap().obtain(10),
+            (0, 10)
+        );
+        assert_eq!(Range::new1(Some(4), Some(10)).unwrap().obtain(10), (3, 10));
+        assert_eq!(Range::new1(Some(0), Some(10)).unwrap().obtain(10), (0, 10));
+        assert_eq!(Range::new1(Some(6), Some(6)).unwrap().obtain(10), (5, 6));
+        // end < start
+        assert_eq!(Range::new1(Some(6), Some(5)).unwrap().obtain(10), (5, 5));
+        assert_eq!(Range::new1(Some(6), Some(4)).unwrap().obtain(10), (5, 5));
     }
 
     #[test]
     fn test_rng_slice() {
-        assert_eq!(Range(0, 10).get(false), (0, 10));
-        assert_eq!(Range(3, 6).get(false), (3, 6));
-        assert_eq!(Range(3, 3).get(false), (3, 3));
+        assert_eq!(
+            Range::new(Some(0), Some(10))
+                .adjust(true, false)
+                .unwrap()
+                .obtain(10),
+            (0, 10)
+        );
+        assert_eq!(
+            Range::new(Some(3), Some(6))
+                .adjust(true, false)
+                .unwrap()
+                .obtain(10),
+            (3, 6)
+        );
+        assert_eq!(
+            Range::new(Some(3), Some(3))
+                .adjust(true, false)
+                .unwrap()
+                .obtain(10),
+            (3, 3)
+        );
         // exclusive
-        assert_eq!(Range(0, 10).get(true), (1, 9));
-        assert_eq!(Range(4, 5).get(true), (5, 5));
+        assert_eq!(
+            Range::new(Some(0), Some(10))
+                .adjust(true, true)
+                .unwrap()
+                .obtain(10),
+            (1, 9)
+        );
+        assert_eq!(
+            Range::new(Some(4), Some(5))
+                .adjust(true, true)
+                .unwrap()
+                .obtain(10),
+            (5, 5)
+        );
     }
 }

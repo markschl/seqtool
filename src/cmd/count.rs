@@ -1,114 +1,217 @@
-use std::fmt::Debug;
-use std::fmt::Write;
+use std::fmt::{self, Debug, Write};
 use std::mem;
 
-use csv;
+use clap::Parser;
 use fxhash::FxHashMap;
 
-use crate::config;
+use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt;
-use crate::var::varstring;
+use crate::helpers::val::TextValue;
+use crate::io::Record;
+use crate::opt::CommonArgs;
+use crate::var::{symbols::SymbolTable, varstring, VarBuilder};
 
-static USAGE: &str = concat!(
-    "
-This command counts the number of sequences and prints the number to STDOUT. Advanced
-grouping of sequences is possible by supplying or more key strings containing
-variables (-k).
+/// This command counts the number of sequences and prints the number to STDOUT. Advanced
+/// grouping of sequences is possible by supplying or more key strings containing
+/// variables (-k).
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct CountCommand {
+    /// Summarize over a variable/function or a string containing variables.
+    /// For numeric key insert 'n:' before. Values are counted
+    /// in intervals of 1. To change, specify 'n:<interval>:<key>'.
+    /// Example: 'n:10:{seqlen}'
+    #[arg(short, long)]
+    key: Vec<String>,
 
-Usage:
-    st count [options] [-l <list>...] [-k <key>...] [<input>...]
-    st count (-h | --help)
+    /// Don't print intervals when using the 'n:<interval>:<key> syntax',
+    /// instead only upper limits (e.g. '5' instead of '(1,5]')
+    #[arg(short, long)]
+    no_int: bool,
 
-Options:
-    -k, --key <key>     Summarize over a variable/function or a string containing variables.
-                        For numeric key insert 'n:' before. Values are counted
-                        in intervals of 1. To change, specify 'n:<interval>:<key>'.
-                        Example: 'n:10:{s:seqlen}'
-    -n, --no-int        Don't print intervals when using the 'n:<interval>:<key> syntax',
-                        instead only upper limits (e.g. '5' instead of '(1,5]')
-",
-    common_opts!()
-);
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-
-    let keys = args.get_vec("--key");
-    let print_intervals = !args.get_bool("--no-int");
-
-    if keys.is_empty() {
+pub fn run(cfg: Config, args: &CountCommand) -> CliResult<()> {
+    if args.key.is_empty() {
         count_simple(&cfg)
     } else {
-        count_categorized(&cfg, &keys, print_intervals)
+        count_categorized(&cfg, &args.key, !args.no_int)
     }
 }
 
-fn count_simple(cfg: &config::Config) -> CliResult<()> {
-    cfg.io_writer(|writer, _| {
-        let mut n = 0;
+// returns (Option<interval>, actual_key)
+fn parse_key(s: &str, default_interval: f64, default_precision: usize) -> (Option<Interval>, &str) {
+    if s.len() >= 2 && &s[0..2] == "n:" {
+        if let Some(end) = s.chars().skip(3).position(|c| c == ':') {
+            let num = &s[2..3 + end];
+            if let Ok(interval) = num.parse() {
+                let precision = num
+                    .chars()
+                    .position(|c| c == '.')
+                    .map(|pos| num.len() - pos - 1)
+                    .unwrap_or(0);
+                return (
+                    Some(Interval {
+                        interval,
+                        precision,
+                    }),
+                    &s[3 + end + 1..s.len()],
+                );
+            }
+        }
+        return (
+            Some(Interval {
+                interval: default_interval,
+                precision: default_precision,
+            }),
+            &s[2..s.len()],
+        );
+    }
+    (None, s)
+}
 
+#[derive(Default, Clone)]
+struct Interval {
+    pub interval: f64,
+    pub precision: usize,
+}
+
+impl Interval {
+    pub fn write<W: fmt::Write>(&self, num: f64, mut out: W) -> fmt::Result {
+        write!(
+            out,
+            "({0:.2$},{1:.2$}]",
+            num * self.interval,
+            (num + 1.) * self.interval,
+            self.precision
+        )
+    }
+}
+
+struct VarKey {
+    key: varstring::VarString,
+    val: TextValue,
+    interval: Option<(Interval, bool)>,
+}
+
+impl VarKey {
+    fn from_str(s: &str, builder: &mut VarBuilder) -> CliResult<Self> {
+        let (interval, key) = parse_key(s, 1., 0);
+        Ok(Self {
+            key: varstring::VarString::var_or_composed(&key, builder)?,
+            val: TextValue::default(),
+            interval: interval.map(|i| (i, true)),
+        })
+    }
+
+    fn categorize(
+        &mut self,
+        symbols: &SymbolTable,
+        record: &dyn Record,
+        out: &mut Category,
+    ) -> CliResult<()> {
+        if let Some((int, ref mut is_discrete)) = self.interval.as_mut() {
+            self.val.clear();
+            if let Some(v) = self.key.get_float(symbols, record) {
+                let v = v?;
+                if !v.is_nan() {
+                    let v = v / int.interval;
+                    if v.fract() != 0. {
+                        *is_discrete = false;
+                    }
+                    *out = Category::Num(v.floor() as i64);
+                } else {
+                    *out = Category::NaN;
+                }
+            } else {
+                *out = Category::NA;
+            }
+        } else {
+            let val = self.val.clear();
+            self.key.compose(val, symbols, record);
+            if let Category::Text(ref mut v) = *out {
+                mem::swap(v, val);
+            } else {
+                *out = Category::Text(val.clone());
+            }
+        }
+        Ok(())
+    }
+
+    fn interval(&self) -> Option<(Interval, bool)> {
+        self.interval.clone()
+    }
+}
+
+#[derive(Debug, Hash, Eq, PartialOrd, Ord, PartialEq, Clone)]
+enum Category {
+    Text(Vec<u8>),
+    Num(i64),
+    NaN,
+    NA,
+}
+
+impl Category {
+    fn to_text<W: fmt::Write>(
+        &self,
+        mut out: W,
+        interval: Option<&(Interval, bool)>,
+        print_intervals: bool,
+    ) -> CliResult<()> {
+        match self {
+            Category::Text(ref s) => write!(out, "{}", std::str::from_utf8(s)?)?,
+            Category::Num(n) => {
+                let (int, is_discrete) = interval.unwrap();
+                if print_intervals && !is_discrete {
+                    int.write(*n as f64, out)?;
+                } else {
+                    write!(out, "{0:.1$}", (*n as f64) * int.interval, int.precision)?;
+                }
+            }
+            Category::NaN => write!(out, "NaN")?,
+            Category::NA => write!(out, "N/A")?,
+        }
+        Ok(())
+    }
+}
+
+fn count_simple(cfg: &Config) -> CliResult<()> {
+    // make sure --var-help is printed
+    cfg.get_vars(None)?.finalize();
+    // run counting without any variable processing
+    cfg.io_writer(None, |writer, _| {
+        let mut n = 0;
         cfg.read_simple(|_| {
             n += 1;
             Ok(true)
         })?;
-
+        // TODO: line terminator?
         writeln!(writer, "{}", n)?;
-
         Ok(())
     })?;
     Ok(())
 }
 
-fn count_categorized(cfg: &config::Config, keys: &[&str], print_intervals: bool) -> CliResult<()> {
-    cfg.io_writer(|writer, vars| {
+fn count_categorized<S>(cfg: &Config, keys: &[S], print_intervals: bool) -> CliResult<()>
+where
+    S: AsRef<str>,
+{
+    cfg.with_vars(None, |vars| {
         // register variables & parse types
-        let var_keys: Vec<_> = keys
-            .iter()
-            .map(|k| {
-                let (interval, key) = parse_key(k, 1., 0);
-                let var_key = vars.build(|b| varstring::VarString::var_or_composed(key, b))?;
-                Ok((var_key, interval))
-            })
+        let mut var_keys: Vec<_> = keys
+            .into_iter()
+            .map(|k| vars.build(|b| VarKey::from_str(k.as_ref(), b)))
             .collect::<CliResult<_>>()?;
-        // count
+
+        // count the records
         let mut counts = FxHashMap::default();
-
-        // vec of reusable strings for generating the key values
-        let mut values = vec![vec![]; var_keys.len()];
         // reusable key that is only cloned when not present in the hash map
-        let mut key = vec![(Category::Text(vec![]), false); var_keys.len()];
-
+        let mut key = vec![Category::NA; var_keys.len()];
         cfg.read(vars, |record, vars| {
-            for (((key, ref interval), value), &mut (ref mut cat, ref mut is_different)) in
-                var_keys.iter().zip(&mut values).zip(&mut key)
-            {
-                if let Some(&(int, _)) = interval.as_ref() {
-                    if let Some(v) = key.get_float(vars.symbols(), record) {
-                        let v = v?;
-                        if !v.is_nan() {
-                            let v = v / int;
-                            let f = v.floor();
-                            if relative_ne!(v, f) {
-                                *is_different = true;
-                            }
-                            *cat = Category::Num(f as i64);
-                        } else {
-                            *cat = Category::NaN;
-                        }
-                    } else {
-                        *cat = Category::NA;
-                    }
-                } else {
-                    value.clear();
-                    key.compose(value, vars.symbols(), record);
-                    if let Category::Text(ref mut v) = *cat {
-                        mem::swap(v, value);
-                    } else {
-                        *cat = Category::Text(value.clone());
-                    }
-                }
+            for (key, cat) in var_keys.iter_mut().zip(&mut key) {
+                key.categorize(vars.symbols(), record, cat)?;
             }
 
             // cannot use Entry API because this would require the key to be cloned
@@ -121,79 +224,24 @@ fn count_categorized(cfg: &config::Config, keys: &[&str], print_intervals: bool)
             Ok(true)
         })?;
 
-        // sort
+        // sort the keys
         let mut sorted: Vec<_> = counts.into_iter().collect();
         sorted.sort();
-        // write
-        let mut csv_writer = csv::WriterBuilder::new()
-            .delimiter(b'\t')
-            .from_writer(writer);
 
-        let mut record = vec![String::new(); var_keys.len() + 1];
-        for (ref keys, count) in sorted {
-            for ((ref mut field, &(ref c, is_different)), (_, interval)) in
-                record.iter_mut().zip(keys).zip(&var_keys)
-            {
-                field.clear();
-                match *c {
-                    Category::Text(ref s) => field.push_str(std::str::from_utf8(s)?),
-                    Category::Num(n) => {
-                        let &(int, precision) = &interval.unwrap();
-                        if print_intervals && is_different {
-                            write!(
-                                field,
-                                "({0:.2$},{1:.2$}]",
-                                n as f64 * int,
-                                (n + 1) as f64 * int,
-                                precision
-                            )?;
-                        } else {
-                            write!(field, "{0:.1$}", n as f64 * int, precision)?;
-                        }
-                    }
-                    Category::NaN => field.push_str("NaN"),
-                    Category::NA => field.push_str("N/A"),
-                }
+        let mut row = String::new();
+        for (ref categories, count) in sorted {
+            row.clear();
+            // write the keys
+            for (key, cat) in var_keys.iter().zip(categories) {
+                cat.to_text(&mut row, key.interval().as_ref(), print_intervals)?;
+                write!(&mut row, "\t")?;
             }
-            {
-                let count_field = &mut record[var_keys.len()];
-                count_field.clear();
-                write!(count_field, "{}", count)?;
-            }
-            csv_writer.write_record(&record)?;
+            // write the count
+            // TODO: line terminator?
+            write!(&mut row, "{}", count)?;
+            println!("{}", row);
         }
         Ok(())
     })?;
     Ok(())
-}
-
-// returns (Option<interval>, actual_key)
-fn parse_key(
-    s: &str,
-    default_interval: f64,
-    default_precision: usize,
-) -> (Option<(f64, usize)>, &str) {
-    if s.len() >= 2 && &s[0..2] == "n:" {
-        if let Some(end) = s.chars().skip(3).position(|c| c == ':') {
-            let num = &s[2..3 + end];
-            if let Ok(int) = num.parse() {
-                let precision = num
-                    .chars()
-                    .position(|c| c == '.')
-                    .map(|pos| num.len() - pos - 1)
-                    .unwrap_or(0);
-                return (Some((int, precision)), &s[3 + end + 1..s.len()]);
-            }
-        }
-        return (Some((default_interval, default_precision)), &s[2..s.len()]);
-    }
-    (None, s)
-}
-
-#[derive(Debug, Hash, Eq, PartialOrd, Ord, PartialEq, Clone)]
-enum Category<T: Debug> {
-    Text(T),
-    Num(i64),
-    NaN,
-    NA,
 }

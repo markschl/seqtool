@@ -42,13 +42,16 @@ impl<R: io::Read> CsvReader<R> {
             .flexible(true)
             .from_reader(rdr);
 
-        let mut fieldmap: HashMap<_, _> = if fields[0].len() == 1 {
+        // check for consistency
+        let n = fields[0].len();
+        if fields.iter().any(|f| f.len() != n) {
+            return fail!(
+                "Inconsistent CSV column description. Either use colons everywhere or nowhere."
+            );
+        }
+
+        let mut fieldmap: HashMap<_, _> = if n == 1 {
             // id,desc,seq
-            if fields.iter().any(|f| f.len() > 1) {
-                return fail!(
-                    "Inconsistent CSV column description. Either use colons everywhere or nowhere."
-                );
-            }
             fields
                 .into_iter()
                 .enumerate()
@@ -100,11 +103,11 @@ impl<R: io::Read> CsvReader<R> {
                     initialized: true, // needed because of Default impl (used in parallel mod)
                     id_col: fieldmap
                         .remove("id")
-                        .ok_or("Id column must be defined with CSV input")?,
+                        .ok_or("Id (id) column must be defined with CSV input")?,
                     desc_col: fieldmap.remove("desc"),
                     seq_col: fieldmap
                         .remove("seq")
-                        .ok_or("Sequence column must be defined with CSV input")?,
+                        .ok_or("Sequence (seq) column must be defined with CSV input")?,
                     qual_col: fieldmap.remove("qual"),
                     // other_cols: fieldmap.into_iter().collect(),
                 },

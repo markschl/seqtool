@@ -1,31 +1,30 @@
-use crate::config;
+use clap::Parser;
+
+use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt;
+use crate::opt::CommonArgs;
 use crate::var::symbols::Value;
 use crate::var::Func;
 
-pub static USAGE: &str = concat!(
-    "
-Filters sequences by a mathematical expression which may contain any variable.
+/// Filters sequences by a mathematical expression which may contain any variable.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct FilterCommand {
+    /// Filter expression
+    expression: String,
+    /// Output file for sequences that were removed by filtering.
+    /// The extension is autorecognized if possible, fallback
+    /// is the input format.
+    #[arg(short, long, value_name = "FILE")]
+    dropped: Option<String>,
 
-Usage:
-    st filter [options][-a <attr>...][-l <list>...] <expression> [<input>...]
-    st filter (-h | --help)
-    st filter --help-vars
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-Options:
-    --dropped <file>    Output file for sequences that were removed by filtering.
-                        The extension is autorecognized if possible, fallback
-                        is the input format.
-",
-    common_opts!()
-);
-
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-    let expr = args.get_str("<expression>");
-    let dropped_file = args.opt_str("--dropped");
+pub fn run(cfg: Config, args: &FilterCommand) -> CliResult<()> {
+    let expr = &args.expression;
+    let dropped_file = args.dropped.as_ref();
 
     cfg.writer(|writer, mut vars| {
         let func = Func::expr(expr);

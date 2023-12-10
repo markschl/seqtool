@@ -3,79 +3,78 @@ use std::io::{self, Write};
 
 use bit_vec::BitVec;
 use byteorder::{BigEndian, WriteBytesExt};
-use rand::distributions::Uniform;
-use rand::prelude::*;
+use clap::Parser;
+use rand::{distributions::Uniform, prelude::*};
 
-use crate::config;
+use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::output::Writer;
-use crate::opt;
+use crate::opt::CommonArgs;
 use crate::var::*;
 
-pub static USAGE: &str = concat!(
-    "
-Return a random subset of sequences.
+/// Returns a random subset of sequences.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct SampleCommand {
+    /// Randomly select with probability f returning the given
+    /// fraction of sequences on average.
+    #[arg(short, long)]
+    frac: Option<f32>,
 
-Usage:
-    st sample [options][-a <attr>...][-l <list>...] [<input>...]
-    st sample (-h | --help)
-    st sample --help-vars
+    /// Number of sequences to return
+    #[arg(short, long, value_name = "N")]
+    num_seqs: Option<usize>,
 
-Options:
-    -f, --frac <frac>   Randomly select with probability f returning the given
-                        fraction of sequences on average.
-    -n, --num-seqs <n>  Randomly selects exactly n records. Does not work with
-                        STDIN because records have to be counted before.
-    -s, --seed <s>      Use this seed to make the sampling reproducible.
-                        Useful e.g. for randomly selecting from paired end reads.
-                        Either a number (can be very big) or a string, from which
-                        the first 32 bytes are used.
-",
-    common_opts!()
-);
+    /// Use this seed to make the sampling reproducible.
+    /// Useful e.g. for randomly selecting from paired end reads.
+    /// Either a number (can be very big) or a string, from which
+    /// the first 32 bytes are used.
+    #[arg(short, long, value_parser = |s: &str| Ok::<_, String>(read_seed(s)))]
+    seed: Option<Seed>,
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-    // parse seed
-    let seed_str = args.opt_str("--seed");
-    let seed = seed_str.map(|s| {
-        let mut seed = [0; 32];
-        if let Ok(num) = s.parse() {
-            (&mut seed[..]).write_u64::<BigEndian>(num).unwrap();
-        } else {
-            (&mut seed[..]).write_all(s.as_bytes()).unwrap();
-        }
-        seed
-    });
+type Seed = [u8; 32];
 
+fn read_seed(seed_str: &str) -> Seed {
+    let mut seed = [0; 32];
+    if let Ok(num) = seed_str.parse() {
+        (&mut seed[..]).write_u64::<BigEndian>(num).unwrap();
+    } else {
+        (&mut seed[..]).write_all(seed_str.as_bytes()).unwrap();
+    }
+    seed
+}
+
+pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
     cfg.writer(|writer, vars| {
-        if let Some(n_rand) = args.opt_value("--num-seqs")? {
-            if let Some(s) = seed {
+        if let Some(n_rand) = args.num_seqs {
+            if let Some(s) = args.seed {
                 let rng: StdRng = SeedableRng::from_seed(s);
                 sample_n(&cfg, n_rand, rng, writer, vars)
             } else {
                 sample_n(&cfg, n_rand, thread_rng(), writer, vars)
             }
-        } else if let Some(p) = args.opt_value::<f32>("--frac")? {
+        } else if let Some(p) = args.frac {
             if !(0f32..=1.).contains(&p) {
                 return fail!("Fractions should be between 0 and 1");
             }
-            if let Some(s) = seed {
+            if let Some(s) = args.seed {
                 let rng: StdRng = SeedableRng::from_seed(s);
                 sample_prob(&cfg, p, rng, writer, vars)
             } else {
                 sample_prob(&cfg, p, thread_rng(), writer, vars)
             }
         } else {
-            return fail!("Nothing selected, use either -n or --prob");
+            return fail!("Nothing selected, use either -n/--num-seqs or --frac");
         }
     })
 }
 
 fn sample_n<R: Rng, W: io::Write>(
-    cfg: &config::Config,
+    cfg: &Config,
     k: usize,
     mut rng: R,
     writer: &mut dyn Writer<W>,
@@ -128,7 +127,7 @@ fn sample_n<R: Rng, W: io::Write>(
 }
 
 fn sample_prob<R: Rng, W: io::Write>(
-    cfg: &config::Config,
+    cfg: &Config,
     prob: f32,
     mut rng: R,
     writer: &mut dyn Writer<W>,

@@ -57,6 +57,10 @@ impl ExprVars {
 }
 
 impl VarProvider for ExprVars {
+    fn help(&self) -> &dyn VarHelp {
+        &ExprHelp
+    }
+
     fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<bool> {
         if var.name != "____expr" || var.num_args() != 1 {
             return Ok(false);
@@ -75,6 +79,7 @@ impl VarProvider for ExprVars {
     }
 }
 
+#[derive(Debug)]
 pub struct ExprHelp;
 
 impl VarHelp for ExprHelp {

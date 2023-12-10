@@ -1,10 +1,11 @@
 use self::SeqType::*;
 use bio::alphabets::{dna, protein, rna};
+use strum_macros::{Display, EnumString};
 
 // TODO: maybe use lazy_static to initialize all alphabets. However, these
 // function are rarely called...
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display, EnumString)]
 pub enum SeqType {
     Dna,
     Rna,
@@ -20,20 +21,20 @@ fn filter_iter(text: &[u8]) -> impl Iterator<Item = &u8> {
 
 // returns (`SeqType`, has_wildcard (N/X), has_ambiguities(IUPAC))
 // TODO: decide on exact behaviour
-pub fn guess_seqtype(text: &[u8], hint: Option<&str>) -> Option<(SeqType, bool, bool)> {
-    let hint = hint.map(|h| h.to_ascii_lowercase());
-    match hint.as_deref() {
-        Some("dna") => Some(guess_dna(text).unwrap_or((SeqType::Dna, true, true))),
-        Some("rna") => Some(guess_rna(text).unwrap_or((SeqType::Rna, true, true))),
-        Some("protein") => Some(guess_protein(text).unwrap_or((SeqType::Protein, true, true))),
-        Some("other") => Some((Other, false, false)),
+pub fn guess_seqtype(text: &[u8], hint: Option<SeqType>) -> Option<(SeqType, bool, bool)> {
+    match hint {
+        Some(SeqType::Dna) => Some(guess_dna(text).unwrap_or((SeqType::Dna, true, true))),
+        Some(SeqType::Rna) => Some(guess_rna(text).unwrap_or((SeqType::Rna, true, true))),
+        Some(SeqType::Protein) => {
+            Some(guess_protein(text).unwrap_or((SeqType::Protein, true, true)))
+        }
+        Some(SeqType::Other) => Some((Other, false, false)),
         None => Some(
             guess_dna(text)
                 .or_else(|| guess_rna(text))
                 .or_else(|| guess_protein(text))
                 .unwrap_or((Other, false, false)),
         ),
-        _ => None,
     }
 }
 

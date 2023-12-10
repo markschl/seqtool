@@ -3,52 +3,27 @@ use std::io;
 
 use crate::error::CliResult;
 use crate::io::*;
-use crate::opt;
-use crate::var;
+use crate::opt::CommonArgs;
+use crate::var::{self, VarProvider};
 
 #[derive(Debug)]
-pub struct Config<'a> {
+pub struct Config {
     input_opts: Vec<input::InputOptions>,
     output_opts: output::OutputOptions,
-    var_opts: var::VarOpts<'a>,
+    var_opts: var::VarOpts,
     started: Cell<bool>,
 }
 
-impl<'a> Config<'a> {
-    pub fn from_args(args: &'a opt::Args) -> CliResult<Config<'a>> {
-        Self::new(args, None)
-    }
-
-    pub fn from_args_with_help(
-        args: &'a opt::Args,
-        custom_help: &dyn var::VarHelp,
-    ) -> CliResult<Config<'a>> {
-        Self::new(args, Some(custom_help))
-    }
-
-    pub fn new(
-        args: &'a opt::Args,
-        custom_help: Option<&dyn var::VarHelp>,
-    ) -> CliResult<Config<'a>> {
-        // initiate options
-
+impl Config {
+    pub fn new(args: &CommonArgs) -> CliResult<Config> {
         let input_opts = args.get_input_opts()?;
 
-        let out_opts = args.get_output_opts(Some(&input_opts[0].format))?;
+        let output_opts = args.get_output_opts(Some(&input_opts[0].format))?;
 
-        let var_opts = args.get_env_opts()?;
-
-        if var_opts.var_help {
-            let h = if let Some(h) = custom_help {
-                format!("{}\n\n{}", h.format(), var::var_help())
-            } else {
-                var::var_help()
-            };
-            return fail!(h);
-        }
+        let var_opts = args.get_var_opts()?;
 
         Ok(Config {
-            output_opts: out_opts,
+            output_opts,
             input_opts,
             var_opts,
             started: Cell::new(false),
@@ -59,17 +34,21 @@ impl<'a> Config<'a> {
         &self.input_opts
     }
 
-    fn get_vars(&self) -> CliResult<var::Vars> {
-        let mut vars = var::get_vars(&self.var_opts, &self.input_opts[0].format)?;
+    // pub fn output_opts(&self) -> &output::OutputOptions {
+    //     &self.output_opts
+    // }
+
+    pub fn get_vars(&self, custom_mod: Option<Box<dyn VarProvider>>) -> CliResult<var::Vars> {
+        let mut vars = var::get_vars(&self.var_opts, &self.input_opts[0].format, custom_mod)?;
         vars.init_output(&self.output_opts)?;
         Ok(vars)
     }
 
-    pub fn with_vars<F, O>(&self, func: F) -> CliResult<O>
+    pub fn with_vars<F, O>(&self, custom_mod: Option<Box<dyn VarProvider>>, func: F) -> CliResult<O>
     where
         F: FnOnce(&mut var::Vars) -> CliResult<O>,
     {
-        let mut vars = self.get_vars()?;
+        let mut vars = self.get_vars(custom_mod)?;
         func(&mut vars)
     }
 
@@ -77,7 +56,18 @@ impl<'a> Config<'a> {
     where
         F: FnOnce(&mut dyn output::Writer<&mut dyn io::Write>, &mut var::Vars) -> CliResult<O>,
     {
-        self.with_vars(|v| {
+        self.writer_with_custom(None, func)
+    }
+
+    pub fn writer_with_custom<F, O>(
+        &self,
+        custom_mod: Option<Box<dyn VarProvider>>,
+        func: F,
+    ) -> CliResult<O>
+    where
+        F: FnOnce(&mut dyn output::Writer<&mut dyn io::Write>, &mut var::Vars) -> CliResult<O>,
+    {
+        self.with_vars(custom_mod, |v| {
             output::writer(&self.output_opts, |writer| {
                 v.build(|b| writer.register_vars(b))?;
                 func(writer, v)
@@ -95,12 +85,12 @@ impl<'a> Config<'a> {
         })
     }
 
-    pub fn io_writer<F, O>(&self, func: F) -> CliResult<O>
+    pub fn io_writer<F, O>(&self, custom_mod: Option<Box<dyn VarProvider>>, func: F) -> CliResult<O>
     where
         F: FnOnce(&mut dyn io::Write, &mut var::Vars) -> CliResult<O>,
     {
         output::io_writer(&self.output_opts, |writer| {
-            let mut vars = self.get_vars()?;
+            let mut vars = self.get_vars(custom_mod)?;
             func(writer, &mut vars)
         })
     }
@@ -112,7 +102,7 @@ impl<'a> Config<'a> {
     where
         F: FnMut(&dyn Record) -> CliResult<bool>,
     {
-        self.check_repetition()?;
+        self._init_input()?;
         input::io_readers(&self.input_opts, |o, rdr| {
             input::run_reader(rdr, &o.format, o.cap, o.max_mem, &mut func)
         })?;
@@ -123,7 +113,7 @@ impl<'a> Config<'a> {
     where
         F: FnMut(usize, &dyn Record) -> CliResult<()>,
     {
-        self.check_repetition()?;
+        self._init_input()?;
         input::read_alongside(&self.input_opts, func)
     }
 
@@ -135,7 +125,7 @@ impl<'a> Config<'a> {
     where
         F: FnMut(&dyn Record, &mut var::Vars) -> CliResult<bool>,
     {
-        self.check_repetition()?;
+        self._init_input()?;
         vars.finalize();
         input::io_readers(&self.input_opts, |o, rdr| {
             vars.new_input(o)?;
@@ -153,7 +143,7 @@ impl<'a> Config<'a> {
         F: FnMut(&dyn Record, &mut O) -> CliResult<bool>,
         O: Send + Default,
     {
-        self.check_repetition()?;
+        self._init_input()?;
         input::io_readers(&self.input_opts, |o, rdr| {
             input::read_parallel(
                 o,
@@ -184,7 +174,7 @@ impl<'a> Config<'a> {
         S: Send,
         Si: Fn() -> CliResult<S> + Send + Sync,
     {
-        self.check_repetition()?;
+        self._init_input()?;
         input::io_readers(&self.input_opts, |in_opts, rdr| {
             vars.new_input(in_opts)?;
             input::read_parallel(
@@ -223,16 +213,19 @@ impl<'a> Config<'a> {
     pub fn has_stdin(&self) -> bool {
         self.input_opts
             .iter()
-            .any(|o| o.kind == input::InputType::Stdin)
+            .any(|o| o.kind == input::InputKind::Stdin)
     }
 
-    /// ensures that STDIN cannot be read twice
-    /// (would result in empty input on second attempt)
-    fn check_repetition(&self) -> CliResult<()> {
+    #[inline(never)]
+    fn _init_input(&self) -> CliResult<()> {
+        // ensure that STDIN cannot be read twice
+        // (would result in empty input on second attempt)
+        // TODO: this is only a problem with sample command
         if self.started.get() && self.has_stdin() {
             return fail!("Cannot read twice from STDIN");
         }
         self.started.set(true);
+        // check if
         Ok(())
     }
 

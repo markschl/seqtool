@@ -5,6 +5,7 @@ use crate::error::CliResult;
 use crate::io::Record;
 use crate::var::*;
 
+#[derive(Debug)]
 pub struct StatHelp;
 
 impl VarHelp for StatHelp {
@@ -65,6 +66,10 @@ impl StatVars {
 }
 
 impl VarProvider for StatVars {
+    fn help(&self) -> &dyn VarHelp {
+        &StatHelp
+    }
+
     fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
         let name = func.name.as_str();
         let stat = if name == "charcount" {

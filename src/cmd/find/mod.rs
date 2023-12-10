@@ -4,70 +4,24 @@ use std::str;
 
 use itertools::Itertools;
 
-use crate::config;
+use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::io::output::writer::Writer;
-use crate::io::{RecordEditor, SeqAttr};
-use crate::helpers::rng::Range;
-use crate::helpers::seqtype::{guess_seqtype, SeqType};
-use crate::helpers::util::{parse_range, replace_iter};
-use crate::opt;
+use crate::helpers::{
+    seqtype::{guess_seqtype, SeqType},
+    util::replace_iter,
+};
+use crate::io::{output::writer::Writer, RecordEditor, SeqAttr};
 use crate::var::{varstring, VarHelp, VarProvider};
 
 use self::matcher::*;
 use self::matches::*;
+pub use self::opts::*;
 use self::vars::*;
 
 mod matcher;
 mod matches;
+mod opts;
 mod vars;
-
-static USAGE: &str = concat!(
-    "
-Fast searching for one or more patterns in sequences or ids/descriptions,
-with optional multithreading.
-
-Usage:
-  st find [options] [-a <attr>...][-l <list>...] <pattern> [<input>...]
-  st find (-h | --help)
-  st find --help-vars
-
-Search Options:
-    <pattern>           Pattern string or 'file:<patterns.fasta>'
-    -r, --regex         Treat the pattern(s) as regular expressions.
-    -d, --dist <dist>   Fuzzy string matching with maximum edit distance
-                        of <dist> [default: 0]
-    --in-order          Report hits in the order of their occurrence instead
-                        of sorting by distance (with -d > 0)
-    --seqtype <type>    Sequence type {dna/rna/protein/other}
-    -t, --threads <N>   Number of threads to use [default: 1]
-    --ambig <yn>        Override choice of whether DNA ambiguity codes (IUPAC)
-                        are recognized or not {yes/no}.
-    --algo <algorithm>  Override decision of algorithm for testing
-                        (regex/exact/myers/auto) [default: auto]
-
-Search range:
-    --rng <range>       Search within the given range ('start..end', 'start..'
-                        or '..end'). Using variables is not possible.
-    --max-shift-l <n>   Consider only matches with a maximum distance of <n> from
-                        the search start (eventually > 1 if using --rng)
-    --max-shift-r <n>   Consider only matches with a maximum distance from the
-                        end of the search range
-
-Attributes:
-    -i, --id            Search / replace in IDs instead of sequences
-    --desc              Search / replace in descriptions
-
-Actions:
-    -f, --filter        Keep only matching sequences
-    -e, --exclude       Exclude sequences that matched
-    --dropped <file>    Output file for sequences that were removed by filtering.
-                        The extension is autorecognized if possible, fallback
-                        is the input format.
-    --rep <with>        Replace by a composable string
-",
-    common_opts!()
-);
 
 lazy_static! {
     static ref AMBIG_DNA: HashMap<u8, Vec<u8>> = hashmap! {
@@ -126,29 +80,25 @@ struct MatchOpts {
     seqtype: SeqType,
 }
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args_with_help(&args, &FindVarHelp)?;
+pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
+    let max_dist = args.search.dist;
+    let sorted = args.search.in_order;
+    let regex = args.search.regex;
+    let no_ambig = args.search.no_ambig;
+    let verbose = args.common.general.verbose;
 
-    let max_dist: usize = args.value("--dist")?;
-    let sorted = !args.get_bool("--in-order");
-    let regex = args.get_bool("--regex");
-    let ambig = args.yes_no("--ambig")?;
-    let verbose = args.get_bool("--verbose");
-
-    let attr = if args.get_bool("--id") {
+    let attr = if args.attr.id {
         SeqAttr::Id
-    } else if args.get_bool("--desc") {
+    } else if args.attr.desc {
         SeqAttr::Desc
     } else {
         SeqAttr::Seq
     };
 
-    let flt = args.get_bool("--filter");
-    let filter = if flt {
+    let filter = if args.action.filter {
         Some(true)
-    } else if args.get_bool("--exclude") {
-        if flt {
+    } else if args.action.exclude {
+        if args.action.filter {
             return fail!("-f/--filter and -e/--exclude cannot both be specified");
         }
         Some(false)
@@ -156,81 +106,74 @@ pub fn run() -> CliResult<()> {
         None
     };
 
-    let num_threads = args.thread_num()?;
+    let num_threads = args.search.threads;
 
-    let pattern = args.get_str("<pattern>");
+    let pattern = &args.pattern;
     let patterns = if !pattern.starts_with("file:") {
         vec![("<pattern>".to_string(), pattern.to_string())]
     } else {
         read_pattern_file(&pattern[5..])?
     };
 
-    let typehint = args.opt_str("--seqtype").map(|s| s.to_ascii_lowercase());
+    let typehint = args.search.seqtype;
 
     //let replace_num = args.get_str("--match-num");
-    let replacement = args.opt_str("--rep");
+    let replacement = &args.action.rep;
 
-    let range = if let Some(r) = args.opt_str("--rng") {
-        let (start, end) = parse_range(r)?;
-        Some((start.unwrap_or(1), end.unwrap_or(-1)))
+    let bounds = args
+        .search_range
+        .rng
+        .map(|rng| rng.adjust(false, false))
+        .transpose()?;
+
+    let max_shift = if let Some(n) = args.search_range.max_shift_l {
+        Some(Shift::Start(n))
+    } else if let Some(n) = args.search_range.max_shift_r {
+        Some(Shift::End(n))
     } else {
         None
     };
 
-    let max_shift = if let Some(n) = args.opt_str("--max-shift-l") {
-        Some(Shift::Start(n.parse().map_err(|_| {
-            format!("Invalid max. left shift value: {}", n)
-        })?))
-    } else if let Some(n) = args.opt_str("--max-shift-r") {
-        Some(Shift::End(n.parse().map_err(|_| {
-            format!("Invalid max. right shift value: {}", n)
-        })?))
-    } else {
-        None
-    };
-
-    let dropped_file = args.opt_str("--dropped").map(|s| s.to_string());
+    let dropped_file = args.action.dropped.clone();
 
     // override algorithm for testing
-    let algo_override = Algorithm::from_str(args.get_str("--algo"));
+    let algo_override = Algorithm::from_str(&args.search.algo);
 
     ///// option parsing end
 
     // determine sequence type for each pattern
-    let typehint = typehint.as_deref();
     let (seqtype, algorithms) = analyse_patterns(
         &patterns,
         algo_override,
         typehint,
-        ambig,
+        no_ambig,
         regex,
         max_dist,
         verbose,
     )?;
 
-    cfg.with_vars(|vars| {
-
-        vars.add_module(FindVars::new(patterns.len()));
-
+    let v = Box::new(FindVars::new(patterns.len()));
+    cfg.with_vars(Some(v), |vars| {
         // run
         cfg.writer_with(vars, |writer, mut vars| {
 
             // make sure all hits for group 0 are collected (group 0 is always searched)
             // API is somehow awkward
             let replacement = if let Some(r) = replacement {
-                vars.last_module_as::<FindVars, _>(|v, _| {
-                    v.register_all(0);
+                vars.custom_mod::<FindVars, _>(|v, _| {
+                    v.unwrap().register_all(0);
                     Ok(())
                 })?;
                 let s = vars.build(|b| {
-                    varstring::VarString::var_or_composed(r, b)
+                    varstring::VarString::var_or_composed(&r, b)
                 })?;
                 Some(s)
             } else {
                 None
             };
 
-            let (match_cfg, opts) = vars.last_module_as::<FindVars, _>(|match_vars, _| {
+            let (match_cfg, opts) = vars.custom_mod::<FindVars, _>(|match_vars, _| {
+                let match_vars = match_vars.unwrap();   // FindVars::has_vars() always returns true -> always present
 
                 if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
                     return fail!(
@@ -288,7 +231,7 @@ pub fn run() -> CliResult<()> {
                     let matches = Box::new(Matches::new(
                         &pattern_names,
                         match_cfg.clone(),
-                        range,
+                        bounds,
                         max_shift.clone(),
                     ));
                     (editor, matches)
@@ -300,7 +243,8 @@ pub fn run() -> CliResult<()> {
                     Ok(())
                 },
                 |record, &mut (ref mut editor, ref matches), vars| {
-                    vars.last_module_as::<FindVars, _>(|match_vars, symbols| {
+                    vars.custom_mod::<FindVars, _>(|match_vars, symbols| {
+                        let match_vars = match_vars.unwrap();
                         // records returned to main thread
                         if let Some(rep) = replacement.as_ref() {
                             editor.edit_with_val(attr, &record, true, |text, out| {
@@ -347,8 +291,8 @@ pub fn run() -> CliResult<()> {
 fn analyse_patterns<S>(
     patterns: &[(S, S)],
     algo_override: Option<Algorithm>,
-    typehint: Option<&str>,
-    ambig_override: Option<bool>,
+    typehint: Option<SeqType>,
+    no_ambig: bool,
     regex: bool,
     dist: usize,
     verbose: bool,
@@ -366,25 +310,18 @@ where
                 .ok_or_else(|| {
                     format!(
                       "{} was specified as sequence type, but sequence recognition suggests another type.",
-                      typehint.unwrap_or("<nothing>")
+                      typehint.map(|t| t.to_string()).unwrap_or("<nothing>".to_string())
                     )
                 })?;
             // no discrimination here
             let mut is_ambig = is_n || is_ambig;
-
             if is_ambig {
                 ambig_seqs.push(name.as_ref());
             }
-
-            if seqtype == SeqType::Other && ambig_override.unwrap_or(false) {
-                eprintln!(
-                  "Warning: Ambiguous matching was activated, but the sequence type of the pattern \
-                  '{}' does not seem to be DNA/RNA/protein.",
-                  name
-              );
+            // override if no_ambig was set
+            if no_ambig {
+                is_ambig = false;
             }
-
-            is_ambig = ambig_override.unwrap_or(is_ambig);
 
             // decide which algorithm should be used
             let mut algorithm = if regex {
@@ -424,29 +361,17 @@ where
         .into_iter()
         .unzip();
 
-    if let Some(a) = ambig_override {
-        if ambig_seqs.is_empty() {
-            if a {
-                eprintln!(
-                    "Warning: Ambiguous matching was activated (--ambig yes), but there is no \
-                     pattern with ambiguous characters"
-                );
-            }
-        } else if !a {
-            eprintln!(
-                "Warning: Ambiguous matching is deactivated (--ambig no), but there are patterns \
-                 with ambiguous characters ({})",
-                ambig_seqs.join(", ")
-            );
-        }
+    if no_ambig && !ambig_seqs.is_empty() {
+        eprintln!(
+            "Warning: Ambiguous matching is deactivated (--no-ambig), but there are patterns \
+            with ambiguous characters ({})",
+            ambig_seqs.join(", ")
+        );
     }
 
     if out.iter().any(|&(a, _)| a == Regex || a == Exact) {
         if dist > 0 {
-            eprintln!("Warning: distance option ignored.");
-        }
-        if ambig_override.is_some() {
-            eprintln!("Warning: '--ambig' ignored.");
+            eprintln!("Warning: distance option ignored with exact/regex matching.");
         }
     }
 

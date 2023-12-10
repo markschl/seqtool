@@ -1,37 +1,36 @@
-use crate::config;
+use clap::Parser;
+
+use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::DefRecord;
-use crate::opt;
+use crate::opt::CommonArgs;
 use crate::var::*;
 
-pub static USAGE: &str = concat!(
-    "
-Deletes description field or attributes.
+/// Deletes description field or attributes
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct DelCommand {
+    /// Delete description fields
+    #[arg(short, long)]
+    desc: bool,
 
-Usage:
-    st del [options][-a <attr>...][-l <list>...] [<input>...]
-    st del (-h | --help)
-    st del --help-vars
+    /// Delete attributes
+    #[arg(long, value_delimiter = ',')]
+    attrs: Option<Vec<String>>,
 
-Options:
-    -d, --desc          Delete description
-    --attrs <names>     Delete attributes (comma delimited list)
-",
-    common_opts!()
-);
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-
-    let del_desc = args.get_bool("--desc");
-    let attrs = args.opt_str("--attrs");
+pub fn run(cfg: Config, args: &DelCommand) -> CliResult<()> {
+    let del_desc = args.desc;
+    let del_attrs = args.attrs.as_deref();
 
     cfg.writer(|writer, vars| {
-        if let Some(attrs) = attrs {
+        if let Some(attrs) = del_attrs {
             vars.build(|b| {
-                for p in attrs.split(',') {
-                    b.register_attr(p, Some(attr::Action::Delete));
+                for attr in attrs {
+                    b.register_attr(attr, Some(attr::Action::Delete));
                 }
                 Ok(())
             })?;

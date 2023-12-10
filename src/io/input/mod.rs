@@ -13,29 +13,39 @@ use zstd;
 
 use super::*;
 use crate::error::{CliError, CliResult};
-use crate::helpers::util;
 
 #[allow(dead_code)]
 mod parallel_csv;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub enum InputType {
+pub enum InputKind {
     Stdin,
     File(PathBuf),
 }
 
-impl fmt::Display for InputType {
+impl FromStr for InputKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "-" => Ok(InputKind::Stdin),
+            _ => Ok(InputKind::File(PathBuf::from(s))),
+        }
+    }
+}
+
+impl fmt::Display for InputKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            InputType::Stdin => write!(f, "-"),
-            InputType::File(ref p) => write!(f, "{}", p.as_path().to_string_lossy()),
+            InputKind::Stdin => write!(f, "-"),
+            InputKind::File(ref p) => write!(f, "{}", p.as_path().to_string_lossy()),
         }
     }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct InputOptions {
-    pub kind: InputType,
+    pub kind: InputKind,
     pub format: InFormat,
     pub compression: Compression,
     // read in separate thread
@@ -43,6 +53,32 @@ pub struct InputOptions {
     pub cap: usize,
     pub thread_bufsize: Option<usize>,
     pub max_mem: usize,
+}
+
+impl InputOptions {
+    pub fn new(kind: InputKind, format: InFormat, compression: Compression) -> Self {
+        Self {
+            kind,
+            format,
+            compression,
+            threaded: false,
+            cap: 1 << 16,
+            thread_bufsize: None,
+            max_mem: 1 << 30,
+        }
+    }
+
+    pub fn thread_opts(mut self, threaded: bool, thread_bufsize: Option<usize>) -> Self {
+        self.threaded = threaded;
+        self.thread_bufsize = thread_bufsize;
+        self
+    }
+
+    pub fn reader_opts(mut self, cap: usize, max_mem: usize) -> Self {
+        self.cap = cap;
+        self.max_mem = max_mem;
+        self
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -62,66 +98,44 @@ pub enum InFormat {
 }
 
 impl InFormat {
-    pub fn name(&self) -> &'static str {
+    pub fn decompose(&self) -> (FormatVariant, Option<&[String]>, Option<char>) {
         match *self {
-            InFormat::Fasta => "fasta",
-            InFormat::Fastq { format } => match format {
-                QualFormat::Sanger => "fastq",
-                QualFormat::Illumina => "fastq-illumina",
-                QualFormat::Solexa => "fastq-solexa",
-                QualFormat::Phred => unreachable!(),
-            },
-            InFormat::FaQual { .. } => "<FASTA/QUAL>",
-            InFormat::Csv { delim, .. } => {
-                if delim == b'\t' {
-                    "tsv"
+            InFormat::Fasta => (FormatVariant::Fasta, None, None),
+            InFormat::Fastq { format } => (FormatVariant::Fastq(format), None, None),
+            InFormat::Csv {
+                delim, ref fields, ..
+            } => {
+                let fmt = if delim == b'\t' {
+                    FormatVariant::Tsv
                 } else {
-                    "csv"
-                }
+                    FormatVariant::Csv
+                };
+                (fmt, Some(fields), Some(delim as char))
             }
+            InFormat::FaQual { .. } => (FormatVariant::Fasta, None, None),
         }
     }
 
     pub fn from_opts(
-        string: &str,
-        csv_delim: Option<&str>,
-        csv_fields: Option<&str>,
-        header: bool,
+        format: FormatVariant,
+        csv_delim: Option<char>,
+        csv_fields: &[String],
+        has_header: bool,
         qfile: Option<&str>,
     ) -> CliResult<InFormat> {
-        let csv_fields = csv_fields
-            .unwrap_or("id,desc,seq")
-            .split(',')
-            .map(|s| s.to_string())
-            .collect();
-
-        let format = match string {
-            "fasta" | "fa" | "fna" | "<FASTA/QUAL>" => InFormat::Fasta,
-            "fastq" | "fq" => InFormat::Fastq {
-                format: QualFormat::Sanger,
+        let format = match format {
+            FormatVariant::Fasta => InFormat::Fasta,
+            FormatVariant::Fastq(format) => InFormat::Fastq { format },
+            FormatVariant::Csv => InFormat::Csv {
+                delim: csv_delim.unwrap_or(',') as u8,
+                fields: csv_fields.to_owned(),
+                has_header,
             },
-            "fastq-illumina" | "fq-illumina" => InFormat::Fastq {
-                format: QualFormat::Illumina,
+            FormatVariant::Tsv => InFormat::Csv {
+                delim: csv_delim.unwrap_or('\t') as u8,
+                fields: csv_fields.to_owned(),
+                has_header,
             },
-            "fastq-solexa" | "fq-solexa" => InFormat::Fastq {
-                format: QualFormat::Solexa,
-            },
-            "csv" => InFormat::Csv {
-                delim: util::parse_delimiter(csv_delim.unwrap_or(","))?,
-                fields: csv_fields,
-                has_header: header,
-            },
-            "tsv" => InFormat::Csv {
-                delim: util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
-                fields: csv_fields,
-                has_header: header,
-            },
-            _ => {
-                return Err(CliError::Other(format!(
-                    "Unknown input format: '{}'.",
-                    string
-                )))
-            }
         };
 
         if let Some(f) = qfile {
@@ -167,11 +181,11 @@ impl BufPolicy for LimitedBuffer {
 
 fn get_io_reader<'a>(o: &InputOptions) -> CliResult<Box<dyn io::Read + Send + 'a>> {
     let rdr: Box<dyn io::Read + Send> = match o.kind {
-        InputType::File(ref path) => Box::new(
+        InputKind::File(ref path) => Box::new(
             File::open(path)
                 .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?,
         ),
-        InputType::Stdin => Box::new(io::stdin()),
+        InputKind::Stdin => Box::new(io::stdin()),
     };
     get_compr_reader(rdr, o.compression).map_err(From::from)
 }

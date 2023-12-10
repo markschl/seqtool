@@ -6,6 +6,7 @@ use crate::var::{self, Func, VarBuilder};
 
 use super::*;
 
+#[derive(Debug)]
 pub struct FindVarHelp;
 
 impl VarHelp for FindVarHelp {
@@ -225,6 +226,10 @@ impl FindVars {
 }
 
 impl VarProvider for FindVars {
+    fn help(&self) -> &dyn VarHelp {
+        &FindVarHelp
+    }
+
     fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
         let name = func.name.as_str();
         // new-style variables/functions
@@ -316,6 +321,8 @@ impl VarProvider for FindVars {
     }
 
     fn has_vars(&self) -> bool {
-        !self.vars.is_empty()
+        // always returns true -> module is not removed and accessible with Vars::custom_mod
+        true
+        // !self.vars.is_empty()
     }
 }

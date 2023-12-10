@@ -1,6 +1,7 @@
 /// See also https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2847217/pdf/gkp1137.pdf
 use std::cmp::{max, min};
 use std::fmt::Debug;
+use std::str::FromStr;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum QualFormat {
@@ -12,6 +13,20 @@ pub enum QualFormat {
     Solexa,
     /// Direct phred scores (as from .qual file)
     Phred,
+}
+
+impl FromStr for QualFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "sanger" => Ok(QualFormat::Sanger),
+            "illumina" => Ok(QualFormat::Illumina),
+            "solexa" => Ok(QualFormat::Solexa),
+            // minor inconsistency: phred should not be constructed from CLI
+            _ => Err(format!("Unknown quality format: {}", s)),
+        }
+    }
 }
 
 impl QualFormat {
@@ -52,6 +67,7 @@ impl QualConverter {
         Ok(prob)
     }
 
+    #[inline]
     pub fn convert(&self, q: u8, to: QualFormat) -> Result<u8, String> {
         Ok(match self.fmt {
             Sanger => {
@@ -244,7 +260,7 @@ mod tests {
         ];
         let f = 10f64.powi(10);
         for &(q, p) in &mapping[..] {
-            assert_relative_eq!((qual_to_prob(q) * f).round() / f, p);
+            approx::assert_relative_eq!((qual_to_prob(q) * f).round() / f, p);
         }
     }
 
@@ -260,7 +276,7 @@ mod tests {
         ];
         let f = 10f64.powi(7);
         for &(q, p) in &mapping[..] {
-            assert_relative_eq!((solexa_to_prob((q + 64) as u8) * f).round() / f, p);
+            approx::assert_relative_eq!((solexa_to_prob((q + 64) as u8) * f).round() / f, p);
         }
     }
 

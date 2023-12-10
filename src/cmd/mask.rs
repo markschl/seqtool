@@ -1,66 +1,76 @@
-use crate::config;
+use clap::Parser;
+
+use crate::config::Config;
 use crate::error::CliResult;
+use crate::helpers::var_range::VarRanges;
 use crate::io::SeqQualRecord;
-use crate::helpers::rng::*;
-use crate::opt;
+use crate::opt::CommonArgs;
 
-pub static USAGE: &str = concat!(
-    "
-Masks the sequence within a given range or comma delimited list of ranges
-by converting to lowercase (soft mask) or replacing with a character (hard
-masking). Reverting soft masking is also possible.
+/// Masks the sequence within a given range or comma delimited list of ranges
+/// by converting to lowercase (soft mask) or replacing with a character (hard
+/// masking). Reverting soft masking is also possible.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct MaskCommand {
+    /// Range in the form 'start..end' or 'start..' or '..end',
+    /// The range start/end may be defined by varialbes/functions,
+    /// or the varialbe/function may contain a whole range.
+    ranges: String,
 
-Usage:
-    st mask [options][-a <attr>...][-l <list>...] <ranges> [<input>...]
-    st mask (-h | --help)
-    st mask --help-vars
+    /// Do hard masking instead of soft masking, replacing
+    /// everything in the range(s) with the given character
+    #[arg(long, value_name = "CHAR")]
+    hard: Option<char>,
 
-Options:
-    <range>             Range in the form 'start..end' or 'start..' or '..end',
-                        Variables containing one range bound or the whole range
-                        are possible.
-    --hard <C>          Do hard masking instead of soft masking, replacing
-                        everything in the range(s) with the given character
-    --unmask            Unmask (convert to uppercase instead of lowercase)
-    -e, --exclude       Exclusive range: excludes start and end positions
-                        from the masked sequence.
-    -0                  Interpret range as 0-based, with the end not included.
-",
-    common_opts!()
-);
+    /// Unmask (convert to uppercase instead of lowercase)
+    #[arg(long)]
+    unmask: bool,
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
+    /// Exclusive range: excludes start and end positions
+    /// from the masked sequence.
+    #[arg(short, long)]
+    exclude: bool,
 
-    let ranges = args.get_str("<ranges>");
-    let hard_mask = args.opt_str("--hard").map(|c| c.as_bytes()[0]);
-    let rng0 = args.get_bool("-0");
-    let exclusive = args.get_bool("--exclude");
-    let unmask = args.get_bool("--unmask");
+    /// Interpret range as 0-based, with the end not included.
+    #[arg(short('0'), long)]
+    zero_based: bool,
+
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
+
+pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
+    let ranges = &args.ranges;
+    let hard_mask = args.hard;
+    let rng0 = args.zero_based;
+    let exclusive = args.exclude;
+    let unmask = args.unmask;
 
     cfg.writer(|writer, vars| {
         let mut ranges = VarRanges::from_str(ranges, vars)?;
         let mut seq = vec![];
 
         cfg.read(vars, |record, vars| {
-            let seqlen = record.seq_len();
-
+            // obtain full sequence
             seq.clear();
+            let mut seqlen = 0;
             for s in record.seq_segments() {
                 seq.extend_from_slice(s);
+                seqlen += s.len();
             }
 
-            let calc_ranges = ranges.get(seqlen, rng0, exclusive, vars.symbols(), record)?;
+            let calc_ranges = ranges.resolve(vars.symbols(), record)?;
 
             if let Some(h) = hard_mask {
-                for &(start, end) in calc_ranges {
+                for rng in calc_ranges {
+                    let (start, end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
                     for c in &mut seq[start..end] {
-                        *c = h;
+                        *c = h as u8;
                     }
                 }
             } else {
-                for &(start, end) in calc_ranges {
+                for rng in calc_ranges {
+                    let (start, end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
                     for c in &mut seq[start..end] {
                         if unmask {
                             c.make_ascii_uppercase()

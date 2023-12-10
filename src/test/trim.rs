@@ -60,3 +60,11 @@ fn trim_multiline() {
         }
     }
 }
+
+#[test]
+fn trim_multiline_multirange() {
+    let fa = ">id\nAB\nC\nDE\nFGHI\nJ";
+    let t = Tester::new();
+    t.cmp(&["trim", "2..4,6..7"], &fa, ">id\nBCDFG\n");
+    t.cmp(&["trim", "-4..-3,-1.."], &fa, ">id\nGHJ\n");
+}

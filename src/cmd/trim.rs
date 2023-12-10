@@ -1,49 +1,60 @@
-use crate::config;
+use clap::Parser;
+
+use crate::config::Config;
 use crate::error::CliResult;
+use crate::helpers::{rng::Range, var_range::VarRanges};
 use crate::io::{Record, SeqQualRecord};
-use crate::helpers::rng::*;
-use crate::opt;
+use crate::opt::CommonArgs;
 
-pub static USAGE: &str = concat!(
-    "
-Trims sequences to a given range.
+/// Trim sequences on the left and/or right (single range)
+/// or extract and concatenate several non-overlapping ranges.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct TrimCommand {
+    /// Range(s) in the form 'start..end' or 'start..' or '..end',
+    /// Multiple ranges can be supplied as comma-delimited list.
+    /// Variables containing one range bound or the whole range,
+    /// or even the whole list of multiple ranges are possible.
+    /// *Note* that with the FASTA format, multiple trim ranges
+    /// must be in order (from left to right) and cannot overlap.
+    #[arg(allow_hyphen_values = true)]
+    ranges: String,
 
-Usage:
-  st trim [options][-a <attr>...][-l <list>...] <range> [<input>...]
-  st trim (-h | --help)
-  st trim --help-vars
+    /// Exclusive trim range: excludes start and end positions
+    /// from the output sequence.
+    #[arg(short, long)]
+    exclude: bool,
 
-Options:
-    <range>             Range in the form 'start..end' or 'start..' or '..end',
-                        Variables containing one range bound or the whole range
-                        are possible.
-    -e, --exclude       Exclusive trim range: excludes start and end positions
-                        from the output sequence.
-    -0                  Interpret range as 0-based, with the end not included.
-",
-    common_opts!()
-);
+    /// Interpret range as 0-based, with the end not included.
+    #[arg(short('0'), long)]
+    zero_based: bool,
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-    let range = args.get_str("<range>");
-    let rng0 = args.get_bool("-0");
-    let exclusive = args.get_bool("--exclude");
+pub fn run(cfg: Config, args: &TrimCommand) -> CliResult<()> {
+    let ranges = &args.ranges;
+    let rng0 = args.zero_based;
+    let exclusive = args.exclude;
 
     cfg.writer(|writer, vars| {
         let mut out_seq = vec![];
         let mut out_qual = vec![];
 
-        let mut rng = VarRange::from_str(range, vars)?;
+        let mut ranges = VarRanges::from_str(ranges, vars)?;
 
         cfg.read(vars, |record, vars| {
-            let seqlen = record.seq_len();
+            let ranges = ranges.resolve(vars.symbols(), record)?;
 
-            let (start, end) = rng.get(seqlen, rng0, exclusive, vars.symbols(), record)?;
-
-            let rec = trim(&record, start, end, &mut out_seq, &mut out_qual);
+            let rec = trim(
+                &record,
+                ranges,
+                &mut out_seq,
+                &mut out_qual,
+                rng0,
+                exclusive,
+            )?;
 
             writer.write(&rec, vars)?;
             Ok(true)
@@ -53,45 +64,73 @@ pub fn run() -> CliResult<()> {
 
 fn trim<'r>(
     record: &'r dyn Record,
-    start: usize,
-    end: usize,
+    ranges: &[Range],
     out_seq: &'r mut Vec<u8>,
     out_qual: &'r mut Vec<u8>,
-) -> SeqQualRecord<'r, &'r dyn Record> {
+    rng0: bool,
+    exclusive: bool,
+) -> CliResult<SeqQualRecord<'r, &'r dyn Record>> {
+    // TODO: only needed with negative bounds -> maybe check if there are neg. bounds or not
+    // and only calculate sequence length if needed (adjust Range::obtain()) as well
+    let seqlen = record.seq_len();
     out_seq.clear();
 
     if let Some(qual) = record.qual() {
-        // no multiline sequence (FASTQ)
+        // We assume *no* multiline sequence (FASTQ), which allows for simpler code
+        // TODO: may change in future!
         let seq = record.raw_seq();
-
         out_qual.clear();
-
-        out_seq.extend_from_slice(&seq[start..end]);
-        out_qual.extend_from_slice(&qual[start..end]);
-        SeqQualRecord::new(record, out_seq, Some(out_qual))
-    } else {
-        let mut s = start;
-        let mut e = end;
-
-        for seq in record.seq_segments() {
-            if s >= seq.len() {
-                // skip line
-                s -= seq.len();
-                e -= seq.len();
-                continue;
-            }
-
-            if e < seq.len() {
-                // stop at this line
-                out_seq.extend_from_slice(&seq[s..e]);
-                break;
-            }
-
-            out_seq.extend_from_slice(&seq[s..]);
-
-            s = 0;
-            e -= seq.len();
+        for rng in ranges {
+            let (start, end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
+            out_seq.extend_from_slice(&seq[start..end]);
+            out_qual.extend_from_slice(&qual[start..end]);
         }
-        SeqQualRecord::new(record, out_seq, None)
+        Ok(SeqQualRecord::new(record, out_seq, Some(out_qual)))
+    } else {
+        // FASTA format
+        let mut seq_iter = record.seq_segments();
+        let mut seq = seq_iter.next();
+        let mut offset = 0;
+        'outer: for rng in ranges {
+            let (mut start, mut end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
+            if start < offset {
+                return fail!(
+                    "Unsorted/overlapping trim ranges encountered. This is only \
+                    possible if FASTA lines are long enough. \
+                    To fix this, either supply single-line FASTA (no --wrap) or \
+                    make sure that trim ranges are in order and/or don't overlap \
+                    to an extent that this error occurs."
+                );
+            }
+            start -= offset;
+            end -= offset;
+            loop {
+                if let Some(segment) = seq {
+                    if start < segment.len() {
+                        if end <= segment.len() {
+                            // requested fragment is fully contained in segment
+                            // -> continue to next range (if any)
+                            out_seq.extend_from_slice(&segment[start..end]);
+                            break;
+                        } else {
+                            // requested fragment is larger than sequence segment
+                            // -> obtain next segment and continue
+                            out_seq.extend_from_slice(&segment[start..]);
+                            start = 0;
+                        }
+                    } else {
+                        start -= segment.len();
+                    }
+                    offset += segment.len();
+                    end -= segment.len();
+                    seq = seq_iter.next();
+                } else {
+                    // last sequence segment visited -> done
+                    // (not all ranges may be "consumed" yet)
+                    break 'outer;
+                }
+            }
+        }
+        Ok(SeqQualRecord::new(record, out_seq, None))
     }
 }

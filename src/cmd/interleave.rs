@@ -1,28 +1,24 @@
-use crate::config;
+use clap::Parser;
+
+use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt;
+use crate::opt::CommonArgs;
 
-pub static USAGE: &str = concat!(
-    "
-Interleaves records of all files in the input. The records will returned in
-the same order as the files.
+/// Interleaves records of all files in the input. The records will returned in
+/// the same order as the files.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct InterleaveCommand {
+    /// Don't check if the IDs of the files match
+    #[arg(short, long)]
+    no_id_check: bool,
 
-Usage:
-    st interleave [options][-a <attr>...][-l <list>...] [<input>...]
-    st interleave (-h | --help)
-    st interleave --help-vars
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-Options:
-    -n, --no-id-check   Don't check if the IDs of the files match
-",
-    common_opts!()
-);
-
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-
-    let id_check = !args.get_bool("--no-id-check");
+pub fn run(cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
+    let id_check = !args.no_id_check;
 
     cfg.writer(|writer, vars| {
         let mut id = vec![];

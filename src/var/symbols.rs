@@ -3,7 +3,7 @@ use std::{cell::RefCell, fmt, io::Write, str::Utf8Error};
 use crate::io::{Record, SeqAttr};
 
 macro_rules! impl_value {
-    ($t:ident {
+    ($t:ident ($inner_t:ty) {
             v: $inner:ty,
             $($field:ident: $ty:ty),*
         }
@@ -12,7 +12,8 @@ macro_rules! impl_value {
             v: $val_init:expr,
             $($field2:ident: $init_val:expr),*
         },
-        reset => $reset:block,
+        get => $get:block,
+        get_mut => $get_mut:block,
         bool => $bool:block,
         int => $int:block,
         float => $float:block,
@@ -36,14 +37,13 @@ macro_rules! impl_value {
         #[allow(dead_code)]
         impl $t {
             #[inline]
-            pub fn get_mut(&mut $self) -> &mut $inner {
-                $reset
-                &mut $self.v
+            pub fn get_mut(&mut $self) -> &mut $inner_t {
+                $get_mut
             }
 
             #[inline]
-            pub fn get(&$self) -> &$inner {
-                &$self.v
+            pub fn get(&$self) -> &$inner_t {
+                $get
             }
 
             #[inline]
@@ -78,12 +78,13 @@ macro_rules! impl_value {
 }
 
 impl_value!(
-    BoolValue { v: bool, }
+    BoolValue (bool) { v: bool, }
     [self, _record]
     new => {
         v: false,
     },
-    reset => {},
+    get => { &self.v },
+    get_mut => { &mut self.v },
     bool => { Ok(self.v) },
     int => { Ok(self.v as i64) },
     float => { Ok(self.v as i64 as f64) },
@@ -98,7 +99,7 @@ impl_value!(
 );
 
 impl_value!(
-    IntValue {
+    IntValue (i64) {
         v: i64,
         text: RefCell<Vec<u8>>
     }
@@ -107,8 +108,10 @@ impl_value!(
         v: 0,
         text: RefCell::new(Vec::with_capacity(20))
     },
-    reset => {
+    get => { &self.v },
+    get_mut => {
         self.text.borrow_mut().clear();
+        &mut self.v
     },
     bool => {
         match self.v {
@@ -129,7 +132,7 @@ impl_value!(
 );
 
 impl_value!(
-    FloatValue {
+    FloatValue (f64) {
         v: f64,
         text: RefCell<Vec<u8>>
     }
@@ -138,8 +141,10 @@ impl_value!(
         v: 0.,
         text: RefCell::new(Vec::with_capacity(20))
     },
-    reset => {
+    get => { &self.v },
+    get_mut => {
         self.text.borrow_mut().clear();
+        &mut self.v
     },
     bool => {
         if self.v == 0. {
@@ -168,8 +173,8 @@ impl_value!(
 );
 
 impl_value!(
-    TextValue {
-        v: Vec<u8>,
+    TextValue (Vec<u8>) {
+        v: crate::helpers::val::TextValue,
         // cache for float and integer values, so we don't need to re-calculate
         // at every access
         float: RefCell<Option<f64>>,
@@ -177,42 +182,27 @@ impl_value!(
     }
     [self, _record]
     new => {
-        v: Vec::with_capacity(20),
+        v: crate::helpers::val::TextValue::new(),
         float: RefCell::new(None),
         int: RefCell::new(None)
     },
-    reset => {
-        self.v.clear();
+    get => { self.v.get_vec() },
+    get_mut => {
         self.int.take();
         self.float.take();
+        self.v.clear()
     },
-    bool => {
-        match self.v.as_slice() {
-            b"true" => Ok(true),
-            b"false" => Ok(false),
-            _ => Err(format!(
-                "Could not convert '{}' to boolean (true/false).",
-                String::from_utf8_lossy(&self.v)))
-        }
-    },
+    bool => { self.v.get_bool() },
     int => {
         match self.int.borrow_mut().as_ref() {
             Some(i) => Ok(*i),
-            None => atoi::atoi(&self.v)
-                    .ok_or_else(|| format!(
-                        "Could not convert '{}' to integer.",
-                        String::from_utf8_lossy(&self.v)))
+            None => self.v.get_int()
         }
      },
     float => {
         match self.float.borrow_mut().as_ref() {
             Some(f) => Ok(*f),
-            None => std::str::from_utf8(&self.v)
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .ok_or_else(|| format!(
-                    "Could not convert '{}' to decimal number.",
-                    String::from_utf8_lossy(&self.v)))
+            None => self.v.get_float()
         }
     },
     text_fn => {
@@ -239,7 +229,7 @@ impl SeqAttrValue {
 }
 
 impl_value!(
-    SeqAttrValue {
+    SeqAttrValue (SeqAttr) {
         v: SeqAttr,
         buffer: RefCell<Vec<u8>>,
         // cache for float and integer values, so we don't need to re-calculate
@@ -254,9 +244,11 @@ impl_value!(
         float: RefCell::new(None),
         int: RefCell::new(None)
     },
-    reset => {
+    get => { &self.v },
+    get_mut => {
         self.int.take();
         self.float.take();
+        &mut self.v
     },
     bool => {
         self.with_slice(record, |s| {

@@ -60,7 +60,6 @@ from_err!(String);
 from_err!(fmt::Error);
 from_err!(seq_io::fasta::Error);
 from_err!(seq_io::fastq::Error);
-from_err!(docopt::Error);
 from_err!(regex::Error);
 from_err!(Utf8Error);
 from_err!(FromUtf8Error);

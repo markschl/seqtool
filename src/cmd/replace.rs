@@ -1,55 +1,63 @@
 use std::borrow::ToOwned;
 use std::str;
 
+use clap::{value_parser, Parser};
 use memchr::Memchr;
 use regex;
 
-use crate::config;
 use crate::error::CliResult;
-use crate::io::{RecordEditor, SeqAttr};
 use crate::helpers::twoway_iter::TwowayIter;
 use crate::helpers::util::replace_iter;
-use crate::opt;
+use crate::io::{RecordEditor, SeqAttr};
+use crate::opt::CommonArgs;
+use crate::Config;
 
-static USAGE: &str = concat!(
-    "
-This command does fast search and replace for patterns in sequences
-or ids/descriptions.
+/// Replaces the contents of sequence IDs, descriptions or sequences
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct ReplaceCommand {
+    /// Search pattern
+    pattern: String,
 
-Usage:
-    st replace [options][-a <attr>...][-l <list>...] <pattern> <replacement> [<input>...]
-    st replace (-h | --help)
-    st replace --help-vars
+    /// Replacement string, cannot contain variables.
+    replacement: String,
 
-Options:
-    <replacement>       Replacement string, cannot contain variables.
-    -i, --id            Replace in IDs instead of sequences
-    -d, --desc          Replace in descriptions
-    -r, --regex         Interpret <pattern> as regular expression
-    -t, --threads <N>   Number of threads [default: 1]
-",
-    common_opts!()
-);
+    /// Replace in IDs instead of sequences
+    #[arg(short, long)]
+    id: bool,
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
+    /// Replace in descriptions
+    #[arg(short, long)]
+    desc: bool,
 
+    /// Interpret <pattern> as regular expression
+    #[arg(short, long)]
+    regex: bool,
+
+    /// Number of threads
+    #[arg(short, long, value_name = "N", default_value_t = 1, value_parser = value_parser!(u32).range(1..))]
+    threads: u32,
+
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
+
+pub fn run(cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     // what should be replaced?
-    let attr = if args.get_bool("--id") {
+    let attr = if args.id {
         SeqAttr::Id
-    } else if args.get_bool("--desc") {
+    } else if args.desc {
         SeqAttr::Desc
     } else {
         SeqAttr::Seq
     };
 
-    let pattern = args.get_str("<pattern>");
-    let replacement = args.get_str("<replacement>").as_bytes();
+    let pattern = &args.pattern;
+    let replacement = args.replacement.as_bytes();
 
     let has_backrefs = replacement.contains(&b'$');
-    let regex = args.get_bool("--regex");
-    let num_threads = args.thread_num()?;
+    let regex = args.regex;
+    let num_threads = args.threads;
 
     if regex {
         if attr == SeqAttr::Seq {
@@ -70,7 +78,7 @@ pub fn run() -> CliResult<()> {
 }
 
 fn run_replace<R: Replacer + Sync>(
-    cfg: &config::Config,
+    cfg: &Config,
     attr: SeqAttr,
     replacement: &[u8],
     replacer: R,

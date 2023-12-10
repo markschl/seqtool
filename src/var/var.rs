@@ -157,6 +157,8 @@ impl<T: Any> AsAnyMut for T {
 
 // TODO: move to var/modules/mod.rs
 pub trait VarProvider: Debug + AsAnyMut {
+    fn help(&self) -> &dyn VarHelp;
+
     /// Try registering a variable / "function" with a module.
     /// If the function/variable is not found in the given module, returns Ok(None).
     fn register(&mut self, func: &Func, vars: &mut VarBuilder) -> CliResult<bool>;
@@ -165,9 +167,6 @@ pub trait VarProvider: Debug + AsAnyMut {
 
     /// Supplies a new record, allowing the variable provider to obtain the necessary
     /// information and add it to the metadata object (usually the symbol table).
-    // TODO: remove
-    // / The method must return `true` if the symbol value is known to have
-    // / (possibly) changed. If it hasn't changed *for sure*, return `false`.
     fn set(&mut self, _: &dyn Record, _: &mut MetaData) -> CliResult<()> {
         Ok(())
     }
@@ -183,6 +182,10 @@ pub trait VarProvider: Debug + AsAnyMut {
 }
 
 impl VarProvider for Box<dyn VarProvider> {
+    fn help(&self) -> &dyn VarHelp {
+        (**self).help()
+    }
+
     fn register(&mut self, func: &Func, vars: &mut VarBuilder) -> CliResult<bool> {
         (**self).register(func, vars)
     }
@@ -200,7 +203,7 @@ impl VarProvider for Box<dyn VarProvider> {
     }
 }
 
-pub trait VarHelp {
+pub trait VarHelp: Debug {
     fn name(&self) -> &'static str;
     fn usage(&self) -> Option<&'static str> {
         None
@@ -267,6 +270,7 @@ pub struct Vars {
     data: MetaData,
     var_map: HashMap<Func, usize>,
     attr_map: HashMap<String, usize>,
+    print_help: bool,
 }
 
 impl Vars {
@@ -275,6 +279,7 @@ impl Vars {
         attr_value_delim: u8,
         append_attr: SeqAttr,
         qual_converter: QualConverter,
+        print_help: bool,
     ) -> Self {
         Vars {
             modules: vec![],
@@ -285,6 +290,7 @@ impl Vars {
             },
             var_map: HashMap::new(),
             attr_map: HashMap::new(),
+            print_help,
         }
     }
 
@@ -307,26 +313,29 @@ impl Vars {
     }
 
     pub fn finalize(&mut self) {
+        // print help if needed
+        if self.print_help {
+            eprintln!("{}", self.get_help());
+            std::process::exit(2);
+        }
         // remove unused modules
         self.modules = self.modules.drain(..).filter(|m| m.has_vars()).collect();
+        // println!("vars final {:?}", self);
     }
 
-    pub fn add_module<M>(&mut self, m: M)
-    where
-        M: VarProvider + 'static,
-    {
-        self.modules.push(Box::new(m));
+    pub fn add_module(&mut self, m: Box<dyn VarProvider>) {
+        self.modules.push(m);
     }
 
-    pub fn last_module_as<M, O>(
+    pub fn custom_mod<M, O>(
         &mut self,
-        func: impl FnOnce(&mut M, &mut SymbolTable) -> CliResult<O>,
+        func: impl FnOnce(Option<&mut M>, &mut SymbolTable) -> CliResult<O>,
     ) -> CliResult<O>
     where
         M: VarProvider + 'static,
     {
-        let m = self.modules.last_mut().unwrap();
-        let m = m.as_mut().as_any_mut().downcast_mut::<M>().unwrap();
+        let m = self.modules.first_mut().unwrap();
+        let m = m.as_mut().as_any_mut().downcast_mut::<M>();
         func(m, &mut self.data.symbols)
     }
 
@@ -385,6 +394,15 @@ impl Vars {
     // pub fn mut_data(&mut self) -> &mut MetaData {
     //     &mut self.data
     // }
+
+    #[inline]
+    pub fn get_help(&self) -> String {
+        self.modules
+            .iter()
+            .map(|m| m.help().format())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 }
 
 #[derive(Debug)]
@@ -404,14 +422,6 @@ impl<'a> VarBuilder<'a> {
         self.attr_map.insert(name.to_string(), attr_id);
         self.attrs.add_attr(name, attr_id, action);
         attr_id
-    }
-
-    pub fn register_var_or_fail(&mut self, var: &Func) -> CliResult<(usize, bool)> {
-        let res = match self.register_var(var)? {
-            Some(res) => res,
-            None => return Err(format!("Variable '{}' not found", var.name).into()),
-        };
-        Ok(res)
     }
 
     pub fn register_var(&mut self, var: &Func) -> CliResult<Option<(usize, bool)>> {

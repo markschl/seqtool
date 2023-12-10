@@ -1,18 +1,13 @@
 use std::collections::HashMap;
 use std::convert::AsRef;
-use std::env;
 use std::fs::File;
 #[allow(unused_imports)]
 use std::io::{Read, Write};
-use std::path::PathBuf;
 use std::process::{Command as StdCommand, Stdio};
 use std::str;
 
-use assert_cmd::assert::Assert;
-use assert_cmd::Command;
-use predicates::ord::eq;
-use predicates::prelude::*;
-use predicates::str::contains;
+use assert_cmd::{assert::Assert, cargo::cargo_bin, Command};
+use predicates::{ord::eq, prelude::*, str::contains};
 
 trait Input {
     fn set<'a>(&mut self, a: &'a mut Command) -> &'a mut Command;
@@ -46,54 +41,21 @@ impl Input for MultiFileInput {
 }
 
 struct Tester {
-    root: PathBuf,
-    bin: PathBuf,
     vars: HashMap<String, String>,
 }
 
 impl Tester {
     fn new() -> Tester {
-        let mut a = Command::new("cargo");
-        a.args(["run"]);
-        a.unwrap();
-
-        // then return the path
-        let root = Self::root();
-
-        let name = "st";
-        let name = if cfg!(windows) {
-            format!("{}.exe", name)
-        } else {
-            name.to_string()
-        };
-
         Tester {
-            bin: root.join(name),
-            root,
             vars: HashMap::new(),
         }
-    }
-
-    fn root() -> PathBuf {
-        // from BurntSushi's xsv test code
-        let mut root = env::current_exe()
-            .unwrap()
-            .parent()
-            .expect("executable's directory")
-            .to_path_buf();
-
-        if root.ends_with("deps") {
-            root.pop();
-        }
-        root
     }
 
     fn temp_dir<F, O>(&self, prefix: &str, mut f: F) -> O
     where
         F: FnMut(&mut tempdir::TempDir) -> O,
     {
-        let mut d =
-            tempdir::TempDir::new_in(&self.root, prefix).expect("Could not create temp. dir");
+        let mut d = tempdir::TempDir::new(prefix).expect("Could not create temp. dir");
         let out = f(&mut d);
         d.close().unwrap();
         out
@@ -114,13 +76,8 @@ impl Tester {
         })
     }
 
-    fn var(&mut self, key: &str, value: &str) -> &mut Self {
-        self.vars.insert(key.to_string(), value.to_string());
-        self
-    }
-
     fn cmd<I: Input>(&self, args: &[&str], mut input: I) -> Assert {
-        let mut a = Command::new(self.bin.to_str().unwrap());
+        let mut a = Command::cargo_bin("st").unwrap();
         a.args(args).envs(&self.vars);
         input.set(&mut a).assert()
     }
@@ -145,7 +102,7 @@ impl Tester {
     }
 
     fn pipe(&self, args1: &[&str], input: &str, args2: &[&str], expected_out: &str) -> &Self {
-        let p1 = StdCommand::new(&self.bin)
+        let p1 = StdCommand::new(cargo_bin("st"))
             .args(args1)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -156,7 +113,7 @@ impl Tester {
             .write_all(input.as_bytes())
             .expect("write error");
 
-        let p2 = StdCommand::new(&self.bin)
+        let p2 = StdCommand::new(cargo_bin("st"))
             .args(args2)
             .stdin(p1.stdout.unwrap())
             .output()

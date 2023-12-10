@@ -1,57 +1,70 @@
 use std::fs::create_dir_all;
 use std::path::Path;
 
+use clap::Parser;
 use fxhash::FxHashMap;
 
-use crate::config;
+use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::io::output::Writer;
-use crate::opt;
+use crate::io::output::{OutputKind, Writer};
+use crate::opt::CommonArgs;
 use crate::var::{symbols, varstring, Func, VarBuilder, VarHelp, VarProvider};
 
-pub static USAGE: &str = concat!(
-    "
-This command distributes sequences into multiple files based on different
-criteria. In contrast to other commands, the output (-o) argument can
-contain variables in order to determine the file path for each sequence.
+/// This command distributes sequences into multiple files based on different
+/// criteria. In contrast to other commands, the output (-o) argument can
+/// contain variables in order to determine the file path for each sequence.
+///
+/// Example splitting a file into evenly sized chunks:
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct SplitCommand {
+    /// Split into chunks of <N> sequences and writes them to
+    /// '{filestem}_{chunk}.{default_ext}'.
+    /// This is a variable string which can be changed using -o/--output.
+    #[arg(short, long, value_name = "N")]
+    num_seqs: Option<usize>,
 
-Usage:
-    st split [options][-a <attr>...][-l <list>...] [<input>...]
-    st split (-h | --help)
-    st split --help-vars
+    /// Automatically create all parent directories found in -o
+    #[arg(short, long)]
+    parents: bool,
 
-Options:
-    -n, --num-seqs <N>  Split into chunks of <N> sequences and writes them to
-                        'f_{chunk}.{default_ext}'. This is actually a
-                        variable string which can be changed using -o/--output.
-    -p, --parents       Automatically create all parent directories found in -o
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-",
-    common_opts!()
-);
+pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
+    let num_seqs = args.num_seqs;
+    let parents = args.parents;
+    let verbose = args.common.general.verbose;
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args_with_help(&args, &CunkVarHelp)?;
+    let out_path = match args.common.output.output.as_ref() {
+        Some(OutputKind::File(p)) => Some(p.as_str()),
+        Some(OutputKind::Stdout) => {
+            return fail!("The split command requires an output path, not STDOUT.")
+        }
+        None => None,
+    };
 
-    let n = args.opt_value("--num-seqs")?;
-    let out = args.opt_str("--output");
-    let parents = args.get_bool("--parents");
-    let verbose = args.get_bool("--verbose");
-
-    let (key, limit) = if let Some(n) = n {
-        (out.unwrap_or("f_{split:chunk}.{default_ext}"), n)
-    } else if let Some(key) = out {
+    let (key, limit) = if let Some(n) = num_seqs {
+        (
+            out_path
+                .as_deref()
+                .unwrap_or("{filestem}_{chunk}.{default_ext}"),
+            n,
+        )
+    } else if let Some(key) = out_path {
         (key, 0)
     } else {
         return fail!("The split command requires either '-n' or '-o'.");
     };
 
     // initialize variable provider
-    cfg.with_vars(|vars| {
-        if limit != 0 {
-            vars.add_module(ChunkNum::new(limit));
-        }
+    let m: Option<Box<dyn VarProvider>> = if limit == 0 {
+        None
+    } else {
+        Some(Box::new(ChunkNum::new(limit)))
+    };
+    cfg.with_vars(m, |vars| {
         let var_key = vars.build(|b| varstring::VarString::var_or_composed(key, b))?;
 
         let mut outfiles: FxHashMap<_, Box<dyn Writer<_>>> = FxHashMap::default();
@@ -60,7 +73,7 @@ pub fn run() -> CliResult<()> {
         cfg.read(vars, |record, mut vars| {
             // update chunk number variable
             if limit != 0 {
-                vars.last_module_as::<ChunkNum, _>(|m, sym| m.increment(sym))?;
+                vars.custom_mod::<ChunkNum, _>(|m, sym| m.unwrap().increment(sym))?;
             }
 
             // compose key
@@ -108,19 +121,21 @@ pub fn run() -> CliResult<()> {
 
         // file handles from Config::other_writer() have to be finished
         for (_, f) in outfiles {
-            f.into_inner().map(|w| {
-                w?.finish()?.flush()?;
-                Ok::<_, CliError>(())
-            })
-            .transpose()?;
+            f.into_inner()
+                .map(|w| {
+                    w?.finish()?.flush()?;
+                    Ok::<_, CliError>(())
+                })
+                .transpose()?;
         }
         Ok(())
     })
 }
 
-pub struct CunkVarHelp;
+#[derive(Debug)]
+pub struct ChunkVarHelp;
 
-impl VarHelp for CunkVarHelp {
+impl VarHelp for ChunkVarHelp {
     fn name(&self) -> &'static str {
         "Split command variables"
     }
@@ -168,6 +183,10 @@ impl ChunkNum {
 }
 
 impl VarProvider for ChunkNum {
+    fn help(&self) -> &dyn VarHelp {
+        &ChunkVarHelp
+    }
+
     fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<bool> {
         if var.name == "chunk" {
             self.id = Some(b.symbol_id());
@@ -177,6 +196,6 @@ impl VarProvider for ChunkNum {
     }
 
     fn has_vars(&self) -> bool {
-        self.id.is_some()
+        true
     }
 }

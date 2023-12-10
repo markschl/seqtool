@@ -7,10 +7,9 @@ fn stats() {
     let seq = ">seq\nATGC-NYA\n";
     let retval = "seq\t8\t7\t40\t2\t3\n";
     let vars = "seqlen,ungapped_seqlen,gc,charcount(A),charcount(AT)";
-    let retval2 = format!("id\t{}\n{}", vars.replace(',', "\t"), retval);
     Tester::new()
         .cmp(&[".", "--to-tsv", &format!("id,{}", vars)], seq, retval)
-        .cmp(&["stat", &vars], seq, &retval2);
+        .cmp(&["stat", &vars], seq, &retval);
 }
 
 #[test]

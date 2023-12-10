@@ -1,28 +1,23 @@
-use crate::config;
+use clap::{value_parser, Parser};
+
+use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt;
+use crate::opt::CommonArgs;
 
-pub static USAGE: &str = concat!(
-    "
-Returns the first sequences of the input.
+/// Returns the first sequences of the input.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct HeadCommand {
+    /// Number of sequences to return
+    #[arg(short, long, value_name = "N", default_value_t = 10, value_parser = value_parser!(u64).range(1..))]
+    num_seqs: u64,
 
-Usage:
-    st head [options][-a <attr>...][-l <list>...] [<input>...]
-    st head (-h | --help)
-    st head --help-vars
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-Options:
-    -n, --num-seqs <N>  Number of sequences to select [default: 10]
-",
-    common_opts!()
-);
-
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-
-    let n = args.get_str("--num-seqs");
-    let n: usize = n.parse().map_err(|_| format!("Invalid number: {}", n))?;
+pub fn run(cfg: Config, args: &HeadCommand) -> CliResult<()> {
+    let n = args.num_seqs;
 
     cfg.writer(|writer, vars| {
         let mut i = 0;

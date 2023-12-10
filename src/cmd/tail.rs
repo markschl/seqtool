@@ -1,30 +1,25 @@
 use std::cmp::max;
 
-use crate::config;
+use clap::{value_parser, Parser};
+
+use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt;
+use crate::opt::CommonArgs;
 
-pub static USAGE: &str = concat!(
-    "
-Returns the last sequences of the input.
+/// Returns the last sequences of the input.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct TailCommand {
+    /// Number of sequences to return
+    #[arg(short, long, value_name = "N", default_value_t = 10, value_parser = value_parser!(u64).range(1..))]
+    num_seqs: u64,
 
-Usage:
-    st tail [options][-a <attr>...][-l <list>...] [<input>...]
-    st tail (-h | --help)
-    st tail --help-vars
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-Options:
-    -n, --num-seqs <N>   Number of sequences to select [default: 10]
-",
-    common_opts!()
-);
-
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-
-    let n = args.get_str("--num-seqs");
-    let n_select: usize = n.parse().map_err(|_| format!("Invalid number: {}", n))?;
+pub fn run(cfg: Config, args: &TailCommand) -> CliResult<()> {
+    let n_select = args.num_seqs;
 
     if cfg.has_stdin() {
         return fail!("Cannot use STDIN as input, since we need to count all sequences before");
@@ -33,7 +28,6 @@ pub fn run() -> CliResult<()> {
     cfg.writer(|writer, vars| {
         // first count the sequences
         // TODO: maybe support .fai files and use them?
-
         let mut n = 0;
 
         cfg.read_simple(|_| {

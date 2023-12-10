@@ -1,165 +1,183 @@
-use std::cmp::max;
-use std::cmp::min;
-use std::collections::HashMap;
+use std::cmp::{max, min};
 use std::env::var;
-use std::io::{self, Write};
-use std::str;
-use std::str::FromStr;
+use std::io::{self, Write as _};
+use std::str::{self, FromStr};
 
 use ansi_colours::ansi256_from_rgb;
-use enterpolation::{linear::Linear, Curve, Merge};
-use palette::named;
-use palette::rgb::Rgb;
-use palette::white_point::D65;
-use palette::Hsv;
-use palette::{FromColor, IntoColor, LinSrgb, Mix};
+use clap::{value_parser, Args, Parser};
+use enterpolation::{linear::Linear, Generator, Merge};
+use palette::{
+    convert::FromColorUnclamped,
+    named,
+    rgb::{self, Rgb},
+    white_point::D65,
+    FromColor, Hsv, Mix, Srgb,
+};
 use termcolor::{self, WriteColor};
 use vec_map::VecMap;
 
 #[cfg(target_family = "unix")]
 use pager::Pager;
 
-use crate::config;
+use crate::config::Config;
 use crate::error::CliResult;
-use crate::io::{qual_to_prob, QualFormat};
 use crate::helpers::seqtype::{guess_seqtype, SeqType};
-use crate::opt;
+use crate::io::{qual_to_prob, QualFormat};
+use crate::opt::CommonArgs;
 
-pub static USAGE: &str = concat!(
-    "
-View biological sequences, coloured by base / amino acid, or by sequence quality.
-The output is automatically forwarded to the 'less' pager on UNIX.
+/// Colored sequence view
+/// View biological sequences, colored by base / amino acid, or by sequence quality.
+/// The output is automatically forwarded to the 'less' pager on UNIX.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct ViewCommand {
+    #[command(flatten)]
+    pub general: GeneralViewArgs,
 
-Usage:
-    st view [options] [<input>...]
-    st view (-h | --help)
+    #[cfg(target_family = "unix")]
+    #[command(flatten)]
+    pub pager: PagerArgs,
 
-General command options:
-    -n, --num-seqs <N>  Number of sequences to select
-    -i, --id-len <N>    Length of IDs in characters. Longer IDs are truncated
-                        (default: 10 - 100 depending on ID length)
-    -d, --show-desc     Show descriptions along IDs if there is enough space.
-    -f, --foreground    Color base / amino acid letters instead of background.
-                        If base qualities are present, background coloration
-                        is shown, and the foreground scheme will be 'dna-bright'
-                        (change with --dna-pal).
+    #[command(flatten)]
+    pub color: ColorArgs,
 
-Pager (UNIX only):
-    -n, --no-pager      Disable automatic forwarding to pager
-    --pager <pager>     Pager command to use (default: less -RS).
-                        This overrides the value of the $ST_PAGER env.
-                        variable, if set.
-    -b, --break         Break lines in pager, disabling 'horizontal scrolling'.
-                        Equivalent to --pager 'less -R'
-
-Coloring:
-    --list-pal          List all palettes and exit.
-    --dna-pal <pal>     Color mapping for DNA. Palette name or list of
-                        <bases>:<color> (hex code or CSS/SVG color name)
-                        [default: dna] (available: dna, dna-bright, dna-dark,
-                        pur-pyrimid, gc-at).
-    --aa-pal <palette>  Color mapping for amino acids. Palette name or list of
-                        <letters>:<color> [default: rasmol] (available:
-                        rasmol, polarity).
-    --qscale <colors>   Color scale to use for coloring according to base
-                        quality. Palette name or sequence of hex codes from
-                        low to high [default: blue-red] (available: blue-red).
-    --qmax <value>      Upper limit of Phred score visualization (-q)
-                        [default: 41]
-    --textcols <c>      Text colors used with background coloring.
-                        Specify as: <dark>,<bright>. Which one is used will be
-                        chosen depending on the brightness of the background.
-                        [default: 333333,eeeeee]
-    -c, --truecolor     Use 16M colors, not only 256. This has to be supported
-                        by the terminal. Useful if autorecognition did not work.
-",
-    common_opts!()
-);
-
-lazy_static! {
-    static ref PALETTES: HashMap<&'static str, &'static str> = hashmap!{
-        "rasmol" =>
-            "DE:e60a0a,CM:e6e600,RK:145aff,ST:fa9600,FY:3232aa,NQ:00dcdc,G:ebebeb,LVI:0f820f,A:c8c8c8,W:b45Ab4,H:8282d2,P:dc9682",
-        "polarity" => // similar as Geneious
-            "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff",
-        "dna" =>
-            "A:ce0000,C:0000ce,G:ffde00,TU:00bb00,RYSWKMBDHVN:8f8f8f",
-        "dna-bright" =>
-            "A:ff3333,C:3333ff,G:ffe747,TU:00db00,RYSWKMBDHVN:b8b8b8",
-        "dna-dark" =>
-            "A:940000,C:00008f,G:9e8900,TU:006b00,RYSWKMBDHVN:8f8f8f",
-        "pur-pyrimid" =>
-            "AGR:e4cff,CTUY:25bdff",
-        "gc-at" =>
-            "GCS:ff2b25,ATUW:ffd349",
-        "blue-red" =>
-            "ee0000,0000ee"
-    };
+    #[command(flatten)]
+    pub common: CommonArgs,
 }
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
+#[derive(Args, Clone, Debug)]
+#[clap(next_help_heading = "General command options")]
+pub struct GeneralViewArgs {
+    /// Length of IDs in characters. Longer IDs are truncated (default: 10 - 100 depending on ID length)
+    #[arg(short, long, value_name = "CHARS", value_parser = value_parser!(u32).range(1..))]
+    id_len: Option<u32>,
 
-    let nmax: Option<usize> = args.opt_value("--num-seqs")?;
-    let mut id_len: Option<usize> = args.opt_value("--id-len")?;
-    let show_desc = args.get_bool("--show-desc");
-    let truecolor = args.get_bool("--truecolor");
-    let qmax: u8 = args.value("--qmax")?;
-    let dna_pal = args.get_str("--dna-pal");
-    let aa_pal = args.get_str("--aa-pal");
-    let qscale = args.get_str("--qscale");
-    let textcols = args.get_str("--textcols");
-    let foreground = args.get_bool("--foreground");
+    /// Show descriptions along IDs if there is enough space.
+    #[arg(short, long)]
+    show_desc: bool,
 
-    if id_len == Some(0) {
-        id_len = Some(1);
-    }
+    /// Color base / amino acid letters instead of background.
+    /// If base qualities are present, background coloration is shown,
+    /// and the foreground scheme will be 'dna-bright' (change with --dna-pal).
+    #[arg(short, long)]
+    foreground: bool,
 
-    if args.get_bool("--list-pal") {
-        eprintln!(concat!(
-            "List of palette names their color mappings, which are in the form\n",
-            "<symbol>:<colors>. Colors are specified as HEX codes. The colors can be\n",
-            "directly configured using --dna-pal / --aa-pal / --qscale. These options\n",
-            "accept both palette names and color mappings.\n"
-        ));
-        for (pal, mapping) in PALETTES.iter() {
-            eprintln!("{:<10} {}", pal, mapping);
-        }
+    /// View only the top <N> sequences without pager. Automatic handoff to a
+    /// pager is only available in UNIX (turn off with --no-pager).
+    #[arg(short, long, default_value_t = 100, value_name = "N")]
+    n_max: u64,
+}
+
+#[cfg(target_family = "unix")]
+#[derive(Args, Clone, Debug)]
+#[clap(next_help_heading = "View pager (UNIX only)")]
+pub struct PagerArgs {
+    /// Disable paged display
+    #[arg(long)]
+    no_pager: bool,
+
+    /// Pager command to use.
+    #[arg(long, default_value = "less -RS", env = "ST_PAGER")]
+    pager: Option<String>,
+
+    /// Break lines in pager, disabling 'horizontal scrolling'.
+    /// Equivalent to --pager 'less -R'
+    #[arg(short, long, name = "break")]
+    break_: bool,
+}
+
+#[derive(Args, Clone, Debug)]
+#[clap(next_help_heading = "Colors")]
+pub struct ColorArgs {
+    /// Show a list of all builtin palettes and exit.
+    #[arg(long)]
+    list_pal: bool,
+
+    /// Color mapping for DNA.
+    /// Palette name (hex code, CSS/SVG color name)
+    /// or list of 'base1:rrggbb,base2:rrggbb,...'
+    /// (builtin palettes: dna, dna-bright, dna-dark, pur-pyrimid, gc-at).
+    #[arg(long, value_name = "PAL", default_value = "dna", value_parser = |p: &str| read_palette::<SeqPaletteType>(p, &DNA_PAL))]
+    dna_pal: VecMap<Color>,
+
+    /// Color mapping for amino acids.
+    /// Palette name (hex code, CSS/SVG color name)
+    /// or list of 'base1:rrggbb,base2:rrggbb,...'
+    /// (available: rasmol, polarity).
+    #[arg(long, value_name = "PAL", default_value = "rasmol", value_parser = |p: &str| read_palette::<SeqPaletteType>(p, &PROTEIN_PAL))]
+    aa_pal: VecMap<Color>,
+
+    /// Color scale to use for coloring according to base quality.
+    /// Palette name (hex code, CSS/SVG color name)
+    /// or list of 'base1:rrggbb,base2:rrggbb,...'
+    /// Palette name or sequence of hex codes from low to high.
+    #[arg(long, value_name = "PAL", default_value = "red-blue", value_parser = |p: &str| read_palette::<QualPaletteType>(p, &QUAL_SCALE))]
+    qscale: VecMap<Color>,
+
+    /// Text colors used with background coloring. Specify as: <dark>,<bright>.
+    /// Which one is used will be chosen depending on the brightness of
+    /// the background.
+    #[arg(long, value_name = "COLORS", default_value = "333333,eeeeee", value_parser = parse_textcols)]
+    textcols: (Color, Color),
+
+    /// Use 16M colors, not only 256. This has to be supported by the terminal.
+    /// Useful if autorecognition fails.
+    #[arg(short, long)]
+    truecolor: Option<bool>,
+}
+
+lazy_static! {
+    static ref DNA_PAL: SimplePal = SimplePal::default()
+        .add("dna", "A:ce0000,C:0000ce,G:ffde00,TU:00bb00,RYSWKMBDHVN:8f8f8f")
+        .add("dna-bright", "A:ff3333,C:3333ff,G:ffe747,TU:00db00,RYSWKMBDHVN:b8b8b8")
+        .add("dna-dark", "A:940000,C:00008f,G:9e8900,TU:006b00,RYSWKMBDHVN:8f8f8f")
+        .add("pur-pyrimid", "AGR:ff83fa,CTUY:25bdff")
+        .add("gcat", "GCS:ff2b25,ATUW:ffd349");
+
+    static ref PROTEIN_PAL: SimplePal = SimplePal::default()
+        .add("rasmol", "DE:e60a0a,CM:e6e600,RK:145aff,ST:fa9600,FY:3232aa,NQ:00dcdc,G:ebebeb,LVI:0f820f,A:c8c8c8,W:b45Ab4,H:8282d2,P:dc9682")
+        .add("polarity", "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff");
+
+    static ref QUAL_SCALE: SimplePal = SimplePal::default()
+        .add("red-blue", "5:red,35:blue,40:darkblue");
+}
+
+pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
+    let truecolor = args.color.truecolor.unwrap_or_else(|| has_truecolor());
+    if args.color.list_pal {
+        print_palettes(&args.color.textcols, truecolor)?;
         return Ok(());
     }
 
+    // set up pager and determine sequence limit
     #[cfg(target_family = "unix")]
     #[allow(unused_variables)]
-    setup_pager(
-        args.opt_str("--pager"),
-        args.get_bool("--break"),
-        args.get_bool("--no-pager"),
-    );
+    let n_max = {
+        setup_pager(
+            args.pager.pager.as_deref(),
+            args.pager.break_,
+            args.pager.no_pager,
+        );
+        if args.pager.no_pager {
+            Some(args.general.n_max)
+        } else {
+            None
+        }
+    };
+    #[cfg(not(target_family = "unix"))]
+    let n_max = Some(args.general.n_max);
 
     // setup colors
-
-    let textcols: Vec<_> = textcols.split(',').collect();
-    if textcols.len() != 2 {
-        return fail!("Invalid number of text colors. Specify '--textcols <dark>,<bright>'. ");
-    }
-
     let mut writer = ColorWriter::new()
         .truecolor(truecolor)
-        .dna_pal(dna_pal)
-        .protein_pal(aa_pal)
-        .qual_scale(qscale)
-        .textcols(textcols[0], textcols[1])?;
+        .textcols(args.color.textcols.0.clone(), args.color.textcols.1.clone())?;
 
     if cfg.input_opts()[0].format.has_qual() {
-        writer.set(ColorSource::Qual { qmax }, ColorMode::Bg);
-        if foreground {
+        writer.set(ColorSource::Qual, ColorMode::Bg);
+        if args.general.foreground {
             writer.set(ColorSource::Symbol, ColorMode::Fg);
-            if dna_pal == "dna" {
-                writer = writer.dna_pal("dna-bright");
-            }
         }
-    } else if foreground {
+    } else if args.general.foreground {
         writer.set(ColorSource::Symbol, ColorMode::Fg);
     } else {
         writer.set(ColorSource::Symbol, ColorMode::Bg);
@@ -175,12 +193,12 @@ pub fn run() -> CliResult<()> {
         || cfg!(target_os = "windows");
 
     // run
-    let mut i = 0;
-    let mut id_len = id_len.unwrap_or(0);
+    let mut i: u64 = 0;
+    let mut id_len = args.general.id_len.unwrap_or(0);
     // TODO: not actually required, currently
-    cfg.with_vars(|vars| {
+    cfg.with_vars(None, |vars| {
         cfg.read(vars, |record, vars| {
-            if let Some(n) = nmax {
+            if let Some(n) = n_max {
                 if i >= n {
                     return Ok(false);
                 }
@@ -192,14 +210,23 @@ pub fn run() -> CliResult<()> {
 
             if id_len == 0 {
                 // determine ID width of first ID
-                id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3));
+                id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3)) as u32;
             }
 
-            write_id(id, desc, &mut writer, id_len, show_desc, utf8)?;
+            write_id(
+                id,
+                desc,
+                &mut writer,
+                id_len as usize,
+                args.general.show_desc,
+                utf8,
+            )?;
 
             // write seq
 
             if let Some(qual) = record.qual() {
+                // If quality scores are present, color by them
+
                 let mut qual_iter = qual.iter();
 
                 let mut prob = 0.;
@@ -208,7 +235,12 @@ pub fn run() -> CliResult<()> {
                 for seq in record.seq_segments() {
                     if !writer.initialized() {
                         // TODO: initializing with first sequence line -> enough?
-                        writer.init(seq)?;
+                        writer.init(
+                            seq,
+                            args.color.dna_pal.clone(),
+                            args.color.aa_pal.clone(),
+                            args.color.qscale.clone(),
+                        )?;
                     }
 
                     for &symbol in seq {
@@ -235,9 +267,15 @@ pub fn run() -> CliResult<()> {
                     write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
                 }
             } else {
+                // if no quality scores, color by sequence
                 for seq in record.seq_segments() {
                     if !writer.initialized() {
-                        writer.init(seq)?;
+                        writer.init(
+                            seq,
+                            args.color.dna_pal.clone(),
+                            args.color.aa_pal.clone(),
+                            args.color.qscale.clone(),
+                        )?;
                     }
 
                     for &symbol in seq {
@@ -305,9 +343,230 @@ fn write_id<W: io::Write>(
     Ok(())
 }
 
+pub fn parse_textcols(text: &str) -> Result<(Color, Color), String> {
+    let mut s = text.split(',').map(|s| s.to_string());
+    let dark = s.next().unwrap();
+    if let Some(bright) = s.next() {
+        if s.next().is_none() {
+            return Ok((Color::from_str(&dark)?, Color::from_str(&bright)?));
+        }
+    }
+    Err(format!(
+        "Invalid text color specification: '{}'. Must be '<dark>,<bright>'",
+        text
+    ))
+}
+
+fn read_palette<T: PaletteType>(s: &str, default_pal: &SimplePal) -> Result<VecMap<Color>, String> {
+    if let Some(colors) = default_pal.get(s) {
+        if let Ok(cols) = T::parse_palette(colors) {
+            return Ok(cols);
+        }
+    }
+    T::parse_palette(s)
+}
+
+fn print_palettes(fg: &(Color, Color), rgb: bool) -> CliResult<()> {
+    eprintln!(concat!(
+        "List of palette names their color mappings, which are in the form\n",
+        "<symbol>:<colors>. Colors are specified as HEX codes. The colors can be\n",
+        "directly configured using --dna-pal / --aa-pal / --qscale. These options\n",
+        "accept both palette names and color mappings.\n"
+    ));
+    eprintln!("\nDNA\n===");
+    let mut w = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
+    DNA_PAL.display_pal::<SeqPaletteType>(&mut w, fg, rgb)?;
+    eprintln!("\nProtein\n=======");
+    PROTEIN_PAL.display_pal::<SeqPaletteType>(&mut w, fg, rgb)?;
+    eprintln!("\nQuality scores\n==============");
+    QUAL_SCALE.display_pal::<QualPaletteType>(&mut w, fg, rgb)?;
+    Ok(())
+}
+
+pub trait PaletteType {
+    fn parse_palette(color_str: &str) -> Result<VecMap<Color>, String>;
+
+    fn parse_pal_mapping(color_str: &str) -> Result<Vec<(String, Srgb<u8>)>, String> {
+        let mut out = Vec::new();
+        for c in color_str.split(',') {
+            let c = c.trim();
+            if c.is_empty() {
+                continue;
+            }
+            let mut s = c.split(':');
+            let symbols = s.next().unwrap().trim().to_string();
+            if let Some(col) = s.next() {
+                let col = parse_color(col)?;
+                out.push((symbols, col))
+            } else {
+                return Err(format!(
+                    "Invalid color mapping: '{}'. Use 'WHAT:rrggbb' \
+                    for mapping WHAT to a given color (in hex code)",
+                    c
+                ));
+            }
+        }
+        Ok(out)
+    }
+
+    fn display_palette(
+        colors_str: &str,
+        writer: &mut termcolor::StandardStream,
+        textcols: &(Color, Color),
+        rgb: bool,
+    ) -> CliResult<()>;
+}
+
+#[derive(Clone, Debug)]
+pub struct SeqPaletteType;
+
+impl PaletteType for SeqPaletteType {
+    fn parse_palette(color_str: &str) -> Result<VecMap<Color>, String> {
+        let mut out = VecMap::new();
+        for (symbols, color) in Self::parse_pal_mapping(color_str)? {
+            for s in symbols.as_bytes() {
+                let s = if s.is_ascii_lowercase() {
+                    s.to_ascii_uppercase()
+                } else {
+                    *s
+                };
+                out.insert(s as usize, Color::from_rgb(color));
+                out.insert(s.to_ascii_lowercase() as usize, Color::from_rgb(color));
+            }
+        }
+        Ok(out)
+    }
+
+    fn display_palette(
+        colors_str: &str,
+        writer: &mut termcolor::StandardStream,
+        textcols: &(Color, Color),
+        rgb: bool,
+    ) -> CliResult<()> {
+        let default_spec = termcolor::ColorSpec::new();
+        let mut colspec = termcolor::ColorSpec::new();
+
+        writer.set_color(&default_spec)?;
+        for (symbols, color) in Self::parse_pal_mapping(colors_str)? {
+            write!(writer, "{}:", symbols)?;
+            let bg = Color::from_rgb(color);
+            let chosen = choose_fg(&textcols.0, &textcols.1, &bg).to_termcolor(rgb);
+            colspec.set_fg(Some(chosen));
+            colspec.set_bg(Some(bg.to_termcolor(rgb)));
+            writer.set_color(&colspec)?;
+            let c: u32 = color.into_u32::<rgb::channels::Rgba>();
+            write!(writer, "{:06x}", c >> 8)?;
+            writer.set_color(&default_spec)?;
+            write!(writer, ",")?;
+        }
+        writer.set_color(&default_spec)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct QualPaletteType;
+
+impl PaletteType for QualPaletteType {
+    fn parse_palette(color_str: &str) -> Result<VecMap<Color>, String> {
+        // TODO: needed?
+        let mut elements = vec![];
+        let mut knots = vec![];
+        for (qual, color) in Self::parse_pal_mapping(color_str)? {
+            // parse quality score
+            let qual: u8 = qual.parse().map_err(|_| {
+                format!(
+                    "Invalid quality code: '{}'. Expecting Phred scores, \
+                    usually between 0 and ~42",
+                    qual
+                )
+            })?;
+            knots.push(qual as f32);
+            let col = Adapter(Hsv::from_color(color.into_linear()));
+            elements.push(col);
+        }
+        let mut out = VecMap::new();
+        let gradient = Linear::builder()
+            .elements(&elements)
+            .knots(&knots)
+            .build()
+            .unwrap();
+        for qual in 0..96 {
+            let col = gradient.gen(qual as f32);
+            let col = Rgb::from_color_unclamped(col.0);
+            out.insert(qual, Color::from_rgb(col.into()));
+        }
+        Ok(out)
+    }
+
+    fn display_palette(
+        colors_str: &str,
+        writer: &mut termcolor::StandardStream,
+        textcols: &(Color, Color),
+        rgb: bool,
+    ) -> CliResult<()> {
+        SeqPaletteType::display_palette(colors_str, writer, textcols, rgb)?;
+        write!(writer, "   [")?;
+
+        let colmap = Self::parse_palette(colors_str)?;
+        let default_spec = termcolor::ColorSpec::new();
+        let mut colspec = termcolor::ColorSpec::new();
+        writer.set_color(&default_spec)?;
+        for qual in (2..43).step_by(2) {
+            let bg = &colmap[qual];
+            let chosen = choose_fg(&textcols.0, &textcols.1, bg).to_termcolor(rgb);
+            colspec.set_fg(Some(chosen));
+            colspec.set_bg(Some(bg.to_termcolor(rgb)));
+            writer.set_color(&colspec)?;
+            write!(writer, "{} ", qual)?;
+        }
+        writer.set_color(&default_spec)?;
+        write!(writer, "]")?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct SimplePal(Vec<(String, String)>);
+
+impl SimplePal {
+    fn add(mut self, name: &str, colors_str: &str) -> Self {
+        self.0.push((name.to_string(), colors_str.to_string()));
+        self
+    }
+
+    fn members(&self) -> &[(String, String)] {
+        &self.0
+    }
+
+    fn get(&self, name: &str) -> Option<&str> {
+        self.0
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, c)| c.as_str())
+    }
+
+    fn display_pal<T>(
+        &self,
+        writer: &mut termcolor::StandardStream,
+        textcols: &(Color, Color),
+        rgb: bool,
+    ) -> CliResult<()>
+    where
+        T: PaletteType,
+    {
+        for (name, colors_str) in self.members() {
+            write!(writer, "{:<12}", name)?;
+            T::display_palette(colors_str, writer, textcols, rgb)?;
+            writeln!(writer, "")?;
+        }
+        Ok(())
+    }
+}
+
 enum ColorSource {
     Symbol,
-    Qual { qmax: u8 },
+    Qual,
 }
 
 enum ColorMode {
@@ -316,19 +575,15 @@ enum ColorMode {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-struct Color {
+pub struct Color {
     rgb: (u8, u8, u8),
     ansi: AnsiColor,
 }
 
 impl Color {
-    fn from_rgb(c: LinSrgb) -> Self {
+    fn from_rgb(c: Srgb<u8>) -> Self {
         Self {
-            rgb: (
-                c.red.round() as u8,
-                c.green.round() as u8,
-                c.blue.round() as u8,
-            ),
+            rgb: (c.red, c.green, c.blue),
             ansi: c.into(),
         }
     }
@@ -349,9 +604,8 @@ impl Color {
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct AnsiColor(u8);
 
-impl From<LinSrgb> for AnsiColor {
-    fn from(c: LinSrgb) -> Self {
-        let c: Rgb<_, u8> = c.into();
+impl From<Srgb<u8>> for AnsiColor {
+    fn from(c: Srgb<u8>) -> Self {
         Self(ansi256_from_rgb((c.red, c.green, c.blue)))
     }
 }
@@ -379,9 +633,6 @@ struct ColorWriter {
     actions: Vec<(ColorSource, ColorMode)>,
     initialized: bool,
     truecolor: bool,
-    dna_pal: String,
-    protein_pal: String,
-    qual_scale: String,
 }
 
 impl ColorWriter {
@@ -393,32 +644,11 @@ impl ColorWriter {
             colspec: termcolor::ColorSpec::new(),
             current_fg: None,
             current_bg: None,
-            textcols: (
-                Color::from_rgb(named::BLACK.into_linear()),
-                Color::from_rgb(named::WHITE.into_linear()),
-            ),
+            textcols: (Color::from_rgb(named::BLACK), Color::from_rgb(named::WHITE)),
             actions: vec![],
             initialized: false,
             truecolor: has_truecolor(),
-            dna_pal: PALETTES["dna"].to_string(),
-            protein_pal: PALETTES["rasmol"].to_string(),
-            qual_scale: PALETTES["blue-red"].to_string(),
         }
-    }
-
-    fn dna_pal(mut self, pal: &str) -> Self {
-        self.dna_pal = pal.to_string();
-        self
-    }
-
-    fn protein_pal(mut self, pal: &str) -> Self {
-        self.protein_pal = pal.to_string();
-        self
-    }
-
-    fn qual_scale(mut self, scale: &str) -> Self {
-        self.qual_scale = scale.to_string();
-        self
     }
 
     fn truecolor(mut self, truecolor: bool) -> Self {
@@ -426,8 +656,8 @@ impl ColorWriter {
         self
     }
 
-    fn textcols(mut self, dark: &str, bright: &str) -> Result<Self, String> {
-        self.textcols = (Color::from_str(dark)?, Color::from_str(bright)?);
+    fn textcols(mut self, dark: Color, bright: Color) -> Result<Self, String> {
+        self.textcols = (dark, bright);
         Ok(self)
     }
 
@@ -439,7 +669,14 @@ impl ColorWriter {
         self.initialized
     }
 
-    fn init(&mut self, seq: &[u8]) -> Result<(), String> {
+    #[inline(never)]
+    fn init(
+        &mut self,
+        seq: &[u8],
+        dna_pal: VecMap<Color>,
+        protein_pal: VecMap<Color>,
+        qual_scale: VecMap<Color>,
+    ) -> Result<(), String> {
         for (source, mode) in &self.actions {
             let store_to = match *mode {
                 ColorMode::Fg => &mut self.fg_map,
@@ -447,25 +684,13 @@ impl ColorWriter {
             };
 
             *store_to = match *source {
-                ColorSource::Qual { qmax } => {
-                    let qscale = &self.qual_scale;
-                    let scale = PALETTES.get(qscale.trim()).copied().unwrap_or(qscale);
-                    Some((load_phred_colors(scale, qmax)?, true))
-                }
+                ColorSource::Qual => Some((qual_scale.clone(), true)),
                 ColorSource::Symbol => {
-                    let mut palette = None;
-                    if let Some((seqtype, _, _)) = guess_seqtype(seq, None) {
-                        palette = match seqtype {
-                            SeqType::Dna | SeqType::Rna => Some(&self.dna_pal),
-                            SeqType::Protein => Some(&self.protein_pal),
-                            _ => None,
-                        }
-                    }
-                    palette.map(|pal| {
-                        let pal = PALETTES.get(pal.trim()).copied().unwrap_or(pal.as_str());
-                        Ok::<_, String>((parse_colormap(pal)?, false))
+                    guess_seqtype(seq, None).and_then(|(ref seqtype, _, _)| match seqtype {
+                        SeqType::Dna | SeqType::Rna => Some((dna_pal.clone(), false)),
+                        SeqType::Protein => Some((protein_pal.clone(), false)),
+                        _ => None,
                     })
-                    .transpose()?
                 }
             };
         }
@@ -475,16 +700,9 @@ impl ColorWriter {
         if let Some((bg_map, _)) = self.bg_map.as_ref() {
             if self.fg_map.is_none() {
                 let mut fg_map = VecMap::new();
-                let dark_l = palette::Lab::<D65, _>::from(self.textcols.0.rgb).l;
-                let bright_l = palette::Lab::<D65, _>::from(self.textcols.1.rgb).l;
                 for (ref symbol, col) in bg_map {
-                    let l = palette::Lab::<D65, _>::from(col.rgb).l;
-                    let col = if ((bright_l - l) as f32) / ((bright_l - dark_l) as f32) < 0.3 {
-                        &self.textcols.0
-                    } else {
-                        &self.textcols.1
-                    };
-                    fg_map.insert(*symbol, col.clone());
+                    let chosen = choose_fg(&self.textcols.0, &self.textcols.1, &col);
+                    fg_map.insert(*symbol, chosen);
                 }
                 self.fg_map = Some((fg_map, false));
             }
@@ -546,6 +764,18 @@ impl ColorWriter {
     }
 }
 
+/// chooses the optimal text color based on the brightness/darkness of the background color
+fn choose_fg(fg_dark: &Color, fg_bright: &Color, bg_col: &Color) -> Color {
+    let dark_l = palette::Lab::<D65, _>::from(fg_dark.rgb).l as f32;
+    let bright_l = palette::Lab::<D65, _>::from(fg_bright.rgb).l as f32;
+    let bg = palette::Lab::<D65, _>::from(bg_col.rgb).l as f32;
+    if (bright_l - bg) / (bright_l - dark_l) < 0.3 {
+        fg_dark.clone()
+    } else {
+        fg_bright.clone()
+    }
+}
+
 impl io::Write for ColorWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.writer.write(buf)
@@ -564,51 +794,7 @@ fn has_truecolor() -> bool {
     // see also https://github.com/chalk/supports-color/blob/master/index.js
 }
 
-fn parse_colormap(colors: &str) -> Result<VecMap<Color>, String> {
-    let mut out = VecMap::new();
-
-    for c in colors.split(',') {
-        let mut s = c.split(':');
-        let symbols = s.next().unwrap().as_bytes().to_vec();
-        if let Some(col) = s.next() {
-            let col = Color::from_str(col)?;
-            for s in symbols {
-                out.insert(s as usize, col.clone());
-            }
-        } else {
-            return fail!(format!(
-                "Invalid color mapping: '{}'. Use 'XY:rrggbb' for mapping X and Y to a given color",
-                c
-            ));
-        }
-    }
-    Ok(out)
-}
-
-fn load_phred_colors(scale: &str, qmax: u8) -> Result<VecMap<Color>, String> {
-    // HSV color gradient
-    // TODO: needed?
-    let scale: Vec<_> = scale
-        .split(',')
-        .map(|code| Ok(Adapter(Hsv::from_color(parse_color(code)?))))
-        .collect::<Result<_, String>>()?;
-
-    let mut out = VecMap::new();
-    let gradient = Linear::builder()
-        .elements(scale)
-        .equidistant::<f32>()
-        .normalized()
-        .build()
-        .unwrap();
-    for (i, c) in gradient.take(qmax as usize).enumerate() {
-        out.insert(i, Color::from_rgb(c.0.into_color()));
-    }
-    Ok(out)
-}
-
-fn parse_color(s: &str) -> Result<LinSrgb, String> {
-    if let Some(c) = named::from_str(s).or_else(|| Rgb::from_str(s).ok()) {
-        return Ok(c.into_linear());
-    }
-    fail!(format!("Invalid color code: '{}'. The colors must be in Hex format (rrggbb) or a name (e.g. 'cyan')", s))
+fn parse_color(s: &str) -> Result<Srgb<u8>, String> {
+    named::from_str(s).or_else(|| Srgb::from_str(s).ok())
+        .ok_or_else(|| format!("Invalid color code: '{}'. The colors must be in Hex format (rrggbb) or a name (e.g. 'cyan')", s))
 }

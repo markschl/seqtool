@@ -1,5 +1,5 @@
 extern crate rand;
-use rand::{prelude::*, distributions::Uniform};
+use rand::{distributions::Uniform, prelude::*};
 
 use super::*;
 
@@ -16,7 +16,7 @@ fn sample() {
                 "Fractions should be between 0 and 1",
             )
             .fails(
-                &["sample", "-f", "-1"],
+                &["sample", "-f", "1.2"],
                 FileInput(path),
                 "Fractions should be between 0 and 1",
             );

@@ -9,6 +9,7 @@ use crate::error::{CliError, CliResult};
 use crate::io::Record;
 use crate::var::*;
 
+#[derive(Debug)]
 pub struct ListHelp;
 
 impl VarHelp for ListHelp {
@@ -68,7 +69,7 @@ where
     has_header: bool,
     header: Option<FxHashMap<String, usize>>,
     handler: H,
-    id_col: usize,
+    id_col: u32,
     allow_missing: bool,
 }
 
@@ -103,7 +104,7 @@ where
         }
     }
 
-    pub fn id_col(mut self, id_col: usize) -> Self {
+    pub fn id_col(mut self, id_col: u32) -> Self {
         self.id_col = id_col;
         self
     }
@@ -174,6 +175,10 @@ where
     R: io::Read + 'static,
     H: IdFinder<R> + 'static,
 {
+    fn help(&self) -> &dyn VarHelp {
+        &ListHelp
+    }
+
     fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
         let var = match func.name.as_ref() {
             "has_entry" => {
@@ -262,7 +267,7 @@ impl<R: io::Read, H: IdFinder<R>> fmt::Debug for ListVars<R, H> {
 pub trait IdFinder<R: io::Read> {
     fn find(
         &mut self,
-        id_col: usize,
+        id_col: u32,
         id: &[u8],
         rdr: &mut Reader<R>,
         rec: &mut ByteRecord,
@@ -275,7 +280,7 @@ pub struct SyncIds;
 impl<R: io::Read> IdFinder<R> for SyncIds {
     fn find(
         &mut self,
-        id_col: usize,
+        id_col: u32,
         id: &[u8],
         rdr: &mut Reader<R>,
         rec: &mut ByteRecord,
@@ -285,7 +290,7 @@ impl<R: io::Read> IdFinder<R> for SyncIds {
             return Err(ListError::ListTooShort(id.to_owned()));
         }
         let row_id = rec
-            .get(id_col)
+            .get(id_col as usize)
             .ok_or_else(|| ListError::NoId(rdr.position().clone()))?;
         if row_id != id {
             return Err(ListError::IdMismatch(id.to_owned(), row_id.to_owned()));
@@ -311,7 +316,7 @@ impl Unordered {
 impl<R: io::Read> IdFinder<R> for Unordered {
     fn find(
         &mut self,
-        id_col: usize,
+        id_col: u32,
         id: &[u8],
         rdr: &mut Reader<R>,
         rec: &mut ByteRecord,
@@ -326,7 +331,7 @@ impl<R: io::Read> IdFinder<R> for Unordered {
         // if not found, read until the ID is encountered
         while rdr.read_byte_record(rec)? {
             let row_id = rec
-                .get(id_col)
+                .get(id_col as usize)
                 .ok_or_else(|| ListError::NoId(rdr.position().clone()))?;
 
             match self.record_map.entry(row_id.to_owned()) {

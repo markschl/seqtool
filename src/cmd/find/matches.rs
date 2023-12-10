@@ -3,6 +3,8 @@ use std::slice::Iter;
 
 use vec_map::VecMap;
 
+use crate::helpers::rng::Range;
+
 use super::matcher::{Match, Matcher};
 use super::*;
 
@@ -11,9 +13,9 @@ use super::*;
 pub struct Matches {
     pattern_names: Vec<String>,
     cfg: SearchConfig,
-    bounds: Option<(isize, isize)>,
     max_shift: Option<Shift>,
     multiple_patterns: bool,
+    bounds: Option<Range>,
     calc_bounds: Option<(usize, usize)>,
     // offset introduced by narrowing down search range (calc_bounds)
     offset: usize,
@@ -31,7 +33,7 @@ impl Matches {
     pub fn new(
         pattern_names: &[String],
         pos: SearchConfig,
-        bounds: Option<(isize, isize)>,
+        bounds: Option<Range>,
         max_shift: Option<Shift>,
     ) -> Matches {
         let n_patterns = pattern_names.len();
@@ -52,9 +54,9 @@ impl Matches {
     pub fn find<M: Matcher>(&mut self, text: &[u8], matchers: &mut [M]) {
         let mut text = text;
 
-        if let Some((start, end)) = self.bounds {
+        if let Some(bounds) = self.bounds {
             // restrict search range
-            let (s, e) = Range::from_rng1(start, end, text.len()).get(false);
+            let (s, e) = bounds.obtain(text.len());
             self.calc_bounds = Some((s, e));
             self.offset = s;
             text = &text[self.offset..e];

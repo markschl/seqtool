@@ -1,32 +1,28 @@
 use std::ops::DerefMut;
 
 use bio::alphabets::dna::complement;
+use clap::Parser;
 
-use crate::config;
+use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::SeqQualRecord;
-use crate::opt;
+use crate::opt::CommonArgs;
 
-static USAGE: &str = concat!(
-    "
-Reverse complements DNA sequences. If quality scores are present,
-their order is just reversed.
+/// Reverse complements DNA sequences. If quality scores are present,
+/// their order is just reversed.
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct RevcompCommand {
+    /// Number of threads to use
+    #[arg(short, long, default_value_t = 1)]
+    threads: u32,
 
-Usage:
-    st revcomp [options][-a <attr>...] [-l <list>...] [<input>...]
-    st revcomp (-h | --help)
-    st revcomp --help-vars
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
-Options:
-    -t, --threads <N>   Number of threads to use [default: 1]
-",
-    common_opts!()
-);
-
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
-    let num_threads = args.thread_num()?;
+pub fn run(cfg: Config, args: &RevcompCommand) -> CliResult<()> {
+    let num_threads = args.threads;
 
     cfg.writer(|writer, vars| {
         cfg.parallel_var::<_, _, Box<(Vec<u8>, Vec<u8>, bool)>>(

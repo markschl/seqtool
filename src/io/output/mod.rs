@@ -1,6 +1,8 @@
+use std::convert::Infallible;
 use std::fs::File;
 use std::io;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use bzip2;
 use flate2;
@@ -8,11 +10,9 @@ use lz4;
 use thread_io;
 use zstd;
 
-use crate::error::{CliError, CliResult};
-use crate::helpers::util;
+use crate::error::CliResult;
 
-use super::input::InFormat;
-use super::{fa_qual, fasta, fastq, Compression, QualFormat, Record};
+use super::{fa_qual, fasta, fastq, Attribute, Compression, FormatVariant, QualFormat, Record};
 
 pub use self::writer::*;
 
@@ -34,47 +34,64 @@ pub struct OutputOptions {
     pub thread_bufsize: Option<usize>,
 }
 
-impl Default for OutputOptions {
-    fn default() -> OutputOptions {
-        OutputOptions {
-            kind: OutputKind::Stdout,
-            format: OutFormat::Fasta {
-                attrs: vec![],
-                wrap_width: None,
-            },
-            compression: Compression::None,
+impl OutputOptions {
+    pub fn new(kind: OutputKind, format: OutFormat, compression: Compression) -> Self {
+        Self {
+            kind,
+            format,
+            compression,
             compression_level: None,
             threaded: false,
             thread_bufsize: None,
         }
+    }
+
+    pub fn thread_opts(mut self, threaded: bool, thread_bufsize: Option<usize>) -> Self {
+        self.threaded = threaded;
+        self.thread_bufsize = thread_bufsize;
+        self
     }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum OutputKind {
     Stdout,
-    File(PathBuf),
+    File(String),
+}
+
+impl FromStr for OutputKind {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "-" {
+            Ok(OutputKind::Stdout)
+        } else {
+            Ok(OutputKind::File(s.to_string()))
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum OutFormat {
     Fasta {
-        attrs: Vec<(String, String)>,
+        attrs: Vec<Attribute>,
         // Vec<(attr_name, attr_value)>, default_seqattr_for_attrs
         wrap_width: Option<usize>,
     },
     Fastq {
         // only Some() if different from input format
         format: Option<QualFormat>,
-        attrs: Vec<(String, String)>,
+        attrs: Vec<Attribute>,
     },
     FaQual {
-        attrs: Vec<(String, String)>,
+        attrs: Vec<Attribute>,
         wrap_width: Option<usize>,
         qfile: PathBuf,
     },
     Csv {
         delim: u8,
+        // this field list is not in Vec<String> form because parsing
+        // output fields is more complex (functions can have have commas inside)
         fields: String,
     },
 }
@@ -96,64 +113,32 @@ impl OutFormat {
     }
 
     pub fn from_opts(
-        string: &str,
-        attrs: &[(String, String)],
+        format: FormatVariant,
+        attrs: &[Attribute],
         wrap_fasta: Option<usize>,
-        csv_delim: Option<&str>,
-        csv_fields: Option<&str>,
-        informat: Option<&InFormat>,
+        csv_delim: Option<char>,
+        csv_fields: &str,
+        convert_quals: bool,
         qfile: Option<&str>,
     ) -> CliResult<OutFormat> {
-        let in_fields = match informat {
-            Some(InFormat::Csv { fields, .. }) => Some(fields),
-            _ => None,
-        };
-        let csv_fields: String = csv_fields
-            .map(|s| s.to_owned())
-            .or_else(|| in_fields.map(|f| f.join(",")))
-            .unwrap_or_else(|| "id,desc,seq".to_string());
-
-        let mut format = match string {
-            "fasta" | "fna" | "fa" | "<FASTA/QUAL>" => OutFormat::Fasta {
+        let mut format = match format {
+            FormatVariant::Fasta => OutFormat::Fasta {
                 attrs: attrs.to_owned(),
                 wrap_width: wrap_fasta,
             },
-            "fastq" | "fq" => OutFormat::Fastq {
-                format: Some(QualFormat::Sanger),
+            FormatVariant::Fastq(qformat) => OutFormat::Fastq {
+                format: if convert_quals { Some(qformat) } else { None },
                 attrs: attrs.to_owned(),
             },
-            "fastq-illumina" | "fq-illumina" => OutFormat::Fastq {
-                format: Some(QualFormat::Illumina),
-                attrs: attrs.to_owned(),
+            FormatVariant::Csv => OutFormat::Csv {
+                delim: csv_delim.unwrap_or(',') as u8,
+                fields: csv_fields.to_owned(),
             },
-            "fastq-solexa" | "fq-solexa" => OutFormat::Fastq {
-                format: Some(QualFormat::Solexa),
-                attrs: attrs.to_owned(),
+            FormatVariant::Tsv => OutFormat::Csv {
+                delim: csv_delim.unwrap_or('\t') as u8,
+                fields: csv_fields.to_owned(),
             },
-            "csv" => OutFormat::Csv {
-                delim: util::parse_delimiter(csv_delim.unwrap_or(","))?,
-                fields: csv_fields,
-            },
-            "tsv" | "txt" => OutFormat::Csv {
-                delim: util::parse_delimiter(csv_delim.unwrap_or("\t"))?,
-                fields: csv_fields,
-            },
-            _ => {
-                return Err(CliError::Other(format!(
-                    "Unknown output format: '{}'",
-                    string
-                )))
-            }
         };
-
-        // remove quality output format if equal to input format
-        if let OutFormat::Fastq { format: outfmt, .. } = &mut format {
-            if let Some(&InFormat::Fastq { format: infmt }) = informat {
-                if outfmt == &Some(infmt) {
-                    *outfmt = None;
-                }
-            }
-        }
 
         // FaQual format
         if let Some(f) = qfile {
@@ -301,7 +286,7 @@ pub fn io_writer_from_kind(kind: &OutputKind) -> io::Result<Box<dyn WriteFinish>
         OutputKind::File(ref p) => Box::new(io::BufWriter::new(File::create(p).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,
-                format!("Error creating '{}': {}", p.to_string_lossy(), e),
+                format!("Error creating '{}': {}", p, e),
             )
         })?)),
     })
@@ -324,7 +309,11 @@ pub fn compr_writer(
             };
             Box::new(bzip2::write::BzEncoder::new(writer, c))
         }
-        Compression::Lz4 => Box::new(lz4::EncoderBuilder::new().build(writer)?),
+        Compression::Lz4 => Box::new(
+            lz4::EncoderBuilder::new()
+                .level(level.unwrap_or(0) as u32)
+                .build(writer)?,
+        ),
         Compression::Zstd => Box::new(zstd::Encoder::new(writer, i32::from(level.unwrap_or(0)))?),
         Compression::None => writer,
     })

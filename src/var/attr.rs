@@ -1,5 +1,5 @@
-use crate::io::SeqAttr;
 use crate::helpers::key_value;
+use crate::io::SeqAttr;
 
 use memchr::memchr;
 

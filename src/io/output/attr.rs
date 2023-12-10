@@ -4,20 +4,19 @@ use vec_map::VecMap;
 
 use super::{Record, Writer};
 use crate::error::CliResult;
-use crate::io::DefRecord;
-use crate::io::SeqWriter;
+use crate::io::{Attribute, DefRecord, SeqWriter};
 use crate::var;
 
 pub struct AttrWriter<W: io::Write, S: SeqWriter<W>> {
     inner: S,
-    attrs: Vec<(String, String)>, // used only until 'register_vars' called
+    attrs: Vec<Attribute>, // used only until 'register_vars' called
     compiled_attrs: VecMap<var::varstring::VarString>,
     temp: (Vec<u8>, Vec<u8>),
     _w: PhantomData<W>,
 }
 
 impl<W: io::Write, S: SeqWriter<W>> AttrWriter<W, S> {
-    pub fn new(writer: S, attrs: Vec<(String, String)>) -> AttrWriter<W, S> {
+    pub fn new(writer: S, attrs: Vec<Attribute>) -> AttrWriter<W, S> {
         AttrWriter {
             inner: writer,
             attrs,
@@ -30,9 +29,9 @@ impl<W: io::Write, S: SeqWriter<W>> AttrWriter<W, S> {
 
 impl<W: io::Write, S: SeqWriter<W>> Writer<W> for AttrWriter<W, S> {
     fn register_vars(&mut self, builder: &mut var::VarBuilder) -> CliResult<()> {
-        for (name, value) in &self.attrs {
-            let e = var::varstring::VarString::parse_register(value, builder)?;
-            let id = builder.register_attr(name, Some(var::attr::Action::Edit));
+        for attr in &self.attrs {
+            let e = var::varstring::VarString::parse_register(&attr.value, builder)?;
+            let id = builder.register_attr(&attr.name, Some(var::attr::Action::Edit));
             self.compiled_attrs.insert(id, e);
         }
         Ok(())

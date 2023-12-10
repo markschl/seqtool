@@ -35,7 +35,7 @@ impl<W: io::Write> Writer<W> for CsvWriter<W> {
         // progressively parse fields; this is necessary because there can be
         // commas in functions as well
         self.compiled_fields.clear();
-        register_var_list(&self.field_list, ',', builder, &mut self.compiled_fields)?;
+        register_var_list(&self.field_list, ",", builder, &mut self.compiled_fields)?;
         self.row
             .extend((0..self.compiled_fields.len()).map(|_| vec![]));
         Ok(())

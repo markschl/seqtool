@@ -4,11 +4,12 @@ use std::str;
 
 use self::BuiltinVar::*;
 use crate::error::CliResult;
-use crate::io::input::{InputOptions, InputType};
+use crate::io::input::{InputKind, InputOptions};
 use crate::io::output::OutputOptions;
 use crate::io::Record;
 use crate::var::*;
 
+#[derive(Debug)]
 pub struct BuiltinHelp;
 
 impl VarHelp for BuiltinHelp {
@@ -100,6 +101,10 @@ impl BuiltinVars {
 }
 
 impl VarProvider for BuiltinVars {
+    fn help(&self) -> &dyn VarHelp {
+        &BuiltinHelp
+    }
+
     fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
         let var = match func.name.as_str() {
             "id" => Id,
@@ -138,20 +143,15 @@ impl VarProvider for BuiltinVars {
         !self.vars.is_empty()
     }
 
-    fn set(&mut self, record: &dyn Record, data: &mut MetaData) -> CliResult<()> {
+    fn set(&mut self, _record: &dyn Record, data: &mut MetaData) -> CliResult<()> {
         self.num += 1;
 
         for &(var, id) in &self.vars {
             let sym = data.symbols.get_mut(id);
             match var {
-                Id => sym.set_text(record.id_bytes()),
-                Desc => sym.set_text(record.desc_bytes().unwrap_or(b"")),
-                Seq => {
-                    let concatenated = sym.mut_text();
-                    for s in record.seq_segments() {
-                        concatenated.extend_from_slice(s);
-                    }
-                }
+                Id => sym.set_attr(SeqAttr::Id),
+                Desc => sym.set_attr(SeqAttr::Desc),
+                Seq => sym.set_attr(SeqAttr::Seq),
                 Num => sym.set_int(self.num as i64),
                 InPath => sym.set_text(self.path_info.path.as_ref().unwrap()),
                 InName => sym.set_text(self.path_info.name.as_ref().unwrap()),
@@ -192,8 +192,8 @@ where
 {
     out.clear();
     match in_opts.kind {
-        InputType::Stdin => out.extend_from_slice(b"-"),
-        InputType::File(ref p) => {
+        InputKind::Stdin => out.extend_from_slice(b"-"),
+        InputKind::File(ref p) => {
             let s = func(p.as_path());
             if let Some(s) = s {
                 out.extend_from_slice(

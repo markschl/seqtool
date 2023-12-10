@@ -1,38 +1,40 @@
-use crate::config;
+use clap::Parser;
+
+use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::{RecordEditor, SeqAttr};
-use crate::opt;
+use crate::opt::CommonArgs;
 use crate::var::*;
 
-pub static USAGE: &str = concat!(
-    "
-Replaces the contents of sequence IDs, descriptions or sequences.
+/// Set a new sequence and/or header
+#[derive(Parser, Clone, Debug)]
+#[clap(next_help_heading = "Command options")]
+pub struct SetCommand {
+    /// New ID (variables allowed)
+    #[arg(short, long)]
+    id: Option<String>,
 
-Usage:
-    st set [options][-a <attr>...][-l <list>...] [<input>...]
-    st set (-h | --help)
-    st set --help-vars
+    /// New description (variables allowed)
+    #[arg(short, long)]
+    desc: Option<String>,
 
-Options:
-    -i, --id <expr>     New ID (variables allowed)
-    -d, --desc <expr>   New description (variables allowed)
-    -s, --seq <expr>    New sequence (variables allowed)
-",
-    common_opts!()
-);
+    /// New sequence (variables allowed)
+    #[arg(short, long)]
+    seq: Option<String>,
 
-pub fn run() -> CliResult<()> {
-    let args = opt::Args::new(USAGE)?;
-    let cfg = config::Config::from_args(&args)?;
+    #[command(flatten)]
+    pub common: CommonArgs,
+}
 
+pub fn run(cfg: Config, args: &SetCommand) -> CliResult<()> {
     let mut replacements = vec![];
-    if let Some(string) = args.opt_str("--id") {
+    if let Some(string) = args.id.as_ref() {
         replacements.push((string, SeqAttr::Id));
     }
-    if let Some(string) = args.opt_str("--desc") {
+    if let Some(string) = args.desc.as_ref() {
         replacements.push((string, SeqAttr::Desc));
     }
-    if let Some(string) = args.opt_str("--seq") {
+    if let Some(string) = args.seq.as_ref() {
         replacements.push((string, SeqAttr::Seq));
     }
 
@@ -40,7 +42,7 @@ pub fn run() -> CliResult<()> {
         // get String -> VarString
         let replacements: Vec<_> = replacements
             .iter()
-            .map(|&(e, attr)| {
+            .map(|&(ref e, attr)| {
                 let e = vars.build(|b| varstring::VarString::parse_register(e, b))?;
                 Ok((e, attr))
             })

@@ -233,11 +233,7 @@ fn ambig() {
 
     Tester::new()
         .cmp(&["find", "--to-csv", vars, subseq], &fasta, expected)
-        .cmp(
-            &["find", "--to-csv", vars, "--ambig", "yes", subseq],
-            &fasta,
-            expected,
-        )
+        .cmp(&["find", "--to-csv", vars, subseq], &fasta, expected)
         .cmp(
             &["find", "--to-csv", vars, "--dist", "0", &subseq_indel],
             &fasta,
@@ -248,8 +244,6 @@ fn ambig() {
             &fasta,
             expected,
         );
-    // gap open penalty doubled -> distance higher
-    //    .cmp(&["find", "--ambig", "--to-csv", vars, "--dist", "1", "--gap-penalties", "-2,-1", &subseq_indel], fasta, ",")
 
     // matching is asymmetric
     let seq_orig_ = "ACACTGTGGAGTTTTC";
@@ -258,26 +252,12 @@ fn ambig() {
     // TODO: working around Ukkonen bug in rust-bio
     Tester::new()
         .cmp(
-            &[
-                "find",
-                "--to-csv",
-                "id,match_range",
-                "--ambig",
-                "yes",
-                &seq_ambig[1..],
-            ],
+            &["find", "--to-csv", "id,match_range", &seq_ambig[1..]],
             &*format!(">seq\n{}\n", seq_orig_),
             "seq,2-16\n",
         )
         .cmp(
-            &[
-                "find",
-                "--to-csv",
-                "id,match_range",
-                "--ambig",
-                "yes",
-                &seq_orig_[1..],
-            ],
+            &["find", "--to-csv", "id,match_range", &seq_orig_[1..]],
             &*format!(">seq\n{}\n", seq_ambig),
             "seq,\n",
         )
@@ -287,8 +267,6 @@ fn ambig() {
                 "find",
                 "--to-csv",
                 "id,match_range",
-                "--ambig",
-                "yes",
                 "--dist",
                 "2",
                 &seq_orig_[1..],

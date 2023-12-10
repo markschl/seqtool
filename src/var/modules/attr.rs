@@ -2,6 +2,7 @@ use crate::error::CliResult;
 use crate::io::Record;
 use crate::var::*;
 
+#[derive(Debug)]
 pub struct AttrHelp;
 
 impl VarHelp for AttrHelp {
@@ -86,6 +87,10 @@ impl AttrVars {
 }
 
 impl VarProvider for AttrVars {
+    fn help(&self) -> &dyn VarHelp {
+        &AttrHelp
+    }
+
     fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
         let (paction, rtype, allow_missing) = match func.name.as_str() {
             "attr" => (None, VarType::Value, false),
