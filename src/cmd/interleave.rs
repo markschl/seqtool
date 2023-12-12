@@ -20,7 +20,7 @@ pub struct InterleaveCommand {
 pub fn run(cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
     let id_check = !args.no_id_check;
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         let mut id = vec![];
 
         cfg.read_alongside(|i, rec| {
@@ -38,7 +38,7 @@ pub fn run(cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
                     ));
                 }
             }
-            writer.write(rec, vars)
+            writer.write(rec, io_writer, vars)
         })
     })
 }

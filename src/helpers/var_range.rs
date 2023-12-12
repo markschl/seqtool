@@ -90,7 +90,7 @@ impl VarRange {
             ),
             VarRange::Full(ref varstring, ref mut val) => {
                 val.clear();
-                varstring.compose(val, symbols, record);
+                varstring.compose(val, symbols, record)?;
                 // TODO: unnecessary UTF-8 conversion -> investigate range parsing from byte slices (FromStr right now)
                 let s = std::str::from_utf8(val)?;
                 Range::from_str(s)?
@@ -155,7 +155,7 @@ impl VarRanges {
             }
             VarRangesType::Full(ref varstring) => {
                 self.val.clear();
-                varstring.compose(&mut self.val, symbols, record);
+                varstring.compose(&mut self.val, symbols, record)?;
                 let s = std::str::from_utf8(&self.val)?;
                 for r in s.split(',') {
                     self.out.push(Range::from_str(r)?);

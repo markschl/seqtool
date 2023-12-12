@@ -46,7 +46,7 @@ pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
     let exclusive = args.exclude;
     let unmask = args.unmask;
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         let mut ranges = VarRanges::from_str(ranges, vars)?;
         let mut seq = vec![];
 
@@ -81,7 +81,8 @@ pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
                 }
             }
 
-            writer.write(&SeqQualRecord::new(&record, &seq, None), vars)?;
+            let rec = SeqQualRecord::new(&record, &seq, None);
+            writer.write(&rec, io_writer, vars)?;
 
             Ok(true)
         })

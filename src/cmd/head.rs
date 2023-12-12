@@ -19,14 +19,14 @@ pub struct HeadCommand {
 pub fn run(cfg: Config, args: &HeadCommand) -> CliResult<()> {
     let n = args.num_seqs;
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         let mut i = 0;
 
         cfg.read(vars, |record, vars| {
             if i >= n {
                 return Ok(false);
             }
-            writer.write(&record, vars)?;
+            writer.write(&record, io_writer, vars)?;
             i += 1;
             Ok(true)
         })

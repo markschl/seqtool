@@ -1,11 +1,12 @@
-use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufWriter;
 use std::str;
 
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::helpers::seqtype::SeqType;
 use crate::helpers::util::replace_iter;
-use crate::io::{output::writer::Writer, RecordEditor, SeqAttr};
+use crate::io::{RecordEditor, SeqAttr};
 use crate::var::{varstring, VarHelp, VarProvider};
 
 mod helpers;
@@ -102,7 +103,7 @@ pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
     let v = Box::new(FindVars::new(patterns.len()));
     cfg.with_vars(Some(v), |vars| {
         // run
-        cfg.writer_with(vars, |writer, mut vars| {
+        cfg.writer_with_vars(vars, |writer, io_writer, vars| {
 
             // make sure all hits for group 0 are collected (group 0 is always searched)
             // API is somehow awkward
@@ -156,7 +157,7 @@ pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
             let (pattern_names, patterns): (Vec<_>, Vec<_>) = patterns.into_iter().unzip();
 
             let mut dropped_file = if let Some(f) = dropped_file.as_ref() {
-                Some(cfg.other_writer(f, Some(&mut vars))?)
+                Some(BufWriter::new(File::create(f)?))
             } else {
                 None
             };
@@ -197,7 +198,7 @@ pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
                             editor.edit_with_val(attr, &record, true, |text, out| {
                                 match_vars.set_with(record, matches, symbols, text)?;
                                 replacement_text.clear();
-                                rep.compose(&mut replacement_text, symbols, record);
+                                rep.compose(&mut replacement_text, symbols, record)?;
 
                                 let pos = matches
                                     .matches_iter(0, 0)
@@ -218,14 +219,14 @@ pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
                     if let Some(keep) = filter {
                         if matches.has_matches() ^ keep {
                             if let Some(ref mut f) = dropped_file {
-                                f.write(&record, vars)?;
+                                writer.write(&record, f, vars)?;
                             }
                             return Ok(true);
                         }
                     }
 
                     // write non-excluded to output
-                    writer.write(&editor.rec(&record), vars)?;
+                    writer.write(&editor.rec(&record), io_writer, vars)?;
                     Ok(true)
                 },
             )?;

@@ -107,19 +107,6 @@ pub enum SeqAttr {
     Seq,
 }
 
-// impl SeqAttr {
-//     pub fn from_str(attr: &str) -> Option<SeqAttr> {
-//         Some(if attr.eq_ignore_ascii_case("id") {
-//             SeqAttr::Id
-//         } else if attr.eq_ignore_ascii_case("desc") {
-//             SeqAttr::Desc
-//         } else if attr.eq_ignore_ascii_case("seq") {
-//             SeqAttr::Seq
-//         } else {
-//             return None;
-//         })
-//     }
-// }
 
 impl<'b, R: Record + ?Sized> Record for &'b R {
     fn id_bytes(&self) -> &[u8] {

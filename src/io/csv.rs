@@ -38,6 +38,7 @@ impl<R: io::Read> CsvReader<R> {
         let mut builder = csv::ReaderBuilder::new();
         let mut rdr = builder
             .delimiter(delim)
+            .quoting(false)
             .has_headers(has_header)
             .flexible(true)
             .from_reader(rdr);

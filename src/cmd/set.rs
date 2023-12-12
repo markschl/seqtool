@@ -38,7 +38,7 @@ pub fn run(cfg: Config, args: &SetCommand) -> CliResult<()> {
         replacements.push((string, SeqAttr::Seq));
     }
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         // get String -> VarString
         let replacements: Vec<_> = replacements
             .iter()
@@ -53,10 +53,10 @@ pub fn run(cfg: Config, args: &SetCommand) -> CliResult<()> {
         cfg.read(vars, |record, vars| {
             for &(ref expr, attr) in &replacements {
                 let val = editor.edit(attr);
-                expr.compose(val, vars.symbols(), record);
+                expr.compose(val, vars.symbols(), record)?;
             }
 
-            writer.write(&editor.rec(&record), vars)?;
+            writer.write(&editor.rec(&record), io_writer, vars)?;
             Ok(true)
         })
     })

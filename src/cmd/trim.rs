@@ -38,7 +38,7 @@ pub fn run(cfg: Config, args: &TrimCommand) -> CliResult<()> {
     let rng0 = args.zero_based;
     let exclusive = args.exclude;
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         let mut out_seq = vec![];
         let mut out_qual = vec![];
 
@@ -56,7 +56,7 @@ pub fn run(cfg: Config, args: &TrimCommand) -> CliResult<()> {
                 exclusive,
             )?;
 
-            writer.write(&rec, vars)?;
+            writer.write(&rec, io_writer, vars)?;
             Ok(true)
         })
     })

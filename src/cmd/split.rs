@@ -5,8 +5,8 @@ use clap::Parser;
 use fxhash::FxHashMap;
 
 use crate::config::Config;
-use crate::error::{CliError, CliResult};
-use crate::io::output::{OutputKind, Writer};
+use crate::error::CliResult;
+use crate::io::output::{OutputKind, FormatWriter};
 use crate::opt::CommonArgs;
 use crate::var::{symbols, varstring, Func, VarBuilder, VarHelp, VarProvider};
 
@@ -18,13 +18,14 @@ use crate::var::{symbols, varstring, Func, VarBuilder, VarHelp, VarProvider};
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SplitCommand {
-    /// Split into chunks of <N> sequences and writes them to
-    /// '{filestem}_{chunk}.{default_ext}'.
-    /// This is a variable string which can be changed using -o/--output.
+    /// Split into chunks of <N> sequences and writes each chunk to a separate
+    /// file with a numbered suffix.
+    /// The output path can be changed using -o/--output. The default is:
+    /// '{filestem}_{chunk}.{default_ext}' (e.g. input_name_1.fasta).
     #[arg(short, long, value_name = "N")]
     num_seqs: Option<usize>,
 
-    /// Automatically create all parent directories found in -o
+    /// Automatically create all parent directories of the output path.
     #[arg(short, long)]
     parents: bool,
 
@@ -40,12 +41,13 @@ pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
     let out_path = match args.common.output.output.as_ref() {
         Some(OutputKind::File(p)) => Some(p.as_str()),
         Some(OutputKind::Stdout) => {
-            return fail!("The split command requires an output path, not STDOUT.")
+            return fail!("The split command requires an output path with variables, not STDOUT.")
         }
         None => None,
     };
 
-    let (key, limit) = if let Some(n) = num_seqs {
+    // output path (or default) and chunk size
+    let (out_key, chunk_size) = if let Some(n) = num_seqs {
         (
             out_path
                 .as_deref()
@@ -58,36 +60,40 @@ pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
         return fail!("The split command requires either '-n' or '-o'.");
     };
 
-    // initialize variable provider
-    let m: Option<Box<dyn VarProvider>> = if limit == 0 {
+    // initialize variable provider for chunk number
+    let m: Option<Box<dyn VarProvider>> = if chunk_size == 0 {
         None
     } else {
-        Some(Box::new(ChunkNum::new(limit)))
+        Some(Box::new(ChunkNum::new(chunk_size)))
     };
     cfg.with_vars(m, |vars| {
-        let var_key = vars.build(|b| varstring::VarString::var_or_composed(key, b))?;
+        let out_key = vars.build(|b| varstring::VarString::parse_register(out_key, b))?;
+        // file path -> writer
+        let mut outfiles = FxHashMap::default();
+        // path buffer
+        let mut path = vec![];
+        // writer for formatted output
+        // TODO: allow autorecognition of extension
+        let mut writer = cfg.format_writer(vars)?;
 
-        let mut outfiles: FxHashMap<_, Box<dyn Writer<_>>> = FxHashMap::default();
-        let mut path = vec![]; // path buffer
-
-        cfg.read(vars, |record, mut vars| {
+        cfg.read(vars, |record, vars| {
             // update chunk number variable
-            if limit != 0 {
+            if chunk_size != 0 {
                 vars.custom_mod::<ChunkNum, _>(|m, sym| m.unwrap().increment(sym))?;
             }
 
             // compose key
             path.clear();
-            var_key.compose(&mut path, vars.symbols(), record);
+            out_key.compose(&mut path, vars.symbols(), record)?;
 
             // cannot use Entry API
             // https://github.com/rust-lang/rfcs/pull/1769 ??
-            if let Some(w) = outfiles.get_mut(&path) {
-                w.write(&record, vars)?;
+            if let Some(io_writer) = outfiles.get_mut(&path) {
+                writer.write(&record, io_writer, vars)?;
                 return Ok(true);
             }
 
-            // initialize new file
+            // if output file does not exist yet, initialize new one
             let path_str = std::str::from_utf8(&path)?;
             report!(verbose, "New file: '{}'", path_str);
             let p = Path::new(path_str);
@@ -102,31 +108,15 @@ pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
                 create_dir_all(par)?;
             }
 
-            let w = cfg.other_writer(
-                path_str,
-                // only register output variables the first time since different files
-                // do not have different variable sets
-                if outfiles.is_empty() {
-                    Some(&mut vars)
-                } else {
-                    None
-                },
-            )?;
-            outfiles.insert(path.clone(), w);
-
-            let writer = outfiles.get_mut(&path).unwrap();
-            writer.write(&record, vars)?;
+            outfiles.insert(path.clone(), cfg.io_writer_other(path_str)?);
+            let io_writer = outfiles.get_mut(&path).unwrap();
+            writer.write(&record, io_writer, vars)?;
             Ok(true)
         })?;
 
         // file handles from Config::other_writer() have to be finished
         for (_, f) in outfiles {
-            f.into_inner()
-                .map(|w| {
-                    w?.finish()?.flush()?;
-                    Ok::<_, CliError>(())
-                })
-                .transpose()?;
+            f.finish()?.flush()?;
         }
         Ok(())
     })

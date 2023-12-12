@@ -1,3 +1,4 @@
+use crate::error::CliResult;
 use crate::helpers::key_value;
 use crate::io::SeqAttr;
 
@@ -83,7 +84,7 @@ impl Attrs {
                 match seq_attr {
                     SeqAttr::Id => self._id_actions.push((attr_id, action, pos.clone())),
                     SeqAttr::Desc => self._desc_actions.push((attr_id, action, pos.clone())),
-                    _ => panic!(),
+                    _ => unimplemented!(),
                 }
             } else if action != Action::Delete {
                 self._append_ids.push(attr_id);
@@ -91,6 +92,12 @@ impl Attrs {
         }
     }
 
+
+    /// Composes attributes from input ID and description and writes them to
+    /// output ID and description.
+    /// The output vectors are cleared before composing.
+    /// `push_fn` needs to be a custom supplied lookup function that translates
+    /// attribute "ID"s to their corresponding values.
     pub fn compose<F>(
         &self,
         id: &[u8],
@@ -98,24 +105,26 @@ impl Attrs {
         out_id: &mut Vec<u8>,
         out_desc: &mut Vec<u8>,
         mut push_fn: F,
-    ) where
-        F: FnMut(usize, &mut Vec<u8>),
+    ) -> CliResult<()>
+    where
+        F: FnMut(usize, &mut Vec<u8>) -> CliResult<()>,
     {
         out_id.clear();
         out_desc.clear();
 
-        self._compose(id, &self._id_actions, out_id, &mut push_fn);
+        self._compose(id, &self._id_actions, out_id, &mut push_fn)?;
 
         if let Some(d) = desc {
-            self._compose(d, &self._desc_actions, out_desc, &mut push_fn);
+            self._compose(d, &self._desc_actions, out_desc, &mut push_fn)?;
         }
 
         if self.append_attr == SeqAttr::Id {
-            self.append_missing(out_id, &self._append_ids, true, &mut push_fn);
+            self.append_missing(out_id, &self._append_ids, true, &mut push_fn)?;
         } else if self.append_attr == SeqAttr::Desc {
             let delim_before = !(self.adelim_is_space && out_desc.is_empty());
-            self.append_missing(out_desc, &self._append_ids, delim_before, &mut push_fn);
+            self.append_missing(out_desc, &self._append_ids, delim_before, &mut push_fn)?;
         }
+        Ok(())
     }
 
     fn _compose<F>(
@@ -124,15 +133,16 @@ impl Attrs {
         positions: &[(usize, Action, AttrPosition)],
         new_text: &mut Vec<u8>,
         mut push_fn: F,
-    ) where
-        F: FnMut(usize, &mut Vec<u8>),
+    ) -> CliResult<()>
+    where
+        F: FnMut(usize, &mut Vec<u8>) -> CliResult<()>,
     {
         let mut prev_end = 0;
         for &(id, action, ref pos) in positions {
             match action {
                 Action::Edit => {
                     new_text.extend_from_slice(&text[prev_end..pos.value_start]);
-                    push_fn(id, new_text);
+                    push_fn(id, new_text)?;
                 }
                 Action::Delete => {
                     // remove the delimiter before if possible, but pos.start == 0 is also possible
@@ -147,6 +157,7 @@ impl Attrs {
             prev_end = pos.end;
         }
         new_text.extend_from_slice(&text[prev_end..]);
+        Ok(())
     }
 
     fn append_missing<F>(
@@ -155,8 +166,9 @@ impl Attrs {
         ids: &[usize],
         delim_before: bool,
         mut push_fn: F,
-    ) where
-        F: FnMut(usize, &mut Vec<u8>),
+    ) -> CliResult<()>
+    where
+        F: FnMut(usize, &mut Vec<u8>) -> CliResult<()>,
     {
         let mut delim_before = delim_before;
         for &attr_id in ids {
@@ -169,8 +181,9 @@ impl Attrs {
             }
             new_text.extend_from_slice(attr_name.as_bytes());
             new_text.push(self.attr_value_delim);
-            push_fn(attr_id, new_text);
+            push_fn(attr_id, new_text)?;
         }
+        Ok(())
     }
 
     pub fn has_value(&self, attr_id: usize) -> bool {
@@ -345,8 +358,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-        });
+            Ok(out.extend_from_slice(b"val"))
+        }).unwrap();
         assert_eq!(&out_desc, b"desc a=0 b=val");
 
         let desc = Some(&b"desc a=0 c=1"[..]);
@@ -355,8 +368,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-        });
+            Ok(out.extend_from_slice(b"val"))
+        }).unwrap();
         assert_eq!(&out_desc, b"desc a=0 c=1 b=val");
 
         let desc = Some(&b"desc a=0 b=1"[..]);
@@ -365,8 +378,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-        });
+            Ok(out.extend_from_slice(b"val"))
+        }).unwrap();
         assert_eq!(&out_desc, b"desc b=val");
     }
 
@@ -381,8 +394,8 @@ mod tests {
         a.add_attr("a", 0, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-        });
+            Ok(out.extend_from_slice(b"val"))
+        }).unwrap();
         assert_eq!(&out_id, b"id;a=val");
         assert_eq!(&out_desc, b"desc a:1");
 
@@ -390,8 +403,8 @@ mod tests {
         a.add_attr("a", 0, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-        });
+            Ok(out.extend_from_slice(b"val"))
+        }).unwrap();
         assert_eq!(&out_id, b"id;a=0");
         assert_eq!(&out_desc, b"desc a:val");
     }
@@ -408,8 +421,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-        });
+            Ok(out.extend_from_slice(b"val"))
+        }).unwrap();
         assert_eq!(&out_desc, b"desc a=val c=2 b=val");
 
         let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
@@ -417,8 +430,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Delete));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-        });
+            Ok(out.extend_from_slice(b"val"))
+        }).unwrap();
         assert_eq!(&out_desc, b"desc c=2");
     }
 
@@ -433,17 +446,17 @@ mod tests {
 
         let desc = Some(&b"desc a=0"[..]);
         a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {});
+        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {Ok(())}).unwrap();
         assert_eq!(&out_desc, b"desc");
 
         let desc = Some(&b"desc2"[..]);
         a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {});
+        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {Ok(())}).unwrap();
         assert_eq!(&out_desc, b"desc2");
 
         let desc = Some(&b"a=4"[..]);
         a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {});
+        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {Ok(())}).unwrap();
         assert_eq!(&out_desc, b"");
     }
 

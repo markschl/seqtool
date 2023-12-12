@@ -13,9 +13,9 @@ pub struct PassCommand {
 }
 
 pub fn run(cfg: Config, _args: &PassCommand) -> CliResult<()> {
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         cfg.read(vars, |record, vars| {
-            writer.write(&record, vars)?;
+            writer.write(&record, io_writer, vars)?;
             Ok(true)
         })
     })

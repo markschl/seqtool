@@ -20,7 +20,7 @@ pub struct SliceCommand {
 pub fn run(cfg: Config, args: &SliceCommand) -> CliResult<()> {
     let range = args.range.clone();
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         // convert from 1-based to 0-based coordinates
         let mut start = range.start.unwrap_or(1);
         if start == 0 {
@@ -40,7 +40,7 @@ pub fn run(cfg: Config, args: &SliceCommand) -> CliResult<()> {
                         return Ok(false);
                     }
                 }
-                writer.write(&record, vars)?;
+                writer.write(&record, io_writer, vars)?;
             }
             i += 1;
             Ok(true)

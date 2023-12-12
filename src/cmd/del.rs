@@ -26,7 +26,7 @@ pub fn run(cfg: Config, args: &DelCommand) -> CliResult<()> {
     let del_desc = args.desc;
     let del_attrs = args.attrs.as_deref();
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         if let Some(attrs) = del_attrs {
             vars.build(|b| {
                 for attr in attrs {
@@ -40,9 +40,9 @@ pub fn run(cfg: Config, args: &DelCommand) -> CliResult<()> {
             if del_desc {
                 let id = record.id_bytes();
                 let record = DefRecord::new(&record, id, None);
-                writer.write(&record, vars)?;
+                writer.write(&record, io_writer, vars)?;
             } else {
-                writer.write(&record, vars)?;
+                writer.write(&record, io_writer, vars)?;
             }
             Ok(true)
         })

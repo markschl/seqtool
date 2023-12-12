@@ -166,14 +166,17 @@ impl<'a> Record for FaQualRecord<'a> {
 
 // Writer
 
-pub struct FaQualWriter<W: io::Write> {
-    fa_writer: super::fasta::FastaWriter<W>,
-    qual_writer: io::BufWriter<File>,
+pub struct FaQualWriter {
+    fa_writer: super::fasta::FastaWriter,
+    // This is a bit awkward: the FASTA writer is not part of this struct,
+    // (supplied to write(), while the .qual writer is).
+    // However, this is a special case and not a problem.
+    qual_out: io::BufWriter<File>,
     wrap: usize,
 }
 
-impl<W: io::Write> FaQualWriter<W> {
-    pub fn new<Q>(fa_writer: W, wrap: Option<usize>, qual_path: Q) -> CliResult<FaQualWriter<W>>
+impl FaQualWriter {
+    pub fn new<Q>(wrap: Option<usize>, qual_path: Q) -> CliResult<Self>
     where
         Q: AsRef<Path>,
     {
@@ -189,24 +192,25 @@ impl<W: io::Write> FaQualWriter<W> {
         })?;
 
         Ok(FaQualWriter {
-            fa_writer: super::fasta::FastaWriter::new(fa_writer, wrap),
-            qual_writer: io::BufWriter::new(q_handle),
+            fa_writer: super::fasta::FastaWriter::new(wrap),
+            qual_out: io::BufWriter::new(q_handle),
             wrap: wrap.unwrap_or(std::usize::MAX),
         })
     }
 }
 
-impl<W: io::Write> SeqWriter<W> for FaQualWriter<W> {
-    fn write(&mut self, record: &dyn Record, vars: &var::Vars) -> CliResult<()> {
-        self.fa_writer.write(record, vars)?;
+impl SeqWriter for FaQualWriter {
+    fn write<W: io::Write>(&mut self, record: &dyn Record, vars: &var::Vars, out: W) -> CliResult<()> {
+        // write FASTA record
+        self.fa_writer.write(record, vars, out)?;
 
         // write quality scores
         let qual = record.qual().ok_or("No quality scores found in input.")?;
 
         // header
         match record.get_header() {
-            SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.qual_writer, id, desc)?,
-            SeqHeader::FullHeader(h) => fasta::write_head(&mut self.qual_writer, h)?,
+            SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.qual_out, id, desc)?,
+            SeqHeader::FullHeader(h) => fasta::write_head(&mut self.qual_out, h)?,
         }
 
         // quality lines
@@ -226,16 +230,12 @@ impl<W: io::Write> SeqWriter<W> for FaQualWriter<W> {
                 });
 
                 for q in q_iter.by_ref().take(qline.len() - 1) {
-                    write!(self.qual_writer, "{} ", q?)?;
+                    write!(self.qual_out, "{} ", q?)?;
                 }
-                writeln!(self.qual_writer, "{}", q_iter.next().unwrap()?)?;
+                writeln!(self.qual_out, "{}", q_iter.next().unwrap()?)?;
             }
         }
 
         Ok(())
-    }
-
-    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
-        Box::new(self.fa_writer).into_inner()
     }
 }

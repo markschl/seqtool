@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::ops::{Deref, Range};
-use std::str;
+use std::{str, io};
 
 use bstr::ByteSlice;
 use regex::{self, CaptureMatches, Captures};
@@ -153,6 +153,7 @@ impl VarStringPart {
     }
 }
 
+/// This type represents text, which can contain variables and/or expressions
 #[derive(Debug, Clone, Default)]
 pub struct VarString {
     parts: Vec<VarStringPart>,
@@ -337,20 +338,26 @@ impl VarString {
     /// Compose the variable string given a filled symbol talbe
     /// Caution: the string is not cleared, any data is appended! clear it by yourself if needed
     #[inline]
-    pub fn compose(
+    pub fn compose<W: io::Write + ?Sized>(
         &self,
-        out: &mut Vec<u8>,
+        out: &mut W,
         table: &var::symbols::SymbolTable,
         record: &dyn Record,
-    ) {
+    ) -> CliResult<()> {
         for part in &self.parts {
             match part {
-                VarStringPart::Text(s) => out.extend_from_slice(s),
+                VarStringPart::Text(s) => {
+                    out.write_all(s)?;
+                }
                 VarStringPart::Var(id) => {
-                    table.get(*id).as_text(record, |s| out.extend_from_slice(s));
+                    table.get(*id).as_text(record, |s| {
+                        out.write_all(s)?;
+                        Ok(())
+                    })?;
                 }
             }
         }
+        Ok(())
     }
 
     /// Converts the variable string to a float, whereby values in single-variable
@@ -372,7 +379,7 @@ impl VarString {
             unreachable!();
         }
         let mut value = self.num_string.borrow_mut();
-        self.compose(value.clear(), table, record);
+        try_opt!(self.compose(value.clear(), table, record));
         if value.len() == 0 {
             return None;
         }
@@ -395,7 +402,7 @@ impl VarString {
             unreachable!();
         }
         let mut value = self.num_string.borrow_mut();
-        self.compose(value.clear(), table, record);
+        try_opt!(self.compose(value.clear(), table, record));
         if value.len() == 0 {
             return None;
         }

@@ -103,32 +103,27 @@ impl<'a> Record for FastaRecord<'a> {
 
 // Writer
 
-pub struct FastaWriter<W: io::Write> {
-    io_writer: W,
+pub struct FastaWriter {
     wrap: Option<usize>,
 }
 
-impl<W: io::Write> FastaWriter<W> {
-    pub fn new(io_writer: W, wrap: Option<usize>) -> FastaWriter<W> {
-        FastaWriter { io_writer, wrap }
+impl FastaWriter {
+    pub fn new(wrap: Option<usize>) -> Self {
+        Self { wrap }
     }
 }
 
-impl<W: io::Write> SeqWriter<W> for FastaWriter<W> {
-    fn write(&mut self, record: &dyn Record, _: &var::Vars) -> CliResult<()> {
+impl SeqWriter for FastaWriter {
+    fn write<W: io::Write>(&mut self, record: &dyn Record, _vars: &var::Vars, mut out: W) -> CliResult<()> {
         match record.get_header() {
-            SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.io_writer, id, desc)?,
-            SeqHeader::FullHeader(h) => fasta::write_head(&mut self.io_writer, h)?,
+            SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut out, id, desc)?,
+            SeqHeader::FullHeader(h) => fasta::write_head(&mut out, h)?,
         }
         if let Some(wrap) = self.wrap {
-            fasta::write_wrap_seq_iter(&mut self.io_writer, record.seq_segments(), wrap)?;
+            fasta::write_wrap_seq_iter(&mut out, record.seq_segments(), wrap)?;
         } else {
-            fasta::write_seq_iter(&mut self.io_writer, record.seq_segments())?;
+            fasta::write_seq_iter(&mut out, record.seq_segments())?;
         }
         Ok(())
-    }
-
-    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
-        Some(Ok(self.io_writer))
     }
 }

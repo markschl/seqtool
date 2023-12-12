@@ -130,7 +130,7 @@ impl VarKey {
             }
         } else {
             let val = self.val.clear();
-            self.key.compose(val, symbols, record);
+            self.key.compose(val, symbols, record)?;
             if let Category::Text(ref mut v) = *out {
                 mem::swap(v, val);
             } else {

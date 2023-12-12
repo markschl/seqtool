@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, io::Write, str::Utf8Error};
 
-use crate::io::{Record, SeqAttr};
+use crate::{io::{Record, SeqAttr}, error::CliResult};
 
 macro_rules! impl_value {
     ($t:ident ($inner_t:ty) {
@@ -412,7 +412,7 @@ impl OptValue {
     accessor!(get_float, f64);
 
     #[inline]
-    pub fn as_text(&self, record: &dyn Record, func: impl FnOnce(&[u8])) -> bool {
+    pub fn as_text(&self, record: &dyn Record, func: impl FnOnce(&[u8]) -> CliResult<()>) -> CliResult<bool> {
         if !self.is_none {
             match self.value {
                 Value::Text(ref v) => v.as_text(record, func),
@@ -420,9 +420,9 @@ impl OptValue {
                 Value::Float(ref v) => v.as_text(record, func),
                 Value::Bool(ref v) => v.as_text(record, func),
                 Value::Attr(ref v) => v.as_text(record, func),
-            }
+            }?;
         }
-        !self.is_none
+        Ok(!self.is_none)
     }
 }
 

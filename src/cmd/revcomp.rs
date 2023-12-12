@@ -24,8 +24,8 @@ pub struct RevcompCommand {
 pub fn run(cfg: Config, args: &RevcompCommand) -> CliResult<()> {
     let num_threads = args.threads;
 
-    cfg.writer(|writer, vars| {
-        cfg.parallel_var::<_, _, Box<(Vec<u8>, Vec<u8>, bool)>>(
+    cfg.writer(|writer, io_writer, vars| {
+        cfg.read_parallel_var::<_, _, Box<(Vec<u8>, Vec<u8>, bool)>>(
             vars,
             num_threads - 1,
             |record, data| {
@@ -51,7 +51,7 @@ pub fn run(cfg: Config, args: &RevcompCommand) -> CliResult<()> {
                     None
                 };
                 let rc_rec = SeqQualRecord::new(&record, seq, q);
-                writer.write(&rc_rec, vars)?;
+                writer.write(&rc_rec, io_writer, vars)?;
                 Ok(true)
             },
         )

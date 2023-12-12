@@ -14,7 +14,7 @@ pub struct LowerCommand {
 }
 
 pub fn run(cfg: Config, _args: &LowerCommand) -> CliResult<()> {
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         let mut seq = vec![];
         cfg.read(vars, |record, vars| {
             seq.clear();
@@ -25,7 +25,7 @@ pub fn run(cfg: Config, _args: &LowerCommand) -> CliResult<()> {
                 }));
             }
             let ucase_rec = SeqQualRecord::new(&record, &seq, None);
-            writer.write(&ucase_rec, vars)?;
+            writer.write(&ucase_rec, io_writer, vars)?;
             Ok(true)
         })
     })

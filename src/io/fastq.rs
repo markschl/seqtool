@@ -99,24 +99,22 @@ impl<'a> Record for FastqRecord<'a> {
 
 // Writer
 
-pub struct FastqWriter<W: io::Write> {
-    writer: W,
+pub struct FastqWriter {
     qual_fmt: Option<QualFormat>,
     qual_vec: Vec<u8>,
 }
 
-impl<W: io::Write> FastqWriter<W> {
-    pub fn new(io_writer: W, qual_fmt: Option<QualFormat>) -> FastqWriter<W> {
-        FastqWriter {
-            writer: io_writer,
+impl FastqWriter {
+    pub fn new(qual_fmt: Option<QualFormat>) -> Self {
+        Self {
             qual_fmt,
             qual_vec: vec![],
         }
     }
 }
 
-impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
-    fn write(&mut self, record: &dyn Record, vars: &var::Vars) -> CliResult<()> {
+impl SeqWriter for FastqWriter {
+    fn write<W: io::Write>(&mut self, record: &dyn Record, vars: &var::Vars, mut out: W) -> CliResult<()> {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
         let qual = if let Some(fmt) = self.qual_fmt {
             self.qual_vec.clear();
@@ -137,33 +135,29 @@ impl<W: io::Write> SeqWriter<W> for FastqWriter<W> {
 
         // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
 
-        self.writer.write_all(b"@")?;
+        out.write_all(b"@")?;
 
         match record.get_header() {
             SeqHeader::IdDesc(id, desc) => {
-                self.writer.write_all(id)?;
+                out.write_all(id)?;
                 if let Some(d) = desc {
-                    self.writer.write_all(b" ")?;
-                    self.writer.write_all(d)?;
+                    out.write_all(b" ")?;
+                    out.write_all(d)?;
                 }
             }
             SeqHeader::FullHeader(h) => {
-                self.writer.write_all(h)?;
+                out.write_all(h)?;
             }
         }
 
-        self.writer.write_all(b"\n")?;
+        out.write_all(b"\n")?;
         for seq in record.seq_segments() {
-            self.writer.write_all(seq)?;
+            out.write_all(seq)?;
         }
-        self.writer.write_all(b"\n+\n")?;
-        self.writer.write_all(qual)?;
-        self.writer.write_all(b"\n")?;
+        out.write_all(b"\n+\n")?;
+        out.write_all(qual)?;
+        out.write_all(b"\n")?;
 
         Ok(())
-    }
-
-    fn into_inner(self: Box<Self>) -> Option<CliResult<W>> {
-        Some(Ok(self.writer))
     }
 }

@@ -25,7 +25,7 @@ pub fn run(cfg: Config, args: &TailCommand) -> CliResult<()> {
         return fail!("Cannot use STDIN as input, since we need to count all sequences before");
     }
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         // first count the sequences
         // TODO: maybe support .fai files and use them?
         let mut n = 0;
@@ -41,7 +41,7 @@ pub fn run(cfg: Config, args: &TailCommand) -> CliResult<()> {
         cfg.read(vars, |record, vars| {
             i += 1;
             if i > select_from {
-                writer.write(&record, vars)?;
+                writer.write(&record, io_writer, vars)?;
             }
             Ok(true)
         })

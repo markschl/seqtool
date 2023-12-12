@@ -22,9 +22,8 @@ pub trait SeqReader<O> {
     fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>>;
 }
 
-pub trait SeqWriter<W: io::Write> {
-    fn write(&mut self, record: &dyn Record, vars: &var::Vars) -> CliResult<()>;
-    fn into_inner(self: Box<Self>) -> Option<CliResult<W>>;
+pub trait SeqWriter {
+    fn write<W: io::Write>(&mut self, record: &dyn Record, vars: &var::Vars, out: W) -> CliResult<()>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -137,11 +136,15 @@ impl FileInfo {
             Some(ext) => match FormatVariant::from_str(ext.to_str().unwrap_or("")) {
                 Ok(f) => f,
                 Err(_) => {
-                    eprintln!(
-                        "Unknown extension: '{}', assuming {} format",
-                        ext.to_string_lossy(),
-                        default_format
-                    );
+                    let ext = ext.to_string_lossy();
+                    if !ext.find('{').is_some() {
+                        // print message unless extension is a variable/function
+                        eprintln!(
+                            "Unknown extension: '{}', assuming {} format",
+                            ext,
+                            default_format
+                        );
+                    }
                     default_format
                 }
             },

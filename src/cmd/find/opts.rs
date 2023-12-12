@@ -99,7 +99,10 @@ pub struct SearchActionArgs {
     #[arg(short, long)]
     pub exclude: bool,
 
-    /// Output file for sequences that were removed by filtering. The extension is autorecognized if possible, fallback is the input format.
+    /// Output file for sequences that were removed by filtering. 
+    /// The output format is (currently) the same as for the main output,
+    /// regardless of the file extension.
+    // TODO: allow autorecognition of extension
     #[arg(long, value_name = "FILE")]
     pub dropped: Option<String>,
 

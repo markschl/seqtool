@@ -10,7 +10,7 @@ use lz4;
 use thread_io;
 use zstd;
 
-use crate::error::CliResult;
+use crate::{error::CliResult, var::Vars};
 
 use super::{fa_qual, fasta, fastq, Attribute, Compression, FormatVariant, QualFormat, Record};
 
@@ -158,7 +158,7 @@ impl OutFormat {
     }
 }
 
-/// Required by compression format encoders
+/// Helper trait to finish compression streams in an unified way.
 pub trait WriteFinish: io::Write {
     fn finish<'a>(self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
     where
@@ -211,16 +211,19 @@ impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
     }
 }
 
-pub fn writer<F, O>(o: &OutputOptions, func: F) -> CliResult<O>
+pub fn writer<F, O>(o: &OutputOptions, vars: &mut Vars, func: F) -> CliResult<O>
 where
-    F: FnOnce(&mut dyn Writer<&mut dyn io::Write>) -> CliResult<O>,
+    F: FnOnce(&mut dyn FormatWriter, &mut dyn io::Write, &mut Vars) -> CliResult<O>,
 {
     io_writer(o, |io_writer| {
-        let mut w = from_format(io_writer, &o.format)?;
-        func(&mut w)
+        let mut w = from_format(&o.format, vars)?;
+        func(&mut w, io_writer, vars)
     })
 }
 
+/// Creates an io::Write either in the main thread (no compression)
+/// or in a background thread (if explicitly specified or writing to
+/// compressed format).
 pub fn io_writer<F, O>(o: &OutputOptions, func: F) -> CliResult<O>
 where
     F: FnOnce(&mut dyn io::Write) -> CliResult<O>,
@@ -250,33 +253,33 @@ where
     }
 }
 
-pub fn from_format<'a, W>(io_writer: W, format: &OutFormat) -> CliResult<Box<dyn Writer<W> + 'a>>
-where
-    W: io::Write + 'a,
-{
-    Ok(match *format {
-        OutFormat::Fasta {
-            ref attrs,
-            wrap_width,
-        } => {
-            let writer = fasta::FastaWriter::new(io_writer, wrap_width);
-            Box::new(attr::AttrWriter::new(writer, attrs.clone()))
-        }
-        OutFormat::Fastq { format, ref attrs } => {
-            let writer = fastq::FastqWriter::new(io_writer, format);
-            Box::new(attr::AttrWriter::new(writer, attrs.clone()))
-        }
-        OutFormat::FaQual {
-            ref attrs,
-            wrap_width,
-            ref qfile,
-        } => {
-            let writer = fa_qual::FaQualWriter::new(io_writer, wrap_width, qfile)?;
-            Box::new(attr::AttrWriter::new(writer, attrs.clone()))
-        }
-        OutFormat::Csv { delim, ref fields } => {
-            Box::new(csv::CsvWriter::new(io_writer, fields.clone(), delim))
-        }
+pub fn from_format<'a>(format: &OutFormat, vars: &mut Vars) -> CliResult<Box<dyn FormatWriter + 'a>> {   
+    vars.build(|b| {
+        let out: Box<dyn FormatWriter> = match *format {
+            OutFormat::Fasta {
+                ref attrs,
+                wrap_width,
+            } => {
+                let writer = fasta::FastaWriter::new(wrap_width);
+                Box::new(attr::AttrWriter::new(writer, &attrs, b)?)
+            }
+            OutFormat::Fastq { format, ref attrs } => {
+                let writer = fastq::FastqWriter::new(format);
+                Box::new(attr::AttrWriter::new(writer, &attrs, b)?)
+            }
+            OutFormat::FaQual {
+                ref attrs,
+                wrap_width,
+                ref qfile,
+            } => {
+                let writer = fa_qual::FaQualWriter::new(wrap_width, qfile)?;
+                Box::new(attr::AttrWriter::new(writer, &attrs, b)?)
+            }
+            OutFormat::Csv { delim, ref fields } => {
+                Box::new(csv::CsvWriter::new(&fields, delim, b)?)
+            }
+        };
+        Ok(out)
     })
 }
 

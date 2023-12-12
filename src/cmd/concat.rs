@@ -42,7 +42,7 @@ pub fn run(cfg: Config, args: &ConcatCommand) -> CliResult<()> {
     let s_char = args.s_char as u8;
     let q_char = args.q_char as u8;
 
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         let mut record = OwnedRecord::default();
         let num_readers = cfg.num_readers();
         if num_readers == 0 {
@@ -79,7 +79,7 @@ pub fn run(cfg: Config, args: &ConcatCommand) -> CliResult<()> {
 
             // handle qual
             if let Some(q) = rec.qual() {
-                let qual = record.qual.get_or_insert(Vec::new());
+                let qual = record.qual.get_or_insert_with(Vec::new);
                 if i == 0 {
                     qual.clear();
                 }
@@ -98,7 +98,7 @@ pub fn run(cfg: Config, args: &ConcatCommand) -> CliResult<()> {
 
             // write at last
             if i == max_idx {
-                writer.write(&record, vars)?;
+                writer.write(&record, io_writer, vars)?;
             }
             Ok(())
         })

@@ -84,8 +84,8 @@ fn run_replace<R: Replacer + Sync>(
     replacer: R,
     num_threads: u32,
 ) -> CliResult<()> {
-    cfg.writer(|writer, vars| {
-        cfg.parallel_var::<_, _, RecordEditor>(
+    cfg.writer(|writer, io_writer, vars| {
+        cfg.read_parallel_var::<_, _, RecordEditor>(
             vars,
             num_threads - 1,
             |record, editor| {
@@ -94,7 +94,7 @@ fn run_replace<R: Replacer + Sync>(
                 })
             },
             |record, editor, vars| {
-                writer.write(&editor.rec(&record), vars)?;
+                writer.write(&editor.rec(&record), io_writer, vars)?;
                 Ok(true)
             },
         )

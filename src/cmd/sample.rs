@@ -8,7 +8,7 @@ use rand::{distributions::Uniform, prelude::*};
 
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::io::output::Writer;
+use crate::io::output::FormatWriter;
 use crate::opt::CommonArgs;
 use crate::var::*;
 
@@ -49,13 +49,13 @@ fn read_seed(seed_str: &str) -> Seed {
 }
 
 pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
-    cfg.writer(|writer, vars| {
+    cfg.writer(|writer, io_writer, vars| {
         if let Some(n_rand) = args.num_seqs {
             if let Some(s) = args.seed {
                 let rng: StdRng = SeedableRng::from_seed(s);
-                sample_n(&cfg, n_rand, rng, writer, vars)
+                sample_n(&cfg, n_rand, rng, writer, io_writer, vars)
             } else {
-                sample_n(&cfg, n_rand, thread_rng(), writer, vars)
+                sample_n(&cfg, n_rand, thread_rng(), writer, io_writer, vars)
             }
         } else if let Some(p) = args.frac {
             if !(0f32..=1.).contains(&p) {
@@ -63,9 +63,9 @@ pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
             }
             if let Some(s) = args.seed {
                 let rng: StdRng = SeedableRng::from_seed(s);
-                sample_prob(&cfg, p, rng, writer, vars)
+                sample_prob(&cfg, p, rng, writer, io_writer, vars)
             } else {
-                sample_prob(&cfg, p, thread_rng(), writer, vars)
+                sample_prob(&cfg, p, thread_rng(), writer, io_writer, vars)
             }
         } else {
             return fail!("Nothing selected, use either -n/--num-seqs or --frac");
@@ -73,11 +73,12 @@ pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
     })
 }
 
-fn sample_n<R: Rng, W: io::Write>(
+fn sample_n<R: Rng>(
     cfg: &Config,
     k: usize,
     mut rng: R,
-    writer: &mut dyn Writer<W>,
+    writer: &mut dyn FormatWriter,
+    io_writer: &mut dyn io::Write,
     vars: &mut Vars,
 ) -> CliResult<()> {
     if cfg.has_stdin() {
@@ -120,17 +121,18 @@ fn sample_n<R: Rng, W: io::Write>(
 
     cfg.read(vars, |record, vars| {
         if chosen_iter.next().unwrap() {
-            writer.write(&record, vars)?;
+            writer.write(&record, io_writer, vars)?;
         }
         Ok(true)
     })
 }
 
-fn sample_prob<R: Rng, W: io::Write>(
+fn sample_prob<R: Rng>(
     cfg: &Config,
     prob: f32,
     mut rng: R,
-    writer: &mut dyn Writer<W>,
+    writer: &mut dyn FormatWriter,
+    io_writer: &mut dyn io::Write,
     vars: &mut Vars,
 ) -> CliResult<()> {
     assert!((0f32..=1.).contains(&prob));
@@ -139,7 +141,7 @@ fn sample_prob<R: Rng, W: io::Write>(
 
     cfg.read(vars, |record, vars| {
         if distr.sample(&mut rng) < prob {
-            writer.write(&record, vars)?;
+            writer.write(&record, io_writer, vars)?;
         }
         Ok(true)
     })
