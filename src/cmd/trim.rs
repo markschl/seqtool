@@ -43,9 +43,10 @@ pub fn run(cfg: Config, args: &TrimCommand) -> CliResult<()> {
         let mut out_qual = vec![];
 
         let mut ranges = VarRanges::from_str(ranges, vars)?;
+        let mut num_buf = Vec::new();
 
         cfg.read(vars, |record, vars| {
-            let ranges = ranges.resolve(vars.symbols(), record)?;
+            let ranges = ranges.resolve(vars.symbols(), record, &mut num_buf)?;
 
             let rec = trim(
                 &record,

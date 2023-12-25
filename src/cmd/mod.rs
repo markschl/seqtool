@@ -9,8 +9,10 @@ pub mod head;
 pub mod interleave;
 pub mod sample;
 pub mod slice;
+pub mod sort;
 pub mod split;
 pub mod tail;
+pub mod unique;
 
 pub mod find;
 pub mod replace;

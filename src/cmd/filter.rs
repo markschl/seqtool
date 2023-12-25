@@ -4,7 +4,7 @@ use std::io::BufWriter;
 use clap::Parser;
 
 use crate::config::Config;
-use crate::error::{CliResult, CliError};
+use crate::error::{CliError, CliResult};
 use crate::opt::CommonArgs;
 use crate::var::symbols::Value;
 use crate::var::Func;
@@ -32,14 +32,14 @@ pub fn run(cfg: Config, args: &FilterCommand) -> CliResult<()> {
 
     cfg.writer(|writer, io_writer, vars| {
         let func = Func::expr(expr);
-        let (expr_id, _) = vars.build(|b| b.register_var(&func))?.unwrap();
+        let (expr_id, _, _) = vars.build(|b| b.register_var(&func))?.unwrap();
         let mut dropped_file = dropped_file
             .map(|f| Ok::<_, CliError>(BufWriter::new(File::create(f)?)))
             .transpose()?;
 
         cfg.read(vars, |record, vars| {
             let v = vars.symbols().get(expr_id);
-            let result = match v.value() {
+            let result = match v.inner() {
                 Some(Value::Bool(b)) => *b.get(),
                 _ => return fail!(format!("Filter expression did not return a boolean (true/false) value, found {} instead", v))
             };

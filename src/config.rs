@@ -2,8 +2,8 @@ use std::cell::Cell;
 use std::io;
 
 use crate::error::CliResult;
-use crate::io::*;
 use crate::io::output::{from_format, FormatWriter};
+use crate::io::*;
 use crate::opt::CommonArgs;
 use crate::var::{self, VarProvider};
 
@@ -61,7 +61,11 @@ impl Config {
     /// or deduced from the extension.
     pub fn writer<F, O>(&self, func: F) -> CliResult<O>
     where
-        F: FnOnce(&mut dyn output::FormatWriter, &mut dyn io::Write, &mut var::Vars) -> CliResult<O>,
+        F: FnOnce(
+            &mut dyn output::FormatWriter,
+            &mut dyn io::Write,
+            &mut var::Vars,
+        ) -> CliResult<O>,
     {
         self.writer_with_custom(None, func)
     }
@@ -73,7 +77,11 @@ impl Config {
         func: F,
     ) -> CliResult<O>
     where
-        F: FnOnce(&mut dyn output::FormatWriter, &mut dyn io::Write, &mut var::Vars) -> CliResult<O>,
+        F: FnOnce(
+            &mut dyn output::FormatWriter,
+            &mut dyn io::Write,
+            &mut var::Vars,
+        ) -> CliResult<O>,
     {
         self.with_vars(custom_mod, |vars| {
             output::writer(&self.output_opts, vars, |writer, io_writer, vars| {
@@ -86,7 +94,11 @@ impl Config {
     /// constructed outside (via `with_vars`).
     pub fn writer_with_vars<F, O>(&self, vars: &mut var::Vars, func: F) -> CliResult<O>
     where
-        F: FnOnce(&mut dyn output::FormatWriter, &mut dyn io::Write, &mut var::Vars) -> CliResult<O>,
+        F: FnOnce(
+            &mut dyn output::FormatWriter,
+            &mut dyn io::Write,
+            &mut var::Vars,
+        ) -> CliResult<O>,
     {
         output::writer(&self.output_opts, vars, |writer, io_writer, vars| {
             func(writer, io_writer, vars)
@@ -105,17 +117,14 @@ impl Config {
     /// This may be a compressed writer if configured accordingly using CLI options
     /// or deduced from the output path extension.
     /// The caller is thus responsible for calling finish() on the writer when done.
-    pub fn io_writer_other(
-        &self,
-        path: &str,
-    ) -> CliResult<Box<dyn output::WriteFinish>> {
+    pub fn io_writer_other(&self, path: &str) -> CliResult<Box<dyn output::WriteFinish>> {
         let mut o = self.output_opts.clone();
         o.kind = output::OutputKind::File(path.into());
         let io_writer = output::io_writer_from_kind(&o.kind)?;
         let out = output::compr_writer(io_writer, o.compression, o.compression_level)?;
         Ok(out)
     }
-    
+
     /// Provides an io Writer and `Vars` in a scope and takes care of cleanup (flushing)
     /// when done. Takes an optional custom `VarProvider`.
     pub fn io_writer<F, O>(&self, custom_mod: Option<Box<dyn VarProvider>>, func: F) -> CliResult<O>
@@ -153,7 +162,6 @@ impl Config {
         })?;
         Ok(())
     }
-
 
     /// Read without parsing any variable information for maximum
     /// performance. Usually used for counting records only, since

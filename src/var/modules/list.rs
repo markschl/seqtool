@@ -7,6 +7,7 @@ use fxhash::FxHashMap;
 
 use crate::error::{CliError, CliResult};
 use crate::io::Record;
+use crate::var::symbols::VarType;
 use crate::var::*;
 
 #[derive(Debug)]
@@ -48,7 +49,7 @@ impl VarHelp for ListHelp {
 }
 
 #[derive(Debug)]
-enum VarType {
+enum ListVarType {
     Col(usize),
     Exists,
 }
@@ -64,7 +65,7 @@ where
     // used for reading data into it
     record: ByteRecord,
     // (var_id, col_idx)
-    vars: Vec<(usize, VarType)>,
+    vars: Vec<(usize, ListVarType)>,
     // specifies user choice and used as flag to indicate whether header has not yet been skipped
     has_header: bool,
     header: Option<FxHashMap<String, usize>>,
@@ -179,15 +180,15 @@ where
         &ListHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
-        let var = match func.name.as_ref() {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
+        let (var, vtype) = match func.name.as_ref() {
             "has_entry" => {
                 func.ensure_arg_range(0, 1)?;
                 let list_num = func.arg_as::<usize>(0).transpose()?.unwrap_or(1);
                 if !self.check_list_num(list_num)? {
-                    return Ok(false);
+                    return Ok(None);
                 }
-                VarType::Exists
+                (ListVarType::Exists, VarType::Bool)
             }
             "list_col" => {
                 debug_assert!(self.list_num != 0);
@@ -200,17 +201,17 @@ where
                     _ => return fail!("`list_col` accepts only 1 or 2 arguments: list_col(col) or list_col(n, col)")
                 };
                 if !self.check_list_num(list_num)? {
-                    return Ok(false);
+                    return Ok(None);
                 }
 
                 let i = self.get_col_index(col)?;
-                VarType::Col(i)
+                (ListVarType::Col(i), VarType::Text)
             }
-            _ => return Ok(false),
+            _ => return Ok(None),
         };
 
         self.vars.push((b.symbol_id(), var));
-        Ok(true)
+        Ok(Some(Some(vtype)))
     }
 
     fn has_vars(&self) -> bool {
@@ -236,10 +237,10 @@ where
 
         for (var_id, var) in &self.vars {
             match var {
-                VarType::Col(i) => {
+                ListVarType::Col(i) => {
                     let sym = data.symbols.get_mut(*var_id);
                     if let Some(text) = self.record.get(*i) {
-                        sym.set_text(text);
+                        sym.inner_mut().set_text(text);
                     } else {
                         if !self.allow_missing {
                             return fail!(ListError::ColMissing(id.to_owned(), *i));
@@ -247,8 +248,8 @@ where
                         sym.set_none();
                     }
                 }
-                VarType::Exists => {
-                    data.symbols.get_mut(*var_id).set_bool(exists);
+                ListVarType::Exists => {
+                    data.symbols.get_mut(*var_id).inner_mut().set_bool(exists);
                 }
             }
         }

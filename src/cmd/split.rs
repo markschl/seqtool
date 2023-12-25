@@ -6,9 +6,12 @@ use fxhash::FxHashMap;
 
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::io::output::{OutputKind, FormatWriter};
+use crate::io::output::{FormatWriter, OutputKind};
 use crate::opt::CommonArgs;
-use crate::var::{symbols, varstring, Func, VarBuilder, VarHelp, VarProvider};
+use crate::var::{
+    symbols::{self, VarType},
+    varstring, Func, VarBuilder, VarHelp, VarProvider,
+};
 
 /// This command distributes sequences into multiple files based on different
 /// criteria. In contrast to other commands, the output (-o) argument can
@@ -67,7 +70,7 @@ pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
         Some(Box::new(ChunkNum::new(chunk_size)))
     };
     cfg.with_vars(m, |vars| {
-        let out_key = vars.build(|b| varstring::VarString::parse_register(out_key, b))?;
+        let (out_key, _) = vars.build(|b| varstring::VarString::parse_register(out_key, b))?;
         // file path -> writer
         let mut outfiles = FxHashMap::default();
         // path buffer
@@ -165,7 +168,10 @@ impl ChunkNum {
             if self.chunk_num == 0 || self.seq_num > self.limit {
                 self.seq_num = 1;
                 self.chunk_num += 1;
-                symbols.get_mut(var_id).set_int(self.chunk_num as i64);
+                symbols
+                    .get_mut(var_id)
+                    .inner_mut()
+                    .set_int(self.chunk_num as i64);
             }
         }
         Ok(())
@@ -177,12 +183,12 @@ impl VarProvider for ChunkNum {
         &ChunkVarHelp
     }
 
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<bool> {
+    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
         if var.name == "chunk" {
             self.id = Some(b.symbol_id());
-            return Ok(true);
+            return Ok(Some(Some(VarType::Int)));
         }
-        Ok(false)
+        Ok(None)
     }
 
     fn has_vars(&self) -> bool {

@@ -30,11 +30,11 @@ use super::{ExprContext, Expression};
 // };
 
 fn to_js_value<'a>(
-    value: &OptValue,
+    value: Option<&Value>,
     record: &dyn Record,
     ctx: Ctx<'a>,
 ) -> CliResult<rquickjs::Value<'a>> {
-    let out = if let Some(v) = value.value() {
+    let out = if let Some(v) = value {
         match v {
             Value::Bool(v) => v.get().into_js(&ctx)?,
             Value::Int(v) => v.get().into_js(&ctx)?,
@@ -53,12 +53,12 @@ fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> CliResult<bool> {
     let mut is_bool = false;
     match ty {
         Type::Bool => {
-            out.set_bool(v.as_bool().unwrap());
+            out.inner_mut().set_bool(v.as_bool().unwrap());
             is_bool = true;
         }
-        Type::Int | Type::BigInt => out.set_int(v.as_int().unwrap() as i64),
-        Type::Float => out.set_float(v.as_float().unwrap()),
-        Type::String => out.set_text(
+        Type::Int | Type::BigInt => out.inner_mut().set_int(v.as_int().unwrap() as i64),
+        Type::Float => out.inner_mut().set_float(v.as_float().unwrap()),
+        Type::String => out.inner_mut().set_text(
             v.as_string()
                 .unwrap()
                 .to_string()
@@ -155,7 +155,7 @@ impl ExprContext for Context {
         self.context.with(|ctx| {
             let globals = ctx.globals();
             for (var_id, atom) in &self.vars {
-                let val = to_js_value(symbols.get(*var_id), record, ctx.clone())
+                let val = to_js_value(symbols.get(*var_id).inner(), record, ctx.clone())
                     .map_err(|e| (*var_id, e))?;
                 let _atom = atom.clone().restore(&ctx).unwrap();
                 globals.set(_atom, val).unwrap();

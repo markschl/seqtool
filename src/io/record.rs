@@ -107,7 +107,6 @@ pub enum SeqAttr {
     Seq,
 }
 
-
 impl<'b, R: Record + ?Sized> Record for &'b R {
     fn id_bytes(&self) -> &[u8] {
         (**self).id_bytes()

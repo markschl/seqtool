@@ -8,5 +8,4 @@ pub mod rng;
 pub mod seqtype;
 pub mod twoway_iter;
 pub mod util;
-pub mod val;
 pub mod var_range;

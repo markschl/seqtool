@@ -114,7 +114,12 @@ impl FastqWriter {
 }
 
 impl SeqWriter for FastqWriter {
-    fn write<W: io::Write>(&mut self, record: &dyn Record, vars: &var::Vars, mut out: W) -> CliResult<()> {
+    fn write<W: io::Write>(
+        &mut self,
+        record: &dyn Record,
+        vars: &var::Vars,
+        mut out: W,
+    ) -> CliResult<()> {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
         let qual = if let Some(fmt) = self.qual_fmt {
             self.qual_vec.clear();

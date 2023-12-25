@@ -2,9 +2,9 @@ use crate::cmd::{
     concat::ConcatCommand, count::CountCommand, del::DelCommand, filter::FilterCommand,
     find::FindCommand, head::HeadCommand, interleave::InterleaveCommand, lower::LowerCommand,
     mask::MaskCommand, pass::PassCommand, replace::ReplaceCommand, revcomp::RevcompCommand,
-    sample::SampleCommand, set::SetCommand, slice::SliceCommand, split::SplitCommand,
-    stat::StatCommand, tail::TailCommand, trim::TrimCommand, upper::UpperCommand,
-    view::ViewCommand,
+    sample::SampleCommand, set::SetCommand, slice::SliceCommand, sort::SortCommand,
+    split::SplitCommand, stat::StatCommand, tail::TailCommand, trim::TrimCommand,
+    unique::UniqueCommand, upper::UpperCommand, view::ViewCommand,
 };
 
 use crate::config::Config;
@@ -45,6 +45,8 @@ impl Cli {
             Tail(ref opts) => run!(tail, opts),
             Slice(ref opts) => run!(slice, opts),
             Sample(ref opts) => run!(sample, opts),
+            Sort(ref opts) => run!(sort, opts),
+            Unique(ref opts) => run!(unique, opts),
             Filter(ref opts) => run!(filter, opts),
             Split(ref opts) => run!(split, opts),
             Interleave(ref opts) => run!(interleave, opts),
@@ -238,6 +240,10 @@ pub enum SubCommand {
     Slice(SliceCommand),
     /// Get a random subset of sequences
     Sample(SampleCommand),
+    /// Sort records by sequence or any other criterion.
+    Sort(SortCommand),
+    /// De-replicate records, returning only unique ones
+    Unique(UniqueCommand),
     /// Filter based on different criteria
     Filter(FilterCommand),
     /// Distribute sequences into multiple files

@@ -2,7 +2,10 @@ use std::io::Write;
 
 use crate::error::CliResult;
 use crate::io::Record;
-use crate::var::{self, Func, VarBuilder};
+use crate::var::{
+    symbols::{SymbolTable, Value, VarType},
+    Func, VarBuilder,
+};
 
 use super::*;
 
@@ -77,7 +80,7 @@ impl VarHelp for FindVarHelp {
 // Variables
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum VarType {
+pub enum FindVarType {
     Start,
     End,
     Range(String),
@@ -89,11 +92,11 @@ pub enum VarType {
     Name,
 }
 
-use self::VarType::*;
+use self::FindVarType::*;
 
 #[derive(Debug)]
 pub struct VarPos {
-    var_type: VarType,
+    var_type: FindVarType,
     var_id: usize,
     // None for all hits
     hit_pos: Option<usize>,
@@ -147,14 +150,15 @@ impl FindVars {
         &mut self,
         rec: &dyn Record,
         matches: &Matches,
-        symbols: &mut var::symbols::SymbolTable,
+        symbols: &mut SymbolTable,
         text: &[u8],
     ) -> CliResult<()> {
         for pos in &self.vars {
-            let sym = symbols.get_mut(pos.var_id);
+            let out = symbols.get_mut(pos.var_id);
+            let val: &mut Value = out.inner_mut();
             if pos.var_type == Name {
                 let name = matches.pattern_name(pos.pattern_rank).unwrap_or("");
-                sym.set_text(name.as_bytes());
+                val.set_text(name.as_bytes());
                 continue;
             }
 
@@ -162,22 +166,22 @@ impl FindVars {
                 // specific hits requested
                 if let Some(m) = matches.get_match(*p, pos.match_group, pos.pattern_rank) {
                     match pos.var_type {
-                        Start => sym.set_int((m.start + 1) as i64),
-                        End => sym.set_int((m.end) as i64),
-                        NegStart => sym.set_int(m.neg_start1(rec.seq_len())),
-                        NegEnd => sym.set_int(m.neg_end1(rec.seq_len())),
-                        Dist => sym.set_int(i64::from(m.dist)),
+                        Start => val.set_int((m.start + 1) as i64),
+                        End => val.set_int((m.end) as i64),
+                        NegStart => val.set_int(m.neg_start1(rec.seq_len())),
+                        NegEnd => val.set_int(m.neg_end1(rec.seq_len())),
+                        Dist => val.set_int(i64::from(m.dist)),
                         Range(ref delim) => {
-                            write!(sym.mut_text(), "{}{}{}", m.start + 1, delim, m.end)?
+                            write!(val.mut_text(), "{}{}{}", m.start + 1, delim, m.end)?
                         }
                         NegRange(ref delim) => write!(
-                            sym.mut_text(),
+                            val.mut_text(),
                             "{}{}{}",
                             m.neg_start1(rec.seq_len()),
                             delim,
                             m.neg_end1(rec.seq_len())
                         )?,
-                        Match => sym.set_text(&text[m.start..m.end]),
+                        Match => val.set_text(&text[m.start..m.end]),
                         _ => unreachable!(),
                     }
                     continue;
@@ -186,7 +190,7 @@ impl FindVars {
                 // List of all matches requested:
                 // This is different from above by requiring a string type
                 // in all cases instead of integers.
-                let out = sym.mut_text();
+                let out = val.mut_text();
                 let mut n = 0;
                 for m in matches
                     .matches_iter(pos.pattern_rank, pos.match_group)
@@ -219,7 +223,7 @@ impl FindVars {
                 }
             }
             // important: reset previous value if nothing was found
-            sym.set_none();
+            out.set_none();
         }
         Ok(())
     }
@@ -230,14 +234,14 @@ impl VarProvider for FindVars {
         &FindVarHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
         let name = func.name.as_str();
         // new-style variables/functions
-        let (var_type, hit_i, pat_i, grp_i, min_args, max_args) = match name {
-            "match_dist" => (Dist, Some(0), 1, None, 0, 2),
-            "match" => (Match, Some(0), 1, None, 0, 2),
-            "match_group" => (Match, Some(1), 2, Some(0), 1, 3),
-            "pattern_name" => (Name, None, 0, None, 0, 1),
+        let (var_type, out_t, hit_i, pat_i, grp_i, min_args, max_args) = match name {
+            "match_dist" => (Dist, VarType::Int, Some(0), 1, None, 0, 2),
+            "match" => (Match, VarType::Text, Some(0), 1, None, 0, 2),
+            "match_group" => (Match, VarType::Text, Some(1), 2, Some(0), 1, 3),
+            "pattern_name" => (Name, VarType::Text, None, 0, None, 0, 1),
             _ => {
                 #[allow(clippy::manual_strip)]
                 let (grp, name) = if name.starts_with("matchgrp_") {
@@ -245,7 +249,7 @@ impl VarProvider for FindVars {
                 } else if name.starts_with("match_") {
                     (false, &name[6..])
                 } else {
-                    return Ok(false);
+                    return Ok(None);
                 };
                 let var = match name {
                     "start" => Start,
@@ -255,12 +259,12 @@ impl VarProvider for FindVars {
                     "range" => Range("-".into()),
                     "drange" => Range("..".into()),
                     "neg_drange" => NegRange("..".into()),
-                    _ => return Ok(false),
+                    _ => return Ok(None),
                 };
                 if grp {
-                    (var, Some(1), 2, Some(0), 0, 3)
+                    (var, VarType::Int, Some(1), 2, Some(0), 0, 3)
                 } else {
-                    (var, Some(0), 1, None, 0, 2)
+                    (var, VarType::Int, Some(0), 1, None, 0, 2)
                 }
             }
         };
@@ -317,7 +321,7 @@ impl VarProvider for FindVars {
             pattern_rank,
         };
         self.register_match(pos)?;
-        Ok(true)
+        Ok(Some(Some(out_t)))
     }
 
     fn has_vars(&self) -> bool {

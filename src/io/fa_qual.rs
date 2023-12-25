@@ -200,7 +200,12 @@ impl FaQualWriter {
 }
 
 impl SeqWriter for FaQualWriter {
-    fn write<W: io::Write>(&mut self, record: &dyn Record, vars: &var::Vars, out: W) -> CliResult<()> {
+    fn write<W: io::Write>(
+        &mut self,
+        record: &dyn Record,
+        vars: &var::Vars,
+        out: W,
+    ) -> CliResult<()> {
         // write FASTA record
         self.fa_writer.write(record, vars, out)?;
 

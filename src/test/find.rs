@@ -6,13 +6,9 @@ use super::*;
 fn exact_filter() {
     Tester::new()
         // filter
-        .cmp(
-            &["find", "-f", "GGCAGGCC"],
-            *FASTA,
-            &select_fasta(&[0, 1, 2]),
-        )
+        .cmp(&["find", "-f", "GGCAGGCC"], *FASTA, records!(0, 1, 2))
         // exclude
-        .cmp(&["find", "-e", "GGCAGGCC"], *FASTA, &select_fasta(&[3]));
+        .cmp(&["find", "-e", "GGCAGGCC"], *FASTA, records!(3));
 }
 
 #[test]
@@ -45,23 +41,15 @@ fn replace() {
 #[test]
 fn id_desc() {
     Tester::new()
-        .cmp(&["find", "-if", "seq1"], *FASTA, &select_fasta(&[0]))
+        .cmp(&["find", "-if", "seq1"], *FASTA, records!(0))
         .cmp(&["find", "--desc", "-f", "p="], *FASTA, &FASTA);
 }
 
 #[test]
 fn regex() {
     Tester::new()
-        .cmp(
-            &["find", "--desc", "-rf", r"p=\d$"],
-            *FASTA,
-            &select_fasta(&[0, 1]),
-        )
-        .cmp(
-            &["find", "-rf", "C[AT]GGCAGG"],
-            *FASTA,
-            &select_fasta(&[1, 2]),
-        );
+        .cmp(&["find", "--desc", "-rf", r"p=\d$"], *FASTA, records!(0, 1))
+        .cmp(&["find", "-rf", "C[AT]GGCAGG"], *FASTA, records!(1, 2));
 }
 
 #[test]
@@ -101,11 +89,7 @@ fn drop_file() {
 #[test]
 fn rng() {
     Tester::new()
-        .cmp(
-            &["find", "-f", "--rng", "..4", "TTGG"],
-            *FASTA,
-            &select_fasta(&[0]),
-        )
+        .cmp(&["find", "-f", "--rng", "..4", "TTGG"], *FASTA, records!(0))
         .cmp(&["find", "-f", "--rng", "..3", "TTGG"], *FASTA, "")
         .cmp(&["find", "-f", "--rng", "2..5", "TTGG"], *FASTA, "")
         .cmp(&["find", "-f", "--rng", "2..4", "TGGC"], *FASTA, "")

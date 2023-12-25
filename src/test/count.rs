@@ -23,7 +23,7 @@ fn numeric() {
 #[test]
 fn missing() {
     Tester::new()
-        .cmp(&["count", "-k", "{opt_attr(missing)}"], *FASTA, "\t4\n")
+        .cmp(&["count", "-k", "{opt_attr(missing)}"], *FASTA, "N/A\t4\n")
         .cmp(
             &["count", "-k", "n:{opt_attr(missing)}"],
             *FASTA,

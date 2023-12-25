@@ -7,6 +7,7 @@ use crate::error::CliResult;
 use crate::io::input::{InputKind, InputOptions};
 use crate::io::output::OutputOptions;
 use crate::io::Record;
+use crate::var::symbols::VarType;
 use crate::var::*;
 
 #[derive(Debug)]
@@ -105,38 +106,38 @@ impl VarProvider for BuiltinVars {
         &BuiltinHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
-        let var = match func.name.as_str() {
-            "id" => Id,
-            "desc" => Desc,
-            "seq" => Seq,
-            "num" => Num,
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
+        let (vt, var) = match func.name.as_str() {
+            "id" => (VarType::Attr, Id),
+            "desc" => (VarType::Attr, Desc),
+            "seq" => (VarType::Attr, Seq),
+            "num" => (VarType::Int, Num),
             "path" => {
                 self.path_info.path = Some(vec![]);
-                InPath
+                (VarType::Text, InPath)
             }
             "filename" => {
                 self.path_info.name = Some(vec![]);
-                InName
+                (VarType::Text, InName)
             }
             "filestem" => {
                 self.path_info.stem = Some(vec![]);
-                InStem
+                (VarType::Text, InStem)
             }
             "extension" => {
                 self.path_info.ext = Some(vec![]);
-                Ext
+                (VarType::Text, Ext)
             }
             "dirname" => {
                 self.path_info.dir = Some(vec![]);
-                Dir
+                (VarType::Text, Dir)
             }
-            "default_ext" => DefaultExt,
-            _ => return Ok(false),
+            "default_ext" => (VarType::Text, DefaultExt),
+            _ => return Ok(None),
         };
         func.ensure_num_args(0)?;
         self.vars.push((var, b.symbol_id()));
-        Ok(true)
+        Ok(Some(Some(vt)))
     }
 
     fn has_vars(&self) -> bool {
@@ -147,7 +148,7 @@ impl VarProvider for BuiltinVars {
         self.num += 1;
 
         for &(var, id) in &self.vars {
-            let sym = data.symbols.get_mut(id);
+            let sym = data.symbols.get_mut(id).inner_mut();
             match var {
                 Id => sym.set_attr(SeqAttr::Id),
                 Desc => sym.set_attr(SeqAttr::Desc),

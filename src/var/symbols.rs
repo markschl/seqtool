@@ -1,6 +1,10 @@
 use std::{cell::RefCell, fmt, io::Write, str::Utf8Error};
 
-use crate::{io::{Record, SeqAttr}, error::CliResult};
+use crate::{
+    error::CliResult,
+    helpers::util::{text_to_float, text_to_int},
+    io::{Record, SeqAttr},
+};
 
 macro_rules! impl_value {
     ($t:ident ($inner_t:ty) {
@@ -174,7 +178,7 @@ impl_value!(
 
 impl_value!(
     TextValue (Vec<u8>) {
-        v: crate::helpers::val::TextValue,
+        v: Vec<u8>,
         // cache for float and integer values, so we don't need to re-calculate
         // at every access
         float: RefCell<Option<f64>>,
@@ -182,27 +186,37 @@ impl_value!(
     }
     [self, _record]
     new => {
-        v: crate::helpers::val::TextValue::new(),
+        v: Vec::with_capacity(20),
         float: RefCell::new(None),
         int: RefCell::new(None)
     },
-    get => { self.v.get_vec() },
+    get => { &self.v },
     get_mut => {
         self.int.take();
         self.float.take();
-        self.v.clear()
+        self.v.clear();
+        &mut self.v
     },
-    bool => { self.v.get_bool() },
+    bool => {
+        match self.v.as_slice() {
+            b"true" => Ok(true),
+            b"false" => Ok(false),
+            _ => Err(format!(
+                "Could not convert '{}' to boolean (true/false).",
+                String::from_utf8_lossy(&self.v)
+            )),
+        }
+     },
     int => {
         match self.int.borrow_mut().as_ref() {
             Some(i) => Ok(*i),
-            None => self.v.get_int()
+            None => text_to_int(&self.v)
         }
      },
     float => {
         match self.float.borrow_mut().as_ref() {
             Some(f) => Ok(*f),
-            None => self.v.get_float()
+            None => text_to_float(&self.v)
         }
     },
     text_fn => {
@@ -303,35 +317,15 @@ pub enum Value {
     Attr(SeqAttrValue),
 }
 
-impl Default for Value {
-    fn default() -> Self {
-        Value::Bool(BoolValue::default())
-    }
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::Text(v) => write!(f, "{}", String::from_utf8_lossy(&v.v))?,
-            Value::Int(v) => write!(f, "{}", v.v)?,
-            Value::Float(v) => write!(f, "{}", v.v)?,
-            Value::Bool(v) => write!(f, "{}", v.v)?,
-            Value::Attr(a) => write!(f, "{}", a.v)?,
-        }
-        Ok(())
-    }
-}
-
 macro_rules! mut_accessor {
     ($fn_name:ident, $variant:ident, $t:ty) => {
         #[inline]
         pub fn $fn_name(&mut self) -> &mut $t {
-            self.is_none = false;
             loop {
-                match self.value {
+                match self {
                     Value::$variant(ref mut v) => return v.get_mut(),
                     _ => {
-                        self.value = Value::$variant(Default::default());
+                        *self = Value::$variant(Default::default());
                     }
                 }
             }
@@ -351,37 +345,23 @@ macro_rules! impl_set {
 macro_rules! accessor {
     ($fn_name:ident, $t:ty) => {
         #[inline]
-        pub fn $fn_name(&self, record: &dyn Record) -> Option<Result<$t, String>> {
-            if !self.is_none {
-                Some(match self.value {
-                    Value::Text(ref v) => v.$fn_name(record),
-                    Value::Int(ref v) => v.$fn_name(record),
-                    Value::Float(ref v) => v.$fn_name(record),
-                    Value::Bool(ref v) => v.$fn_name(record),
-                    Value::Attr(ref v) => v.$fn_name(record),
-                })
-            } else {
-                None
+        pub fn $fn_name(&self, record: &dyn Record) -> Result<$t, String> {
+            match self {
+                Value::Text(ref v) => v.$fn_name(record),
+                Value::Int(ref v) => v.$fn_name(record),
+                Value::Float(ref v) => v.$fn_name(record),
+                Value::Bool(ref v) => v.$fn_name(record),
+                Value::Attr(ref v) => v.$fn_name(record),
             }
         }
     };
 }
 
-/// This type caches Value instances, allowing them to be
-/// set to None and back to Some(Value) without losing allocations.
-#[derive(Debug, Clone, Default)]
-pub struct OptValue {
-    value: Value,
-    is_none: bool,
-}
-
-#[allow(dead_code)]
-impl OptValue {
-    pub fn value(&self) -> Option<&Value> {
-        if !self.is_none {
-            Some(&self.value)
-        } else {
-            None
+impl Value {
+    pub fn is_numeric(&self) -> bool {
+        match self {
+            Value::Int(_) | Value::Float(_) | Value::Bool(_) => true,
+            _ => false,
         }
     }
 
@@ -402,33 +382,76 @@ impl OptValue {
         text.extend_from_slice(value);
     }
 
-    #[inline]
-    pub fn set_none(&mut self) {
-        self.is_none = true;
-    }
-
-    accessor!(get_bool, bool);
+    // accessor!(get_bool, bool);
     accessor!(get_int, i64);
     accessor!(get_float, f64);
 
     #[inline]
-    pub fn as_text(&self, record: &dyn Record, func: impl FnOnce(&[u8]) -> CliResult<()>) -> CliResult<bool> {
-        if !self.is_none {
-            match self.value {
-                Value::Text(ref v) => v.as_text(record, func),
-                Value::Int(ref v) => v.as_text(record, func),
-                Value::Float(ref v) => v.as_text(record, func),
-                Value::Bool(ref v) => v.as_text(record, func),
-                Value::Attr(ref v) => v.as_text(record, func),
-            }?;
+    pub fn as_text(
+        &self,
+        record: &dyn Record,
+        func: impl FnOnce(&[u8]) -> CliResult<()>,
+    ) -> CliResult<()> {
+        match self {
+            Value::Text(ref v) => v.as_text(record, func),
+            Value::Int(ref v) => v.as_text(record, func),
+            Value::Float(ref v) => v.as_text(record, func),
+            Value::Bool(ref v) => v.as_text(record, func),
+            Value::Attr(ref v) => v.as_text(record, func),
         }
-        Ok(!self.is_none)
+    }
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Value::Bool(BoolValue::default())
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Text(v) => write!(f, "{}", String::from_utf8_lossy(&v.v))?,
+            Value::Int(v) => write!(f, "{}", v.v)?,
+            Value::Float(v) => write!(f, "{}", v.v)?,
+            Value::Bool(v) => write!(f, "{}", v.v)?,
+            Value::Attr(a) => write!(f, "{}", a.v)?,
+        }
+        Ok(())
+    }
+}
+
+/// This type caches Value instances, allowing them to be
+/// set to None and back to Some(Value) without losing allocations.
+#[derive(Debug, Clone, Default)]
+pub struct OptValue {
+    value: Value,
+    is_some: bool,
+}
+
+#[allow(dead_code)]
+impl OptValue {
+    pub fn inner(&self) -> Option<&Value> {
+        if self.is_some {
+            Some(&self.value)
+        } else {
+            None
+        }
+    }
+
+    pub fn inner_mut(&mut self) -> &mut Value {
+        self.is_some = true;
+        &mut self.value
+    }
+
+    pub fn set_none(&mut self) {
+        self.is_some = false;
     }
 }
 
 impl fmt::Display for OptValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.is_none {
+        if !self.is_some {
             write!(f, "{}", self.value)
         } else {
             write!(f, "undefined")
@@ -468,4 +491,13 @@ impl SymbolTable {
     pub fn get_mut(&mut self, id: usize) -> &mut OptValue {
         self.0.get_mut(id).expect("Bug: invalid symbol id")
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum VarType {
+    Text,
+    Int,
+    Float,
+    Bool,
+    Attr,
 }

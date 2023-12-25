@@ -5,13 +5,11 @@ use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt::{Debug, Write};
 
-use crate::error::CliResult;
-use crate::io::input::InputOptions;
-use crate::io::output::OutputOptions;
-use crate::io::{QualConverter, Record, SeqAttr};
+use crate::error::{CliError, CliResult};
+use crate::io::{input::InputOptions, output::OutputOptions, QualConverter, Record, SeqAttr};
 
 use super::attr;
-use super::symbols::SymbolTable;
+use super::symbols::{SymbolTable, VarType};
 
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct Func {
@@ -160,10 +158,27 @@ pub trait VarProvider: Debug + AsAnyMut {
     fn help(&self) -> &dyn VarHelp;
 
     /// Try registering a variable / "function" with a module.
-    /// If the function/variable is not found in the given module, returns Ok(None).
-    fn register(&mut self, func: &Func, vars: &mut VarBuilder) -> CliResult<bool>;
+    /// If the function/variable is not found in the given module,
+    /// the implementor should return Ok(None).
+    fn register(
+        &mut self,
+        func: &Func,
+        vars: &mut VarBuilder,
+    ) -> CliResult<Option<Option<VarType>>>;
 
     fn has_vars(&self) -> bool;
+
+    /// Is it allowed to use this module's variables/functions from within
+    /// another module?
+    /// (currently the case with expressions, in theory
+    /// any kind of dependency, e.g. if function args should be evaluated)
+    /// This is relevant to know for custom variable providers, whose value is only added
+    /// at a later stage and in turn depends on other variables/expressions,
+    /// making it impossible with the current simple system to represent this kind
+    /// of cyclic relationships.
+    fn allow_dependent(&self) -> bool {
+        true
+    }
 
     /// Supplies a new record, allowing the variable provider to obtain the necessary
     /// information and add it to the metadata object (usually the symbol table).
@@ -186,11 +201,18 @@ impl VarProvider for Box<dyn VarProvider> {
         (**self).help()
     }
 
-    fn register(&mut self, func: &Func, vars: &mut VarBuilder) -> CliResult<bool> {
+    fn register(
+        &mut self,
+        func: &Func,
+        vars: &mut VarBuilder,
+    ) -> CliResult<Option<Option<VarType>>> {
         (**self).register(func, vars)
     }
     fn has_vars(&self) -> bool {
         (**self).has_vars()
+    }
+    fn allow_dependent(&self) -> bool {
+        (**self).allow_dependent()
     }
     fn set(&mut self, item: &'_ dyn Record, data: &mut MetaData) -> CliResult<()> {
         (**self).set(item, data)
@@ -268,7 +290,7 @@ pub struct MetaData {
 pub struct Vars {
     modules: Vec<Box<dyn VarProvider>>,
     data: MetaData,
-    var_map: HashMap<Func, usize>,
+    var_map: HashMap<Func, (usize, Option<VarType>, bool)>,
     attr_map: HashMap<String, usize>,
     print_help: bool,
 }
@@ -408,7 +430,8 @@ impl Vars {
 #[derive(Debug)]
 pub struct VarBuilder<'a> {
     modules: &'a mut [Box<dyn VarProvider>],
-    var_map: &'a mut HashMap<Func, usize>,
+    // func -> (var_id, var_type, allow_nested)
+    var_map: &'a mut HashMap<Func, (usize, Option<VarType>, bool)>,
     attr_map: &'a mut HashMap<String, usize>,
     attrs: &'a mut attr::Attrs,
 }
@@ -424,10 +447,31 @@ impl<'a> VarBuilder<'a> {
         attr_id
     }
 
-    pub fn register_var(&mut self, var: &Func) -> CliResult<Option<(usize, bool)>> {
-        if let Some(id) = self.var_map.get(var) {
-            // eprintln!("var present {:?} {}", var, id);
-            return Ok(Some((*id, true)));
+    pub fn register_var(
+        &mut self,
+        var: &Func,
+    ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
+        self._register_var(var, false)
+    }
+
+    pub fn register_dependent_var(
+        &mut self,
+        var: &Func,
+    ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
+        self._register_var(var, true)
+    }
+
+    pub fn _register_var(
+        &mut self,
+        var: &Func,
+        dependent: bool,
+    ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
+        if let Some((id, var_type, allow_nested)) = self.var_map.get(var) {
+            // eprintln!("var present {:?} {} {:?}", var, id, var_type);
+            if dependent && !allow_nested {
+                return Err(DependentVarError(var.name.to_string()).into());
+            }
+            return Ok(Some((*id, var_type.clone(), true)));
         }
         if let Some((t, other)) = self.modules.split_last_mut() {
             let mut b = VarBuilder {
@@ -436,18 +480,35 @@ impl<'a> VarBuilder<'a> {
                 var_map: self.var_map,
                 attr_map: self.attr_map,
             };
-            if t.register(var, &mut b)? {
+            if let Some(vtype) = t.register(var, &mut b)? {
                 let var_id = self.var_map.len();
-                self.var_map.insert(var.clone(), var_id);
-                // eprintln!("successful {:?}  =>  {} in  {:?}", var, var_id, t);
-                return Ok(Some((var_id, false)));
+                let allow_nested = t.allow_dependent();
+                if dependent && !allow_nested {
+                    return Err(DependentVarError(var.name.to_string()).into());
+                }
+                self.var_map
+                    .insert(var.clone(), (var_id, vtype.clone(), allow_nested));
+                // eprintln!("successful {:?}  =>  {} / {:?} in  {:?}", var, var_id, vtype, t);
+                return Ok(Some((var_id, vtype, false)));
             }
-            return b.register_var(var);
+            return b._register_var(var, dependent);
         }
         Ok(None)
     }
 
     pub fn symbol_id(&self) -> usize {
         self.var_map.len()
+    }
+}
+
+pub struct DependentVarError(String);
+
+impl From<DependentVarError> for CliError {
+    fn from(e: DependentVarError) -> Self {
+        CliError::Other(format!(
+            "The variable/function '{}' can unfortunately not be used as \
+            within an {{ expression }}.",
+            e.0
+        ))
     }
 }

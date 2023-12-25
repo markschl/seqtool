@@ -1,15 +1,15 @@
-use std::cell::RefCell;
 use std::ops::{Deref, Range};
-use std::{str, io};
+use std::{io, str};
 
 use bstr::ByteSlice;
 use regex::{self, CaptureMatches, Captures};
 
 use crate::error::CliResult;
-use crate::helpers::val::TextValue;
+use crate::helpers::util::{text_to_float, text_to_int};
 use crate::io::Record;
 use crate::var;
 
+use super::symbols::{Value, VarType};
 use super::Func;
 
 lazy_static! {
@@ -18,7 +18,7 @@ lazy_static! {
     static ref WRAPPED_VAR_RE: regex::Regex =
         regex::Regex::new(r"(\{\{(.*?)\}\}|\{(.*?)\})").unwrap();
 
-    // Regex for parsing variables / functions
+    // Regex for matching variables / functions
     // TODO: Regex parsing may be replaced by a more sophisticated parser some time
     static ref VAR_RE: regex::Regex =
         regex::Regex::new(r#"(?x)
@@ -117,7 +117,7 @@ impl Iterator for VarIter<'_> {
     }
 }
 
-/// Progressively parses a delimited list of variables, whereby the delimiter
+/// Progressively parses a delimited list of variables/functions, whereby the delimiter
 /// (such as a comma) may also be present in the functions themselves.
 /// First, the whole item is registered as variable/function. If that fails,
 /// a VarString containing mixed text/variables/expressions in braces is assumed.
@@ -129,13 +129,19 @@ pub fn register_var_list(
 ) -> CliResult<()> {
     let mut text = text;
     loop {
-        let (s, rest) = VarString::_var_or_composed(text, vars, Some(delim))?;
+        let (s, _, rest) = VarString::_var_or_composed(text, vars, Some(delim))?;
         out.push(s);
         if rest.is_empty() {
             return Ok(());
         }
         text = &rest[1..];
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum DynValue<'a> {
+    Text(&'a [u8]),
+    Numeric(f64),
 }
 
 #[derive(Debug, Clone)]
@@ -157,19 +163,19 @@ impl VarStringPart {
 #[derive(Debug, Clone, Default)]
 pub struct VarString {
     parts: Vec<VarStringPart>,
-    // consists of only one variable that may also be numeric
-    // -> no conversion num -> string -> num necessary
-    one_var: bool,
-    // used for intermediate storage before conversion to numeric
-    num_string: RefCell<TextValue>,
+    // Variable ID if consists of only one variable that may also be numeric,
+    // and thus, type conversion to numeric will be simpler/unnecessary
+    one_var: Option<usize>,
 }
 
 impl VarString {
     pub fn from_parts(parts: &[VarStringPart]) -> Self {
         Self {
             parts: parts.to_vec(),
-            one_var: parts.len() == 1 && matches!(parts[0], VarStringPart::Var(_)),
-            num_string: RefCell::new(TextValue::default()),
+            one_var: match parts[0] {
+                VarStringPart::Var(id) if parts.len() == 1 => Some(id),
+                _ => None,
+            },
         }
     }
 
@@ -207,13 +213,17 @@ impl VarString {
         text: &'a str,
         vars: &mut var::VarBuilder,
         stop: Option<&str>,
-    ) -> Option<(CliResult<Self>, &'a str)> {
+    ) -> Option<(CliResult<(Self, Option<VarType>)>, &'a str)> {
         parse_single_var(text, stop.is_some()).and_then(|(func, rest)| {
             let res = vars.register_var(&func).transpose().map(|v| {
-                v.map(|(id, _)| Self {
-                    parts: vec![(VarStringPart::Var(id))],
-                    one_var: true,
-                    num_string: RefCell::new(TextValue::default()),
+                v.map(|(id, ty, _)| {
+                    (
+                        Self {
+                            parts: vec![(VarStringPart::Var(id))],
+                            one_var: Some(id),
+                        },
+                        ty,
+                    )
                 })
             })?;
             Some((res, rest))
@@ -223,8 +233,11 @@ impl VarString {
     /// Constructs as VarString that either consists of a single variable
     /// (no {braces} required), or is composed of text, optionally containing
     /// variables/expressions in braces.
-    pub fn var_or_composed(text: &str, vars: &mut var::VarBuilder) -> CliResult<Self> {
-        Self::_var_or_composed(text, vars, None).map(|(s, _)| s)
+    pub fn var_or_composed(
+        text: &str,
+        vars: &mut var::VarBuilder,
+    ) -> CliResult<(Self, Option<VarType>)> {
+        Self::_var_or_composed(text, vars, None).map(|(s, ty, _)| (s, ty))
     }
 
     /// Same as var_or_composed, but allows for stopping the search before a given
@@ -233,31 +246,36 @@ impl VarString {
         text: &'a str,
         vars: &mut var::VarBuilder,
         stop: Option<&str>,
-    ) -> CliResult<(Self, &'a str)> {
+    ) -> CliResult<(Self, Option<VarType>, &'a str)> {
         if let Some((s, rest)) = Self::func(text, vars, stop) {
-            return Ok((s?, rest));
+            let (s, ty) = s?;
+            return Ok((s, ty, rest));
         }
         Self::_parse_register(text, vars, stop)
     }
 
     /// Parses a string containing variables in the form "{varname}"
     /// and/or expressions in the form "{{expression}}"
-    pub fn parse_register(expr: &str, vars: &mut var::VarBuilder) -> CliResult<Self> {
-        Self::_parse_register(expr, vars, None).map(|(s, _)| s)
+    pub fn parse_register(
+        expr: &str,
+        vars: &mut var::VarBuilder,
+    ) -> CliResult<(Self, Option<VarType>)> {
+        Self::_parse_register(expr, vars, None).map(|(s, ty, _)| (s, ty))
     }
 
     pub fn _parse_register<'a>(
         expr: &'a str,
         vars: &mut var::VarBuilder,
         stop: Option<&str>,
-    ) -> CliResult<(Self, &'a str)> {
+    ) -> CliResult<(Self, Option<VarType>, &'a str)> {
         // println!("parse reg {:?} {:?}", expr, vars);
         let mut parts = vec![];
         let mut prev_pos = 0;
         let mut stop_pos = expr.len();
+        let mut vtype = Some(VarType::Text);
 
         for m in WRAPPED_VAR_RE.find_iter(expr) {
-            // first check the text before this varible/function match for
+            // first check the text preceding this variable/function for
             // the delimiter, and finish if found
             let str_before = &expr[prev_pos..m.start()];
             // println!("str before {:?}", str_before);
@@ -270,7 +288,7 @@ impl VarString {
             // the variable regex matches either single or double braces,
             // so we check which ones and proceed correspondingly
             let var = m.as_str();
-            let (var_id, _) = if var.starts_with("{{") {
+            let (var_id, ty, _) = if var.starts_with("{{") {
                 // matched {{ expression }}
                 let expr: &str = &var[2..var.len() - 2];
                 let func = Func::expr(expr);
@@ -292,9 +310,13 @@ impl VarString {
             };
             if !str_before.is_empty() {
                 parts.push(VarStringPart::Text(str_before.as_bytes().to_owned()));
+            } else if parts.is_empty() {
+                // first variable without any text before it,
+                // so assign the type of this varialble
+                // (may be switched back to text later if more parts are added)
+                vtype = ty;
             }
             parts.push(VarStringPart::Var(var_id));
-            // parts.push((str_before.as_bytes().to_owned(), var_id));
             prev_pos = m.end();
         }
 
@@ -312,7 +334,12 @@ impl VarString {
             parts.push(VarStringPart::Text(rest.as_bytes().to_owned()));
         }
 
-        Ok((Self::from_parts(&parts), &expr[stop_pos..]))
+        if parts.len() > 1 {
+            // set type (back) to text
+            vtype = Some(VarType::Text);
+        }
+
+        Ok((Self::from_parts(&parts), vtype, &expr[stop_pos..]))
     }
 
     // #[inline]
@@ -332,7 +359,7 @@ impl VarString {
 
     #[inline]
     pub fn is_one_var(&self) -> bool {
-        self.one_var
+        self.one_var.is_some()
     }
 
     /// Compose the variable string given a filled symbol talbe
@@ -344,69 +371,98 @@ impl VarString {
         table: &var::symbols::SymbolTable,
         record: &dyn Record,
     ) -> CliResult<()> {
-        for part in &self.parts {
-            match part {
-                VarStringPart::Text(s) => {
-                    out.write_all(s)?;
-                }
-                VarStringPart::Var(id) => {
-                    table.get(*id).as_text(record, |s| {
+        if let Some(id) = self.one_var {
+            table
+                .get(id)
+                .inner()
+                .map(|v| {
+                    v.as_text(record, |s| {
                         out.write_all(s)?;
                         Ok(())
-                    })?;
+                    })
+                })
+                .transpose()?;
+        } else {
+            for part in &self.parts {
+                match part {
+                    VarStringPart::Text(s) => {
+                        out.write_all(s)?;
+                    }
+                    VarStringPart::Var(id) => {
+                        table
+                            .get(*id)
+                            .inner()
+                            .map(|v| {
+                                v.as_text(record, |s| {
+                                    out.write_all(s)?;
+                                    Ok(())
+                                })
+                            })
+                            .transpose()?;
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    /// Converts the variable string to a float, whereby values in single-variable
-    /// strings are directly converted (without inefficient writing -> conversion
-    /// in case of numeric values)
+    /// Returns a value if the VarString contains only a single variable
+    /// without any preceding/following text
     #[inline]
-    pub fn get_float(
-        &self,
-        table: &var::symbols::SymbolTable,
-        record: &dyn Record,
-    ) -> Option<CliResult<f64>> {
-        if self.one_var {
-            if let VarStringPart::Var(id) = self.parts[0] {
-                return table
-                    .get(id)
-                    .get_float(record)
-                    .map(|res| res.map_err(|e| e.into()));
-            }
-            unreachable!();
-        }
-        let mut value = self.num_string.borrow_mut();
-        try_opt!(self.compose(value.clear(), table, record));
-        if value.len() == 0 {
-            return None;
-        }
-        Some(value.get_float().map_err(|e| e.into()))
+    pub fn get_one_value<'a>(&self, table: &'a var::symbols::SymbolTable) -> Option<&'a Value> {
+        self.one_var.and_then(|id| table.get(id).inner())
     }
 
+    /// Obtains the integer value
     #[inline]
     pub fn get_int(
         &self,
         table: &var::symbols::SymbolTable,
         record: &dyn Record,
-    ) -> Option<CliResult<i64>> {
-        if self.one_var {
-            if let VarStringPart::Var(id) = self.parts[0] {
-                return table
-                    .get(id)
-                    .get_int(record)
-                    .map(|res| res.map_err(|e| e.into()));
+        text_buf: &mut Vec<u8>,
+    ) -> CliResult<Option<i64>> {
+        if let Some(id) = self.one_var {
+            return table
+                .get(id)
+                .inner()
+                .map(|v| v.get_int(record).map_err(|e| e.into()))
+                .transpose();
+        }
+        text_buf.clear();
+        self.compose(text_buf, table, record)?;
+        if text_buf.len() == 0 {
+            return Ok(None);
+        }
+        Ok(Some(text_to_int(text_buf)?))
+    }
+
+    #[inline]
+    pub fn get_dyn<'a>(
+        &self,
+        table: &var::symbols::SymbolTable,
+        record: &dyn Record,
+        text_buf: &'a mut Vec<u8>,
+        force_numeric: bool,
+    ) -> CliResult<Option<DynValue<'a>>> {
+        if let Some(v) = self.get_one_value(table) {
+            if v.is_numeric() {
+                let val = v.get_float(record)?;
+                return Ok(Some(DynValue::Numeric(val)));
             }
-            unreachable!();
         }
-        let mut value = self.num_string.borrow_mut();
-        try_opt!(self.compose(value.clear(), table, record));
-        if value.len() == 0 {
-            return None;
+        text_buf.clear();
+        self.compose(text_buf, table, record)?;
+
+        if !text_buf.is_empty() {
+            if !force_numeric {
+                Ok(Some(DynValue::Text(text_buf)))
+            } else {
+                let val = text_to_float(text_buf)?;
+                Ok(Some(DynValue::Numeric(val)))
+            }
+        } else {
+            Ok(None)
         }
-        Some(value.get_int().map_err(|e| e.into()))
     }
 }
 

@@ -114,7 +114,12 @@ impl FastaWriter {
 }
 
 impl SeqWriter for FastaWriter {
-    fn write<W: io::Write>(&mut self, record: &dyn Record, _vars: &var::Vars, mut out: W) -> CliResult<()> {
+    fn write<W: io::Write>(
+        &mut self,
+        record: &dyn Record,
+        _vars: &var::Vars,
+        mut out: W,
+    ) -> CliResult<()> {
         match record.get_header() {
             SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut out, id, desc)?,
             SeqHeader::FullHeader(h) => fasta::write_head(&mut out, h)?,

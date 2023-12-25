@@ -253,7 +253,10 @@ where
     }
 }
 
-pub fn from_format<'a>(format: &OutFormat, vars: &mut Vars) -> CliResult<Box<dyn FormatWriter + 'a>> {   
+pub fn from_format<'a>(
+    format: &OutFormat,
+    vars: &mut Vars,
+) -> CliResult<Box<dyn FormatWriter + 'a>> {
     vars.build(|b| {
         let out: Box<dyn FormatWriter> = match *format {
             OutFormat::Fasta {

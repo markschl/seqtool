@@ -23,7 +23,12 @@ pub trait SeqReader<O> {
 }
 
 pub trait SeqWriter {
-    fn write<W: io::Write>(&mut self, record: &dyn Record, vars: &var::Vars, out: W) -> CliResult<()>;
+    fn write<W: io::Write>(
+        &mut self,
+        record: &dyn Record,
+        vars: &var::Vars,
+        out: W,
+    ) -> CliResult<()>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -141,8 +146,7 @@ impl FileInfo {
                         // print message unless extension is a variable/function
                         eprintln!(
                             "Unknown extension: '{}', assuming {} format",
-                            ext,
-                            default_format
+                            ext, default_format
                         );
                     }
                     default_format
@@ -168,14 +172,9 @@ impl FromStr for FileInfo {
         let mut parts = s.splitn(2, '.');
         let format = FormatVariant::from_str(parts.next().unwrap())?;
         let compression = if let Some(comp_str) = parts.next() {
-            // let parts = comp_str.splitn(':', 2);
-            // comp_str = parts.next().unwrap();
-            // let opt_str = parts.next().map(|s| s.to_string());
             Compression::from_str(comp_str)?
-            // (Compression::from_str(comp_str)?, opt_str)
         } else {
             Compression::None
-            // (Compression::None, None)
         };
         Ok(FileInfo {
             format,

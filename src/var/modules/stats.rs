@@ -3,6 +3,7 @@ use bytecount;
 use self::Stat::*;
 use crate::error::CliResult;
 use crate::io::Record;
+use crate::var::symbols::VarType;
 use crate::var::*;
 
 #[derive(Debug)]
@@ -70,29 +71,29 @@ impl VarProvider for StatVars {
         &StatHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
         let name = func.name.as_str();
-        let stat = if name == "charcount" {
+        let (vt, stat) = if name == "charcount" {
             let v = func.one_arg_as::<String>()?;
             let c = v.as_bytes();
             if c.len() == 1 {
-                Stat::Count(c[0])
+                (VarType::Int, Stat::Count(c[0]))
             } else {
-                Stat::MultiCount(c.to_owned())
+                (VarType::Int, Stat::MultiCount(c.to_owned()))
             }
         } else {
-            let stat = match name {
-                "seqlen" => SeqLen,
-                "ungapped_seqlen" => UngappedLen,
-                "gc" => GC,
-                "exp_err" => ExpErr,
-                _ => return Ok(false),
+            let res = match name {
+                "seqlen" => (VarType::Int, SeqLen),
+                "ungapped_seqlen" => (VarType::Int, UngappedLen),
+                "gc" => (VarType::Float, GC),
+                "exp_err" => (VarType::Float, ExpErr),
+                _ => return Ok(None),
             };
             func.ensure_no_args()?;
-            stat
+            res
         };
         self.stats.push((stat, b.symbol_id()));
-        Ok(true)
+        Ok(Some(Some(vt)))
     }
 
     fn has_vars(&self) -> bool {
@@ -101,7 +102,7 @@ impl VarProvider for StatVars {
 
     fn set(&mut self, rec: &dyn Record, data: &mut MetaData) -> CliResult<()> {
         for &(ref stat, id) in &self.stats {
-            let sym = data.symbols.get_mut(id);
+            let sym = data.symbols.get_mut(id).inner_mut();
             match *stat {
                 SeqLen => sym.set_int(rec.seq_len() as i64),
                 GC => sym.set_float(get_gc(rec.seq_segments()) * 100.),

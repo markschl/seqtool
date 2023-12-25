@@ -55,6 +55,28 @@ where
 //     std::slice::from_raw_parts(ptr, end - start)
 // }
 
+pub fn text_to_int(text: &[u8]) -> Result<i64, String> {
+    atoi::atoi(text).ok_or_else(|| {
+        format!(
+            "Could not convert '{}' to decimal number.",
+            String::from_utf8_lossy(text)
+        )
+    })
+}
+
+pub fn text_to_float(text: &[u8]) -> Result<f64, String> {
+    // TODO: any more efficient way?
+    std::str::from_utf8(text)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| {
+            format!(
+                "Could not convert '{}' to integer.",
+                String::from_utf8_lossy(text)
+            )
+        })
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

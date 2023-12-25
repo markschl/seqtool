@@ -43,7 +43,7 @@ pub fn run(cfg: Config, args: &SetCommand) -> CliResult<()> {
         let replacements: Vec<_> = replacements
             .iter()
             .map(|&(ref e, attr)| {
-                let e = vars.build(|b| varstring::VarString::parse_register(e, b))?;
+                let (e, _) = vars.build(|b| varstring::VarString::parse_register(e, b))?;
                 Ok((e, attr))
             })
             .collect::<CliResult<_>>()?;

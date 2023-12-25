@@ -1,5 +1,6 @@
 use crate::error::CliResult;
 use crate::io::Record;
+use crate::var::symbols::VarType;
 use crate::var::*;
 
 #[derive(Debug)]
@@ -61,7 +62,7 @@ impl VarHelp for AttrHelp {
 }
 
 #[derive(Debug)]
-enum VarType {
+enum AttrVarType {
     Value,
     Exists,
 }
@@ -69,7 +70,7 @@ enum VarType {
 #[derive(Debug)]
 struct Var {
     name: String,
-    return_type: VarType,
+    return_type: AttrVarType,
     attr_id: usize,
     id: usize,
     allow_missing: bool,
@@ -91,14 +92,24 @@ impl VarProvider for AttrVars {
         &AttrHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<bool> {
-        let (paction, rtype, allow_missing) = match func.name.as_str() {
-            "attr" => (None, VarType::Value, false),
-            "has_attr" => (None, VarType::Exists, true),
-            "opt_attr" => (None, VarType::Value, true),
-            "attr_del" => (Some(attr::Action::Delete), VarType::Value, false),
-            "opt_attr_del" => (Some(attr::Action::Delete), VarType::Value, true),
-            _ => return Ok(false),
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
+        let (paction, rtype, vtype, allow_missing) = match func.name.as_str() {
+            "attr" => (None, AttrVarType::Value, VarType::Text, false),
+            "has_attr" => (None, AttrVarType::Exists, VarType::Bool, true),
+            "opt_attr" => (None, AttrVarType::Value, VarType::Text, true),
+            "attr_del" => (
+                Some(attr::Action::Delete),
+                AttrVarType::Value,
+                VarType::Text,
+                false,
+            ),
+            "opt_attr_del" => (
+                Some(attr::Action::Delete),
+                AttrVarType::Value,
+                VarType::Text,
+                true,
+            ),
+            _ => return Ok(None),
         };
         let name = func.one_arg_as::<String>()?;
         if name.is_empty() {
@@ -112,7 +123,7 @@ impl VarProvider for AttrVars {
             id: b.symbol_id(),
             allow_missing,
         });
-        Ok(true)
+        Ok(Some(Some(vtype)))
     }
 
     fn has_vars(&self) -> bool {
@@ -123,12 +134,12 @@ impl VarProvider for AttrVars {
         for var in &self.vars {
             let sym = data.symbols.get_mut(var.id);
             match var.return_type {
-                VarType::Value => {
+                AttrVarType::Value => {
                     if let Some(val) =
                         data.attrs
                             .get_value(var.attr_id, rec.id_bytes(), rec.desc_bytes())
                     {
-                        sym.set_text(val);
+                        sym.inner_mut().set_text(val);
                     } else {
                         if !var.allow_missing {
                             return fail!(format!(
@@ -140,8 +151,8 @@ impl VarProvider for AttrVars {
                         sym.set_none();
                     }
                 }
-                VarType::Exists => {
-                    sym.set_bool(data.attrs.has_value(var.attr_id));
+                AttrVarType::Exists => {
+                    sym.inner_mut().set_bool(data.attrs.has_value(var.attr_id));
                 }
             }
         }

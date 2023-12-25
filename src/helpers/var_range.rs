@@ -33,12 +33,12 @@ impl RngBound {
         &self,
         symbols: &var::symbols::SymbolTable,
         record: &dyn Record,
+        text_buf: &mut Vec<u8>,
     ) -> CliResult<isize> {
         Ok(match *self {
             RngBound::Number(n) => n,
             RngBound::Expr(ref e) => {
-                e.get_int(symbols, record)
-                    .transpose()?
+                e.get_int(symbols, record, text_buf)?
                     .ok_or("Range bound results in empty string.")? as isize
             }
         })
@@ -79,14 +79,17 @@ impl VarRange {
         &mut self,
         symbols: &var::symbols::SymbolTable,
         record: &dyn Record,
+        text_buf: &mut Vec<u8>,
     ) -> CliResult<Range> {
         Ok(match *self {
             VarRange::Split(ref mut start, ref mut end) => Range::new(
                 start
                     .as_ref()
-                    .map(|s| s.value(symbols, record))
+                    .map(|s| s.value(symbols, record, text_buf))
                     .transpose()?,
-                end.as_ref().map(|e| e.value(symbols, record)).transpose()?,
+                end.as_ref()
+                    .map(|e| e.value(symbols, record, text_buf))
+                    .transpose()?,
             ),
             VarRange::Full(ref varstring, ref mut val) => {
                 val.clear();
@@ -145,12 +148,13 @@ impl VarRanges {
         &mut self,
         symbols: &var::symbols::SymbolTable,
         record: &dyn Record,
+        text_buf: &mut Vec<u8>,
     ) -> CliResult<&[Range]> {
         self.out.clear();
         match self.ty {
             VarRangesType::Split(ref mut rng) => {
                 for r in rng {
-                    self.out.push(r.resolve(symbols, record)?);
+                    self.out.push(r.resolve(symbols, record, text_buf)?);
                 }
             }
             VarRangesType::Full(ref varstring) => {

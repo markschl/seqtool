@@ -7,6 +7,7 @@ use std::process::{Command as StdCommand, Stdio};
 use std::str;
 
 use assert_cmd::{assert::Assert, cargo::cargo_bin, Command};
+use itertools::Itertools;
 use predicates::{ord::eq, prelude::*, str::contains};
 
 trait Input {
@@ -155,10 +156,10 @@ static SEQS: [&str; 4] = [
 ];
 
 // id	desc	seq
-// seq1	p=2	    TTGGCAGGCCAAGGCCGATGGATCA	(0)
-// seq0	p=1	    CTGGCAGGCC-AGGCCGATGGATCA	(1)
-// seq3	p=10	CAGGCAGGCC-AGGCCGATGGATCA	(2)
-// seq2	p=11	ACGG-AGGCC-AGGCCGATGGATCA	(3)
+// seq1	p=2	    TTGGCAGGCCAAGGCCGATGGATCA (0) len=25, GC=0.6
+// seq0	p=1	    CTGGCAGGCC-AGGCCGATGGATCA (1) len=24, GC=0.667
+// seq3	p=10	CAGGCAGGCC-AGGCCGATGGATCA (2) len=24, GC=0.667
+// seq2	p=11	ACGG-AGGCC-AGGCCGATGGATCA (3) len=23, GC=0.652
 
 lazy_static! {
     static ref __FASTA_STRING: String = SEQS.concat();
@@ -166,8 +167,10 @@ lazy_static! {
     static ref FASTA: &'static str = &__FASTA_STRING;
 }
 
-fn select_fasta(seqs: &[usize]) -> String {
-    seqs.iter().map(|i| SEQS[*i]).collect::<Vec<_>>().concat()
+macro_rules! records {
+    ($($i:expr),*) => {
+        &[$($i),*].into_iter().map(|i| &SEQS[i]).join("")
+    }
 }
 
 mod compress;
@@ -187,8 +190,10 @@ mod revcomp;
 mod sample;
 mod set;
 mod slice;
+mod sort;
 mod split;
 mod stat;
 mod tail;
 mod trim;
+mod unique;
 mod upper;

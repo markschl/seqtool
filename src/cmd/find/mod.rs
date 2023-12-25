@@ -112,7 +112,7 @@ pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
                     v.unwrap().register_all(0);
                     Ok(())
                 })?;
-                let s = vars.build(|b| {
+                let (s, _) = vars.build(|b| {
                     varstring::VarString::var_or_composed(&r, b)
                 })?;
                 Some(s)

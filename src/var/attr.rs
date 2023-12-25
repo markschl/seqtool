@@ -92,7 +92,6 @@ impl Attrs {
         }
     }
 
-
     /// Composes attributes from input ID and description and writes them to
     /// output ID and description.
     /// The output vectors are cleared before composing.
@@ -359,7 +358,8 @@ mod tests {
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
             Ok(out.extend_from_slice(b"val"))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(&out_desc, b"desc a=0 b=val");
 
         let desc = Some(&b"desc a=0 c=1"[..]);
@@ -369,7 +369,8 @@ mod tests {
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
             Ok(out.extend_from_slice(b"val"))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(&out_desc, b"desc a=0 c=1 b=val");
 
         let desc = Some(&b"desc a=0 b=1"[..]);
@@ -379,7 +380,8 @@ mod tests {
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
             Ok(out.extend_from_slice(b"val"))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(&out_desc, b"desc b=val");
     }
 
@@ -395,7 +397,8 @@ mod tests {
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
             Ok(out.extend_from_slice(b"val"))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(&out_id, b"id;a=val");
         assert_eq!(&out_desc, b"desc a:1");
 
@@ -404,7 +407,8 @@ mod tests {
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
             Ok(out.extend_from_slice(b"val"))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(&out_id, b"id;a=0");
         assert_eq!(&out_desc, b"desc a:val");
     }
@@ -422,7 +426,8 @@ mod tests {
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
             Ok(out.extend_from_slice(b"val"))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(&out_desc, b"desc a=val c=2 b=val");
 
         let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
@@ -431,7 +436,8 @@ mod tests {
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
             Ok(out.extend_from_slice(b"val"))
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(&out_desc, b"desc c=2");
     }
 
@@ -446,17 +452,20 @@ mod tests {
 
         let desc = Some(&b"desc a=0"[..]);
         a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {Ok(())}).unwrap();
+        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| Ok(()))
+            .unwrap();
         assert_eq!(&out_desc, b"desc");
 
         let desc = Some(&b"desc2"[..]);
         a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {Ok(())}).unwrap();
+        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| Ok(()))
+            .unwrap();
         assert_eq!(&out_desc, b"desc2");
 
         let desc = Some(&b"a=4"[..]);
         a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| {Ok(())}).unwrap();
+        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| Ok(()))
+            .unwrap();
         assert_eq!(&out_desc, b"");
     }
 

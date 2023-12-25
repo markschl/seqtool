@@ -1,10 +1,9 @@
 use std::io;
 
-use super::{Record, FormatWriter};
+use super::{FormatWriter, Record};
 use crate::var;
 use crate::var::varstring;
 use crate::{error::CliResult, var::varstring::register_var_list};
-
 
 pub struct CsvWriter {
     delim: u8,
@@ -31,7 +30,12 @@ impl FormatWriter for CsvWriter {
         !self.fields.is_empty()
     }
 
-    fn write(&mut self, record: &dyn Record, out: &mut dyn io::Write, vars: &var::Vars) -> CliResult<()> {
+    fn write(
+        &mut self,
+        record: &dyn Record,
+        out: &mut dyn io::Write,
+        vars: &var::Vars,
+    ) -> CliResult<()> {
         let mut is_first = true;
         for expr in &self.fields {
             if !is_first {

@@ -48,7 +48,8 @@ pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
 
     cfg.writer(|writer, io_writer, vars| {
         let mut ranges = VarRanges::from_str(ranges, vars)?;
-        let mut seq = vec![];
+        let mut seq = Vec::new();
+        let mut num_buf = Vec::new();
 
         cfg.read(vars, |record, vars| {
             // obtain full sequence
@@ -59,7 +60,7 @@ pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
                 seqlen += s.len();
             }
 
-            let calc_ranges = ranges.resolve(vars.symbols(), record)?;
+            let calc_ranges = ranges.resolve(vars.symbols(), record, &mut num_buf)?;
 
             if let Some(h) = hard_mask {
                 for rng in calc_ranges {

@@ -71,30 +71,30 @@ pub fn replace_register_vars(expr: &str, b: &mut VarBuilder) -> CliResult<(Strin
     for (rng, func) in parse_vars(&expr_string) {
         // exclude method calls and reserved words
         // println!("func {:?}", func);
-        if rng
+        let byte_before = rng
             .0
             .start
             .checked_sub(1)
-            .and_then(|i| expr_string.as_bytes().get(i))
-            != Some(&b'.')
-        // !RESERVED_WORDS.contains(&func.name)
+            .and_then(|i| expr_string.as_bytes().get(i));
+        if byte_before != Some(&b'.')
+        // && !RESERVED_WORDS.contains(&func.name)
         {
             // We try to register a variable/function
-            if let Some((var_id, _)) = b.register_var(&func)? {
-                // TODO: which hash?
+            if let Some((var_id, _, _)) = b.register_dependent_var(&func)? {
                 let varname = editor.replace_var(rng.0, &func);
                 vars.insert(var_id, varname);
                 continue;
             }
         }
         // Function is not provided by seqtool:
-        // In that case try registering every non-quoted argument.
+        // In that case try registering every non-quoted argument,
+        // which could again be a seqtool variable.
         // The regex in varstring.rs does not match functions with deeper
         // nesting, this code should thus detect every possible variable.
         for (arg, arg_rng) in func.args.iter().zip(&rng.1) {
             let f: Func = Func::var(arg.to_string());
             // println!("arg {:?} {:?}", arg_rng, f);
-            if let Some((var_id, _)) = b.register_var(&f)? {
+            if let Some((var_id, _, _)) = b.register_dependent_var(&f)? {
                 let varname = editor.replace_var(arg_rng.clone(), &f);
                 vars.insert(var_id, varname);
             }

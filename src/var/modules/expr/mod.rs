@@ -1,6 +1,6 @@
 use std::{fmt::Debug, str};
 
-use crate::var::symbols::SymbolTable;
+use crate::var::symbols::{SymbolTable, VarType};
 use crate::{
     error::{CliError, CliResult},
     io::Record,
@@ -61,13 +61,17 @@ impl VarProvider for ExprVars {
         &ExprHelp
     }
 
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<bool> {
+    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
         if var.name != "____expr" || var.num_args() != 1 {
-            return Ok(false);
+            return Ok(None);
         }
         let expr = var.arg_as::<String>(0).unwrap()?;
         self.0.register_expr(&expr, b)?;
-        Ok(true)
+        Ok(Some(None))
+    }
+
+    fn allow_dependent(&self) -> bool {
+        false
     }
 
     fn has_vars(&self) -> bool {
