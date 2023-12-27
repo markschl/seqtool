@@ -90,6 +90,7 @@ pub fn parse_single_var(expr: &str, allow_suffix: bool) -> Option<(Func, &str)> 
     })
 }
 
+#[allow(dead_code)]
 pub fn parse_vars(expr: &str) -> VarIter<'_> {
     VarIter {
         expr,
@@ -288,7 +289,7 @@ impl VarString {
             // the variable regex matches either single or double braces,
             // so we check which ones and proceed correspondingly
             let var = m.as_str();
-            let (var_id, ty, _) = if var.starts_with("{{") {
+            let (var_id, ty, _) = if var.starts_with("{{") && cfg!(feature = "js") {
                 // matched {{ expression }}
                 let expr: &str = &var[2..var.len() - 2];
                 let func = Func::expr(expr);

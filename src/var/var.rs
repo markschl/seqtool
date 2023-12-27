@@ -19,6 +19,7 @@ pub struct Func {
 }
 
 impl Func {
+    #[allow(dead_code)]
     pub fn var(name: String) -> Self {
         Self::with_args(name, Default::default())
     }
@@ -454,6 +455,7 @@ impl<'a> VarBuilder<'a> {
         self._register_var(var, false)
     }
 
+    #[allow(dead_code)]
     pub fn register_dependent_var(
         &mut self,
         var: &Func,

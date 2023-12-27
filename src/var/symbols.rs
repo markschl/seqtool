@@ -233,6 +233,7 @@ impl SeqAttrValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_str<O>(
         &self,
         record: &dyn Record,

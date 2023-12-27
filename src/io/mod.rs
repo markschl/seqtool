@@ -73,15 +73,20 @@ impl FromStr for FormatVariant {
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum Compression {
     None,
+    #[cfg(feature = "gz")]
     Gzip,
+    #[cfg(feature = "bz2")]
     Bzip2,
+    #[cfg(feature = "lz4")]
     Lz4,
+    #[cfg(feature = "zstd")]
     Zstd,
 }
 
 impl Compression {
     pub fn best_read_bufsize(self) -> usize {
         match self {
+            #[cfg(feature = "zstd")]
             Compression::Zstd => zstd::Decoder::<io::Empty>::recommended_output_size(),
             _ => 1 << 22,
         }
@@ -89,6 +94,7 @@ impl Compression {
 
     pub fn best_write_bufsize(self) -> usize {
         match self {
+            #[cfg(feature = "zstd")]
             Compression::Zstd => zstd::Encoder::<io::Sink>::recommended_input_size(),
             _ => 1 << 22,
         }
@@ -100,9 +106,13 @@ impl FromStr for Compression {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
+            #[cfg(feature = "gz")]
             "gz" | "gzip" => Ok(Compression::Gzip),
+            #[cfg(feature = "bz2")]
             "bz2" | "bzip2" => Ok(Compression::Bzip2),
+            #[cfg(feature = "lz4")]
             "lz4" => Ok(Compression::Lz4),
+            #[cfg(feature = "zstd")]
             "zst" | "zstd" | "zstandard" => Ok(Compression::Zstd),
             _ => Err(format!("Unknown compression format: {}. Valid formats are gz (gzip), bz2 (bzip2), lz4 and zst (zstd, zstandard).", s)),
         }

@@ -14,7 +14,6 @@ fn simple() {
         .cmp(&["unique"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "-k", "seq"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "-k", "{seq}"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(&["unique", "-k", "{{seq}}"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "-k", "id"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "-k", "desc"], *FASTA, records!(0, 1, 2, 3))
         .cmp(
@@ -22,18 +21,23 @@ fn simple() {
             *FASTA,
             records!(0, 1, 2, 3),
         );
+
+    #[cfg(feature = "js")]
+    Tester::new().cmp(&["unique", "-k", "{{seq}}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
 fn attr() {
     Tester::new()
         .cmp(&["unique", "-k", "attr(p)"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(&["unique", "-nk", "attr(p)"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(
-            &["unique", "-k", "{{attr(p)+1}}"],
-            *FASTA,
-            records!(0, 1, 2, 3),
-        );
+        .cmp(&["unique", "-nk", "attr(p)"], *FASTA, records!(0, 1, 2, 3));
+
+    #[cfg(feature = "js")]
+    Tester::new().cmp(
+        &["unique", "-k", "{{attr(p)+1}}"],
+        *FASTA,
+        records!(0, 1, 2, 3),
+    );
 }
 
 #[test]
@@ -53,7 +57,6 @@ fn stats() {
 fn force_numeric() {
     Tester::new()
         .fails(&["unique", "-nk", "id"], *FASTA, "Could not convert")
-        .fails(&["unique", "-nk", "{{id}}"], *FASTA, "Could not convert")
         .fails(
             &["unique", "-nk", "{id}{attr(p)}"],
             *FASTA,
@@ -63,7 +66,11 @@ fn force_numeric() {
             &["unique", "-nk", "{attr(p)}{attr(p)}"],
             *FASTA,
             records!(0, 1, 2, 3),
-        )
+        );
+
+    #[cfg(feature = "js")]
+    Tester::new()
+        .fails(&["unique", "-nk", "{{id}}"], *FASTA, "Could not convert")
         .cmp(
             &["unique", "-nk", "{{ id.substring(3, 4) }}"],
             *FASTA,
@@ -72,6 +79,7 @@ fn force_numeric() {
 }
 
 #[test]
+#[cfg(feature = "js")]
 fn expr() {
     Tester::new()
         .cmp(
@@ -100,6 +108,7 @@ fn expr() {
 }
 
 #[test]
+#[cfg(feature = "js")]
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s1 k=-1\nS1\n>s2 k=\nS2\n";

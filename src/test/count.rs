@@ -29,6 +29,14 @@ fn missing() {
             *FASTA,
             "N/A\t4\n",
         )
+        .fails(
+            &["count", "-k", "{attr(missing)}"],
+            *FASTA,
+            "'missing' not found in record",
+        );
+
+    #[cfg(feature = "js")]
+    Tester::new()
         .cmp(
             &["count", "-k", "{{opt_attr(missing) + 1}}"],
             *FASTA,
@@ -38,10 +46,5 @@ fn missing() {
             &["count", "-k", "n:{{opt_attr(missing) + 1}}"],
             *FASTA,
             "NaN\t4\n",
-        )
-        .fails(
-            &["count", "-k", "{attr(missing)}"],
-            *FASTA,
-            "'missing' not found in record",
         );
 }

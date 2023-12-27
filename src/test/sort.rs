@@ -20,8 +20,10 @@ fn id_desc_seq() {
 fn attr() {
     Tester::new()
         .cmp(&["sort", "-k", "attr(p)"], *FASTA, records!(1, 2, 3, 0))
-        .cmp(&["sort", "-k", "{attr(p)}"], *FASTA, records!(1, 2, 3, 0))
-        .cmp(&["sort", "-k", "{{attr(p)}}"], *FASTA, records!(1, 2, 3, 0));
+        .cmp(&["sort", "-k", "{attr(p)}"], *FASTA, records!(1, 2, 3, 0));
+
+    #[cfg(feature = "js")]
+    Tester::new().cmp(&["sort", "-k", "{{attr(p)}}"], *FASTA, records!(1, 2, 3, 0));
 }
 
 #[test]
@@ -29,12 +31,14 @@ fn numeric_attr() {
     Tester::new()
         .cmp(&["sort", "-nk", "attr(p)"], *FASTA, records!(1, 0, 2, 3))
         .cmp(&["sort", "-nk", "{attr(p)}"], *FASTA, records!(1, 0, 2, 3))
-        .cmp(
-            &["sort", "-nk", "{{attr(p)+1}}"],
-            *FASTA,
-            records!(1, 0, 2, 3),
-        )
         .cmp(&["sort", "-rnk", "attr(p)"], *FASTA, records!(3, 2, 0, 1));
+
+    #[cfg(feature = "js")]
+    Tester::new().cmp(
+        &["sort", "-nk", "{{attr(p)+1}}"],
+        *FASTA,
+        records!(1, 0, 2, 3),
+    );
 }
 
 #[test]
@@ -50,19 +54,24 @@ fn force_numeric() {
             &["sort", "-nk", "{attr(p)}{attr(p)}"],
             *FASTA,
             records!(1, 0, 2, 3),
-        )
-        .cmp(
-            &["sort", "-nk", "{{ id.substring(3, 4) }}"],
-            *FASTA,
-            records!(1, 0, 3, 2),
         );
+
+    #[cfg(feature = "js")]
+    Tester::new().cmp(
+        &["sort", "-nk", "{{ id.substring(3, 4) }}"],
+        *FASTA,
+        records!(1, 0, 3, 2),
+    );
 }
 
 #[test]
 fn numeric_vars() {
     Tester::new()
         .cmp(&["sort", "-k", "num"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(&["sort", "-rk", "num"], *FASTA, records!(3, 2, 1, 0))
+        .cmp(&["sort", "-rk", "num"], *FASTA, records!(3, 2, 1, 0));
+
+    #[cfg(feature = "js")]
+    Tester::new()
         .cmp(
             &["sort", "-k", "{{ 7 + num }}"],
             *FASTA,
@@ -79,7 +88,9 @@ fn numeric_vars() {
             &["sort", "-k", "{{ (7 + num).toString() }}"],
             *FASTA,
             records!(2, 3, 0, 1),
-        )
+        );
+
+    Tester::new()
         .cmp(
             &["sort", "-k", "ungapped_seqlen"],
             *FASTA,
@@ -101,6 +112,7 @@ fn numeric_vars() {
 }
 
 #[test]
+#[cfg(feature = "js")]
 fn mixed_types() {
     Tester::new()
         // text before numeric
@@ -126,6 +138,7 @@ fn mixed_types() {
 }
 
 #[test]
+#[cfg(feature = "js")]
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s3 k=-3\nS3\n>s1 k=\nS1\n>s2 k=\nS2\n";
