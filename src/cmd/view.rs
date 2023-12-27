@@ -53,13 +53,13 @@ pub struct GeneralViewArgs {
     id_len: Option<u32>,
 
     /// Show descriptions along IDs if there is enough space.
-    #[arg(short, long)]
+    #[arg(short = 'd', long)]
     show_desc: bool,
 
     /// Color base / amino acid letters instead of background.
     /// If base qualities are present, background coloration is shown,
     /// and the foreground scheme will be 'dna-bright' (change with --dna-pal).
-    #[arg(short, long)]
+    #[arg(long = "fg")]
     foreground: bool,
 
     /// View only the top <N> sequences without pager. Automatic handoff to a
