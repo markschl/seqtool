@@ -9,3 +9,4 @@ pub mod seqtype;
 pub mod twoway_iter;
 pub mod util;
 pub mod var_range;
+pub mod vec;

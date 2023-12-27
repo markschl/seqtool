@@ -4,10 +4,11 @@ use indexmap::IndexMap;
 
 use crate::config::Config;
 use crate::error::CliResult;
+use crate::helpers::vec::VecFactory;
 use crate::opt::CommonArgs;
 use crate::var::varstring::VarString;
 
-use super::sort::{KeyVars, VecFactory};
+use super::sort::KeyVars;
 
 type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 

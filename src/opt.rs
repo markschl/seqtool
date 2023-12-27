@@ -111,7 +111,7 @@ impl CommonArgs {
                 )?;
                 let opts = InputOptions::new(kind.clone(), format, _info.compression)
                     .thread_opts(self.advanced.read_thread, self.advanced.read_tbufsize)
-                    .reader_opts(self.advanced.buf_cap, self.advanced.max_mem);
+                    .reader_opts(self.advanced.buf_cap, self.advanced.max_read_mem);
                 Ok(opts)
             })
             .collect::<CliResult<_>>()?;
@@ -511,11 +511,14 @@ pub struct AdvancedArgs {
     #[arg(long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "68K")]
     pub buf_cap: usize,
 
-    /// Buffer size limit. Larger sequences will cause an error.
+    /// Buffer size limit for the internal reader. Larger sequence records will
+    /// cause an error. Note, that some commands such as 'sort', 'unique'
+    /// and 'sample' still use more memory and have their own additional
+    /// memory limit setting.
     /// Either a plain number (bytes) a number with unit (K, M, G, T)
     /// based on powers of 2.
     #[arg(long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "1G")]
-    pub max_mem: usize,
+    pub max_read_mem: usize,
 
     /// Read from a different thread. Enabled with compressed input.
     #[arg(short('T'), long)]
