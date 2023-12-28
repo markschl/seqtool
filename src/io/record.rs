@@ -341,6 +341,7 @@ impl RecordEditor {
     }
 
     #[inline]
+    #[cfg_attr(not(feature = "find"), allow(unused))]
     pub fn get<'a>(&'a mut self, attr: SeqAttr, rec: &'a dyn Record, get_cached: bool) -> &'a [u8] {
         match attr {
             SeqAttr::Id => rec.id_bytes(),
