@@ -225,7 +225,7 @@ where
     for<'b> F: FnMut(&InputOptions, Box<dyn io::Read + Send + 'b>) -> CliResult<O>,
 {
     opts.into_iter()
-        .map(|o| io_reader(&o, |rdr| func(o, rdr)))
+        .map(|o| io_reader(o, |rdr| func(o, rdr)))
         .collect()
 }
 

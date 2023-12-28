@@ -76,11 +76,7 @@ pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
 
     let max_shift = if let Some(n) = args.search_range.max_shift_l {
         Some(Shift::Start(n))
-    } else if let Some(n) = args.search_range.max_shift_r {
-        Some(Shift::End(n))
-    } else {
-        None
-    };
+    } else { args.search_range.max_shift_r.map(Shift::End) };
 
     let dropped_file = args.action.dropped.clone();
 
@@ -113,7 +109,7 @@ pub fn run(cfg: Config, args: &FindCommand) -> CliResult<()> {
                     Ok(())
                 })?;
                 let (s, _) = vars.build(|b| {
-                    varstring::VarString::var_or_composed(&r, b)
+                    varstring::VarString::var_or_composed(r, b)
                 })?;
                 Some(s)
             } else {

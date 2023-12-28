@@ -80,7 +80,7 @@ impl CommonArgs {
         // TODO: ST_FORMAT removed
 
         // get format settings from args
-        let mut delim = opts.delim.clone();
+        let mut delim = opts.delim;
         let mut fields = opts.fields.clone();
         let info = opts.fmt.clone();
 
@@ -140,7 +140,7 @@ impl CommonArgs {
         let output = opts.output.clone().unwrap_or(OutputKind::Stdout);
 
         // get format settings from args
-        let mut delim = opts.out_delim.clone();
+        let mut delim = opts.out_delim;
         let mut fields = opts.outfields.clone();
         let info = opts.to.clone();
         if let Some(i) = info.as_ref() {

@@ -42,7 +42,7 @@ pub fn run(cfg: Config, args: &SetCommand) -> CliResult<()> {
         // get String -> VarString
         let replacements: Vec<_> = replacements
             .iter()
-            .map(|&(ref e, attr)| {
+            .map(|&(e, attr)| {
                 let (e, _) = vars.build(|b| varstring::VarString::parse_register(e, b))?;
                 Ok((e, attr))
             })

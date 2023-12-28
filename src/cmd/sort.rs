@@ -123,7 +123,7 @@ pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
     //     return fail!("The memory limit should be at least 2MiB");
     // }
 
-    let m = Box::new(KeyVars::default());
+    let m = Box::<KeyVars>::default();
     cfg.writer_with_custom(Some(m), |writer, io_writer, vars| {
         // assemble key
         let (var_key, _vtype) = vars.build(|b| VarString::var_or_composed(&args.key, b))?;
@@ -133,7 +133,7 @@ pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
         // let mut records = Vec::with_capacity(10000);
         let mut record_buf_factory = VecFactory::new();
         let mut key_buf = Vec::new();
-        let tmp_path = args.temp_dir.clone().unwrap_or_else(|| temp_dir());
+        let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
         let mut sorter = Sorter::new(args.reverse, args.max_mem);
 
         cfg.read(vars, |record, vars| {
@@ -256,7 +256,7 @@ impl MemSorter {
     fn deserialize_item(mut io_reader: impl Read, buf: &mut Vec<u8>) -> CliResult<Option<Item>> {
         let len = match io_reader.read_u64::<LE>() {
             Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-            res @ _ => res?,
+            res => res?,
         };
         buf.clear();
         buf.resize(len as usize, 0);
@@ -289,11 +289,7 @@ impl ItemOrd {
 
 impl PartialOrd for ItemOrd {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if !self.reverse {
-            self.item.key.partial_cmp(&other.item.key)
-        } else {
-            other.item.key.partial_cmp(&self.item.key)
-        }
+        Some(self.cmp(other))
     }
 }
 
@@ -328,19 +324,19 @@ impl FileSorter {
         Ok(Self {
             mem_sorter,
             files: Vec::new(),
-            tmp_dir: TempDir::new_in(&tmp_dir, "st_sort_")?,
+            tmp_dir: TempDir::new_in(tmp_dir, "st_sort_")?,
             n_written: 0,
         })
     }
 
     fn add(&mut self, item: Item, file_limit: usize, quiet: bool) -> CliResult<bool> {
         if !self.mem_sorter.add(item) {
-            self.to_file(file_limit, quiet)?;
+            self.write_to_file(file_limit, quiet)?;
         }
         Ok(true)
     }
 
-    fn to_file(&mut self, file_limit: usize, quiet: bool) -> CliResult<()> {
+    fn write_to_file(&mut self, file_limit: usize, quiet: bool) -> CliResult<()> {
         if self.mem_sorter.len() > 0 && !quiet {
             if self.files.len() == TEMP_FILE_WARN_LIMIT {
                 eprintln!(
@@ -378,7 +374,7 @@ impl FileSorter {
         verbose: bool,
     ) -> CliResult<()> {
         // write last chunk of records
-        self.to_file(file_limit, quiet)?;
+        self.write_to_file(file_limit, quiet)?;
 
         if verbose {
             eprintln!(
@@ -461,7 +457,7 @@ impl Sorter {
                         );
                     }
                     let mut f = m.get_file_sorter(tmp_path.to_owned())?;
-                    f.to_file(file_limit, quiet)?;
+                    f.write_to_file(file_limit, quiet)?;
                     *self = Self::File(f);
                 }
             }
@@ -510,14 +506,14 @@ pub struct KeyVars {
 
 impl KeyVars {
     pub fn set(&mut self, key: &Key, symbols: &mut SymbolTable) {
-        self.id.map(|var_id| {
+        if let Some(var_id) = self.id {
             let v = symbols.get_mut(var_id);
             match key {
                 Key::Text(t) => v.inner_mut().set_text(t),
                 Key::Numeric(n) => v.inner_mut().set_float(n.0),
                 Key::None => v.set_none(),
             }
-        });
+        }
     }
 }
 

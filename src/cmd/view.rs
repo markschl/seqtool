@@ -143,7 +143,7 @@ lazy_static! {
 }
 
 pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
-    let truecolor = args.color.truecolor.unwrap_or_else(|| has_truecolor());
+    let truecolor = args.color.truecolor.unwrap_or_else(has_truecolor);
     if args.color.list_pal {
         print_palettes(&args.color.textcols, truecolor)?;
         return Ok(());
@@ -558,7 +558,7 @@ impl SimplePal {
         for (name, colors_str) in self.members() {
             write!(writer, "{:<12}", name)?;
             T::display_palette(colors_str, writer, textcols, rgb)?;
-            writeln!(writer, "")?;
+            writeln!(writer)?;
         }
         Ok(())
     }
@@ -701,7 +701,7 @@ impl ColorWriter {
             if self.fg_map.is_none() {
                 let mut fg_map = VecMap::new();
                 for (ref symbol, col) in bg_map {
-                    let chosen = choose_fg(&self.textcols.0, &self.textcols.1, &col);
+                    let chosen = choose_fg(&self.textcols.0, &self.textcols.1, col);
                     fg_map.insert(*symbol, chosen);
                 }
                 self.fg_map = Some((fg_map, false));

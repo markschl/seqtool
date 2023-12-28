@@ -360,10 +360,7 @@ macro_rules! accessor {
 
 impl Value {
     pub fn is_numeric(&self) -> bool {
-        match self {
-            Value::Int(_) | Value::Float(_) | Value::Bool(_) => true,
-            _ => false,
-        }
+        matches!(self, Value::Int(_) | Value::Float(_) | Value::Bool(_))
     }
 
     mut_accessor!(mut_bool, Bool, bool);

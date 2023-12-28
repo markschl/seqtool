@@ -264,11 +264,11 @@ pub fn from_format<'a>(
                 wrap_width,
             } => {
                 let writer = fasta::FastaWriter::new(wrap_width);
-                Box::new(attr::AttrWriter::new(writer, &attrs, b)?)
+                Box::new(attr::AttrWriter::new(writer, attrs, b)?)
             }
             OutFormat::Fastq { format, ref attrs } => {
                 let writer = fastq::FastqWriter::new(format);
-                Box::new(attr::AttrWriter::new(writer, &attrs, b)?)
+                Box::new(attr::AttrWriter::new(writer, attrs, b)?)
             }
             OutFormat::FaQual {
                 ref attrs,
@@ -276,10 +276,10 @@ pub fn from_format<'a>(
                 ref qfile,
             } => {
                 let writer = fa_qual::FaQualWriter::new(wrap_width, qfile)?;
-                Box::new(attr::AttrWriter::new(writer, &attrs, b)?)
+                Box::new(attr::AttrWriter::new(writer, attrs, b)?)
             }
             OutFormat::Csv { delim, ref fields } => {
-                Box::new(csv::CsvWriter::new(&fields, delim, b)?)
+                Box::new(csv::CsvWriter::new(fields, delim, b)?)
             }
         };
         Ok(out)

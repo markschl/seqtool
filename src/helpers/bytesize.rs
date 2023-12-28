@@ -46,7 +46,7 @@ mod tests {
             (2.3_f64 * 1024. * 1024.).round() as usize
         );
         assert_eq!(parse_bytesize("9 g").unwrap(), 9 * 1024 * 1024 * 1024);
-        assert_eq!(parse_bytesize("1T").unwrap(), 1 * 1024 * 1024 * 1024 * 1024);
+        assert_eq!(parse_bytesize("1T").unwrap(), 1024 * 1024 * 1024 * 1024);
         assert!(parse_bytesize("x").is_err());
         assert!(parse_bytesize("1x").is_err());
     }

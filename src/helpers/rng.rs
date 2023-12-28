@@ -84,7 +84,7 @@ impl FromStr for Range {
         let mut parts = s.splitn(2, "..").map(|s| s.trim());
         let start = parts.next().unwrap();
         if let Some(end) = parts.next() {
-            if let None = parts.next() {
+            if parts.next().is_none() {
                 let start = if start.is_empty() {
                     None
                 } else {

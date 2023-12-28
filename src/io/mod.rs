@@ -152,7 +152,7 @@ impl FileInfo {
                 Ok(f) => f,
                 Err(_) => {
                     let ext = ext.to_string_lossy();
-                    if !ext.find('{').is_some() {
+                    if ext.find('{').is_none() {
                         // print message unless extension is a variable/function
                         eprintln!(
                             "Unknown extension: '{}', assuming {} format",

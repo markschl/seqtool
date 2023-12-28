@@ -115,7 +115,7 @@ impl VarKey {
     fn from_str(s: &str, builder: &mut VarBuilder) -> CliResult<Self> {
         let (interval, key) = parse_key(s, 1., 0);
         Ok(Self {
-            key: varstring::VarString::var_or_composed(&key, builder)?.0,
+            key: varstring::VarString::var_or_composed(key, builder)?.0,
             val: Vec::new(),
             interval: interval.clone().unwrap_or(Interval::new(1., 0)),
             is_discrete: true,
@@ -224,7 +224,7 @@ where
     cfg.with_vars(None, |vars| {
         // register variables & parse types
         let mut var_keys: Vec<_> = keys
-            .into_iter()
+            .iter()
             .map(|k| vars.build(|b| VarKey::from_str(k.as_ref(), b)))
             .collect::<CliResult<_>>()?;
 

@@ -150,11 +150,8 @@ where
 
     if out
         .iter()
-        .any(|&(a, _)| a == Algorithm::Regex || a == Algorithm::Exact)
-    {
-        if dist > 0 {
-            eprintln!("Warning: distance option ignored with exact/regex matching.");
-        }
+        .any(|&(a, _)| a == Algorithm::Regex || a == Algorithm::Exact) && dist > 0 {
+        eprintln!("Warning: distance option ignored with exact/regex matching.");
     }
 
     if unique_seqtypes.len() > 1 {

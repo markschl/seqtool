@@ -126,7 +126,7 @@ impl VarRanges {
         // then, we parse all ranges
         let mut ranges: Vec<VarRange> = parts
             .into_iter()
-            .map(|vs| VarRange::from_varstring(vs))
+            .map(VarRange::from_varstring)
             .collect::<CliResult<_>>()?;
         // single-variable strings may hold a range list (not only a single range)
         let mut ty = VarRangesType::Split(ranges.clone());

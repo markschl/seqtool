@@ -41,7 +41,7 @@ pub struct UniqueCommand {
 
 pub fn run(cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let force_numeric = args.numeric;
-    let m = Box::new(KeyVars::default());
+    let m = Box::<KeyVars>::default();
     cfg.writer_with_custom(Some(m), |writer, io_writer, vars| {
         // assemble key
         let (var_key, _) = vars.build(|b| VarString::var_or_composed(&args.key, b))?;

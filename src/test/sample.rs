@@ -26,7 +26,6 @@ fn simple() {
 
 #[test]
 fn large() {
-    let t = Tester::new();
     // RNGs and seeds
     // test with integer seed
     let seed1 = 602993;
@@ -48,11 +47,11 @@ fn large() {
     // input
     let n_records = 1000;
     let seqs: Vec<_> = (0..n_records)
-        .into_iter()
         .map(|i| format!(">{}\nSEQ\n", i))
         .collect();
     let fasta = seqs.join("");
 
+    let t = Tester::new();
     t.temp_file("sample", Some(&fasta), |path, _| {
         for (seed, get_rng) in &rngs {
             // test fixed number (-n)
@@ -86,9 +85,7 @@ fn large() {
             for &p in &[0., 0.1, 0.3, 0.5, 0.7, 0.95] {
                 let mut rng = get_rng();
                 let expected = seqs
-                    .iter()
-                    .cloned()
-                    .filter(|_| distr.sample(&mut rng) < p)
+                    .iter().filter(|&_| distr.sample(&mut rng) < p).cloned()
                     .join("");
 
                 t.cmp(

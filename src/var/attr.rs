@@ -357,7 +357,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            Ok(out.extend_from_slice(b"val"))
+            out.extend_from_slice(b"val");
+            Ok(())
         })
         .unwrap();
         assert_eq!(&out_desc, b"desc a=0 b=val");
@@ -368,7 +369,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            Ok(out.extend_from_slice(b"val"))
+            out.extend_from_slice(b"val");
+            Ok(())
         })
         .unwrap();
         assert_eq!(&out_desc, b"desc a=0 c=1 b=val");
@@ -379,7 +381,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            Ok(out.extend_from_slice(b"val"))
+            out.extend_from_slice(b"val");
+            Ok(())
         })
         .unwrap();
         assert_eq!(&out_desc, b"desc b=val");
@@ -396,7 +399,8 @@ mod tests {
         a.add_attr("a", 0, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            Ok(out.extend_from_slice(b"val"))
+            out.extend_from_slice(b"val");
+            Ok(())
         })
         .unwrap();
         assert_eq!(&out_id, b"id;a=val");
@@ -406,7 +410,8 @@ mod tests {
         a.add_attr("a", 0, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            Ok(out.extend_from_slice(b"val"))
+            out.extend_from_slice(b"val");
+            Ok(())
         })
         .unwrap();
         assert_eq!(&out_id, b"id;a=0");
@@ -425,7 +430,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            Ok(out.extend_from_slice(b"val"))
+            out.extend_from_slice(b"val");
+            Ok(())
         })
         .unwrap();
         assert_eq!(&out_desc, b"desc a=val c=2 b=val");
@@ -435,7 +441,8 @@ mod tests {
         a.add_attr("b", 1, Some(Action::Delete));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            Ok(out.extend_from_slice(b"val"))
+            out.extend_from_slice(b"val");
+            Ok(())
         })
         .unwrap();
         assert_eq!(&out_desc, b"desc c=2");

@@ -44,7 +44,7 @@ impl FormatWriter for CsvWriter {
             is_first = false;
             expr.compose(out, vars.symbols(), record)?;
         }
-        writeln!(out, "")?;
+        writeln!(out)?;
         Ok(())
     }
 }

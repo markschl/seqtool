@@ -18,7 +18,7 @@ pub struct SliceCommand {
 }
 
 pub fn run(cfg: Config, args: &SliceCommand) -> CliResult<()> {
-    let range = args.range.clone();
+    let range = args.range;
 
     cfg.writer(|writer, io_writer, vars| {
         // convert from 1-based to 0-based coordinates

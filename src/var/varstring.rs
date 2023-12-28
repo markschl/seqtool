@@ -431,7 +431,7 @@ impl VarString {
         }
         text_buf.clear();
         self.compose(text_buf, table, record)?;
-        if text_buf.len() == 0 {
+        if text_buf.is_empty() {
             return Ok(None);
         }
         Ok(Some(text_to_int(text_buf)?))

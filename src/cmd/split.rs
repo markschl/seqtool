@@ -53,7 +53,6 @@ pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
     let (out_key, chunk_size) = if let Some(n) = num_seqs {
         (
             out_path
-                .as_deref()
                 .unwrap_or("{filestem}_{chunk}.{default_ext}"),
             n,
         )
