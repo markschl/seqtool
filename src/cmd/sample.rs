@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use std::mem::size_of;
+use std::mem::{size_of, size_of_val};
 
 use clap::{value_parser, Parser};
 use rand::{distributions::Uniform, prelude::*};
@@ -11,7 +11,7 @@ use crate::io::{output::FormatWriter, Record};
 use crate::opt::CommonArgs;
 use crate::var::*;
 
-/// Returns a random subset of sequences, sorted in input order.
+/// Returns a random subset of sequences.
 ///
 /// Either a fixed number (-n/--num-seqs) or an approximate fraction (-p/--prob)
 /// can be sampled (see help for these options). The records are returned in
@@ -252,7 +252,7 @@ impl<R: Rng + Clone> RecordsSampler<R> {
             let fmt_rec = self
                 .vec_factory
                 .fill_vec(|out| writer.write(&record, out, vars))?;
-            self.mem += size_of::<usize>() + fmt_rec.len();
+            self.mem += size_of_val(&self.i) + size_of_val(&fmt_rec) + size_of_val(&*fmt_rec);
             self.reservoir.push((self.i, fmt_rec));
             if self.mem >= self.max_mem {
                 self.i += 1;
@@ -261,11 +261,11 @@ impl<R: Rng + Clone> RecordsSampler<R> {
         } else {
             let k = gen_index(&mut self.rng, self.i + 1);
             if let Some((idx, fmt_rec)) = self.reservoir.get_mut(k) {
-                self.mem -= fmt_rec.len();
+                self.mem -= size_of_val(&*fmt_rec);
                 *idx = self.i;
                 fmt_rec.clear();
                 writer.write(&record, fmt_rec, vars)?;
-                self.mem += fmt_rec.len();
+                self.mem += size_of_val(&*fmt_rec);
                 if self.mem >= self.max_mem {
                     self.i += 1;
                     return Ok(false);
@@ -353,10 +353,9 @@ impl<R: Rng> IndexSampler<R> {
         writer: &mut dyn FormatWriter,
         io_writer: &mut dyn Write,
     ) -> CliResult<()> {
-        // Next, read again and write the selected records.
-        // In order to do that, we pre-sort the indices.
+        // sort by index
         self.reservoir.sort();
-
+        // write chosen records
         let mut chosen_iter = self.reservoir.into_iter();
         let mut next_index = chosen_iter.next().unwrap();
         let mut i = 0;

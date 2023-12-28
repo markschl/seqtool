@@ -1,6 +1,5 @@
 use std::cmp::{max, min};
 use std::io::{self, Read, Write};
-use std::mem::size_of_val;
 use std::path::PathBuf;
 
 use byteorder::{ReadBytesExt, LE};
@@ -39,7 +38,7 @@ impl MemSorter {
     }
 
     pub fn add(&mut self, item: Item) -> bool {
-        self.mem += size_of_val(&item);
+        self.mem += item.size();
         self.records.push(item);
         self.mem < self.max_mem
     }
@@ -116,3 +115,5 @@ impl MemSorter {
         Ok(Some(item))
     }
 }
+
+

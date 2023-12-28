@@ -1,5 +1,6 @@
 use std::env::temp_dir;
 use std::io::Write;
+use std::mem::size_of_val;
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
@@ -95,6 +96,15 @@ pub enum Key {
     None,
 }
 
+impl Key {
+    pub fn size(&self) -> usize {
+        match self {
+            Key::Text(v) => size_of_val(v) + size_of_val(&**v),
+            _ => size_of_val(self)
+        }
+    }
+}
+
 impl<'a> From<Option<DynValue<'a>>> for Key {
     fn from(v: Option<DynValue<'a>>) -> Self {
         match v {
@@ -162,6 +172,10 @@ pub struct Item {
 impl Item {
     fn new(key: Key, record: Vec<u8>) -> Self {
         Self { key, record }
+    }
+
+    fn size(&self) -> usize {
+        self.key.size() + size_of_val(&self.record) + size_of_val(&*self.record)
     }
 }
 
