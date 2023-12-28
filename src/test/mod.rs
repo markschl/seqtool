@@ -178,7 +178,9 @@ mod concat;
 mod convert;
 mod count;
 mod del;
+#[cfg(feature = "expr")]
 mod filter;
+#[cfg(feature = "find")]
 mod find;
 mod head;
 mod interleave;

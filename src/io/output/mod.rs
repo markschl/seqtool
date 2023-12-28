@@ -170,6 +170,7 @@ impl<W: io::Write> WriteFinish for io::BufWriter<W> {
     }
 }
 
+#[cfg(feature = "lz4")]
 impl<W: io::Write> WriteFinish for lz4::Encoder<W> {
     fn finish<'a>(self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
     where
@@ -180,6 +181,7 @@ impl<W: io::Write> WriteFinish for lz4::Encoder<W> {
     }
 }
 
+#[cfg(feature = "zstd")]
 impl<W: io::Write> WriteFinish for zstd::Encoder<'_, W> {
     fn finish<'a>(self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
     where
@@ -189,6 +191,7 @@ impl<W: io::Write> WriteFinish for zstd::Encoder<'_, W> {
     }
 }
 
+#[cfg(feature = "gz")]
 impl<W: io::Write> WriteFinish for flate2::write::GzEncoder<W> {
     fn finish<'a>(self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
     where
@@ -198,6 +201,7 @@ impl<W: io::Write> WriteFinish for flate2::write::GzEncoder<W> {
     }
 }
 
+#[cfg(feature = "bz2")]
 impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
     fn finish<'a>(self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
     where

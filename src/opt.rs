@@ -1,14 +1,18 @@
 use crate::cmd::{
     concat::ConcatCommand, count::CountCommand, del::DelCommand,
-    find::FindCommand, head::HeadCommand, interleave::InterleaveCommand, lower::LowerCommand,
+    head::HeadCommand, interleave::InterleaveCommand, lower::LowerCommand,
     mask::MaskCommand, pass::PassCommand, replace::ReplaceCommand, revcomp::RevcompCommand,
     sample::SampleCommand, set::SetCommand, slice::SliceCommand, sort::SortCommand,
     split::SplitCommand, stat::StatCommand, tail::TailCommand, trim::TrimCommand,
-    unique::UniqueCommand, upper::UpperCommand, view::ViewCommand,
+    unique::UniqueCommand, upper::UpperCommand,
 };
 
 #[cfg(feature = "expr")]
 use crate::cmd::filter::FilterCommand;
+#[cfg(feature = "find")]
+use crate::cmd::find::FindCommand;
+#[cfg(feature = "view")]
+use crate::cmd::view::ViewCommand;
 
 use crate::config::Config;
 use crate::error::CliResult;
@@ -41,6 +45,7 @@ impl Cli {
         }
         match self.0.command {
             Pass(ref opts) => run!(pass, opts),
+            #[cfg(feature = "view")]
             View(ref opts) => run!(view, opts),
             Count(ref opts) => run!(count, opts),
             Stat(ref opts) => run!(stat, opts),
@@ -54,6 +59,7 @@ impl Cli {
             Filter(ref opts) => run!(filter, opts),
             Split(ref opts) => run!(split, opts),
             Interleave(ref opts) => run!(interleave, opts),
+            #[cfg(feature = "find")]
             Find(ref opts) => run!(find, opts),
             Replace(ref opts) => run!(replace, opts),
             Del(ref opts) => run!(del, opts),
@@ -230,6 +236,7 @@ pub enum SubCommand {
     #[command(aliases=&["."])]
     Pass(PassCommand),
     /// Colored sequence view
+    #[cfg(feature = "view")]
     View(ViewCommand),
     /// Count sequences (total or by sequence properties)
     Count(CountCommand),
@@ -257,6 +264,7 @@ pub enum SubCommand {
     Interleave(InterleaveCommand),
 
     /// Find one or more patterns with optional filtering/replacement
+    #[cfg(feature = "find")]
     Find(FindCommand),
     /// Fast pattern replacement
     Replace(ReplaceCommand),

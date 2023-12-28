@@ -1,4 +1,5 @@
 pub mod pass;
+#[cfg(feature = "view")]
 pub mod view;
 
 pub mod count;
@@ -15,6 +16,7 @@ pub mod split;
 pub mod tail;
 pub mod unique;
 
+#[cfg(feature = "find")]
 pub mod find;
 pub mod replace;
 

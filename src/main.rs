@@ -6,8 +6,6 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate seq_io;
-#[cfg(target_family = "unix")]
-extern crate pager;
 
 use crate::{config::Config, opt::Cli};
 

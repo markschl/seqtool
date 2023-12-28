@@ -92,6 +92,7 @@ impl Config {
 
     /// Like `writer`, but additionally takes a `Vars` object that was already
     /// constructed outside (via `with_vars`).
+    #[cfg_attr(not(feature = "find"), allow(unused))]
     pub fn writer_with_vars<F, O>(&self, vars: &mut var::Vars, func: F) -> CliResult<O>
     where
         F: FnOnce(
