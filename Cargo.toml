@@ -33,7 +33,6 @@ atoi = "2.0"
 rquickjs = { version = "0.4.0", features=["classes", "properties", "bindgen", "rust-alloc", "macro"], optional=true}
 bytecount = "0.6"
 maplit = "1.0"
-byteorder = "1.5"
 read_color = "1.0"
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"] }
 enterpolation = { version = "0.2", default-features = false, features = ["std", "linear"]}
@@ -44,9 +43,12 @@ bitflags = "2.4"
 strum = "0.25"
 strum_macros = "0.25"
 bstr = { version = "1.8.0", default-features = false, features = ["std"] }
-ordered-float = "4.2.0"
+ordered-float = { version = "4.2.0", default-features = false, features = ["std", "rkyv", "rkyv_ck"]}
 indexmap = "2.1.0"
 rand_xoshiro = "0.6.0"
+rkyv = { version = "0.7.43", features = ["validation"]}
+byteorder = "1.5.0"
+tempdir = "0.3.7"
 
 [target.'cfg(unix)'.dependencies]
 pager = "0.16"
@@ -57,7 +59,6 @@ regex = { version = "1.10", default-features = false }
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
-tempdir = "0.3"
 approx = "0.5"
 
 [features]

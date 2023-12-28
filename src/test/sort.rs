@@ -1,3 +1,7 @@
+use std::cmp::Reverse;
+
+use rand::{seq::SliceRandom, SeedableRng};
+
 use super::*;
 
 // id	desc	seq
@@ -146,4 +150,51 @@ fn key_var() {
     Tester::new()
         .cmp(&["sort", "-k", expr, "-a", "k={key}"], fa, out)
         .cmp(&["sort", "-nk", expr, "-a", "k={key}"], fa, out);
+}
+
+#[test]
+fn large() {
+    // randomly shuffle records (with sequence number in ID),
+    // in order to later sort them by ID
+    let n_records = 100;
+    let mut indices: Vec<_> = (0..n_records).collect();
+    let mut rng = rand_xoshiro::Xoshiro256PlusPlus::seed_from_u64(42);
+    indices.shuffle(&mut rng);
+    let seqs: Vec<_> = indices
+        .into_iter()
+        .map(|i| (i, format!(">{}\nSEQ\n", i)))
+        .collect();
+    let mut text_sorted = seqs.clone();
+    text_sorted.sort_by_key(|(i, _)| format!("{}", i));
+    let mut rev_sorted = seqs.clone();
+    rev_sorted.sort_by_key(|(i, _)| Reverse(format!("{}", i)));
+    let mut num_sorted = seqs.clone();
+    num_sorted.sort_by_key(|(i, _)| *i);
+    let fasta = seqs.iter().map(|(_, s)| s).join("");
+    let sorted_fasta = text_sorted.iter().map(|(_, s)| s).join("");
+    let rev_sorted_fasta = rev_sorted.iter().map(|(_, s)| s).join("");
+    let num_sorted_fasta = num_sorted.iter().map(|(_, s)| s).join("");
+
+    let t = Tester::new();
+    t.temp_file("sort", Some(&fasta), |path, _| {
+        for rec_limit in [5usize, 10, 20, 50, 100, 10000] {
+            let mem_limit = rec_limit * n_records * 12;
+            let mem = format!("{}", mem_limit);
+            t.cmp(
+                &["sort", "-k", "id", "--max-mem", &mem],
+                FileInput(path),
+                &sorted_fasta,
+            );
+            t.cmp(
+                &["sort", "-rk", "id", "--max-mem", &mem],
+                FileInput(path),
+                &rev_sorted_fasta,
+            );
+            t.cmp(
+                &["sort", "-nk", "id", "--max-mem", &mem],
+                FileInput(path),
+                &num_sorted_fasta,
+            );
+        }
+    });
 }
