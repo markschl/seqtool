@@ -2,8 +2,9 @@ extern crate textwrap;
 
 use std::any::Any;
 use std::clone::Clone;
-use std::collections::HashMap;
 use std::fmt::{Debug, Write};
+
+use fxhash::FxHashMap;
 
 use crate::error::{CliError, CliResult};
 use crate::io::{input::InputOptions, output::OutputOptions, QualConverter, Record, SeqAttr};
@@ -291,8 +292,8 @@ pub struct MetaData {
 pub struct Vars {
     modules: Vec<Box<dyn VarProvider>>,
     data: MetaData,
-    var_map: HashMap<Func, (usize, Option<VarType>, bool)>,
-    attr_map: HashMap<String, usize>,
+    var_map: FxHashMap<Func, (usize, Option<VarType>, bool)>,
+    attr_map: FxHashMap<String, usize>,
     print_help: bool,
 }
 
@@ -311,8 +312,8 @@ impl Vars {
                 attrs: attr::Attrs::new(attr_delim, attr_value_delim, append_attr),
                 qual_converter,
             },
-            var_map: HashMap::new(),
-            attr_map: HashMap::new(),
+            var_map: FxHashMap::default(),
+            attr_map: FxHashMap::default(),
             print_help,
         }
     }
@@ -432,8 +433,8 @@ impl Vars {
 pub struct VarBuilder<'a> {
     modules: &'a mut [Box<dyn VarProvider>],
     // func -> (var_id, var_type, allow_nested)
-    var_map: &'a mut HashMap<Func, (usize, Option<VarType>, bool)>,
-    attr_map: &'a mut HashMap<String, usize>,
+    var_map: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
+    attr_map: &'a mut FxHashMap<String, usize>,
     attrs: &'a mut attr::Attrs,
 }
 

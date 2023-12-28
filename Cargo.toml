@@ -32,7 +32,6 @@ textwrap = { version = "0.16", default-features = false }
 atoi = "2.0"
 rquickjs = { version = "0.4.0", features=["classes", "properties", "bindgen", "rust-alloc", "macro"], optional=true}
 bytecount = "0.6"
-maplit = "1.0"
 read_color = "1.0"
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"] }
 enterpolation = { version = "0.2", default-features = false, features = ["std", "linear"]}

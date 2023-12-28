@@ -1,12 +1,13 @@
 use std::{
     borrow::Cow,
-    collections::{hash_map::DefaultHasher, HashMap},
     fmt::Debug,
     fs::read_to_string,
     hash::{Hash, Hasher},
     ops::Range,
     str,
 };
+
+use fxhash::{FxHasher64, FxHashMap};
 
 use crate::var::varstring::parse_vars;
 use crate::{error::CliResult, var::*};
@@ -42,7 +43,7 @@ impl ScriptEditor {
         let suffix = if func.num_args() == 0 {
             0
         } else {
-            let mut hasher = DefaultHasher::default();
+            let mut hasher = FxHasher64::default();
             func.args.hash(&mut hasher);
             hasher.finish()
         };
@@ -67,7 +68,7 @@ impl ScriptEditor {
 pub fn replace_register_vars(expr: &str, b: &mut VarBuilder) -> CliResult<(String, Vec<Var>)> {
     let expr_string = code_or_file(expr)?.to_string();
     let mut editor = ScriptEditor::new(&expr_string);
-    let mut vars = HashMap::new();
+    let mut vars = FxHashMap::default();
     for (rng, func) in parse_vars(&expr_string) {
         // exclude method calls and reserved words
         // println!("func {:?}", func);

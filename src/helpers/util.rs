@@ -1,13 +1,14 @@
 //use std::ops::Deref;
-use std::collections::HashMap;
 use std::convert::AsRef;
+
+use fxhash::FxHashMap;
 
 pub fn match_fields<'a, S1, S2>(fields: &'a [S1], other: &'a [S2]) -> Result<Vec<usize>, &'a str>
 where
     S1: AsRef<str>,
     S2: AsRef<str>,
 {
-    let other: HashMap<_, _> = other
+    let other: FxHashMap<_, _> = other
         .iter()
         .enumerate()
         .map(|(i, f)| (f.as_ref(), i))

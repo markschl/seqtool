@@ -1,9 +1,9 @@
 use std::borrow::ToOwned;
-use std::collections::HashMap;
 use std::convert::AsRef;
 use std::io;
 
 use ::csv;
+use fxhash::FxHashMap;
 
 use super::*;
 use crate::error::CliResult;
@@ -51,7 +51,7 @@ impl<R: io::Read> CsvReader<R> {
             );
         }
 
-        let mut fieldmap: HashMap<_, _> = if n == 1 {
+        let mut fieldmap: FxHashMap<_, _> = if n == 1 {
             // id,desc,seq
             fields
                 .into_iter()

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::AsRef;
 use std::fs::File;
 #[allow(unused_imports)]
@@ -7,6 +6,7 @@ use std::process::{Command as StdCommand, Stdio};
 use std::str;
 
 use assert_cmd::{assert::Assert, cargo::cargo_bin, Command};
+use fxhash::FxHashMap;
 use itertools::Itertools;
 use predicates::{ord::eq, prelude::*, str::contains};
 
@@ -42,13 +42,13 @@ impl Input for MultiFileInput {
 }
 
 struct Tester {
-    vars: HashMap<String, String>,
+    vars: FxHashMap<String, String>,
 }
 
 impl Tester {
     fn new() -> Tester {
         Tester {
-            vars: HashMap::new(),
+            vars: FxHashMap::default(),
         }
     }
 

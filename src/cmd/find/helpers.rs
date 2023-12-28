@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
 use itertools::Itertools;
 
@@ -12,33 +12,41 @@ use super::{
     MatchOpts,
 };
 
+static AMBIG_DNA: &[(u8, &[u8])] = &[
+    (b'M', b"AC"),
+    (b'R', b"AG"),
+    (b'W', b"AT"),
+    (b'S', b"CG"),
+    (b'Y', b"CT"),
+    (b'K', b"GT"),
+    (b'V', b"ACGMRS"),
+    (b'H', b"ACTMWY"),
+    (b'D', b"AGTRWK"),
+    (b'B', b"CGTSYK"),
+    (b'N', b"ACGTMRWSYKVHDB"),
+];
+
+static AMBIG_PROTEIN: &[(u8, &[u8])] = &[
+    (b'X', b"CDEFGHIKLMNOPQRSTUVWY"),
+];
+
+
 lazy_static! {
-    static ref AMBIG_DNA: HashMap<u8, Vec<u8>> = hashmap! {
-        b'M' => b"AC".to_vec(),
-        b'R' => b"AG".to_vec(),
-        b'W' => b"AT".to_vec(),
-        b'S' => b"CG".to_vec(),
-        b'Y' => b"CT".to_vec(),
-        b'K' => b"GT".to_vec(),
-        b'V' => b"ACGMRS".to_vec(),
-        b'H' => b"ACTMWY".to_vec(),
-        b'D' => b"AGTRWK".to_vec(),
-        b'B' => b"CGTSYK".to_vec(),
-        b'N' => b"ACGTMRWSYKVHDB".to_vec(),
-    };
-    static ref AMBIG_RNA: HashMap<u8, Vec<u8>> = AMBIG_DNA
+    static ref _AMBIG_RNA: Vec<(u8, Vec<u8>)> = AMBIG_DNA
         .iter()
-        .map(|(&b, eq)| {
+        .map(|(b, eq)| {
             let eq = eq
                 .iter()
                 .map(|&b| if b == b'T' { b'U' } else { b })
                 .collect();
-            (b, eq)
+            (*b, eq)
         })
         .collect();
-    static ref AMBIG_PROTEIN: HashMap<u8, Vec<u8>> = hashmap! {
-        b'X' => b"CDEFGHIKLMNOPQRSTUVWY".to_vec(),
-    };
+
+    static ref AMBIG_RNA: Vec<(u8, &'static [u8])> = _AMBIG_RNA
+        .iter()
+        .map(|(b, eq)| (*b, eq.as_slice()))
+        .collect();
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -177,9 +185,9 @@ pub(crate) fn get_matcher<'a>(
         Algorithm::Myers => {
             let ambig_map = if ambig {
                 match o.seqtype {
-                    SeqType::Dna => Some(&AMBIG_DNA as &HashMap<_, _>),
-                    SeqType::Rna => Some(&AMBIG_RNA as &HashMap<_, _>),
-                    SeqType::Protein => Some(&AMBIG_PROTEIN as &HashMap<_, _>),
+                    SeqType::Dna => Some(AMBIG_DNA),
+                    SeqType::Rna => Some(&AMBIG_RNA as &[(u8, &[u8])]),
+                    SeqType::Protein => Some(AMBIG_PROTEIN),
                     SeqType::Other => None,
                 }
             } else {

@@ -1,5 +1,4 @@
 use super::*;
-use std::collections::HashMap;
 
 use bio::pattern_matching::myers;
 use itertools::Itertools;
@@ -13,11 +12,11 @@ enum _Myers {
 }
 
 impl _Myers {
-    fn new(pattern: &[u8], ambig_trans: Option<&HashMap<u8, Vec<u8>>>) -> Self {
+    fn new(pattern: &[u8], ambig_trans: Option<&[(u8, &[u8])]>) -> Self {
         let mut builder = myers::MyersBuilder::new();
         if let Some(trans) = ambig_trans {
-            for (&symbol, equivalents) in trans {
-                builder.ambig(symbol, equivalents);
+            for (symbol, equivalents) in trans {
+                builder.ambig(*symbol, *equivalents);
             }
         }
         if pattern.len() <= 64 {
@@ -106,7 +105,7 @@ impl MyersMatcher {
         max_dist: usize,
         needs_start: bool,
         sorted: bool,
-        ambig_trans: Option<&HashMap<u8, Vec<u8>>>,
+        ambig_trans: Option<&[(u8, &[u8])]>,
     ) -> CliResult<Self> {
         Ok(MyersMatcher {
             myers: _Myers::new(pattern, ambig_trans),
