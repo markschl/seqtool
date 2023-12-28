@@ -61,8 +61,8 @@ predicates = "3.0"
 approx = "0.5"
 
 [features]
-default = ["js", "gz", "lz4", "zstd"]
-js = ["rquickjs"]
+default = ["expr", "gz", "lz4", "zstd"]
+expr = ["rquickjs"]
 gz = []
 lz4 = []
 zstd = []
