@@ -22,7 +22,7 @@ fn simple() {
             records!(0, 1, 2, 3),
         );
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new().cmp(&["unique", "-k", "{{seq}}"], *FASTA, records!(0, 1, 2, 3));
 }
 
@@ -32,7 +32,7 @@ fn attr() {
         .cmp(&["unique", "-k", "attr(p)"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "-nk", "attr(p)"], *FASTA, records!(0, 1, 2, 3));
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new().cmp(
         &["unique", "-k", "{{attr(p)+1}}"],
         *FASTA,
@@ -68,7 +68,7 @@ fn force_numeric() {
             records!(0, 1, 2, 3),
         );
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new()
         .fails(&["unique", "-nk", "{{id}}"], *FASTA, "Could not convert")
         .cmp(
@@ -79,7 +79,7 @@ fn force_numeric() {
 }
 
 #[test]
-#[cfg(feature = "js")]
+#[cfg(feature = "expr")]
 fn expr() {
     Tester::new()
         .cmp(
@@ -108,7 +108,7 @@ fn expr() {
 }
 
 #[test]
-#[cfg(feature = "js")]
+#[cfg(feature = "expr")]
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s1 k=-1\nS1\n>s2 k=\nS2\n";

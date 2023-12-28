@@ -4,6 +4,7 @@ pub mod view;
 pub mod count;
 pub mod stat;
 
+#[cfg(feature = "expr")]
 pub mod filter;
 pub mod head;
 pub mod interleave;

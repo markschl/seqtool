@@ -26,7 +26,7 @@ fn attr() {
         .cmp(&["sort", "-k", "attr(p)"], *FASTA, records!(1, 2, 3, 0))
         .cmp(&["sort", "-k", "{attr(p)}"], *FASTA, records!(1, 2, 3, 0));
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new().cmp(&["sort", "-k", "{{attr(p)}}"], *FASTA, records!(1, 2, 3, 0));
 }
 
@@ -37,7 +37,7 @@ fn numeric_attr() {
         .cmp(&["sort", "-nk", "{attr(p)}"], *FASTA, records!(1, 0, 2, 3))
         .cmp(&["sort", "-rnk", "attr(p)"], *FASTA, records!(3, 2, 0, 1));
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new().cmp(
         &["sort", "-nk", "{{attr(p)+1}}"],
         *FASTA,
@@ -60,7 +60,7 @@ fn force_numeric() {
             records!(1, 0, 2, 3),
         );
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new().cmp(
         &["sort", "-nk", "{{ id.substring(3, 4) }}"],
         *FASTA,
@@ -74,7 +74,7 @@ fn numeric_vars() {
         .cmp(&["sort", "-k", "num"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["sort", "-rk", "num"], *FASTA, records!(3, 2, 1, 0));
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new()
         .cmp(
             &["sort", "-k", "{{ 7 + num }}"],
@@ -116,7 +116,7 @@ fn numeric_vars() {
 }
 
 #[test]
-#[cfg(feature = "js")]
+#[cfg(feature = "expr")]
 fn mixed_types() {
     Tester::new()
         // text before numeric
@@ -142,7 +142,7 @@ fn mixed_types() {
 }
 
 #[test]
-#[cfg(feature = "js")]
+#[cfg(feature = "expr")]
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s3 k=-3\nS3\n>s1 k=\nS1\n>s2 k=\nS2\n";

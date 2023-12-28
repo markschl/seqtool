@@ -35,7 +35,7 @@ fn missing() {
             "'missing' not found in record",
         );
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     Tester::new()
         .cmp(
             &["count", "-k", "{{opt_attr(missing) + 1}}"],

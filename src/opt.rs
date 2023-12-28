@@ -1,11 +1,14 @@
 use crate::cmd::{
-    concat::ConcatCommand, count::CountCommand, del::DelCommand, filter::FilterCommand,
+    concat::ConcatCommand, count::CountCommand, del::DelCommand,
     find::FindCommand, head::HeadCommand, interleave::InterleaveCommand, lower::LowerCommand,
     mask::MaskCommand, pass::PassCommand, replace::ReplaceCommand, revcomp::RevcompCommand,
     sample::SampleCommand, set::SetCommand, slice::SliceCommand, sort::SortCommand,
     split::SplitCommand, stat::StatCommand, tail::TailCommand, trim::TrimCommand,
     unique::UniqueCommand, upper::UpperCommand, view::ViewCommand,
 };
+
+#[cfg(feature = "expr")]
+use crate::cmd::filter::FilterCommand;
 
 use crate::config::Config;
 use crate::error::CliResult;
@@ -47,6 +50,7 @@ impl Cli {
             Sample(ref opts) => run!(sample, opts),
             Sort(ref opts) => run!(sort, opts),
             Unique(ref opts) => run!(unique, opts),
+            #[cfg(feature = "expr")]
             Filter(ref opts) => run!(filter, opts),
             Split(ref opts) => run!(split, opts),
             Interleave(ref opts) => run!(interleave, opts),
@@ -245,6 +249,7 @@ pub enum SubCommand {
     /// De-replicate records, returning only unique ones
     Unique(UniqueCommand),
     /// Filter based on different criteria
+    #[cfg(feature = "expr")]
     Filter(FilterCommand),
     /// Distribute sequences into multiple files
     Split(SplitCommand),

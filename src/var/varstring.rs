@@ -289,7 +289,7 @@ impl VarString {
             // the variable regex matches either single or double braces,
             // so we check which ones and proceed correspondingly
             let var = m.as_str();
-            let (var_id, ty, _) = if var.starts_with("{{") && cfg!(feature = "js") {
+            let (var_id, ty, _) = if var.starts_with("{{") && cfg!(feature = "expr") {
                 // matched {{ expression }}
                 let expr: &str = &var[2..var.len() - 2];
                 let func = Func::expr(expr);

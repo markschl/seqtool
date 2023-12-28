@@ -4,11 +4,7 @@ use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use bzip2;
-use flate2;
-use lz4;
 use thread_io;
-use zstd;
 
 use crate::{error::CliResult, var::Vars};
 
@@ -301,13 +297,15 @@ pub fn io_writer_from_kind(kind: &OutputKind) -> io::Result<Box<dyn WriteFinish>
 pub fn compr_writer(
     writer: Box<dyn WriteFinish>,
     compression: Compression,
-    level: Option<u8>,
+    #[allow(unused_variables)] level: Option<u8>,
 ) -> io::Result<Box<dyn WriteFinish>> {
     Ok(match compression {
+        #[cfg(feature = "gz")]
         Compression::Gzip => Box::new(flate2::write::GzEncoder::new(
             writer,
             flate2::Compression::new(u32::from(level.unwrap_or(6))),
         )),
+        #[cfg(feature = "bz2")]
         Compression::Bzip2 => {
             let c = match level {
                 Some(l) => bzip2::Compression::new(l as u32),
@@ -315,11 +313,13 @@ pub fn compr_writer(
             };
             Box::new(bzip2::write::BzEncoder::new(writer, c))
         }
+        #[cfg(feature = "lz4")]
         Compression::Lz4 => Box::new(
             lz4::EncoderBuilder::new()
                 .level(level.unwrap_or(0) as u32)
                 .build(writer)?,
         ),
+        #[cfg(feature = "zstd")]
         Compression::Zstd => Box::new(zstd::Encoder::new(writer, i32::from(level.unwrap_or(0)))?),
         Compression::None => writer,
     })

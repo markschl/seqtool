@@ -16,7 +16,7 @@ fn attrs() {
 }
 
 #[test]
-#[cfg(feature = "js")]
+#[cfg(feature = "expr")]
 fn lists() {
     let t = Tester::new();
     let list = "

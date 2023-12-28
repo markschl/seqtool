@@ -119,7 +119,7 @@ pub fn get_vars(
 
     vars.add_module(Box::new(modules::attr::AttrVars::new()));
 
-    #[cfg(feature = "js")]
+    #[cfg(feature = "expr")]
     vars.add_module(Box::new(modules::expr::ExprVars::new(
         o.expr_init.as_deref(),
     )?));
