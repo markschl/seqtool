@@ -7,7 +7,7 @@ use std::{
     str,
 };
 
-use fxhash::{FxHasher64, FxHashMap};
+use fxhash::{FxHashMap, FxHasher64};
 
 use crate::var::varstring::parse_vars;
 use crate::{error::CliResult, var::*};

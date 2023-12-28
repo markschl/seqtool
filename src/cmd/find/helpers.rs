@@ -26,10 +26,7 @@ static AMBIG_DNA: &[(u8, &[u8])] = &[
     (b'N', b"ACGTMRWSYKVHDB"),
 ];
 
-static AMBIG_PROTEIN: &[(u8, &[u8])] = &[
-    (b'X', b"CDEFGHIKLMNOPQRSTUVWY"),
-];
-
+static AMBIG_PROTEIN: &[(u8, &[u8])] = &[(b'X', b"CDEFGHIKLMNOPQRSTUVWY")];
 
 lazy_static! {
     static ref _AMBIG_RNA: Vec<(u8, Vec<u8>)> = AMBIG_DNA
@@ -42,7 +39,6 @@ lazy_static! {
             (*b, eq)
         })
         .collect();
-
     static ref AMBIG_RNA: Vec<(u8, &'static [u8])> = _AMBIG_RNA
         .iter()
         .map(|(b, eq)| (*b, eq.as_slice()))
@@ -150,7 +146,9 @@ where
 
     if out
         .iter()
-        .any(|&(a, _)| a == Algorithm::Regex || a == Algorithm::Exact) && dist > 0 {
+        .any(|&(a, _)| a == Algorithm::Regex || a == Algorithm::Exact)
+        && dist > 0
+    {
         eprintln!("Warning: distance option ignored with exact/regex matching.");
     }
 

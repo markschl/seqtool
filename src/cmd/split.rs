@@ -51,11 +51,7 @@ pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
 
     // output path (or default) and chunk size
     let (out_key, chunk_size) = if let Some(n) = num_seqs {
-        (
-            out_path
-                .unwrap_or("{filestem}_{chunk}.{default_ext}"),
-            n,
-        )
+        (out_path.unwrap_or("{filestem}_{chunk}.{default_ext}"), n)
     } else if let Some(key) = out_path {
         (key, 0)
     } else {

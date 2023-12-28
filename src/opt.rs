@@ -1,10 +1,9 @@
 use crate::cmd::{
-    concat::ConcatCommand, count::CountCommand, del::DelCommand,
-    head::HeadCommand, interleave::InterleaveCommand, lower::LowerCommand,
-    mask::MaskCommand, pass::PassCommand, replace::ReplaceCommand, revcomp::RevcompCommand,
-    sample::SampleCommand, set::SetCommand, slice::SliceCommand, sort::SortCommand,
-    split::SplitCommand, stat::StatCommand, tail::TailCommand, trim::TrimCommand,
-    unique::UniqueCommand, upper::UpperCommand,
+    concat::ConcatCommand, count::CountCommand, del::DelCommand, head::HeadCommand,
+    interleave::InterleaveCommand, lower::LowerCommand, mask::MaskCommand, pass::PassCommand,
+    replace::ReplaceCommand, revcomp::RevcompCommand, sample::SampleCommand, set::SetCommand,
+    slice::SliceCommand, sort::SortCommand, split::SplitCommand, stat::StatCommand,
+    tail::TailCommand, trim::TrimCommand, unique::UniqueCommand, upper::UpperCommand,
 };
 
 #[cfg(feature = "expr")]

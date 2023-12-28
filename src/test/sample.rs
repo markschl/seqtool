@@ -46,9 +46,7 @@ fn large() {
 
     // input
     let n_records = 1000;
-    let seqs: Vec<_> = (0..n_records)
-        .map(|i| format!(">{}\nSEQ\n", i))
-        .collect();
+    let seqs: Vec<_> = (0..n_records).map(|i| format!(">{}\nSEQ\n", i)).collect();
     let fasta = seqs.join("");
 
     let t = Tester::new();
@@ -85,7 +83,9 @@ fn large() {
             for &p in &[0., 0.1, 0.3, 0.5, 0.7, 0.95] {
                 let mut rng = get_rng();
                 let expected = seqs
-                    .iter().filter(|&_| distr.sample(&mut rng) < p).cloned()
+                    .iter()
+                    .filter(|&_| distr.sample(&mut rng) < p)
+                    .cloned()
                     .join("");
 
                 t.cmp(
