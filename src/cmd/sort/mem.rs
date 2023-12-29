@@ -1,17 +1,9 @@
 use std::cmp::{max, min};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::PathBuf;
 
-use byteorder::{ReadBytesExt, LE};
-use rkyv::{
-    ser::{
-        serializers::{AlignedSerializer, BufferScratch, CompositeSerializer},
-        Serializer,
-    },
-    AlignedVec, Deserialize, Infallible,
-};
-
 use crate::error::CliResult;
+use crate::helpers::tmp_store::{TmpHandle, TmpWriter};
 
 use super::file::FileSorter;
 use super::Item;
@@ -51,11 +43,6 @@ impl MemSorter {
         }
     }
 
-    pub fn clear(&mut self) {
-        self.records.clear();
-        self.mem = 0;
-    }
-
     pub fn len(&self) -> usize {
         self.records.len()
     }
@@ -72,48 +59,27 @@ impl MemSorter {
         Ok(())
     }
 
-    pub fn get_file_sorter(&mut self, tmp_dir: PathBuf) -> io::Result<FileSorter> {
+    pub fn get_file_sorter(
+        &mut self,
+        tmp_dir: PathBuf,
+        file_limit: usize,
+    ) -> io::Result<FileSorter> {
         let mut other = MemSorter::new(self.reverse, self.max_mem);
         other.records = self.records.drain(..).collect();
-        FileSorter::from_mem(other, tmp_dir)
+        FileSorter::from_mem(other, tmp_dir, file_limit)
     }
 
-    pub fn serialize_sorted(&mut self, mut io_writer: impl Write) -> CliResult<usize> {
+    pub fn serialize_sorted(
+        &mut self,
+        mut writer: TmpWriter<Item>,
+    ) -> io::Result<(usize, TmpHandle<Item>)> {
         self.sort();
-        let mut out = AlignedVec::new();
-        let mut scratch = AlignedVec::new();
         for item in &self.records {
-            out.clear();
-            let mut serializer = CompositeSerializer::new(
-                AlignedSerializer::new(&mut out),
-                BufferScratch::new(&mut scratch),
-                Infallible,
-            );
-            serializer.serialize_value(item).unwrap();
-            let buf = serializer.into_components().0.into_inner();
-            io_writer.write_all(&buf.len().to_le_bytes())?;
-            io_writer.write_all(buf)?;
+            writer.write(item)?;
         }
-        Ok(self.records.len())
-    }
-
-    pub fn deserialize_item(
-        mut io_reader: impl Read,
-        buf: &mut Vec<u8>,
-    ) -> CliResult<Option<Item>> {
-        let len = match io_reader.read_u64::<LE>() {
-            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
-            res => res?,
-        };
-        buf.clear();
-        buf.resize(len as usize, 0);
-        io_reader.read_exact(buf)?;
-        let archived = rkyv::check_archived_root::<Item>(&buf[..]).unwrap();
-        // TODO: unsafe appears to save ~ 25% of time, add feature for activating unsafe?
-        // let archived = unsafe { rkyv::archived_root::<Item>(&buf[..]) };
-        let item = archived.deserialize(&mut Infallible).unwrap();
-        Ok(Some(item))
+        let n = self.records.len();
+        self.records.clear();
+        self.mem = 0;
+        writer.done().map(|h| (n, h))
     }
 }
-
-

@@ -1,23 +1,22 @@
 use std::env::temp_dir;
 use std::io::Write;
-use std::mem::size_of_val;
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use ordered_float::OrderedFloat;
-use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
 use crate::opt::CommonArgs;
-use crate::var::varstring::{DynValue, VarString};
+use crate::var::varstring::VarString;
 
 use self::file::FileSorter;
+use self::item::Item;
 use self::mem::MemSorter;
 use self::var::KeyVars;
 
 pub mod file;
+pub mod item;
 pub mod mem;
 pub mod var;
 
@@ -87,34 +86,6 @@ pub struct SortCommand {
     pub common: CommonArgs,
 }
 
-// #[derive(Debug, PartialOrd, PartialEq, Eq, Ord, Hash, Clone, Archive, Serialize, Deserialize)]
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Archive, Deserialize, Serialize)]
-#[archive(compare(PartialEq), check_bytes)]
-pub enum Key {
-    Text(Vec<u8>),
-    Numeric(OrderedFloat<f64>),
-    None,
-}
-
-impl Key {
-    pub fn size(&self) -> usize {
-        match self {
-            Key::Text(v) => size_of_val(v) + size_of_val(&**v),
-            _ => size_of_val(self)
-        }
-    }
-}
-
-impl<'a> From<Option<DynValue<'a>>> for Key {
-    fn from(v: Option<DynValue<'a>>) -> Self {
-        match v {
-            Some(DynValue::Text(v)) => Key::Text(v.to_vec()),
-            Some(DynValue::Numeric(v)) => Key::Numeric(OrderedFloat(v)),
-            None => Key::None,
-        }
-    }
-}
-
 pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
     let force_numeric = args.numeric;
     let verbose = args.common.general.verbose;
@@ -158,25 +129,8 @@ pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
             Ok(true)
         })?;
         // write sorted output
-        sorter.write(io_writer, args.temp_file_limit, args.quiet, verbose)
+        sorter.write(io_writer, args.quiet, verbose)
     })
-}
-
-#[derive(Archive, Deserialize, Serialize, Debug, Clone)]
-#[archive(compare(PartialEq), check_bytes)]
-pub struct Item {
-    pub key: Key,
-    pub record: Vec<u8>,
-}
-
-impl Item {
-    fn new(key: Key, record: Vec<u8>) -> Self {
-        Self { key, record }
-    }
-
-    fn size(&self) -> usize {
-        self.key.size() + size_of_val(&self.record) + size_of_val(&*self.record)
-    }
 }
 
 #[derive(Debug)]
@@ -208,28 +162,22 @@ impl Sorter {
                             m.len()
                         );
                     }
-                    let mut f = m.get_file_sorter(tmp_path.to_owned())?;
-                    f.write_to_file(file_limit, quiet)?;
+                    let mut f = m.get_file_sorter(tmp_path.to_owned(), file_limit)?;
+                    f.write_to_file(quiet)?;
                     *self = Self::File(f);
                 }
             }
             Self::File(f) => {
-                f.add(item, file_limit, quiet)?;
+                f.add(item, quiet)?;
             }
         }
         Ok(())
     }
 
-    fn write(
-        &mut self,
-        io_writer: &mut dyn Write,
-        file_limit: usize,
-        quiet: bool,
-        verbose: bool,
-    ) -> CliResult<()> {
+    fn write(&mut self, io_writer: &mut dyn Write, quiet: bool, verbose: bool) -> CliResult<()> {
         match self {
             Self::Mem(m) => m.write_sorted(io_writer),
-            Self::File(f) => f.write_records(io_writer, file_limit, quiet, verbose),
+            Self::File(f) => f.write_records(io_writer, quiet, verbose),
         }
     }
 }

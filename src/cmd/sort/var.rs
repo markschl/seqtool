@@ -4,7 +4,7 @@ use crate::var::{
     Func, VarBuilder, VarHelp, VarProvider,
 };
 
-use super::Key;
+use super::item::Key;
 
 #[derive(Debug)]
 pub struct KeyVarHelp;
