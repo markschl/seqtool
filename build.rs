@@ -3,6 +3,12 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 
 fn main() {
+    #[cfg(feature = "expr")]
+    write_js();
+}
+
+#[cfg_attr(not(feature = "expr"), allow(unused))]
+fn write_js() {
     let js_include = read_to_string(Path::new("js").join("include.js")).unwrap();
 
     let js_include = regex::Regex::new(r"(\s+|\n)")
