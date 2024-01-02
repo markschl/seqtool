@@ -414,10 +414,10 @@ impl Vars {
         &self.data
     }
 
-    // #[inline]
-    // pub fn mut_data(&mut self) -> &mut MetaData {
-    //     &mut self.data
-    // }
+    #[inline]
+    pub fn mut_data(&mut self) -> &mut MetaData {
+        &mut self.data
+    }
 
     #[inline]
     pub fn get_help(&self) -> String {

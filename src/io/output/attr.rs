@@ -38,7 +38,7 @@ impl<S: SeqWriter> FormatWriter for AttrWriter<S> {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &var::Vars,
+        vars: &mut var::Vars,
     ) -> CliResult<()> {
         if vars.attrs().has_attrs() {
             let &mut (ref mut rec_id_out, ref mut rec_desc_out) = &mut self.temp;

@@ -10,7 +10,7 @@ pub trait FormatWriter {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &var::Vars,
+        vars: &mut var::Vars,
     ) -> CliResult<()>;
 }
 
@@ -22,7 +22,7 @@ impl<W: FormatWriter + ?Sized> FormatWriter for Box<W> {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &var::Vars,
+        vars: &mut var::Vars,
     ) -> CliResult<()> {
         (**self).write(record, out, vars)
     }

@@ -96,7 +96,7 @@ fn txt_input() {
 #[test]
 fn qual_convert() {
     Tester::new()
-        // Sanger -> Illumina 1.3
+        // Sanger -> Illumina 1.3+
         // qual. in second record are truncated automatically
         .cmp(
             &[".", "--fq", "--to", "fq-illumina"],

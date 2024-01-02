@@ -22,7 +22,6 @@ use pager::Pager;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::seqtype::{guess_seqtype, SeqType};
-use crate::io::{qual_to_prob, QualFormat};
 use crate::opt::CommonArgs;
 
 /// Colored sequence view
@@ -195,7 +194,6 @@ pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
     // run
     let mut i: u64 = 0;
     let mut id_len = args.general.id_len.unwrap_or(0);
-    // TODO: not actually required, currently
     cfg.with_vars(None, |vars| {
         cfg.read(vars, |record, vars| {
             if let Some(n) = n_max {
@@ -205,14 +203,11 @@ pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
             }
 
             // write seq. ids / desc
-
             let (id, desc) = record.id_desc_bytes();
-
             if id_len == 0 {
                 // determine ID width of first ID
                 id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3)) as u32;
             }
-
             write_id(
                 id,
                 desc,
@@ -222,19 +217,17 @@ pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
                 utf8,
             )?;
 
-            // write seq
-
+            // write the sequence
             if let Some(qual) = record.qual() {
-                // If quality scores are present, color by them
-
-                let mut qual_iter = qual.iter();
-
-                let mut prob = 0.;
+                // If quality scores are present, use them to determine the background color
+                // first, validate and convert to Phred scores
+                let phred = vars.mut_data().qual_converter.phred_scores(qual)?;
                 let mut seqlen = 0;
-
+                let mut qual_iter = phred.scores().iter();
                 for seq in record.seq_segments() {
                     if !writer.initialized() {
-                        // TODO: initializing with first sequence line -> enough?
+                        // TODO: initializing with first sequence line,
+                        // (guessing sequence type), but may not always be representative
                         writer.init(
                             seq,
                             args.color.dna_pal.clone(),
@@ -242,24 +235,17 @@ pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
                             args.color.qscale.clone(),
                         )?;
                     }
-
                     for &symbol in seq {
-                        let q = *qual_iter
-                            .next()
-                            .expect("BUG: Sequence length != Length of qual.");
-
-                        let phred = vars.data().qual_converter.convert(q, QualFormat::Phred)?;
-
-                        writer.write_symbol(symbol, Some(phred))?;
-
-                        prob += qual_to_prob(phred);
+                        let q = *qual_iter.next().unwrap();
+                        writer.write_symbol(symbol, Some(q))?;
                     }
-
                     seqlen += seq.len();
                 }
 
                 writer.reset()?;
 
+                // finally, write some quality stats
+                let prob = phred.total_error();
                 let rate = prob / seqlen as f64;
                 if prob < 0.001 {
                     write!(writer, " err: {:>3.2e} ({:.4e} / pos.)", prob, rate)?;
@@ -267,7 +253,7 @@ pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
                     write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
                 }
             } else {
-                // if no quality scores, color by sequence
+                // if no quality scores present, color by sequence
                 for seq in record.seq_segments() {
                     if !writer.initialized() {
                         writer.init(

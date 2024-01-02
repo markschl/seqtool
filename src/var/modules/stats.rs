@@ -111,7 +111,7 @@ impl VarProvider for StatVars {
                 MultiCount(ref bytes) => sym.set_int(count_bytes(rec, bytes) as i64),
                 ExpErr => {
                     let q = rec.qual().ok_or("No quality scores in input.")?;
-                    let ee = data.qual_converter.prob_sum(q)?;
+                    let ee = data.qual_converter.total_error(q)?;
                     sym.set_float(ee);
                 }
             }

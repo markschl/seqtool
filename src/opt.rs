@@ -150,7 +150,6 @@ impl CommonArgs {
                 _ => {}
             }
         }
-        let mut convert_quals = true;
 
         // if no format specified, infer from path or input format (in that order)
         let mut info = info.unwrap_or_else(|| match &output {
@@ -163,11 +162,6 @@ impl CommonArgs {
         if opts.to_fa {
             info = FileInfo::new(FormatVariant::Fasta, compr);
         } else if opts.to_fq {
-            if let FormatVariant::Fastq(fmt) = infmt {
-                if fmt == QualFormat::Sanger {
-                    convert_quals = false;
-                }
-            }
             info = FileInfo::new(FormatVariant::Fastq(QualFormat::Sanger), compr);
         } else if let Some(f) = opts.to_csv.as_ref() {
             info = FileInfo::new(FormatVariant::Csv, compr);
@@ -192,7 +186,6 @@ impl CommonArgs {
             opts.wrap.map(|w| w as usize),
             delim,
             &fields,
-            convert_quals,
             opts.qual_out.as_deref(),
         )?;
 

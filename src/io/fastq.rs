@@ -100,16 +100,12 @@ impl<'a> Record for FastqRecord<'a> {
 // Writer
 
 pub struct FastqWriter {
-    qual_fmt: Option<QualFormat>,
-    qual_vec: Vec<u8>,
+    qual_fmt: QualFormat,
 }
 
 impl FastqWriter {
-    pub fn new(qual_fmt: Option<QualFormat>) -> Self {
-        Self {
-            qual_fmt,
-            qual_vec: vec![],
-        }
+    pub fn new(qual_fmt: QualFormat) -> Self {
+        Self { qual_fmt }
     }
 }
 
@@ -117,26 +113,21 @@ impl SeqWriter for FastqWriter {
     fn write<W: io::Write>(
         &mut self,
         record: &dyn Record,
-        vars: &var::Vars,
+        vars: &mut var::Vars,
         mut out: W,
     ) -> CliResult<()> {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
-        let qual = if let Some(fmt) = self.qual_fmt {
-            self.qual_vec.clear();
-            vars.data()
-                .qual_converter
-                .convert_quals(qual, &mut self.qual_vec, fmt)
-                .map_err(|e| {
-                    format!(
-                        "Error writing record '{}'. {}",
-                        String::from_utf8_lossy(record.id_bytes()),
-                        e
-                    )
-                })?;
-            &self.qual_vec
-        } else {
-            qual
-        };
+        let qual = vars
+            .mut_data()
+            .qual_converter
+            .convert_to(qual, self.qual_fmt)
+            .map_err(|e| {
+                format!(
+                    "Error writing record '{}'. {}",
+                    String::from_utf8_lossy(record.id_bytes()),
+                    e
+                )
+            })?;
 
         // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
 

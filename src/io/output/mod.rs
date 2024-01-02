@@ -75,8 +75,7 @@ pub enum OutFormat {
         wrap_width: Option<usize>,
     },
     Fastq {
-        // only Some() if different from input format
-        format: Option<QualFormat>,
+        format: QualFormat,
         attrs: Vec<Attribute>,
     },
     FaQual {
@@ -114,7 +113,6 @@ impl OutFormat {
         wrap_fasta: Option<usize>,
         csv_delim: Option<char>,
         csv_fields: &str,
-        convert_quals: bool,
         qfile: Option<&str>,
     ) -> CliResult<OutFormat> {
         let mut format = match format {
@@ -123,7 +121,7 @@ impl OutFormat {
                 wrap_width: wrap_fasta,
             },
             FormatVariant::Fastq(qformat) => OutFormat::Fastq {
-                format: if convert_quals { Some(qformat) } else { None },
+                format: qformat,
                 attrs: attrs.to_owned(),
             },
             FormatVariant::Csv => OutFormat::Csv {

@@ -34,7 +34,7 @@ impl FormatWriter for CsvWriter {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &var::Vars,
+        vars: &mut var::Vars,
     ) -> CliResult<()> {
         let mut is_first = true;
         for expr in &self.fields {

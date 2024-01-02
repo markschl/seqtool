@@ -203,7 +203,7 @@ impl SeqWriter for FaQualWriter {
     fn write<W: io::Write>(
         &mut self,
         record: &dyn Record,
-        vars: &var::Vars,
+        vars: &mut var::Vars,
         out: W,
     ) -> CliResult<()> {
         // write FASTA record
@@ -218,29 +218,27 @@ impl SeqWriter for FaQualWriter {
             SeqHeader::FullHeader(h) => fasta::write_head(&mut self.qual_out, h)?,
         }
 
-        // quality lines
+        // write Phred scores
         for qline in qual.chunks(self.wrap) {
             if !qline.is_empty() {
-                let mut q_iter = qline.iter().map(|&q| {
-                    vars.data()
+                let phred_qual =
+                    vars.mut_data()
                         .qual_converter
-                        .convert(q, QualFormat::Phred)
+                        .phred_scores(qline)
                         .map_err(|e| {
                             format!(
                                 "Error writing record '{}'. {}",
                                 String::from_utf8_lossy(record.id_bytes()),
                                 e
                             )
-                        })
-                });
-
+                        })?;
+                let mut q_iter = phred_qual.scores().iter();
                 for q in q_iter.by_ref().take(qline.len() - 1) {
-                    write!(self.qual_out, "{} ", q?)?;
+                    write!(self.qual_out, "{} ", *q)?;
                 }
-                writeln!(self.qual_out, "{}", q_iter.next().unwrap()?)?;
+                writeln!(self.qual_out, "{}", q_iter.next().unwrap())?;
             }
         }
-
         Ok(())
     }
 }
