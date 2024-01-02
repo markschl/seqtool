@@ -178,7 +178,9 @@ fn large() {
     let t = Tester::new();
     t.temp_file("sort", Some(&fasta), |path, _| {
         for rec_limit in [5usize, 10, 20, 50, 100, 10000] {
-            let mem_limit = rec_limit * n_records * 12;
+            // a record with a 2-digit ID should have 66 bytes
+            // (ID key: 2, formatted record: 8, Vec sizes: 24 + 32)
+            let mem_limit = rec_limit * 66;
             let mem = format!("{}", mem_limit);
             t.cmp(
                 &["sort", "-k", "id", "--max-mem", &mem],

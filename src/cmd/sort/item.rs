@@ -1,53 +1,31 @@
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::mem::size_of_val;
 
-use ordered_float::OrderedFloat;
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::var::varstring::DynValue;
+use crate::helpers::value::SimpleValue;
 
-// #[derive(Debug, PartialOrd, PartialEq, Eq, Ord, Hash, Clone, Archive, Serialize, Deserialize)]
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Archive, Deserialize, Serialize)]
-#[archive(compare(PartialEq), check_bytes)]
-pub enum Key {
-    Text(Vec<u8>),
-    Numeric(OrderedFloat<f64>),
-    None,
+pub fn item_size(key: &SimpleValue, record: &Vec<u8>) -> usize {
+    key.size() + size_of_val(record) + size_of_val(&**record)
 }
 
-impl Key {
-    pub fn size(&self) -> usize {
-        match self {
-            Key::Text(v) => size_of_val(v) + size_of_val(&**v),
-            _ => size_of_val(self),
-        }
-    }
-}
-
-impl<'a> From<Option<DynValue<'a>>> for Key {
-    fn from(v: Option<DynValue<'a>>) -> Self {
-        match v {
-            Some(DynValue::Text(v)) => Key::Text(v.to_vec()),
-            Some(DynValue::Numeric(v)) => Key::Numeric(OrderedFloat(v)),
-            None => Key::None,
-        }
-    }
-}
-
+/// Item used in sort and unique commands:
+/// holds a key and a formatted record
 #[derive(Archive, Deserialize, Serialize, Debug, Clone)]
 #[archive(compare(PartialEq), check_bytes)]
 pub struct Item {
-    pub key: Key,
+    pub key: SimpleValue,
     pub record: Vec<u8>,
 }
 
 impl Item {
-    pub fn new(key: Key, record: Vec<u8>) -> Self {
+    pub fn new(key: SimpleValue, record: Vec<u8>) -> Self {
         Self { key, record }
     }
 
     pub fn size(&self) -> usize {
-        self.key.size() + size_of_val(&self.record) + size_of_val(&*self.record)
+        item_size(&self.key, &self.record)
     }
 }
 
@@ -68,5 +46,11 @@ impl Eq for Item {}
 impl Ord for Item {
     fn cmp(&self, other: &Self) -> Ordering {
         self.key.cmp(&other.key)
+    }
+}
+
+impl Hash for Item {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.key.hash(state);
     }
 }

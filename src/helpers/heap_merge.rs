@@ -44,7 +44,7 @@ impl<T: Ord + Debug> Ord for Item<T> {
 }
 
 #[derive(Debug)]
-pub struct KMerge<T, I, E>
+pub struct HeapMerge<T, I, E>
 where
     T: Ord + Debug,
     I: Iterator<Item = Result<T, E>>,
@@ -55,7 +55,7 @@ where
     reverse: bool,
 }
 
-impl<T, I, E> KMerge<T, I, E>
+impl<T, I, E> HeapMerge<T, I, E>
 where
     T: Ord + Debug,
     I: Iterator<Item = Result<T, E>>,
@@ -76,7 +76,7 @@ where
     }
 }
 
-impl<T, I, E> Iterator for KMerge<T, I, E>
+impl<T, I, E> Iterator for HeapMerge<T, I, E>
 where
     T: Ord + Debug,
     I: Iterator<Item = Result<T, E>>,

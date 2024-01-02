@@ -1,10 +1,9 @@
 use crate::error::CliResult;
+use crate::helpers::value::SimpleValue;
 use crate::var::{
     symbols::{SymbolTable, VarType},
     Func, VarBuilder, VarHelp, VarProvider,
 };
-
-use super::item::Key;
 
 #[derive(Debug)]
 pub struct KeyVarHelp;
@@ -29,13 +28,13 @@ pub struct KeyVars {
 }
 
 impl KeyVars {
-    pub fn set(&mut self, key: &Key, symbols: &mut SymbolTable) {
+    pub fn set(&mut self, key: &SimpleValue, symbols: &mut SymbolTable) {
         if let Some(var_id) = self.id {
             let v = symbols.get_mut(var_id);
             match key {
-                Key::Text(t) => v.inner_mut().set_text(t),
-                Key::Numeric(n) => v.inner_mut().set_float(n.0),
-                Key::None => v.set_none(),
+                SimpleValue::Text(t) => v.inner_mut().set_text(t),
+                SimpleValue::Number(n) => v.inner_mut().set_float(n.0),
+                SimpleValue::None => v.set_none(),
             }
         }
     }

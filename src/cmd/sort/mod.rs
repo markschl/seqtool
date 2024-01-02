@@ -6,6 +6,7 @@ use clap::Parser;
 
 use crate::config::Config;
 use crate::error::CliResult;
+use crate::helpers::value::SimpleValue;
 use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
 use crate::opt::CommonArgs;
 use crate::var::varstring::VarString;
@@ -70,7 +71,7 @@ pub struct SortCommand {
     #[arg(short = 'M', long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "5G")]
     max_mem: usize,
 
-    /// Temporary directory to use for sorting (only if memory limit is exceeded)
+    /// Path to temporary directory (only if memory limit is exceeded)
     #[arg(long)]
     temp_dir: Option<PathBuf>,
 
@@ -80,38 +81,39 @@ pub struct SortCommand {
 
     /// Silence any warnings
     #[arg(short, long)]
-    pub quiet: bool,
+    quiet: bool,
 
     #[command(flatten)]
     pub common: CommonArgs,
 }
 
+/// Factor indicating the memory that is found empirically by memory profiling
+/// and adjusts the calculated memory usage (based on size of items)
+/// to obtain the correct total size, correcting for the extra memory used by
+/// Vec::sort() and other allocations.
+static MEM_OVERHEAD: f32 = 1.25;
+
 pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
     let force_numeric = args.numeric;
     let verbose = args.common.general.verbose;
+    let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
+    // TODO: not activated, since we use a low limit for testing
     // if args.max_mem < 1 << 22 {
     //     return fail!("The memory limit should be at least 2MiB");
     // }
+    let mut record_buf_factory = VecFactory::new();
+    let mut key_buf = SimpleValue::Text(Vec::new());
+    let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
+    let mut sorter = Sorter::new(args.reverse, max_mem);
 
     let m = Box::<KeyVars>::default();
     cfg.writer_with_custom(Some(m), |writer, io_writer, vars| {
         // assemble key
         let (var_key, _vtype) = vars.build(|b| VarString::var_or_composed(&args.key, b))?;
-        // we cannot know the exact length of the input, we just initialize
-        // with capacity that should at least hold some records, while still
-        // not using too much memory
-        // let mut records = Vec::with_capacity(10000);
-        let mut record_buf_factory = VecFactory::new();
-        let mut key_buf = Vec::new();
-        let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
-        let mut sorter = Sorter::new(args.reverse, args.max_mem);
-
         cfg.read(vars, |record, vars| {
             // assemble key
             let key = vars.custom_mod::<KeyVars, _>(|key_mod, symbols| {
-                let key = var_key
-                    .get_dyn(symbols, record, &mut key_buf, force_numeric)?
-                    .into();
+                let key = var_key.get_simple(&mut key_buf, symbols, record, force_numeric)?;
                 if let Some(m) = key_mod {
                     m.set(&key, symbols);
                 }
@@ -121,7 +123,7 @@ pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
             let record_out = record_buf_factory.fill_vec(|out| writer.write(&record, out, vars))?;
             // add both to the object handing the sorting
             sorter.add(
-                Item::new(key, record_out),
+                Item::new(key.into_owned(), record_out),
                 &tmp_path,
                 args.temp_file_limit,
                 args.quiet,

@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::fmt::{self, Debug, Write};
 
 use clap::Parser;
@@ -5,9 +6,9 @@ use fxhash::FxHashMap;
 
 use crate::config::Config;
 use crate::error::CliResult;
+use crate::helpers::value::SimpleValue;
 use crate::io::Record;
 use crate::opt::CommonArgs;
-use crate::var::varstring::DynValue;
 use crate::var::{symbols::SymbolTable, varstring, VarBuilder};
 
 /// This command counts the number of sequences in total or per category.
@@ -105,7 +106,7 @@ impl Interval {
 
 struct VarKey {
     key: varstring::VarString,
-    val: Vec<u8>,
+    val_buf: SimpleValue,
     interval: Interval,
     is_discrete: bool,
     force_numeric: bool,
@@ -116,7 +117,7 @@ impl VarKey {
         let (interval, key) = parse_key(s, 1., 0);
         Ok(Self {
             key: varstring::VarString::var_or_composed(key, builder)?.0,
-            val: Vec::new(),
+            val_buf: SimpleValue::Text(Vec::new()),
             interval: interval.clone().unwrap_or(Interval::new(1., 0)),
             is_discrete: true,
             force_numeric: interval.is_some(),
@@ -129,12 +130,11 @@ impl VarKey {
         record: &dyn Record,
         out: &mut Category,
     ) -> CliResult<()> {
-        self.val.clear();
-        match self
+        let val = self
             .key
-            .get_dyn(symbols, record, &mut self.val, self.force_numeric)?
-        {
-            Some(DynValue::Numeric(val)) => {
+            .get_simple(&mut self.val_buf, symbols, record, self.force_numeric)?;
+        match val.borrow() {
+            SimpleValue::Number(val) => {
                 if !val.is_nan() {
                     let v = val / self.interval.width;
                     if v.fract() != 0. {
@@ -145,7 +145,7 @@ impl VarKey {
                     *out = Category::NaN;
                 }
             }
-            Some(DynValue::Text(val)) => {
+            SimpleValue::Text(val) => {
                 if let Category::Text(ref mut v) = *out {
                     v.clear();
                     v.extend_from_slice(val);
@@ -153,7 +153,7 @@ impl VarKey {
                     *out = Category::Text(val.to_vec());
                 }
             }
-            None => *out = Category::NA,
+            SimpleValue::None => *out = Category::NA,
         }
         Ok(())
     }

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use crate::error::CliResult;
 use crate::helpers::{
-    k_merge::KMerge,
+    heap_merge::HeapMerge,
     tmp_store::{TmpHandle, TmpStore},
 };
 
@@ -58,7 +58,7 @@ impl FileSorter {
 
         if verbose {
             eprintln!(
-                "Sorted {} records using {} temporary files ({:.1}) records per file on average.",
+                "Sorted {} records using {} temporary files ({:.1} records per file).",
                 self.n_written,
                 self.handles.len(),
                 self.n_written as f64 / self.handles.len() as f64
@@ -73,7 +73,7 @@ impl FileSorter {
             .collect::<Result<Vec<_>, _>>()?;
         // use k-way merging of sorted chunks with a min-heap to obtain
         // the final sorted output
-        let kmerge = KMerge::new(readers.iter_mut().collect(), self.mem_sorter.reverse())?;
+        let kmerge = HeapMerge::new(readers.iter_mut().collect(), self.mem_sorter.reverse())?;
         for item in kmerge {
             io_writer.write_all(&item?.record)?;
         }

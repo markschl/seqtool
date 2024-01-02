@@ -1,4 +1,6 @@
+use indexmap::IndexSet;
 use itertools::Itertools;
+use rand::{seq::SliceRandom, SeedableRng};
 
 use super::*;
 
@@ -116,4 +118,76 @@ fn key_var() {
     Tester::new()
         .cmp(&["unique", "-k", formula, "-a", "k={key}"], fa, out)
         .cmp(&["unique", "-nk", formula, "-a", "k={key}"], fa, out);
+}
+
+#[test]
+fn large() {
+    // the expected output is a collection of 100 records
+    let n_records = 100;
+    let unique_idx_sorted: Vec<_> = (0..n_records).collect();
+    // create some duplicates
+    let mut all_idx = unique_idx_sorted.clone();
+    for _ in 0..4 {
+        all_idx.extend_from_slice(&unique_idx_sorted);
+    }
+    // shuffle the result
+    let mut rng = rand_xoshiro::Xoshiro256PlusPlus::seed_from_u64(42);
+    all_idx.shuffle(&mut rng);
+    // then, we obtain unique records in order of occurrence
+    let mut idx_map: IndexSet<_> = all_idx.iter().cloned().collect();
+    let unique_idx_inorder: Vec<_> = idx_map.drain(..).collect();
+
+    // get the formatted FASTA records
+    let unique_rec_sorted: Vec<_> = unique_idx_sorted
+        .iter()
+        .map(|i| format!(">{}\nSEQ\n", i))
+        .collect();
+    let unique_fasta_sorted = unique_rec_sorted.join("");
+    let all_fasta = all_idx
+        .iter()
+        .map(|i| unique_rec_sorted[*i].clone())
+        .join("");
+    let unique_fasta_inorder = unique_idx_inorder
+        .iter()
+        .map(|i| unique_rec_sorted[*i].clone())
+        .join("");
+
+    let t = Tester::new();
+    t.temp_file("unique", Some(&all_fasta), |path, _| {
+        // without memory limit: output in order of input
+        t.cmp(
+            &["unique", "-k", "id"],
+            FileInput(path),
+            &unique_fasta_inorder,
+        )
+        .cmp(
+            &["unique", "-k", "id", "-n"],
+            FileInput(path),
+            &unique_fasta_inorder,
+        )
+        // ...unless --sort is supplied
+        .cmp(
+            &["unique", "-k", "id", "--sort", "-n"],
+            FileInput(path),
+            &unique_fasta_sorted,
+        );
+        // with memory limit: should always be sorted
+        // (numeric sort in this case)
+        for rec_limit in [5, 10, 20, 50, 80] {
+            // a record with a 3-digit ID should have 66 bytes
+            // (ID key: 3, formatted record: 9, Vec sizes: 24 + 32)
+            let mem_limit = rec_limit * 68;
+            let mem = format!("{}", mem_limit);
+            t.cmp(
+                &["unique", "-k", "id", "-n", "--max-mem", &mem],
+                FileInput(path),
+                &unique_fasta_sorted,
+            )
+            .cmp(
+                &["unique", "-k", "id", "-n", "--max-mem", &mem, "--sort"],
+                FileInput(path),
+                &unique_fasta_sorted,
+            );
+        }
+    });
 }

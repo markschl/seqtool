@@ -1,11 +1,14 @@
+use std::borrow::Cow;
 use std::ops::{Deref, Range};
 use std::{io, str};
 
 use bstr::ByteSlice;
+use ordered_float::OrderedFloat;
 use regex::{self, CaptureMatches, Captures};
 
 use crate::error::CliResult;
 use crate::helpers::util::{text_to_float, text_to_int};
+use crate::helpers::value::SimpleValue;
 use crate::io::Record;
 use crate::var;
 
@@ -137,12 +140,6 @@ pub fn register_var_list(
         }
         text = &rest[1..];
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum DynValue<'a> {
-    Text(&'a [u8]),
-    Numeric(f64),
 }
 
 #[derive(Debug, Clone)]
@@ -437,32 +434,40 @@ impl VarString {
         Ok(Some(text_to_int(text_buf)?))
     }
 
+    /// Returns a SimpleValue (text/numeric/none).
+    /// Requires an extra 'text_buf', which allows retaining text allocations
+    /// and must always be a `SimpleValue::Text`.
     #[inline]
-    pub fn get_dyn<'a>(
+    pub fn get_simple<'a>(
         &self,
+        text_buf: &'a mut SimpleValue,
         table: &var::symbols::SymbolTable,
         record: &dyn Record,
-        text_buf: &'a mut Vec<u8>,
         force_numeric: bool,
-    ) -> CliResult<Option<DynValue<'a>>> {
+    ) -> CliResult<Cow<'a, SimpleValue>> {
         if let Some(v) = self.get_one_value(table) {
             if v.is_numeric() {
                 let val = v.get_float(record)?;
-                return Ok(Some(DynValue::Numeric(val)));
+                return Ok(Cow::Owned(SimpleValue::Number(OrderedFloat(val))));
             }
         }
-        text_buf.clear();
-        self.compose(text_buf, table, record)?;
+        let text = match text_buf {
+            SimpleValue::Text(t) => t,
+            _ => panic!(),
+        };
+        text.clear();
+        self.compose(text, table, record)?;
 
-        if !text_buf.is_empty() {
+        if !text.is_empty() {
             if !force_numeric {
-                Ok(Some(DynValue::Text(text_buf)))
+                text.shrink_to_fit();
+                Ok(Cow::Borrowed(&*text_buf))
             } else {
-                let val = text_to_float(text_buf)?;
-                Ok(Some(DynValue::Numeric(val)))
+                let val = text_to_float(text)?;
+                Ok(Cow::Owned(SimpleValue::Number(OrderedFloat(val))))
             }
         } else {
-            Ok(None)
+            Ok(Cow::Owned(SimpleValue::None))
         }
     }
 }
