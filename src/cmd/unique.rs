@@ -7,13 +7,13 @@ use clap::Parser;
 use fxhash::FxBuildHasher;
 use indexmap::IndexMap;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::heap_merge::HeapMerge;
 use crate::helpers::tmp_store::{TmpHandle, TmpStore, TmpWriter};
 use crate::helpers::value::SimpleValue;
 use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
-use crate::opt::CommonArgs;
 use crate::var::varstring::VarString;
 
 use super::sort::item::{item_size, Item};
@@ -78,7 +78,7 @@ pub struct UniqueCommand {
 /// the hash map, Vec::sort() and possibly other allocations (TODO: investigate further)
 static MEM_OVERHEAD: f32 = 1.4;
 
-pub fn run(cfg: Config, args: &UniqueCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let force_numeric = args.numeric;
     let verbose = args.common.general.verbose;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
@@ -86,15 +86,16 @@ pub fn run(cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let mut key_buf = SimpleValue::Text(Vec::new());
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
 
-    let m = Box::<KeyVars>::default();
-    cfg.writer_with_custom(Some(m), |writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+
+    cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
-        let (var_key, _) = vars.build(|b| VarString::var_or_composed(&args.key, b))?;
+        let (var_key, _) = cfg.build_vars(|b| VarString::var_or_composed(&args.key, b))?;
         let mut dedup = Deduplicator::new(max_mem);
 
-        cfg.read(vars, |record, vars| {
+        cfg.read(|record, ctx| {
             // assemble key
-            let key = vars.custom_mod::<KeyVars, _>(|key_mod, symbols| {
+            let key = ctx.command_vars::<KeyVars, _>(|key_mod, symbols| {
                 let key = var_key.get_simple(&mut key_buf, symbols, record, force_numeric)?;
                 if let Some(m) = key_mod {
                     m.set(&key, symbols);
@@ -107,7 +108,7 @@ pub fn run(cfg: Config, args: &UniqueCommand) -> CliResult<()> {
                 // if not present, format the record and create an owned key that
                 // we can add to the hashmap
                 let record_out =
-                    record_buf_factory.fill_vec(|out| writer.write(&record, out, vars))?;
+                    record_buf_factory.fill_vec(|out| format_writer.write(&record, out, ctx))?;
                 dedup.insert(
                     key.into_owned(),
                     record_out,

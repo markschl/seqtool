@@ -482,12 +482,12 @@ impl SymbolTable {
 
     #[inline]
     pub fn get(&self, id: usize) -> &OptValue {
-        self.0.get(id).expect("Bug: invalid symbol id")
+        self.0.get(id).unwrap()
     }
 
     #[inline]
     pub fn get_mut(&mut self, id: usize) -> &mut OptValue {
-        self.0.get_mut(id).expect("Bug: invalid symbol id")
+        self.0.get_mut(id).unwrap()
     }
 }
 

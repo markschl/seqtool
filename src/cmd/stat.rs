@@ -1,7 +1,7 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::error::CliResult;
-use crate::opt::CommonArgs;
 use crate::{config::Config, io::FormatVariant};
 
 use super::pass::{self, PassCommand};

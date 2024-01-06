@@ -2,6 +2,7 @@ use std::io;
 use vec_map::VecMap;
 
 use super::{FormatWriter, Record};
+use crate::config::SeqContext;
 use crate::error::CliResult;
 use crate::io::{Attribute, DefRecord, SeqWriter};
 use crate::var;
@@ -38,15 +39,15 @@ impl<S: SeqWriter> FormatWriter for AttrWriter<S> {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &mut var::Vars,
+        ctx: &mut SeqContext,
     ) -> CliResult<()> {
-        if vars.attrs().has_attrs() {
+        if ctx.attrs.has_attrs() {
             let &mut (ref mut rec_id_out, ref mut rec_desc_out) = &mut self.temp;
             let registered_attrs = &self.registered_attrs;
             let (rec_id, rec_desc) = record.id_desc_bytes();
-            vars.attrs()
+            ctx.attrs
                 .compose(rec_id, rec_desc, rec_id_out, rec_desc_out, |attr_id, s| {
-                    registered_attrs[attr_id].compose(s, vars.symbols(), record)
+                    registered_attrs[attr_id].compose(s, &mut ctx.symbols, record)
                 })?;
             let _rec_desc_out = if rec_desc_out.is_empty() {
                 None
@@ -55,11 +56,11 @@ impl<S: SeqWriter> FormatWriter for AttrWriter<S> {
             };
             self.inner.write(
                 &DefRecord::new(&record, rec_id_out, _rec_desc_out),
-                vars,
+                ctx,
                 out,
             )
         } else {
-            self.inner.write(record, vars, out)
+            self.inner.write(record, ctx, out)
         }
     }
 }

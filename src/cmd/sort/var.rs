@@ -1,8 +1,9 @@
 use crate::error::CliResult;
 use crate::helpers::value::SimpleValue;
+use crate::var::func::Func;
 use crate::var::{
     symbols::{SymbolTable, VarType},
-    Func, VarBuilder, VarHelp, VarProvider,
+    VarBuilder, VarHelp, VarProvider,
 };
 
 #[derive(Debug)]

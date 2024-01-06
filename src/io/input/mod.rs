@@ -219,7 +219,7 @@ where
     }
 }
 
-pub fn io_readers<'a, I, F, O>(opts: I, mut func: F) -> CliResult<Vec<O>>
+pub fn with_io_readers<'a, I, F, O>(opts: I, mut func: F) -> CliResult<Vec<O>>
 where
     I: IntoIterator<Item = &'a InputOptions>,
     for<'b> F: FnMut(&InputOptions, Box<dyn io::Read + Send + 'b>) -> CliResult<O>,

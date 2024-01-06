@@ -1,6 +1,7 @@
 use std::io;
 
 use super::{FormatWriter, Record};
+use crate::config::SeqContext;
 use crate::var;
 use crate::var::varstring;
 use crate::{error::CliResult, var::varstring::register_var_list};
@@ -34,7 +35,7 @@ impl FormatWriter for CsvWriter {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &mut var::Vars,
+        ctx: &mut SeqContext,
     ) -> CliResult<()> {
         let mut is_first = true;
         for expr in &self.fields {
@@ -42,7 +43,7 @@ impl FormatWriter for CsvWriter {
                 write!(out, "{}", self.delim as char)?;
             }
             is_first = false;
-            expr.compose(out, vars.symbols(), record)?;
+            expr.compose(out, &mut ctx.symbols, record)?;
         }
         writeln!(out)?;
         Ok(())

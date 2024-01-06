@@ -1,12 +1,14 @@
 use std::cell::Cell;
+use std::io;
 
 use memchr::memchr;
 use seq_io::fastq::{self, Reader, Record as FR};
 use seq_io::policy::BufPolicy;
 
-use super::*;
+use crate::config::SeqContext;
 use crate::error::CliResult;
-use crate::var;
+
+use super::{QualFormat, Record, SeqHeader, SeqReader, SeqWriter};
 
 // Reader
 
@@ -113,12 +115,11 @@ impl SeqWriter for FastqWriter {
     fn write<W: io::Write>(
         &mut self,
         record: &dyn Record,
-        vars: &mut var::Vars,
+        ctx: &mut SeqContext,
         mut out: W,
     ) -> CliResult<()> {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
-        let qual = vars
-            .mut_data()
+        let qual = ctx
             .qual_converter
             .convert_to(qual, self.qual_fmt)
             .map_err(|e| {

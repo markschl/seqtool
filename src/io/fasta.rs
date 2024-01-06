@@ -5,9 +5,10 @@ use memchr::memchr;
 use seq_io::fasta::{self, Reader, Record as FR};
 use seq_io::policy::BufPolicy;
 
-use super::*;
+use crate::config::SeqContext;
 use crate::error::CliResult;
-use crate::var;
+
+use super::{Record, SeqHeader, SeqLineIter, SeqReader, SeqWriter};
 
 // Reader
 
@@ -117,7 +118,7 @@ impl SeqWriter for FastaWriter {
     fn write<W: io::Write>(
         &mut self,
         record: &dyn Record,
-        _vars: &mut var::Vars,
+        _: &mut SeqContext,
         mut out: W,
     ) -> CliResult<()> {
         match record.get_header() {

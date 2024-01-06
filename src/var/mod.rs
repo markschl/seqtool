@@ -1,15 +1,21 @@
+use std::fmt::Debug;
+use std::fmt::Display;
 use std::fs::File;
 
 use crate::error::CliResult;
-use crate::io::input::InFormat;
-use crate::io::{QualFormat, SeqAttr};
+use crate::helpers::any::AsAnyMut;
+use crate::io::{input::InputOptions, output::OutputOptions, QualConverter, Record};
 
-pub use self::var::*;
+use self::attr::Attrs;
+pub use self::build::*;
+use self::func::Func;
+use self::symbols::{SymbolTable, VarType};
 
 pub mod attr;
+pub mod build;
+pub mod func;
 pub mod modules;
 pub mod symbols;
-mod var;
 pub mod varstring;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -44,85 +50,205 @@ impl Default for AttrOpts {
     }
 }
 
-pub fn get_vars(
-    o: &VarOpts,
-    informat: &InFormat,
-    custom_mod: Option<Box<dyn VarProvider>>,
-) -> CliResult<Vars> {
-    // Vars instance
-    let append_attr = if o.attr_opts.delim == ' ' {
-        SeqAttr::Desc
-    } else {
-        SeqAttr::Id
-    };
-    // quality converter is not related to variables,
-    // therefore stored in InFormat
-    let qual_converter = match *informat {
-        InFormat::Fastq { format } => format,
-        InFormat::FaQual { .. } => QualFormat::Phred,
-        _ => QualFormat::Sanger,
+pub trait VarProvider: Debug + AsAnyMut {
+    fn help(&self) -> &dyn VarHelp;
+
+    /// Try registering a variable / "function" with a module.
+    /// If the function/variable is not found in the given module,
+    /// the implementor should return Ok(None).
+    fn register(
+        &mut self,
+        func: &Func,
+        vars: &mut VarBuilder,
+    ) -> CliResult<Option<Option<VarType>>>;
+
+    fn has_vars(&self) -> bool;
+
+    /// Is it allowed to use this module's variables/functions from within
+    /// another module?
+    /// (currently the case with expressions, in theory
+    /// any kind of dependency, e.g. if function args should be evaluated)
+    /// This is relevant to know for custom variable providers, whose value is only added
+    /// at a later stage and in turn depends on other variables/expressions,
+    /// making it impossible with the current simple system to represent this kind
+    /// of cyclic relationships.
+    fn allow_dependent(&self) -> bool {
+        true
     }
-    .get_converter();
 
-    let mut vars = Vars::new(
-        o.attr_opts.delim as u8,
-        o.attr_opts.value_delim as u8,
-        append_attr,
-        qual_converter,
-        o.var_help,
-    );
+    /// Supplies a new record, allowing the variable provider to obtain the necessary
+    /// information and add it to the metadata object (usually the symbol table).
+    fn set(
+        &mut self,
+        _rec: &dyn Record,
+        _sym: &mut SymbolTable,
+        _attr: &mut Attrs,
+        _qc: &mut QualConverter,
+    ) -> CliResult<()> {
+        Ok(())
+    }
 
+    fn init(&mut self, _: &OutputOptions) -> CliResult<()> {
+        Ok(())
+    }
+
+    /// Called on every new input (STDIN or file)
+    fn new_input(&mut self, _: &InputOptions) -> CliResult<()> {
+        Ok(())
+    }
+}
+
+impl VarProvider for Box<dyn VarProvider> {
+    fn help(&self) -> &dyn VarHelp {
+        (**self).help()
+    }
+
+    fn register(
+        &mut self,
+        func: &Func,
+        vars: &mut VarBuilder,
+    ) -> CliResult<Option<Option<VarType>>> {
+        (**self).register(func, vars)
+    }
+    fn has_vars(&self) -> bool {
+        (**self).has_vars()
+    }
+    fn allow_dependent(&self) -> bool {
+        (**self).allow_dependent()
+    }
+    fn set(
+        &mut self,
+        record: &dyn Record,
+        symbols: &mut SymbolTable,
+        attrs: &mut Attrs,
+        qual_converter: &mut QualConverter,
+    ) -> CliResult<()> {
+        (**self).set(record, symbols, attrs, qual_converter)
+    }
+    fn init(&mut self, o: &OutputOptions) -> CliResult<()> {
+        (**self).init(o)
+    }
+    fn new_input(&mut self, o: &InputOptions) -> CliResult<()> {
+        (**self).new_input(o)
+    }
+}
+
+pub trait VarHelp: Debug {
+    fn name(&self) -> &'static str;
+    fn usage(&self) -> Option<&'static str> {
+        None
+    }
+    fn desc(&self) -> Option<&'static str> {
+        None
+    }
+    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
+        None
+    }
+    fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
+        None
+    }
+}
+
+impl Display for &dyn VarHelp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(u) = self.usage() {
+            writeln!(f, "{}. Usage: {}", self.name(), u).unwrap();
+            let w = self.name().len() + 9 + u.len().min(80);
+            writeln!(f, "{1:-<0$}", w, "").unwrap();
+        } else {
+            writeln!(f, "{}\n{2:-<1$}", self.name(), self.name().len(), "").unwrap();
+        }
+        if let Some(desc) = self.desc() {
+            for d in textwrap::wrap(desc, 80) {
+                writeln!(f, "{}", d).unwrap();
+            }
+            writeln!(f).unwrap();
+        }
+        if let Some(v) = self.vars() {
+            for &(name, desc) in v {
+                for (i, d) in textwrap::wrap(desc, 68).into_iter().enumerate() {
+                    let n = if i == 0 { name } else { "" };
+                    writeln!(f, "{: <12} {}", n, d).unwrap();
+                }
+            }
+            writeln!(f).unwrap();
+        }
+        if let Some(examples) = self.examples() {
+            writeln!(f, "Example{}:", if examples.len() > 1 { "s" } else { "" }).unwrap();
+            for &(desc, example) in examples {
+                let mut desc = desc.to_string();
+                desc.push(':');
+                for d in textwrap::wrap(&desc, 80) {
+                    writeln!(f, "{}", d).unwrap();
+                }
+                writeln!(f, "> {}", example).unwrap();
+            }
+        }
+        writeln!(f).unwrap();
+        Ok(())
+    }
+}
+
+pub fn init_vars(
+    modules: &mut Vec<Box<dyn VarProvider>>,
+    custom_mod: Option<Box<dyn VarProvider>>,
+    opts: &VarOpts,
+    out_opts: &OutputOptions,
+) -> CliResult<()> {
     // the custom module needs to be inserted early
     // at least before the expression module
     if let Some(m) = custom_mod {
-        vars.add_module(m);
+        modules.push(m);
     }
 
     // lists
-    for (i, list) in o.lists.iter().enumerate() {
+    for (i, list) in opts.lists.iter().enumerate() {
         let csv_file = File::open(list).map_err(|e| format!("Error opening '{}': {}", list, e))?;
-        if o.unordered {
+        if opts.unordered {
             let finder = modules::list::Unordered::new();
-            vars.add_module(Box::new(
+            modules.push(Box::new(
                 modules::list::ListVars::new(
                     i + 1,
-                    o.lists.len(),
+                    opts.lists.len(),
                     csv_file,
                     finder,
-                    o.list_delim as u8,
+                    opts.list_delim as u8,
                 )
-                .id_col(o.id_col)
-                .has_header(o.has_header)
-                .allow_missing(o.allow_missing),
+                .id_col(opts.id_col)
+                .has_header(opts.has_header)
+                .allow_missing(opts.allow_missing),
             ));
         } else {
             let finder = modules::list::SyncIds;
-            vars.add_module(Box::new(
+            modules.push(Box::new(
                 modules::list::ListVars::new(
                     i + 1,
-                    o.lists.len(),
+                    opts.lists.len(),
                     csv_file,
                     finder,
-                    o.list_delim as u8,
+                    opts.list_delim as u8,
                 )
-                .id_col(o.id_col)
-                .has_header(o.has_header)
-                .allow_missing(o.allow_missing),
+                .id_col(opts.id_col)
+                .has_header(opts.has_header)
+                .allow_missing(opts.allow_missing),
             ));
         }
     }
 
     // other modules
-    vars.add_module(Box::new(modules::builtins::BuiltinVars::new()));
-
-    vars.add_module(Box::new(modules::stats::StatVars::new()));
-
-    vars.add_module(Box::new(modules::attr::AttrVars::new()));
+    modules.push(Box::new(modules::builtins::BuiltinVars::new()));
+    modules.push(Box::new(modules::stats::StatVars::new()));
+    modules.push(Box::new(modules::attr::AttrVars::new()));
 
     #[cfg(feature = "expr")]
-    vars.add_module(Box::new(modules::expr::ExprVars::new(
-        o.expr_init.as_deref(),
+    modules.push(Box::new(modules::expr::ExprVars::new(
+        opts.expr_init.as_deref(),
     )?));
 
-    Ok(vars)
+    // make aware of output options
+    for m in modules {
+        m.init(out_opts)?;
+    }
+
+    Ok(())
 }

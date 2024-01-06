@@ -6,9 +6,10 @@ use std::path::Path;
 use seq_io::fasta::{self, Record as FR};
 use seq_io::policy::BufPolicy;
 
-use super::*;
+use crate::config::SeqContext;
 use crate::error::CliResult;
-use crate::var;
+
+use super::{Record, SeqHeader, SeqLineIter, SeqReader, SeqWriter};
 
 // Reader
 
@@ -203,11 +204,11 @@ impl SeqWriter for FaQualWriter {
     fn write<W: io::Write>(
         &mut self,
         record: &dyn Record,
-        vars: &mut var::Vars,
+        ctx: &mut SeqContext,
         out: W,
     ) -> CliResult<()> {
         // write FASTA record
-        self.fa_writer.write(record, vars, out)?;
+        self.fa_writer.write(record, ctx, out)?;
 
         // write quality scores
         let qual = record.qual().ok_or("No quality scores found in input.")?;
@@ -221,17 +222,13 @@ impl SeqWriter for FaQualWriter {
         // write Phred scores
         for qline in qual.chunks(self.wrap) {
             if !qline.is_empty() {
-                let phred_qual =
-                    vars.mut_data()
-                        .qual_converter
-                        .phred_scores(qline)
-                        .map_err(|e| {
-                            format!(
-                                "Error writing record '{}'. {}",
-                                String::from_utf8_lossy(record.id_bytes()),
-                                e
-                            )
-                        })?;
+                let phred_qual = ctx.qual_converter.phred_scores(qline).map_err(|e| {
+                    format!(
+                        "Error writing record '{}'. {}",
+                        String::from_utf8_lossy(record.id_bytes()),
+                        e
+                    )
+                })?;
                 let mut q_iter = phred_qual.scores().iter();
                 for q in q_iter.by_ref().take(qline.len() - 1) {
                     write!(self.qual_out, "{} ", *q)?;

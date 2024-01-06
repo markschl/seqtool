@@ -1,10 +1,12 @@
 use std::{fmt::Debug, str};
 
-use crate::var::symbols::{SymbolTable, VarType};
-use crate::{
-    error::{CliError, CliResult},
-    io::Record,
-    var::{symbols::OptValue, *},
+use crate::error::{CliError, CliResult};
+use crate::io::{QualConverter, Record};
+use crate::var::{
+    attr::Attrs,
+    func::Func,
+    symbols::{OptValue, SymbolTable, VarType},
+    VarBuilder, VarHelp, VarProvider,
 };
 
 mod js;
@@ -81,8 +83,14 @@ impl VarProvider for ExprVars {
         self.0.num_exprs() > 0
     }
 
-    fn set(&mut self, record: &dyn Record, data: &mut MetaData) -> CliResult<()> {
-        self.0.eval(&mut data.symbols, record)
+    fn set(
+        &mut self,
+        record: &dyn Record,
+        symbols: &mut SymbolTable,
+        _: &mut Attrs,
+        _: &mut QualConverter,
+    ) -> CliResult<()> {
+        self.0.eval(symbols, record)
     }
 }
 

@@ -2,9 +2,13 @@ use bytecount;
 
 use self::Stat::*;
 use crate::error::CliResult;
-use crate::io::Record;
-use crate::var::symbols::VarType;
-use crate::var::*;
+use crate::io::{QualConverter, Record};
+use crate::var::{
+    attr::Attrs,
+    func::Func,
+    symbols::{SymbolTable, VarType},
+    VarBuilder, VarHelp, VarProvider,
+};
 
 #[derive(Debug)]
 pub struct StatHelp;
@@ -100,9 +104,15 @@ impl VarProvider for StatVars {
         !self.stats.is_empty()
     }
 
-    fn set(&mut self, rec: &dyn Record, data: &mut MetaData) -> CliResult<()> {
+    fn set(
+        &mut self,
+        rec: &dyn Record,
+        symbols: &mut SymbolTable,
+        _: &mut Attrs,
+        qual_converter: &mut QualConverter,
+    ) -> CliResult<()> {
         for &(ref stat, id) in &self.stats {
-            let sym = data.symbols.get_mut(id).inner_mut();
+            let sym = symbols.get_mut(id).inner_mut();
             match *stat {
                 SeqLen => sym.set_int(rec.seq_len() as i64),
                 GC => sym.set_float(get_gc(rec.seq_segments()) * 100.),
@@ -111,7 +121,7 @@ impl VarProvider for StatVars {
                 MultiCount(ref bytes) => sym.set_int(count_bytes(rec, bytes) as i64),
                 ExpErr => {
                     let q = rec.qual().ok_or("No quality scores in input.")?;
-                    let ee = data.qual_converter.total_error(q)?;
+                    let ee = qual_converter.total_error(q)?;
                     sym.set_float(ee);
                 }
             }

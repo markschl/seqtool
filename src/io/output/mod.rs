@@ -6,7 +6,8 @@ use std::str::FromStr;
 
 use thread_io;
 
-use crate::{error::CliResult, var::Vars};
+use crate::error::CliResult;
+use crate::var::VarBuilder;
 
 use super::{fa_qual, fasta, fastq, Attribute, Compression, FormatVariant, QualFormat, Record};
 
@@ -209,20 +210,10 @@ impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
     }
 }
 
-pub fn writer<F, O>(o: &OutputOptions, vars: &mut Vars, func: F) -> CliResult<O>
-where
-    F: FnOnce(&mut dyn FormatWriter, &mut dyn io::Write, &mut Vars) -> CliResult<O>,
-{
-    io_writer(o, |io_writer| {
-        let mut w = from_format(&o.format, vars)?;
-        func(&mut w, io_writer, vars)
-    })
-}
-
 /// Creates an io::Write either in the main thread (no compression)
 /// or in a background thread (if explicitly specified or writing to
 /// compressed format).
-pub fn io_writer<F, O>(o: &OutputOptions, func: F) -> CliResult<O>
+pub fn with_io_writer<F, O>(o: &OutputOptions, func: F) -> CliResult<O>
 where
     F: FnOnce(&mut dyn io::Write) -> CliResult<O>,
 {
@@ -253,34 +244,31 @@ where
 
 pub fn from_format<'a>(
     format: &OutFormat,
-    vars: &mut Vars,
+    builder: &mut VarBuilder,
 ) -> CliResult<Box<dyn FormatWriter + 'a>> {
-    vars.build(|b| {
-        let out: Box<dyn FormatWriter> = match *format {
-            OutFormat::Fasta {
-                ref attrs,
-                wrap_width,
-            } => {
-                let writer = fasta::FastaWriter::new(wrap_width);
-                Box::new(attr::AttrWriter::new(writer, attrs, b)?)
-            }
-            OutFormat::Fastq { format, ref attrs } => {
-                let writer = fastq::FastqWriter::new(format);
-                Box::new(attr::AttrWriter::new(writer, attrs, b)?)
-            }
-            OutFormat::FaQual {
-                ref attrs,
-                wrap_width,
-                ref qfile,
-            } => {
-                let writer = fa_qual::FaQualWriter::new(wrap_width, qfile)?;
-                Box::new(attr::AttrWriter::new(writer, attrs, b)?)
-            }
-            OutFormat::Csv { delim, ref fields } => {
-                Box::new(csv::CsvWriter::new(fields, delim, b)?)
-            }
-        };
-        Ok(out)
+    Ok(match *format {
+        OutFormat::Fasta {
+            ref attrs,
+            wrap_width,
+        } => {
+            let writer = fasta::FastaWriter::new(wrap_width);
+            Box::new(attr::AttrWriter::new(writer, attrs, builder)?)
+        }
+        OutFormat::Fastq { format, ref attrs } => {
+            let writer = fastq::FastqWriter::new(format);
+            Box::new(attr::AttrWriter::new(writer, attrs, builder)?)
+        }
+        OutFormat::FaQual {
+            ref attrs,
+            wrap_width,
+            ref qfile,
+        } => {
+            let writer = fa_qual::FaQualWriter::new(wrap_width, qfile)?;
+            Box::new(attr::AttrWriter::new(writer, attrs, builder)?)
+        }
+        OutFormat::Csv { delim, ref fields } => {
+            Box::new(csv::CsvWriter::new(fields, delim, builder)?)
+        }
     })
 }
 

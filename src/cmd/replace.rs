@@ -5,11 +5,11 @@ use clap::{value_parser, Parser};
 use memchr::Memchr;
 use regex;
 
+use crate::cli::CommonArgs;
 use crate::error::CliResult;
 use crate::helpers::twoway_iter::TwowayIter;
 use crate::helpers::util::replace_iter;
 use crate::io::{RecordEditor, SeqAttr};
-use crate::opt::CommonArgs;
 use crate::Config;
 
 /// Replaces the contents of sequence IDs, descriptions or sequences
@@ -62,39 +62,39 @@ pub fn run(cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     if regex {
         if attr == SeqAttr::Seq {
             let replacer = BytesRegexReplacer(regex::bytes::Regex::new(pattern)?, has_backrefs);
-            run_replace(&cfg, attr, replacement, replacer, num_threads)?;
+            run_replace(cfg, attr, replacement, replacer, num_threads)?;
         } else {
             let replacer = RegexReplacer(regex::Regex::new(pattern)?, has_backrefs);
-            run_replace(&cfg, attr, replacement, replacer, num_threads)?;
+            run_replace(cfg, attr, replacement, replacer, num_threads)?;
         }
     } else if pattern.len() == 1 {
         let replacer = SingleByteReplacer(pattern.as_bytes()[0]);
-        run_replace(&cfg, attr, replacement, replacer, num_threads)?;
+        run_replace(cfg, attr, replacement, replacer, num_threads)?;
     } else {
         let replacer = BytesReplacer(pattern.as_bytes().to_owned());
-        run_replace(&cfg, attr, replacement, replacer, num_threads)?;
+        run_replace(cfg, attr, replacement, replacer, num_threads)?;
     }
     Ok(())
 }
 
 fn run_replace<R: Replacer + Sync>(
-    cfg: &Config,
+    mut cfg: Config,
     attr: SeqAttr,
     replacement: &[u8],
     replacer: R,
     num_threads: u32,
 ) -> CliResult<()> {
-    cfg.writer(|writer, io_writer, vars| {
-        cfg.read_parallel_var::<_, _, RecordEditor>(
-            vars,
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
+        cfg.read_parallel(
             num_threads - 1,
-            |record, editor| {
+            |record, editor: &mut RecordEditor| {
                 editor.edit_with_val(attr, &record, false, |text, out| {
                     replacer.replace(text, replacement, out)
                 })
             },
-            |record, editor, vars| {
-                writer.write(&editor.rec(&record), io_writer, vars)?;
+            |record, editor, ctx| {
+                format_writer.write(&editor.rec(&record), io_writer, ctx)?;
                 Ok(true)
             },
         )

@@ -1,11 +1,9 @@
-use std::{
-    borrow::Cow,
-    fmt::Debug,
-    fs::read_to_string,
-    hash::{Hash, Hasher},
-    ops::Range,
-    str,
-};
+use std::borrow::Cow;
+use std::fmt::Debug;
+use std::fs::read_to_string;
+use std::hash::{Hash, Hasher};
+use std::ops::Range;
+use std::str;
 
 use fxhash::{FxHashMap, FxHasher64};
 

@@ -2,9 +2,6 @@ use self::SeqType::*;
 use bio::alphabets::{dna, protein, rna};
 use strum_macros::{Display, EnumString};
 
-// TODO: maybe use lazy_static to initialize all alphabets. However, these
-// function are rarely called...
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display, EnumString)]
 pub enum SeqType {
     Dna,

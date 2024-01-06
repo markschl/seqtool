@@ -1,9 +1,9 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::SeqQualRecord;
-use crate::opt::CommonArgs;
 
 /// Converts all characters in the sequence to uppercase.
 #[derive(Parser, Clone, Debug)]
@@ -13,10 +13,11 @@ pub struct UpperCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, _args: &UpperCommand) -> CliResult<()> {
-    cfg.writer(|writer, io_writer, vars| {
+pub fn run(mut cfg: Config, _args: &UpperCommand) -> CliResult<()> {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         let mut seq = vec![];
-        cfg.read(vars, |record, vars| {
+        cfg.read(|record, ctx| {
             seq.clear();
             for s in record.seq_segments() {
                 seq.extend(s.iter().cloned().map(|ref mut b| {
@@ -25,7 +26,7 @@ pub fn run(cfg: Config, _args: &UpperCommand) -> CliResult<()> {
                 }));
             }
             let ucase_rec = SeqQualRecord::new(&record, &seq, None);
-            writer.write(&ucase_rec, io_writer, vars)?;
+            format_writer.write(&ucase_rec, io_writer, ctx)?;
             Ok(true)
         })
     })

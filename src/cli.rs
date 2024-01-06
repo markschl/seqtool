@@ -1,9 +1,25 @@
 use crate::cmd::{
-    concat::ConcatCommand, count::CountCommand, del::DelCommand, head::HeadCommand,
-    interleave::InterleaveCommand, lower::LowerCommand, mask::MaskCommand, pass::PassCommand,
-    replace::ReplaceCommand, revcomp::RevcompCommand, sample::SampleCommand, set::SetCommand,
-    slice::SliceCommand, sort::SortCommand, split::SplitCommand, stat::StatCommand,
-    tail::TailCommand, trim::TrimCommand, unique::UniqueCommand, upper::UpperCommand,
+    concat::ConcatCommand,
+    count::CountCommand,
+    del::DelCommand,
+    find::vars::FindVars,
+    head::HeadCommand,
+    interleave::InterleaveCommand,
+    lower::LowerCommand,
+    mask::MaskCommand,
+    pass::PassCommand,
+    replace::ReplaceCommand,
+    revcomp::RevcompCommand,
+    sample::SampleCommand,
+    set::SetCommand,
+    slice::SliceCommand,
+    sort::{var::KeyVars, SortCommand},
+    split::{get_split_vars, SplitCommand},
+    stat::StatCommand,
+    tail::TailCommand,
+    trim::TrimCommand,
+    unique::UniqueCommand,
+    upper::UpperCommand,
 };
 
 #[cfg(feature = "expr")]
@@ -41,6 +57,10 @@ impl Cli {
             ($cmdmod:ident, $opts:expr) => {
                 cmd::$cmdmod::run(Config::new(&$opts.common)?, $opts)
             };
+
+            ($cmdmod:ident, $opts:expr, $var_mod:expr) => {
+                cmd::$cmdmod::run(Config::with_vars(&$opts.common, $var_mod)?, $opts)
+            };
         }
         match self.0.command {
             Pass(ref opts) => run!(pass, opts),
@@ -52,14 +72,18 @@ impl Cli {
             Tail(ref opts) => run!(tail, opts),
             Slice(ref opts) => run!(slice, opts),
             Sample(ref opts) => run!(sample, opts),
-            Sort(ref opts) => run!(sort, opts),
-            Unique(ref opts) => run!(unique, opts),
+            Sort(ref opts) => run!(sort, opts, Some(Box::<KeyVars>::default())),
+            Unique(ref opts) => run!(unique, opts, Some(Box::<KeyVars>::default())),
             #[cfg(feature = "expr")]
             Filter(ref opts) => run!(filter, opts),
-            Split(ref opts) => run!(split, opts),
+            Split(ref opts) => run!(split, opts, get_split_vars(opts)),
             Interleave(ref opts) => run!(interleave, opts),
             #[cfg(feature = "find")]
-            Find(ref opts) => run!(find, opts),
+            Find(ref opts) => run!(
+                find,
+                opts,
+                Some(Box::new(FindVars::new(opts.patterns.len())))
+            ),
             Replace(ref opts) => run!(replace, opts),
             Del(ref opts) => run!(del, opts),
             Set(ref opts) => run!(set, opts),

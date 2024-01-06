@@ -7,18 +7,19 @@ extern crate lazy_static;
 #[macro_use]
 extern crate seq_io;
 
-use crate::{config::Config, opt::Cli};
+use crate::cli::Cli;
+use crate::config::Config;
 
 use self::error::*;
 use std::process;
 
 #[macro_use]
 mod helpers;
+mod cli;
 mod cmd;
 mod config;
 mod error;
 mod io;
-mod opt;
 mod var;
 
 #[cfg(test)]

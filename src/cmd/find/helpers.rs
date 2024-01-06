@@ -52,14 +52,13 @@ pub enum Algorithm {
     Myers,
 }
 
-impl Algorithm {
-    pub fn from_str(s: &str) -> Option<Algorithm> {
-        Some(match &*s.to_ascii_lowercase() {
-            "exact" => Algorithm::Exact,
-            "regex" => Algorithm::Regex,
-            "myers" => Algorithm::Myers,
-            _ => return None,
-        })
+pub fn algorithm_from_name(s: &str) -> Result<Option<Algorithm>, String> {
+    match &*s.to_ascii_lowercase() {
+        "exact" => Ok(Some(Algorithm::Exact)),
+        "regex" => Ok(Some(Algorithm::Regex)),
+        "myers" => Ok(Some(Algorithm::Myers)),
+        "auto" => return Ok(None),
+        _ => Err(format!("Unknown search algorithm: {}", s)),
     }
 }
 
@@ -208,7 +207,10 @@ pub(crate) fn read_pattern_file(path: &str) -> CliResult<Vec<(String, String)>> 
         out.push((r.id()?.to_string(), String::from_utf8(r.seq().to_owned())?));
     }
     if out.is_empty() {
-        return fail!("Pattern file is empty.");
+        return fail!(
+            "Pattern file is empty: {}. Patterns should be in FASTA format.",
+            path
+        );
     }
     Ok(out)
 }

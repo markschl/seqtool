@@ -1,10 +1,10 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::var_range::VarRanges;
 use crate::io::SeqQualRecord;
-use crate::opt::CommonArgs;
 
 /// Masks the sequence within a given range or comma delimited list of ranges
 /// by converting to lowercase (soft mask) or replacing with a character (hard
@@ -39,19 +39,20 @@ pub struct MaskCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &MaskCommand) -> CliResult<()> {
     let ranges = &args.ranges;
     let hard_mask = args.hard;
     let rng0 = args.zero_based;
     let exclusive = args.exclude;
     let unmask = args.unmask;
 
-    cfg.writer(|writer, io_writer, vars| {
-        let mut ranges = VarRanges::from_str(ranges, vars)?;
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
+        let mut ranges = cfg.build_vars(|b| VarRanges::from_str(ranges, b))?;
         let mut seq = Vec::new();
         let mut num_buf = Vec::new();
 
-        cfg.read(vars, |record, vars| {
+        cfg.read(|record, ctx| {
             // obtain full sequence
             seq.clear();
             let mut seqlen = 0;
@@ -60,7 +61,7 @@ pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
                 seqlen += s.len();
             }
 
-            let calc_ranges = ranges.resolve(vars.symbols(), record, &mut num_buf)?;
+            let calc_ranges = ranges.resolve(&ctx.symbols, record, &mut num_buf)?;
 
             if let Some(h) = hard_mask {
                 for rng in calc_ranges {
@@ -83,7 +84,7 @@ pub fn run(cfg: Config, args: &MaskCommand) -> CliResult<()> {
             }
 
             let rec = SeqQualRecord::new(&record, &seq, None);
-            writer.write(&rec, io_writer, vars)?;
+            format_writer.write(&rec, io_writer, ctx)?;
 
             Ok(true)
         })

@@ -4,11 +4,10 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::value::SimpleValue;
-use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
-use crate::opt::CommonArgs;
+use crate::helpers::{bytesize::parse_bytesize, value::SimpleValue, vec::VecFactory};
 use crate::var::varstring::VarString;
 
 use self::file::FileSorter;
@@ -93,7 +92,7 @@ pub struct SortCommand {
 /// Vec::sort() and other allocations.
 static MEM_OVERHEAD: f32 = 1.25;
 
-pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
     let force_numeric = args.numeric;
     let verbose = args.common.general.verbose;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
@@ -106,13 +105,15 @@ pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
     let mut sorter = Sorter::new(args.reverse, max_mem);
 
-    let m = Box::<KeyVars>::default();
-    cfg.writer_with_custom(Some(m), |writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+
+    cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
-        let (var_key, _vtype) = vars.build(|b| VarString::var_or_composed(&args.key, b))?;
-        cfg.read(vars, |record, vars| {
+        let (var_key, _vtype) = cfg.build_vars(|b| VarString::var_or_composed(&args.key, b))?;
+
+        cfg.read(|record, ctx| {
             // assemble key
-            let key = vars.custom_mod::<KeyVars, _>(|key_mod, symbols| {
+            let key = ctx.command_vars::<KeyVars, _>(|key_mod, symbols| {
                 let key = var_key.get_simple(&mut key_buf, symbols, record, force_numeric)?;
                 if let Some(m) = key_mod {
                     m.set(&key, symbols);
@@ -120,7 +121,8 @@ pub fn run(cfg: Config, args: &SortCommand) -> CliResult<()> {
                 Ok(key)
             })?;
             // write formatted record to a buffer
-            let record_out = record_buf_factory.fill_vec(|out| writer.write(&record, out, vars))?;
+            let record_out =
+                record_buf_factory.fill_vec(|out| format_writer.write(&record, out, ctx))?;
             // add both to the object handing the sorting
             sorter.add(
                 Item::new(key.into_owned(), record_out),

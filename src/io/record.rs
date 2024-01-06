@@ -1,7 +1,5 @@
-use std::{
-    borrow::Cow,
-    str::{self, Utf8Error},
-};
+use std::borrow::Cow;
+use std::str::{self, Utf8Error};
 
 use seq_io::fasta;
 use strum_macros::{Display, EnumString};

@@ -4,11 +4,17 @@ use std::str;
 
 use self::BuiltinVar::*;
 use crate::error::CliResult;
-use crate::io::input::{InputKind, InputOptions};
-use crate::io::output::OutputOptions;
-use crate::io::Record;
-use crate::var::symbols::VarType;
-use crate::var::*;
+use crate::io::{
+    input::{InputKind, InputOptions},
+    output::OutputOptions,
+    QualConverter, Record, SeqAttr,
+};
+use crate::var::{
+    attr::Attrs,
+    func::Func,
+    symbols::{SymbolTable, VarType},
+    VarBuilder, VarHelp, VarProvider,
+};
 
 #[derive(Debug)]
 pub struct BuiltinHelp;
@@ -144,11 +150,17 @@ impl VarProvider for BuiltinVars {
         !self.vars.is_empty()
     }
 
-    fn set(&mut self, _record: &dyn Record, data: &mut MetaData) -> CliResult<()> {
+    fn set(
+        &mut self,
+        _record: &dyn Record,
+        symbols: &mut SymbolTable,
+        _: &mut Attrs,
+        _: &mut QualConverter,
+    ) -> CliResult<()> {
         self.num += 1;
 
         for &(var, id) in &self.vars {
-            let sym = data.symbols.get_mut(id).inner_mut();
+            let sym = symbols.get_mut(id).inner_mut();
             match var {
                 Id => sym.set_attr(SeqAttr::Id),
                 Desc => sym.set_attr(SeqAttr::Desc),

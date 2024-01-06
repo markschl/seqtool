@@ -1,8 +1,8 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt::CommonArgs;
 
 /// No processing done, useful for converting and attribute setting
 #[derive(Parser, Clone, Debug)]
@@ -12,10 +12,11 @@ pub struct PassCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, _args: &PassCommand) -> CliResult<()> {
-    cfg.writer(|writer, io_writer, vars| {
-        cfg.read(vars, |record, vars| {
-            writer.write(&record, io_writer, vars)?;
+pub fn run(mut cfg: Config, _args: &PassCommand) -> CliResult<()> {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
+        cfg.read(|record, ctx| {
+            format_writer.write(&record, io_writer, ctx)?;
             Ok(true)
         })
     })

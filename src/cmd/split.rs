@@ -4,13 +4,14 @@ use std::path::Path;
 use clap::Parser;
 use fxhash::FxHashMap;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::output::{FormatWriter, OutputKind};
-use crate::opt::CommonArgs;
+use crate::var::func::Func;
 use crate::var::{
     symbols::{self, VarType},
-    varstring, Func, VarBuilder, VarHelp, VarProvider,
+    varstring, VarBuilder, VarHelp, VarProvider,
 };
 
 /// This command distributes sequences into multiple files based on different
@@ -36,7 +37,15 @@ pub struct SplitCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
+pub fn get_split_vars(args: &SplitCommand) -> Option<Box<dyn VarProvider>> {
+    if let Some(n) = args.num_seqs {
+        Some(Box::new(ChunkNum::new(n)))
+    } else {
+        None
+    }
+}
+
+pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
     let num_seqs = args.num_seqs;
     let parents = args.parents;
     let verbose = args.common.general.verbose;
@@ -50,74 +59,66 @@ pub fn run(cfg: Config, args: &SplitCommand) -> CliResult<()> {
     };
 
     // output path (or default) and chunk size
-    let (out_key, chunk_size) = if let Some(n) = num_seqs {
-        (out_path.unwrap_or("{filestem}_{chunk}.{default_ext}"), n)
+    let out_key = if num_seqs.is_some() {
+        out_path.unwrap_or("{filestem}_{chunk}.{default_ext}")
     } else if let Some(key) = out_path {
-        (key, 0)
+        key
     } else {
         return fail!("The split command requires either '-n' or '-o'.");
     };
 
-    // initialize variable provider for chunk number
-    let m: Option<Box<dyn VarProvider>> = if chunk_size == 0 {
-        None
-    } else {
-        Some(Box::new(ChunkNum::new(chunk_size)))
-    };
-    cfg.with_vars(m, |vars| {
-        let (out_key, _) = vars.build(|b| varstring::VarString::parse_register(out_key, b))?;
-        // file path -> writer
-        let mut outfiles = FxHashMap::default();
-        // path buffer
-        let mut path = vec![];
-        // writer for formatted output
-        // TODO: allow autorecognition of extension
-        let mut writer = cfg.format_writer(vars)?;
+    let (out_key, _) = cfg.build_vars(|b| varstring::VarString::parse_register(out_key, b))?;
+    // file path -> writer
+    let mut outfiles = FxHashMap::default();
+    // path buffer
+    let mut path = vec![];
+    // writer for formatted output
+    // TODO: allow autorecognition of extension
+    let mut format_writer = cfg.get_format_writer()?;
 
-        cfg.read(vars, |record, vars| {
-            // update chunk number variable
-            if chunk_size != 0 {
-                vars.custom_mod::<ChunkNum, _>(|m, sym| m.unwrap().increment(sym))?;
-            }
-
-            // compose key
-            path.clear();
-            out_key.compose(&mut path, vars.symbols(), record)?;
-
-            // cannot use Entry API
-            // https://github.com/rust-lang/rfcs/pull/1769 ??
-            if let Some(io_writer) = outfiles.get_mut(&path) {
-                writer.write(&record, io_writer, vars)?;
-                return Ok(true);
-            }
-
-            // if output file does not exist yet, initialize new one
-            let path_str = std::str::from_utf8(&path)?;
-            report!(verbose, "New file: '{}'", path_str);
-            let p = Path::new(path_str);
-            if let Some(par) = p.parent() {
-                if !par.exists() && !par.as_os_str().is_empty() && !parents {
-                    return fail!(format!(
-                        "Could not create file '{}' because the parent directory does not exist. \
-                        Use -p/--parents to create automatically",
-                        path_str
-                    ));
-                }
-                create_dir_all(par)?;
-            }
-
-            outfiles.insert(path.clone(), cfg.io_writer_other(path_str)?);
-            let io_writer = outfiles.get_mut(&path).unwrap();
-            writer.write(&record, io_writer, vars)?;
-            Ok(true)
-        })?;
-
-        // file handles from Config::other_writer() have to be finished
-        for (_, f) in outfiles {
-            f.finish()?.flush()?;
+    cfg.read(|record, ctx| {
+        // update chunk number variable
+        if num_seqs.is_some() {
+            ctx.command_vars::<ChunkNum, _>(|m, sym| m.unwrap().increment(sym))?;
         }
-        Ok(())
-    })
+
+        // compose key
+        path.clear();
+        out_key.compose(&mut path, &mut ctx.symbols, record)?;
+
+        // cannot use Entry API
+        // https://github.com/rust-lang/rfcs/pull/1769 ??
+        if let Some(io_writer) = outfiles.get_mut(&path) {
+            format_writer.write(&record, io_writer, ctx)?;
+            return Ok(true);
+        }
+
+        // if output file does not exist yet, initialize new one
+        let path_str = std::str::from_utf8(&path)?;
+        report!(verbose, "New file: '{}'", path_str);
+        let p = Path::new(path_str);
+        if let Some(par) = p.parent() {
+            if !par.exists() && !par.as_os_str().is_empty() && !parents {
+                return fail!(format!(
+                    "Could not create file '{}' because the parent directory does not exist. \
+                    Use -p/--parents to create automatically",
+                    path_str
+                ));
+            }
+            create_dir_all(par)?;
+        }
+
+        outfiles.insert(path.clone(), ctx.io_writer_from_path(path_str)?);
+        let io_writer = outfiles.get_mut(&path).unwrap();
+        format_writer.write(&record, io_writer, ctx)?;
+        Ok(true)
+    })?;
+
+    // file handles from Config::io_writer_other() have to be finished
+    for (_, f) in outfiles {
+        f.finish()?.flush()?;
+    }
+    Ok(())
 }
 
 #[derive(Debug)]

@@ -1,8 +1,8 @@
 use clap::{value_parser, Parser};
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt::CommonArgs;
 
 /// Returns the first sequences of the input.
 #[derive(Parser, Clone, Debug)]
@@ -16,17 +16,18 @@ pub struct HeadCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &HeadCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &HeadCommand) -> CliResult<()> {
     let n = args.num_seqs;
 
-    cfg.writer(|writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         let mut i = 0;
 
-        cfg.read(vars, |record, vars| {
+        cfg.read(|record, ctx| {
             if i >= n {
                 return Ok(false);
             }
-            writer.write(&record, io_writer, vars)?;
+            format_writer.write(&record, io_writer, ctx)?;
             i += 1;
             Ok(true)
         })

@@ -3,8 +3,8 @@ use std::io;
 use std::path::Path;
 use std::str::FromStr;
 
+use crate::config::SeqContext;
 use crate::error::CliResult;
-use crate::var;
 
 pub use self::qual_format::*;
 pub use self::record::*;
@@ -26,7 +26,7 @@ pub trait SeqWriter {
     fn write<W: io::Write>(
         &mut self,
         record: &dyn Record,
-        vars: &mut var::Vars,
+        vars: &mut SeqContext,
         out: W,
     ) -> CliResult<()>;
 }

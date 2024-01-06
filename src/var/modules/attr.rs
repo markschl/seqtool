@@ -1,7 +1,11 @@
 use crate::error::CliResult;
-use crate::io::Record;
-use crate::var::symbols::VarType;
-use crate::var::*;
+use crate::io::{QualConverter, Record};
+use crate::var::{
+    attr::{self, Attrs},
+    func::Func,
+    symbols::{SymbolTable, VarType},
+    VarBuilder, VarHelp, VarProvider,
+};
 
 #[derive(Debug)]
 pub struct AttrHelp;
@@ -130,14 +134,19 @@ impl VarProvider for AttrVars {
         !self.vars.is_empty()
     }
 
-    fn set(&mut self, rec: &dyn Record, data: &mut MetaData) -> CliResult<()> {
+    fn set(
+        &mut self,
+        rec: &dyn Record,
+        symbols: &mut SymbolTable,
+        attrs: &mut Attrs,
+        _: &mut QualConverter,
+    ) -> CliResult<()> {
         for var in &self.vars {
-            let sym = data.symbols.get_mut(var.id);
+            let sym = symbols.get_mut(var.id);
             match var.return_type {
                 AttrVarType::Value => {
                     if let Some(val) =
-                        data.attrs
-                            .get_value(var.attr_id, rec.id_bytes(), rec.desc_bytes())
+                        attrs.get_value(var.attr_id, rec.id_bytes(), rec.desc_bytes())
                     {
                         sym.inner_mut().set_text(val);
                     } else {
@@ -152,7 +161,7 @@ impl VarProvider for AttrVars {
                     }
                 }
                 AttrVarType::Exists => {
-                    sym.inner_mut().set_bool(data.attrs.has_value(var.attr_id));
+                    sym.inner_mut().set_bool(attrs.has_value(var.attr_id));
                 }
             }
         }

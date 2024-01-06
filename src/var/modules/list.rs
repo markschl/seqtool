@@ -6,9 +6,13 @@ use csv::{self, ByteRecord, Reader, ReaderBuilder};
 use fxhash::FxHashMap;
 
 use crate::error::{CliError, CliResult};
-use crate::io::Record;
-use crate::var::symbols::VarType;
-use crate::var::*;
+use crate::io::{QualConverter, Record};
+use crate::var::{
+    attr::Attrs,
+    func::{ArgValue, Func},
+    symbols::{SymbolTable, VarType},
+    VarBuilder, VarHelp, VarProvider,
+};
 
 #[derive(Debug)]
 pub struct ListHelp;
@@ -218,7 +222,13 @@ where
         !self.vars.is_empty()
     }
 
-    fn set(&mut self, record: &dyn Record, data: &mut MetaData) -> CliResult<()> {
+    fn set(
+        &mut self,
+        record: &dyn Record,
+        symbols: &mut SymbolTable,
+        _: &mut Attrs,
+        _: &mut QualConverter,
+    ) -> CliResult<()> {
         // read header record once (if present)
         if self.has_header {
             self.rdr.read_byte_record(&mut self.record)?;
@@ -238,7 +248,7 @@ where
         for (var_id, var) in &self.vars {
             match var {
                 ListVarType::Col(i) => {
-                    let sym = data.symbols.get_mut(*var_id);
+                    let sym = symbols.get_mut(*var_id);
                     if let Some(text) = self.record.get(*i) {
                         sym.inner_mut().set_text(text);
                     } else {
@@ -249,7 +259,7 @@ where
                     }
                 }
                 ListVarType::Exists => {
-                    data.symbols.get_mut(*var_id).inner_mut().set_bool(exists);
+                    symbols.get_mut(*var_id).inner_mut().set_bool(exists);
                 }
             }
         }

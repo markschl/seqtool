@@ -1,8 +1,8 @@
 use std::io;
 
+use crate::config::SeqContext;
 use crate::error::CliResult;
 use crate::io::Record;
-use crate::var;
 
 pub trait FormatWriter {
     fn has_vars(&self) -> bool;
@@ -10,7 +10,7 @@ pub trait FormatWriter {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &mut var::Vars,
+        ctx: &mut SeqContext,
     ) -> CliResult<()>;
 }
 
@@ -22,8 +22,8 @@ impl<W: FormatWriter + ?Sized> FormatWriter for Box<W> {
         &mut self,
         record: &dyn Record,
         out: &mut dyn io::Write,
-        vars: &mut var::Vars,
+        ctx: &mut SeqContext,
     ) -> CliResult<()> {
-        (**self).write(record, out, vars)
+        (**self).write(record, out, ctx)
     }
 }

@@ -2,10 +2,10 @@ use std::iter::repeat;
 
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::OwnedRecord;
-use crate::opt::CommonArgs;
 
 /// Concatenates sequences/alignments from different files in the order
 /// in which they are provided. Fails if the IDs don't match.
@@ -36,13 +36,14 @@ pub struct ConcatCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &ConcatCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &ConcatCommand) -> CliResult<()> {
     let id_check = !args.no_id_check;
     let spacer_n = args.spacer;
     let s_char = args.s_char as u8;
     let q_char = args.q_char as u8;
 
-    cfg.writer(|writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         let mut record = OwnedRecord::default();
         let num_readers = cfg.num_readers();
         if num_readers == 0 {
@@ -50,7 +51,7 @@ pub fn run(cfg: Config, args: &ConcatCommand) -> CliResult<()> {
         }
         let max_idx = num_readers - 1;
 
-        cfg.read_alongside(|i, rec| {
+        cfg.read_alongside(|i, rec, ctx| {
             let rec_id = rec.id_bytes();
 
             if i == 0 {
@@ -96,9 +97,12 @@ pub fn run(cfg: Config, args: &ConcatCommand) -> CliResult<()> {
                 }
             }
 
+            // handle variables (read_alongside requires this to be done manually)
+            ctx.set_record(&record)?;
+
             // write at last
             if i == max_idx {
-                writer.write(&record, io_writer, vars)?;
+                format_writer.write(&record, io_writer, ctx)?;
             }
             Ok(())
         })

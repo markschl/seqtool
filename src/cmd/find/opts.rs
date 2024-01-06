@@ -1,16 +1,27 @@
 use clap::{value_parser, Args, Parser};
 
-use crate::{
-    helpers::{rng::Range, seqtype::SeqType},
-    opt::CommonArgs,
-};
+use crate::cli::CommonArgs;
+use crate::error::CliResult;
+use crate::helpers::{rng::Range, seqtype::SeqType};
+
+use super::helpers::{algorithm_from_name, read_pattern_file, Algorithm};
+
+pub fn parse_patterns(pattern: &str) -> CliResult<Vec<(String, String)>> {
+    if !pattern.starts_with("file:") {
+        Ok(vec![("<pattern>".to_string(), pattern.to_string())])
+    } else {
+        read_pattern_file(&pattern[5..])
+    }
+}
 
 /// Fast searching for one or more patterns in sequences or ids/descriptions, with optional multithreading.
 #[derive(Parser, Clone, Debug)]
 pub struct FindCommand {
     // #[arg(required_unless_present = "--help-vars")]
     /// Pattern string or 'file:<patterns.fasta>'
-    pub pattern: String,
+    // Using std::vec::Vec due to Clap oddity (https://github.com/clap-rs/clap/issues/4626)
+    #[arg(value_parser = parse_patterns)]
+    pub patterns: std::vec::Vec<(String, String)>,
 
     #[command(flatten)]
     pub search: SearchArgs,
@@ -55,9 +66,10 @@ pub struct SearchArgs {
     #[arg(long)]
     pub no_ambig: bool,
 
-    /// Override decision of algorithm for testing (regex/exact/myers/auto) [default: auto]
-    #[arg(long, value_name = "NAME", default_value = "auto")]
-    pub algo: String,
+    /// Override decision of algorithm for testing (regex/exact/myers/auto)
+    // Using std::option::Option due to Clap oddity (https://github.com/clap-rs/clap/issues/4626)
+    #[arg(long, value_name = "NAME", default_value = "auto", value_parser = algorithm_from_name)]
+    pub algo: std::option::Option<Algorithm>,
 }
 
 #[derive(Args, Clone, Debug)]

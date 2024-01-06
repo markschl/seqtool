@@ -19,10 +19,10 @@ use vec_map::VecMap;
 #[cfg(target_family = "unix")]
 use pager::Pager;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::seqtype::{guess_seqtype, SeqType};
-use crate::opt::CommonArgs;
 
 /// Colored sequence view
 /// View biological sequences, colored by base / amino acid, or by sequence quality.
@@ -141,7 +141,7 @@ lazy_static! {
         .add("red-blue", "5:red,35:blue,40:darkblue");
 }
 
-pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &ViewCommand) -> CliResult<()> {
     let truecolor = args.color.truecolor.unwrap_or_else(has_truecolor);
     if args.color.list_pal {
         print_palettes(&args.color.textcols, truecolor)?;
@@ -194,89 +194,87 @@ pub fn run(cfg: Config, args: &ViewCommand) -> CliResult<()> {
     // run
     let mut i: u64 = 0;
     let mut id_len = args.general.id_len.unwrap_or(0);
-    cfg.with_vars(None, |vars| {
-        cfg.read(vars, |record, vars| {
-            if let Some(n) = n_max {
-                if i >= n {
-                    return Ok(false);
+    cfg.read(|record, ctx| {
+        if let Some(n) = n_max {
+            if i >= n {
+                return Ok(false);
+            }
+        }
+
+        // write seq. ids / desc
+        let (id, desc) = record.id_desc_bytes();
+        if id_len == 0 {
+            // determine ID width of first ID
+            id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3)) as u32;
+        }
+        write_id(
+            id,
+            desc,
+            &mut writer,
+            id_len as usize,
+            args.general.show_desc,
+            utf8,
+        )?;
+
+        // write the sequence
+        if let Some(qual) = record.qual() {
+            // If quality scores are present, use them to determine the background color
+            // first, validate and convert to Phred scores
+            let phred = ctx.qual_converter.phred_scores(qual)?;
+            let mut seqlen = 0;
+            let mut qual_iter = phred.scores().iter();
+            for seq in record.seq_segments() {
+                if !writer.initialized() {
+                    // TODO: initializing with first sequence line,
+                    // (guessing sequence type), but may not always be representative
+                    writer.init(
+                        seq,
+                        args.color.dna_pal.clone(),
+                        args.color.aa_pal.clone(),
+                        args.color.qscale.clone(),
+                    )?;
                 }
+                for &symbol in seq {
+                    let q = *qual_iter.next().unwrap();
+                    writer.write_symbol(symbol, Some(q))?;
+                }
+                seqlen += seq.len();
             }
 
-            // write seq. ids / desc
-            let (id, desc) = record.id_desc_bytes();
-            if id_len == 0 {
-                // determine ID width of first ID
-                id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3)) as u32;
-            }
-            write_id(
-                id,
-                desc,
-                &mut writer,
-                id_len as usize,
-                args.general.show_desc,
-                utf8,
-            )?;
+            writer.reset()?;
 
-            // write the sequence
-            if let Some(qual) = record.qual() {
-                // If quality scores are present, use them to determine the background color
-                // first, validate and convert to Phred scores
-                let phred = vars.mut_data().qual_converter.phred_scores(qual)?;
-                let mut seqlen = 0;
-                let mut qual_iter = phred.scores().iter();
-                for seq in record.seq_segments() {
-                    if !writer.initialized() {
-                        // TODO: initializing with first sequence line,
-                        // (guessing sequence type), but may not always be representative
-                        writer.init(
-                            seq,
-                            args.color.dna_pal.clone(),
-                            args.color.aa_pal.clone(),
-                            args.color.qscale.clone(),
-                        )?;
-                    }
-                    for &symbol in seq {
-                        let q = *qual_iter.next().unwrap();
-                        writer.write_symbol(symbol, Some(q))?;
-                    }
-                    seqlen += seq.len();
-                }
-
-                writer.reset()?;
-
-                // finally, write some quality stats
-                let prob = phred.total_error();
-                let rate = prob / seqlen as f64;
-                if prob < 0.001 {
-                    write!(writer, " err: {:>3.2e} ({:.4e} / pos.)", prob, rate)?;
-                } else {
-                    write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
-                }
+            // finally, write some quality stats
+            let prob = phred.total_error();
+            let rate = prob / seqlen as f64;
+            if prob < 0.001 {
+                write!(writer, " err: {:>3.2e} ({:.4e} / pos.)", prob, rate)?;
             } else {
-                // if no quality scores present, color by sequence
-                for seq in record.seq_segments() {
-                    if !writer.initialized() {
-                        writer.init(
-                            seq,
-                            args.color.dna_pal.clone(),
-                            args.color.aa_pal.clone(),
-                            args.color.qscale.clone(),
-                        )?;
-                    }
-
-                    for &symbol in seq {
-                        writer.write_symbol(symbol, None)?;
-                    }
+                write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
+            }
+        } else {
+            // if no quality scores present, color by sequence
+            for seq in record.seq_segments() {
+                if !writer.initialized() {
+                    writer.init(
+                        seq,
+                        args.color.dna_pal.clone(),
+                        args.color.aa_pal.clone(),
+                        args.color.qscale.clone(),
+                    )?;
                 }
 
-                writer.reset()?;
+                for &symbol in seq {
+                    writer.write_symbol(symbol, None)?;
+                }
             }
 
-            writer.write_all(b"\n")?;
+            writer.reset()?;
+        }
 
-            i += 1;
-            Ok(true)
-        })
+        writer.write_all(b"\n")?;
+
+        i += 1;
+        Ok(true)
     })
 }
 
@@ -455,7 +453,6 @@ pub struct QualPaletteType;
 
 impl PaletteType for QualPaletteType {
     fn parse_palette(color_str: &str) -> Result<VecMap<Color>, String> {
-        // TODO: needed?
         let mut elements = vec![];
         let mut knots = vec![];
         for (qual, color) in Self::parse_pal_mapping(color_str)? {

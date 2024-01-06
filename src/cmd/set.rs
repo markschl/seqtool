@@ -1,9 +1,9 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::{RecordEditor, SeqAttr};
-use crate::opt::CommonArgs;
 use crate::var::*;
 
 /// Set a new sequence and/or header
@@ -26,7 +26,7 @@ pub struct SetCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &SetCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &SetCommand) -> CliResult<()> {
     let mut replacements = vec![];
     if let Some(string) = args.id.as_ref() {
         replacements.push((string, SeqAttr::Id));
@@ -38,25 +38,26 @@ pub fn run(cfg: Config, args: &SetCommand) -> CliResult<()> {
         replacements.push((string, SeqAttr::Seq));
     }
 
-    cfg.writer(|writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         // get String -> VarString
         let replacements: Vec<_> = replacements
             .iter()
             .map(|&(e, attr)| {
-                let (e, _) = vars.build(|b| varstring::VarString::parse_register(e, b))?;
+                let (e, _) = cfg.build_vars(|b| varstring::VarString::parse_register(e, b))?;
                 Ok((e, attr))
             })
             .collect::<CliResult<_>>()?;
 
         let mut editor = RecordEditor::new();
 
-        cfg.read(vars, |record, vars| {
+        cfg.read(|record, ctx| {
             for &(ref expr, attr) in &replacements {
                 let val = editor.edit(attr);
-                expr.compose(val, vars.symbols(), record)?;
+                expr.compose(val, &mut ctx.symbols, record)?;
             }
 
-            writer.write(&editor.rec(&record), io_writer, vars)?;
+            format_writer.write(&editor.rec(&record), io_writer, ctx)?;
             Ok(true)
         })
     })

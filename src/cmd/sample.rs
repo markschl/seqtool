@@ -4,12 +4,11 @@ use std::mem::{size_of, size_of_val};
 use clap::{value_parser, Parser};
 use rand::{distributions::Uniform, prelude::*};
 
-use crate::config::Config;
+use crate::cli::CommonArgs;
+use crate::config::{Config, SeqContext};
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
 use crate::io::{output::FormatWriter, Record};
-use crate::opt::CommonArgs;
-use crate::var::*;
 
 /// Returns a random subset of sequences.
 ///
@@ -88,50 +87,38 @@ fn read_seed(seed_str: &str) -> Seed {
 pub type DefaultRng = rand_xoshiro::Xoshiro256PlusPlus;
 
 pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
-    cfg.writer(|writer, io_writer, vars| {
-        let rng = match args.seed {
-            Some(Seed::Number(s)) => DefaultRng::seed_from_u64(s),
-            Some(Seed::Array(s)) => DefaultRng::from_seed(s),
-            None => DefaultRng::from_entropy(),
-        };
-        if let Some(amount) = args.num_seqs {
-            let amount = amount as usize;
-            sample_n(
-                &cfg,
-                amount,
-                rng,
-                writer,
-                io_writer,
-                vars,
-                args.max_mem,
-                args.two_pass,
-                args.quiet,
-            )
-        } else if let Some(p) = args.prob {
-            sample_prob(&cfg, p, rng, writer, io_writer, vars)
-        } else {
-            fail!("Nothing selected, use either -n/--num-seqs or -p/--prob")
-        }
-    })
+    let rng = match args.seed {
+        Some(Seed::Number(s)) => DefaultRng::seed_from_u64(s),
+        Some(Seed::Array(s)) => DefaultRng::from_seed(s),
+        None => DefaultRng::from_entropy(),
+    };
+    if let Some(amount) = args.num_seqs {
+        let amount = amount as usize;
+        sample_n(cfg, amount, rng, args.max_mem, args.two_pass, args.quiet)
+    } else if let Some(p) = args.prob {
+        sample_prob(cfg, p, rng)
+    } else {
+        fail!("Nothing selected, use either -n/--num-seqs or -p/--prob")
+    }
 }
 
 fn sample_n<R: Rng + Clone>(
-    cfg: &Config,
+    mut cfg: Config,
     amount: usize,
     rng: R,
-    writer: &mut dyn FormatWriter,
-    io_writer: &mut dyn io::Write,
-    vars: &mut Vars,
     max_mem: usize,
     two_pass: bool,
     quiet: bool,
 ) -> CliResult<()> {
-    let mut sampler = ReservoirSampler::new(amount, rng, two_pass, max_mem)?;
-    cfg.read_simple(|record| {
-        sampler.sample(record, writer, vars, quiet)?;
-        Ok(true)
-    })?;
-    sampler.write(cfg, writer, vars, io_writer)
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
+        let mut sampler = ReservoirSampler::new(amount, rng, two_pass, max_mem)?;
+        cfg.read(|record, ctx| {
+            sampler.sample(record, &mut format_writer, ctx, quiet)?;
+            Ok(true)
+        })?;
+        sampler.write(&mut format_writer, &mut cfg, io_writer)
+    })
 }
 
 // Ensures consistency between 32 and 64-bit platforms,
@@ -167,12 +154,12 @@ impl<R: Rng + Clone> ReservoirSampler<R> {
         &mut self,
         record: &dyn Record,
         writer: &mut dyn FormatWriter,
-        vars: &mut Vars,
+        ctx: &mut SeqContext,
         quiet: bool,
     ) -> CliResult<()> {
         match self {
             ReservoirSampler::Records(ref mut s) => {
-                if !s.sample(record, writer, vars)? {
+                if !s.sample(record, writer, ctx)? {
                     let s = s.get_index_sampler()?;
                     if !quiet {
                         eprintln!(
@@ -192,14 +179,13 @@ impl<R: Rng + Clone> ReservoirSampler<R> {
 
     fn write(
         self,
-        cfg: &Config,
         writer: &mut dyn FormatWriter,
-        vars: &mut Vars,
+        cfg: &mut Config,
         io_writer: &mut dyn io::Write,
     ) -> CliResult<()> {
         match self {
             ReservoirSampler::Records(s) => s.write(io_writer),
-            ReservoirSampler::Indices(s) => s.write(cfg, vars, writer, io_writer),
+            ReservoirSampler::Indices(s) => s.write(cfg, writer, io_writer),
         }
     }
 }
@@ -234,8 +220,8 @@ impl<R: Rng + Clone> RecordsSampler<R> {
     fn sample(
         &mut self,
         record: &dyn Record,
-        writer: &mut dyn FormatWriter,
-        vars: &mut Vars,
+        format_writer: &mut dyn FormatWriter,
+        ctx: &mut SeqContext,
     ) -> CliResult<bool> {
         // simple reservoir sampling
         // The code very similar to rand::seq::choose_multiple_fill or choose_multiple,
@@ -251,7 +237,7 @@ impl<R: Rng + Clone> RecordsSampler<R> {
         if self.i < self.amount {
             let fmt_rec = self
                 .vec_factory
-                .fill_vec(|out| writer.write(&record, out, vars))?;
+                .fill_vec(|out| format_writer.write(&record, out, ctx))?;
             self.mem += size_of_val(&self.i) + size_of_val(&fmt_rec) + size_of_val(&*fmt_rec);
             self.reservoir.push((self.i, fmt_rec));
             if self.mem >= self.max_mem {
@@ -264,7 +250,7 @@ impl<R: Rng + Clone> RecordsSampler<R> {
                 self.mem -= size_of_val(&*fmt_rec);
                 *idx = self.i;
                 fmt_rec.clear();
-                writer.write(&record, fmt_rec, vars)?;
+                format_writer.write(&record, fmt_rec, ctx)?;
                 self.mem += size_of_val(&*fmt_rec);
                 if self.mem >= self.max_mem {
                     self.i += 1;
@@ -348,9 +334,8 @@ impl<R: Rng> IndexSampler<R> {
 
     fn write(
         mut self,
-        cfg: &Config,
-        vars: &mut Vars,
-        writer: &mut dyn FormatWriter,
+        cfg: &mut Config,
+        format_writer: &mut dyn FormatWriter,
         io_writer: &mut dyn Write,
     ) -> CliResult<()> {
         // sort by index
@@ -359,9 +344,9 @@ impl<R: Rng> IndexSampler<R> {
         let mut chosen_iter = self.reservoir.into_iter();
         let mut next_index = chosen_iter.next().unwrap();
         let mut i = 0;
-        cfg.read(vars, |record, vars| {
+        cfg.read(|record, ctx| {
             if i == next_index {
-                writer.write(&record, io_writer, vars)?;
+                format_writer.write(&record, io_writer, ctx)?;
                 next_index = match chosen_iter.next() {
                     Some(i) => i,
                     // done, we can stop parsing
@@ -378,23 +363,19 @@ impl<R: Rng> IndexSampler<R> {
     }
 }
 
-fn sample_prob<R: Rng>(
-    cfg: &Config,
-    prob: f32,
-    mut rng: R,
-    writer: &mut dyn FormatWriter,
-    io_writer: &mut dyn io::Write,
-    vars: &mut Vars,
-) -> CliResult<()> {
+fn sample_prob<R: Rng>(mut cfg: Config, prob: f32, mut rng: R) -> CliResult<()> {
     if !(0f32..1.).contains(&prob) {
         return fail!("Fractions should be between 0 and 1 (but still < 1)");
     }
     let distr = Uniform::new(0f32, 1f32);
 
-    cfg.read(vars, |record, vars| {
-        if distr.sample(&mut rng) < prob {
-            writer.write(&record, io_writer, vars)?;
-        }
-        Ok(true)
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
+        cfg.read(|record, ctx| {
+            if distr.sample(&mut rng) < prob {
+                format_writer.write(&record, io_writer, ctx)?;
+            }
+            Ok(true)
+        })
     })
 }

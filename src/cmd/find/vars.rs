@@ -3,8 +3,9 @@ use std::io::Write;
 use crate::error::CliResult;
 use crate::io::Record;
 use crate::var::{
+    func::Func,
     symbols::{SymbolTable, Value, VarType},
-    Func, VarBuilder,
+    VarBuilder,
 };
 
 use super::*;
@@ -294,6 +295,7 @@ impl VarProvider for FindVars {
         // pattern rank:
         let pattern_rank = func.arg_as::<usize>(pat_i).transpose()?.unwrap_or(1);
 
+        debug_assert!(self.num_patterns > 0);
         if pattern_rank > self.num_patterns {
             return fail!(format!(
                 "Pattern rank {} requested, but there are only {} patterns",

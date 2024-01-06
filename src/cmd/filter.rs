@@ -3,11 +3,10 @@ use std::io::BufWriter;
 
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::opt::CommonArgs;
-use crate::var::symbols::Value;
-use crate::var::Func;
+use crate::var::{func::Func, symbols::Value};
 
 /// Filters sequences by a mathematical expression which may contain any variable.
 #[derive(Parser, Clone, Debug)]
@@ -26,28 +25,29 @@ pub struct FilterCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &FilterCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &FilterCommand) -> CliResult<()> {
     let expr = &args.expression;
     let dropped_file = args.dropped.as_ref();
 
-    cfg.writer(|writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         let func = Func::expr(expr);
-        let (expr_id, _, _) = vars.build(|b| b.register_var(&func))?.unwrap();
+        let (expr_id, _, _) = cfg.build_vars(|b| b.register_var(&func))?.unwrap();
         let mut dropped_file = dropped_file
             .map(|f| Ok::<_, CliError>(BufWriter::new(File::create(f)?)))
             .transpose()?;
 
-        cfg.read(vars, |record, vars| {
-            let v = vars.symbols().get(expr_id);
+            cfg.read(|record, ctx| {
+            let v = ctx.symbols.get(expr_id);
             let result = match v.inner() {
                 Some(Value::Bool(b)) => *b.get(),
                 _ => return fail!(format!("Filter expression did not return a boolean (true/false) value, found {} instead", v))
             };
 
             if result {
-                writer.write(&record, io_writer, vars)?;
+                format_writer.write(&record, io_writer, ctx)?;
             } else if let Some(w) = dropped_file.as_mut() {
-                writer.write(&record, w, vars)?;
+                format_writer.write(&record, w, ctx)?;
             }
             Ok(true)
         })

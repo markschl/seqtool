@@ -4,11 +4,11 @@ use std::fmt::{self, Debug, Write};
 use clap::Parser;
 use fxhash::FxHashMap;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::value::SimpleValue;
 use crate::io::Record;
-use crate::opt::CommonArgs;
 use crate::var::{symbols::SymbolTable, varstring, VarBuilder};
 
 /// This command counts the number of sequences in total or per category.
@@ -42,9 +42,9 @@ pub struct CountCommand {
 
 pub fn run(cfg: Config, args: &CountCommand) -> CliResult<()> {
     if args.key.is_empty() {
-        count_simple(&cfg)
+        count_simple(cfg)
     } else {
-        count_categorized(&cfg, &args.key, !args.no_int)
+        count_categorized(cfg, &args.key, !args.no_int)
     }
 }
 
@@ -200,13 +200,11 @@ impl Category {
     }
 }
 
-fn count_simple(cfg: &Config) -> CliResult<()> {
-    // make sure --var-help is printed
-    cfg.get_vars(None)?.finalize();
+fn count_simple(cfg: Config) -> CliResult<()> {
     // run counting without any variable processing
-    cfg.io_writer(None, |writer, _| {
+    cfg.with_io_writer(|writer, mut cfg| {
         let mut n = 0;
-        cfg.read_simple(|_| {
+        cfg.read(|_, _| {
             n += 1;
             Ok(true)
         })?;
@@ -217,55 +215,53 @@ fn count_simple(cfg: &Config) -> CliResult<()> {
     Ok(())
 }
 
-fn count_categorized<S>(cfg: &Config, keys: &[S], print_intervals: bool) -> CliResult<()>
+fn count_categorized<S>(mut cfg: Config, keys: &[S], print_intervals: bool) -> CliResult<()>
 where
     S: AsRef<str>,
 {
-    cfg.with_vars(None, |vars| {
-        // register variables & parse types
-        let mut var_keys: Vec<_> = keys
-            .iter()
-            .map(|k| vars.build(|b| VarKey::from_str(k.as_ref(), b)))
-            .collect::<CliResult<_>>()?;
+    // register variables & parse types
+    let mut var_keys: Vec<_> = keys
+        .iter()
+        .map(|k| cfg.build_vars(|b| VarKey::from_str(k.as_ref(), b)))
+        .collect::<CliResult<_>>()?;
 
-        // count the records
-        let mut counts = FxHashMap::default();
-        // reusable key that is only cloned when not present in the hash map
-        let mut key = vec![Category::NA; var_keys.len()];
-        cfg.read(vars, |record, vars| {
-            for (key, cat) in var_keys.iter_mut().zip(&mut key) {
-                key.categorize(vars.symbols(), record, cat)?;
-            }
+    // count the records
+    let mut counts = FxHashMap::default();
+    // reusable key that is only cloned when not present in the hash map
+    let mut key = vec![Category::NA; var_keys.len()];
 
-            // cannot use Entry API because this would require the key to be cloned
-            if let Some(v) = counts.get_mut(&key) {
-                *v += 1;
-                return Ok(true);
-            }
-            counts.insert(key.clone(), 1);
-
-            Ok(true)
-        })?;
-
-        // sort the keys
-        let mut sorted: Vec<_> = counts.into_iter().collect();
-        sorted.sort();
-
-        let mut row = String::new();
-        for (ref categories, count) in sorted {
-            row.clear();
-            // write the keys
-            for (key, cat) in var_keys.iter().zip(categories) {
-                let (int, is_discrete) = key.interval();
-                cat.to_text(&mut row, int, is_discrete, print_intervals)?;
-                write!(&mut row, "\t")?;
-            }
-            // write the count
-            // TODO: line terminator?
-            write!(&mut row, "{}", count)?;
-            println!("{}", row);
+    // count the records
+    cfg.read(|record, ctx| {
+        for (key, cat) in var_keys.iter_mut().zip(&mut key) {
+            key.categorize(&ctx.symbols, record, cat)?;
         }
-        Ok(())
+        // cannot use Entry API because this would require the key to be cloned
+        if let Some(v) = counts.get_mut(&key) {
+            *v += 1;
+            return Ok(true);
+        }
+        counts.insert(key.clone(), 1);
+
+        Ok(true)
     })?;
+
+    // sort the keys
+    let mut sorted: Vec<_> = counts.into_iter().collect();
+    sorted.sort();
+
+    let mut row = String::new();
+    for (ref categories, count) in sorted {
+        row.clear();
+        // write the keys
+        for (key, cat) in var_keys.iter().zip(categories) {
+            let (int, is_discrete) = key.interval();
+            cat.to_text(&mut row, int, is_discrete, print_intervals)?;
+            write!(&mut row, "\t")?;
+        }
+        // write the count
+        // TODO: line terminator?
+        write!(&mut row, "{}", count)?;
+        println!("{}", row);
+    }
     Ok(())
 }

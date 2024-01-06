@@ -1,10 +1,10 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{rng::Range, var_range::VarRanges};
 use crate::io::{Record, SeqQualRecord};
-use crate::opt::CommonArgs;
 
 /// Trim sequences on the left and/or right (single range)
 /// or extract and concatenate several non-overlapping ranges.
@@ -33,20 +33,21 @@ pub struct TrimCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &TrimCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &TrimCommand) -> CliResult<()> {
     let ranges = &args.ranges;
     let rng0 = args.zero_based;
     let exclusive = args.exclude;
 
-    cfg.writer(|writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         let mut out_seq = vec![];
         let mut out_qual = vec![];
 
-        let mut ranges = VarRanges::from_str(ranges, vars)?;
+        let mut ranges = cfg.build_vars(|b| VarRanges::from_str(ranges, b))?;
         let mut num_buf = Vec::new();
 
-        cfg.read(vars, |record, vars| {
-            let ranges = ranges.resolve(vars.symbols(), record, &mut num_buf)?;
+        cfg.read(|record, ctx| {
+            let ranges = ranges.resolve(&ctx.symbols, record, &mut num_buf)?;
 
             let rec = trim(
                 &record,
@@ -57,7 +58,7 @@ pub fn run(cfg: Config, args: &TrimCommand) -> CliResult<()> {
                 exclusive,
             )?;
 
-            writer.write(&rec, io_writer, vars)?;
+            format_writer.write(&rec, io_writer, ctx)?;
             Ok(true)
         })
     })

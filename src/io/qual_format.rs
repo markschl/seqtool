@@ -29,12 +29,6 @@ impl FromStr for QualFormat {
     }
 }
 
-impl QualFormat {
-    pub fn get_converter(self) -> QualConverter {
-        QualConverter::new(self)
-    }
-}
-
 use self::QualFormat::*;
 
 /// Wrapper struct for Phred scores, also keeping the orignal scores in order

@@ -1,8 +1,8 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::opt::CommonArgs;
 
 /// Interleaves records of all files in the input. The records will returned in
 /// the same order as the files.
@@ -17,13 +17,14 @@ pub struct InterleaveCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
     let id_check = !args.no_id_check;
 
-    cfg.writer(|writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         let mut id = vec![];
 
-        cfg.read_alongside(|i, rec| {
+        cfg.read_alongside(|i, rec, ctx| {
             if id_check {
                 let rec_id = rec.id_bytes();
                 if i == 0 {
@@ -38,7 +39,10 @@ pub fn run(cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
                     ));
                 }
             }
-            writer.write(rec, io_writer, vars)
+            // handle variables (read_alongside requires this to be done manually)
+            ctx.set_record(&rec)?;
+
+            format_writer.write(rec, io_writer, ctx)
         })
     })
 }

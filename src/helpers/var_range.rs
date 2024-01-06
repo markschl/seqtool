@@ -1,10 +1,9 @@
 use std::str::FromStr;
 
-/// Methods for working with variable ranges
 use crate::error::CliResult;
 use crate::io::Record;
-use crate::var;
 use crate::var::varstring::{register_var_list, VarString};
+use crate::var::{self, VarBuilder};
 
 use super::rng::Range;
 
@@ -119,10 +118,10 @@ pub struct VarRanges {
 }
 
 impl VarRanges {
-    pub fn from_str(s: &str, vars: &mut var::Vars) -> CliResult<VarRanges> {
+    pub fn from_str(s: &str, var_builder: &mut VarBuilder) -> CliResult<VarRanges> {
         // first, we collect all comma-delimited parts, registering any variables
         let mut parts = vec![];
-        vars.build(|b| register_var_list(s.trim(), ",", b, &mut parts))?;
+        register_var_list(s.trim(), ",", var_builder, &mut parts)?;
         // then, we parse all ranges
         let mut ranges: Vec<VarRange> = parts
             .into_iter()

@@ -1,21 +1,15 @@
 use std::fmt;
 use std::str;
 
+use crate::error::{CliError, CliResult};
 use crate::io::Record;
-use crate::var::symbols::OptValue;
-use crate::var::symbols::SymbolTable;
-use crate::{
-    error::{CliError, CliResult},
-    var::symbols::Value,
-};
+use crate::var::symbols::{OptValue, SymbolTable, Value};
 
-use rquickjs::Atom;
-use rquickjs::Error;
-// use rquickjs::{embed, loader::Bundle};
 use rquickjs::{
-    context::intrinsic::*, Context as RContext, Ctx, Exception, Function, IntoJs, Persistent,
-    Runtime, Type,
+    context::intrinsic::*, Atom, Context as RContext, Ctx, Error, Exception, Function, IntoJs,
+    Persistent, Runtime, Type,
 };
+// use rquickjs::{embed, loader::Bundle};
 
 use super::Var;
 use super::{ExprContext, Expression};

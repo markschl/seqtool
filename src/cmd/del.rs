@@ -1,10 +1,10 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::DefRecord;
-use crate::opt::CommonArgs;
-use crate::var::*;
+use crate::var::attr;
 
 /// Deletes description field or attributes
 #[derive(Parser, Clone, Debug)]
@@ -22,13 +22,14 @@ pub struct DelCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &DelCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &DelCommand) -> CliResult<()> {
     let del_desc = args.desc;
     let del_attrs = args.attrs.as_deref();
 
-    cfg.writer(|writer, io_writer, vars| {
+    let mut format_writer = cfg.get_format_writer()?;
+    cfg.with_io_writer(|io_writer, mut cfg| {
         if let Some(attrs) = del_attrs {
-            vars.build(|b| {
+            cfg.build_vars(|b| {
                 for attr in attrs {
                     b.register_attr(attr, Some(attr::Action::Delete));
                 }
@@ -36,13 +37,13 @@ pub fn run(cfg: Config, args: &DelCommand) -> CliResult<()> {
             })?;
         }
 
-        cfg.read(vars, |record, vars| {
+        cfg.read(|record, ctx| {
             if del_desc {
                 let id = record.id_bytes();
                 let record = DefRecord::new(&record, id, None);
-                writer.write(&record, io_writer, vars)?;
+                format_writer.write(&record, io_writer, ctx)?;
             } else {
-                writer.write(&record, io_writer, vars)?;
+                format_writer.write(&record, io_writer, ctx)?;
             }
             Ok(true)
         })
