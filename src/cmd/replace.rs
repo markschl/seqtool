@@ -42,7 +42,7 @@ pub struct ReplaceCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     // what should be replaced?
     let attr = if args.id {
         SeqAttr::Id
@@ -59,32 +59,20 @@ pub fn run(cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     let regex = args.regex;
     let num_threads = args.threads;
 
-    if regex {
+    let replacer: Box<dyn Replacer + Sync> = if regex {
         if attr == SeqAttr::Seq {
-            let replacer = BytesRegexReplacer(regex::bytes::Regex::new(pattern)?, has_backrefs);
-            run_replace(cfg, attr, replacement, replacer, num_threads)?;
+            Box::new(BytesRegexReplacer(regex::bytes::Regex::new(pattern)?, has_backrefs))
         } else {
-            let replacer = RegexReplacer(regex::Regex::new(pattern)?, has_backrefs);
-            run_replace(cfg, attr, replacement, replacer, num_threads)?;
+            Box::new(RegexReplacer(regex::Regex::new(pattern)?, has_backrefs))
         }
     } else if pattern.len() == 1 {
-        let replacer = SingleByteReplacer(pattern.as_bytes()[0]);
-        run_replace(cfg, attr, replacement, replacer, num_threads)?;
+        Box::new(SingleByteReplacer(pattern.as_bytes()[0]))
     } else {
-        let replacer = BytesReplacer(pattern.as_bytes().to_owned());
-        run_replace(cfg, attr, replacement, replacer, num_threads)?;
-    }
-    Ok(())
-}
+        Box::new(BytesReplacer(pattern.as_bytes().to_owned()))
+    };
 
-fn run_replace<R: Replacer + Sync>(
-    mut cfg: Config,
-    attr: SeqAttr,
-    replacement: &[u8],
-    replacer: R,
-    num_threads: u32,
-) -> CliResult<()> {
     let mut format_writer = cfg.get_format_writer()?;
+    
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_parallel(
             num_threads - 1,
@@ -101,6 +89,7 @@ fn run_replace<R: Replacer + Sync>(
     })?;
     Ok(())
 }
+
 
 trait Replacer {
     fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()>;
