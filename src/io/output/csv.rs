@@ -43,7 +43,7 @@ impl FormatWriter for CsvWriter {
                 write!(out, "{}", self.delim as char)?;
             }
             is_first = false;
-            expr.compose(out, &mut ctx.symbols, record)?;
+            expr.compose(out, &ctx.symbols, record)?;
         }
         writeln!(out)?;
         Ok(())

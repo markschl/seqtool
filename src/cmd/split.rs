@@ -84,7 +84,7 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
 
         // compose key
         path.clear();
-        out_key.compose(&mut path, &mut ctx.symbols, record)?;
+        out_key.compose(&mut path, &ctx.symbols, record)?;
 
         // cannot use Entry API
         // https://github.com/rust-lang/rfcs/pull/1769 ??

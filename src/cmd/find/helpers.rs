@@ -57,7 +57,7 @@ pub fn algorithm_from_name(s: &str) -> Result<Option<Algorithm>, String> {
         "exact" => Ok(Some(Algorithm::Exact)),
         "regex" => Ok(Some(Algorithm::Regex)),
         "myers" => Ok(Some(Algorithm::Myers)),
-        "auto" => return Ok(None),
+        "auto" => Ok(None),
         _ => Err(format!("Unknown search algorithm: {}", s)),
     }
 }

@@ -47,7 +47,7 @@ impl<S: SeqWriter> FormatWriter for AttrWriter<S> {
             let (rec_id, rec_desc) = record.id_desc_bytes();
             ctx.attrs
                 .compose(rec_id, rec_desc, rec_id_out, rec_desc_out, |attr_id, s| {
-                    registered_attrs[attr_id].compose(s, &mut ctx.symbols, record)
+                    registered_attrs[attr_id].compose(s, &ctx.symbols, record)
                 })?;
             let _rec_desc_out = if rec_desc_out.is_empty() {
                 None
