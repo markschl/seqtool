@@ -5,8 +5,7 @@ use std::path::PathBuf;
 use crate::cmd::shared::tmp_store::{TmpHandle, TmpWriter};
 use crate::error::CliResult;
 
-use super::file::FileSorter;
-use super::Item;
+use super::{FileSorter, Item};
 
 #[derive(Debug, Clone)]
 pub struct MemSorter {

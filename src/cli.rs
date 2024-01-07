@@ -71,9 +71,7 @@ impl Cli {
             Find(ref opts) => run!(
                 find,
                 opts,
-                Some(Box::new(cmd::find::vars::FindVars::new(
-                    opts.patterns.len()
-                )))
+                Some(Box::new(cmd::find::FindVars::new(opts.patterns.len())))
             ),
             #[cfg(any(feature = "all_commands", feature = "replace"))]
             Replace(ref opts) => run!(replace, opts),
@@ -276,10 +274,10 @@ pub enum SubCommand {
     Sample(cmd::sample::SampleCommand),
     /// Sort records by sequence or any other criterion.
     #[cfg(any(feature = "all_commands", feature = "sort"))]
-    Sort(cmd::sort::SortCommand),
+    Sort(cmd::sort::cli::SortCommand),
     /// De-replicate records, returning only unique ones
     #[cfg(any(feature = "all_commands", feature = "unique"))]
-    Unique(cmd::unique::UniqueCommand),
+    Unique(cmd::unique::cli::UniqueCommand),
     /// Filter based on different criteria
     #[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
     Filter(cmd::filter::FilterCommand),

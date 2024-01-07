@@ -10,15 +10,15 @@ use crate::var::{varstring, VarHelp, VarProvider};
 
 use super::shared::seqtype::SeqType;
 
+mod cli;
 mod helpers;
 mod matcher;
 mod matches;
-mod opts;
-pub mod vars;
+mod vars;
 
+pub use self::cli::*;
 use self::matches::*;
-pub use self::opts::*;
-use self::vars::*;
+pub use self::vars::*;
 
 struct MatchOpts {
     has_groups: bool,

@@ -5,8 +5,7 @@ use crate::cmd::shared::tmp_store::{TmpHandle, TmpStore};
 use crate::error::CliResult;
 use crate::helpers::heap_merge::HeapMerge;
 
-use super::mem::MemSorter;
-use super::Item;
+use super::{Item, MemSorter};
 
 #[derive(Debug)]
 pub struct FileSorter {
