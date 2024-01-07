@@ -5,7 +5,11 @@ use clap::Parser;
 use crate::cli::CommonArgs;
 use crate::helpers::bytesize::parse_bytesize;
 
-/// De-replicate records, returning only unique ones.
+/// De-replicate records by sequence or any other criterion, returning only 
+/// unique records.
+///
+/// The unique key can be 'seq' or any variable/function, expression, or
+/// text containing them (see <KEY> help).
 ///
 /// The order of the records is the same as in the input unless the memory limit
 /// is exceeded, in which case temporary files are used and the records are
@@ -14,12 +18,10 @@ use crate::helpers::bytesize::parse_bytesize;
 #[clap(next_help_heading = "Command options")]
 pub struct UniqueCommand {
     /// The key used to determine, which records are unique.
-    /// If not specified, records are de-replicated by the sequence.
-    /// The key can be a single variable/function
-    /// such as 'id', or a composed string, e.g. '{id}_{desc}'.
+    /// The key can be a single variable/function such as 'seq',
+    /// or a composed string such as '{attr(a)}_{attr(b)}'.
     /// For each key, the *first* encountered record is returned, and all
     /// remaining ones with the same key are discarded.
-    #[arg(short, long, default_value = "seq")]
     pub key: String,
 
     /// Interpret the key as a number instead of text.

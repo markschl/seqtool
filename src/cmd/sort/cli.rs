@@ -7,33 +7,30 @@ use crate::helpers::bytesize::parse_bytesize;
 
 /// Sort records by sequence or any other criterion.
 ///
+/// The sort key can be 'seq', 'id', or any variable/function, expression, or
+/// text containing them (see <KEY> help).
+/// 
 /// Records are sorted in memory, it is up to the user of this function
 /// to ensure that the whole input will fit into memory.
 /// The default sort is by sequence.
-///
-/// The -k/--key option allows sorting by any variable/function, expression, or
-/// text composed of them (see --key help).
 ///
 /// The actual value of the key is available through the 'key' variable. It can
 /// be written to a header attribute or TSV field.
 /// This may be useful with JavaScript expressions, whose evaluation takes time,
 /// and whose result should be written to the headers, e.g.:
-/// 'st sort -nk '{{ id.substring(3, 5) }}' -a id_num='{key}' input.fasta'
+/// 'st sort -n '{{ id.substring(3, 5) }}' -a id_num='{key}' input.fasta'
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SortCommand {
-    /// The key used to sort the records. If not specified, records are
-    /// sorted by the sequence.
-    /// The key can be a single variable/function
-    /// such as 'id', or a composed string, e.g. '{id}_{desc}'.
+    /// The key used to sort the records. It can be a single variable/function
+    /// such as 'seq', 'id', or a composed string, e.g. '{id}_{desc}'.
     /// To sort by a FASTA/FASTQ attribute in the form '>id;size=123', specify
-    /// --key 'attr(size)' --numeric.
+    /// 'attr(size)' --numeric.
     /// Regarding formulas returning mixed text/numbers, the sorted records with
     /// text keys will be returned first and the sorted number records after them.
     /// Furthermore, NaN and missing values (null/undefined in JS expressions,
     /// missing `opt_attr()` values or missing entries in associated metadata)
     /// will appear last.
-    #[arg(short, long, default_value = "seq")]
     pub key: String,
 
     /// Interpret the key as a number instead of text.
