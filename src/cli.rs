@@ -141,8 +141,8 @@ impl CommonArgs {
                     opts.qual.as_deref(),
                 )?;
                 let opts = InputOptions::new(kind.clone(), format, _info.compression)
-                    .thread_opts(self.advanced.read_thread, self.advanced.read_tbufsize)
-                    .reader_opts(self.advanced.buf_cap, self.advanced.max_read_mem);
+                    .thread_opts(self.advanced.read_thread, None)
+                    .reader_opts(None, self.advanced.max_read_mem);
                 Ok(opts)
             })
             .collect::<CliResult<_>>()?;
@@ -212,7 +212,7 @@ impl CommonArgs {
         )?;
 
         let opts = OutputOptions::new(output, format, info.compression)
-            .thread_opts(self.advanced.write_thread, self.advanced.write_tbufsize);
+            .thread_opts(self.advanced.write_thread, None);
         Ok(opts)
     }
 
@@ -551,11 +551,6 @@ pub struct ExprArgs {
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Advanced (all commands)")]
 pub struct AdvancedArgs {
-    /// Initial capacity of internal reader buffer. Either a plain number (bytes)
-    /// a number with unit (K, M, G, T) based on powers of 2.
-    #[arg(long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "68K")]
-    pub buf_cap: usize,
-
     /// Buffer size limit for the internal reader. Larger sequence records will
     /// cause an error. Note, that some commands such as 'sort', 'unique'
     /// and 'sample' still use more memory and have their own additional
@@ -572,16 +567,4 @@ pub struct AdvancedArgs {
     /// Write in a different thread. Enabled with compressed output.
     #[arg(short('W'), long)]
     pub write_thread: bool,
-
-    /// Buffer size of background reader.
-    /// Plain number (bytes), a number with unit (K, M, G, T).
-    /// The default is 4 MiB or the optimal size depending on the compression format.
-    #[arg(long, value_name = "N", value_parser = parse_bytesize)]
-    pub read_tbufsize: Option<usize>,
-
-    /// Buffer size of background writer.
-    /// Plain number (bytes), a number with unit (K, M, G, T).
-    /// The default is 4 MiB or the optimal size depending on the compression format.
-    #[arg(long, value_name = "N", value_parser = parse_bytesize)]
-    pub write_tbufsize: Option<usize>,
 }
