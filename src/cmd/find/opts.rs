@@ -1,8 +1,9 @@
 use clap::{value_parser, Args, Parser};
 
 use crate::cli::CommonArgs;
+use crate::cmd::shared::seqtype::SeqType;
 use crate::error::CliResult;
-use crate::helpers::{rng::Range, seqtype::SeqType};
+use crate::helpers::rng::Range;
 
 use super::helpers::{algorithm_from_name, read_pattern_file, Algorithm};
 

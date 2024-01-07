@@ -8,8 +8,8 @@ use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::output::{FormatWriter, OutputKind};
-use crate::var::func::Func;
 use crate::var::{
+    func::Func,
     symbols::{self, VarType},
     varstring, VarBuilder, VarHelp, VarProvider,
 };

@@ -174,28 +174,49 @@ macro_rules! records {
 }
 
 mod compress;
+#[cfg(any(feature = "all_commands", feature = "concat"))]
 mod concat;
+#[cfg(any(feature = "all_commands", feature = "convert"))]
 mod convert;
+#[cfg(any(feature = "all_commands", feature = "count"))]
 mod count;
+#[cfg(any(feature = "all_commands", feature = "del"))]
 mod del;
-#[cfg(feature = "expr")]
+#[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
 mod filter;
-#[cfg(feature = "find")]
+#[cfg(any(feature = "all_commands", feature = "find"))]
 mod find;
+#[cfg(any(feature = "all_commands", feature = "head"))]
 mod head;
+#[cfg(any(feature = "all_commands", feature = "interleave"))]
 mod interleave;
+#[cfg(any(feature = "all_commands", feature = "lower"))]
 mod lower;
+#[cfg(any(feature = "all_commands", feature = "mask"))]
 mod mask;
+#[cfg(any(feature = "all_commands", feature = "pass"))]
 mod pass;
+#[cfg(any(feature = "all_commands", feature = "replace"))]
 mod replace;
+#[cfg(any(feature = "all_commands", feature = "revcomp"))]
 mod revcomp;
+#[cfg(any(feature = "all_commands", feature = "sample"))]
 mod sample;
+#[cfg(any(feature = "all_commands", feature = "set"))]
 mod set;
+#[cfg(any(feature = "all_commands", feature = "slice"))]
 mod slice;
+#[cfg(any(feature = "all_commands", feature = "sort"))]
 mod sort;
+#[cfg(any(feature = "all_commands", feature = "split"))]
 mod split;
+#[cfg(any(feature = "all_commands", all(feature = "pass", feature = "stat")))]
 mod stat;
+#[cfg(any(feature = "all_commands", feature = "tail"))]
 mod tail;
+#[cfg(any(feature = "all_commands", feature = "trim"))]
 mod trim;
+#[cfg(any(feature = "all_commands", feature = "unique"))]
 mod unique;
+#[cfg(any(feature = "all_commands", feature = "upper"))]
 mod upper;

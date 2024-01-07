@@ -1,34 +1,4 @@
-use crate::cmd::{
-    concat::ConcatCommand,
-    count::CountCommand,
-    del::DelCommand,
-    find::vars::FindVars,
-    head::HeadCommand,
-    interleave::InterleaveCommand,
-    lower::LowerCommand,
-    mask::MaskCommand,
-    pass::PassCommand,
-    replace::ReplaceCommand,
-    revcomp::RevcompCommand,
-    sample::SampleCommand,
-    set::SetCommand,
-    slice::SliceCommand,
-    sort::{var::KeyVars, SortCommand},
-    split::{get_split_vars, SplitCommand},
-    stat::StatCommand,
-    tail::TailCommand,
-    trim::TrimCommand,
-    unique::UniqueCommand,
-    upper::UpperCommand,
-};
-
-#[cfg(feature = "expr")]
-use crate::cmd::filter::FilterCommand;
-#[cfg(feature = "find")]
-use crate::cmd::find::FindCommand;
-#[cfg(feature = "view")]
-use crate::cmd::view::ViewCommand;
-
+use crate::cmd;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::bytesize::parse_bytesize;
@@ -38,7 +8,7 @@ use crate::io::{
     output::{OutFormat, OutputKind, OutputOptions},
     Attribute, FileInfo, FormatVariant, QualFormat,
 };
-use crate::{cmd, var};
+use crate::var::{AttrOpts, VarOpts};
 
 use clap::value_parser;
 use clap::{ArgAction, Args, Parser, Subcommand};
@@ -63,35 +33,65 @@ impl Cli {
             };
         }
         match self.0.command {
+            #[cfg(any(feature = "all_commands", feature = "pass"))]
             Pass(ref opts) => run!(pass, opts),
-            #[cfg(feature = "view")]
+            #[cfg(any(feature = "all_commands", feature = "view"))]
             View(ref opts) => run!(view, opts),
+            #[cfg(any(feature = "all_commands", feature = "count"))]
             Count(ref opts) => run!(count, opts),
+            #[cfg(any(feature = "all_commands", feature = "stat"))]
             Stat(ref opts) => run!(stat, opts),
+            #[cfg(any(feature = "all_commands", feature = "head"))]
             Head(ref opts) => run!(head, opts),
+            #[cfg(any(feature = "all_commands", feature = "tail"))]
             Tail(ref opts) => run!(tail, opts),
+            #[cfg(any(feature = "all_commands", feature = "slice"))]
             Slice(ref opts) => run!(slice, opts),
+            #[cfg(any(feature = "all_commands", feature = "sample"))]
             Sample(ref opts) => run!(sample, opts),
-            Sort(ref opts) => run!(sort, opts, Some(Box::<KeyVars>::default())),
-            Unique(ref opts) => run!(unique, opts, Some(Box::<KeyVars>::default())),
-            #[cfg(feature = "expr")]
+            #[cfg(any(feature = "all_commands", feature = "sort"))]
+            Sort(ref opts) => run!(
+                sort,
+                opts,
+                Some(Box::<cmd::shared::key_var::KeyVars>::default())
+            ),
+            #[cfg(any(feature = "all_commands", feature = "unique"))]
+            Unique(ref opts) => run!(
+                unique,
+                opts,
+                Some(Box::<cmd::shared::key_var::KeyVars>::default())
+            ),
+            #[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
             Filter(ref opts) => run!(filter, opts),
-            Split(ref opts) => run!(split, opts, get_split_vars(opts)),
+            #[cfg(any(feature = "all_commands", feature = "split"))]
+            Split(ref opts) => run!(split, opts, cmd::split::get_split_vars(opts)),
+            #[cfg(any(feature = "all_commands", feature = "interleave"))]
             Interleave(ref opts) => run!(interleave, opts),
-            #[cfg(feature = "find")]
+            #[cfg(any(feature = "all_commands", feature = "find"))]
             Find(ref opts) => run!(
                 find,
                 opts,
-                Some(Box::new(FindVars::new(opts.patterns.len())))
+                Some(Box::new(cmd::find::vars::FindVars::new(
+                    opts.patterns.len()
+                )))
             ),
+            #[cfg(any(feature = "all_commands", feature = "replace"))]
             Replace(ref opts) => run!(replace, opts),
-            Del(ref opts) => run!(del, opts),
+            #[cfg(any(feature = "all_commands", feature = "set"))]
             Set(ref opts) => run!(set, opts),
+            #[cfg(any(feature = "all_commands", feature = "del"))]
+            Del(ref opts) => run!(del, opts),
+            #[cfg(any(feature = "all_commands", feature = "trim"))]
             Trim(ref opts) => run!(trim, opts),
+            #[cfg(any(feature = "all_commands", feature = "mask"))]
             Mask(ref opts) => run!(mask, opts),
+            #[cfg(any(feature = "all_commands", feature = "upper"))]
             Upper(ref opts) => run!(upper, opts),
+            #[cfg(any(feature = "all_commands", feature = "lower"))]
             Lower(ref opts) => run!(lower, opts),
+            #[cfg(any(feature = "all_commands", feature = "revcomp"))]
             Revcomp(ref opts) => run!(revcomp, opts),
+            #[cfg(any(feature = "all_commands", feature = "concat"))]
             Concat(ref opts) => run!(concat, opts),
         }
     }
@@ -218,15 +218,15 @@ impl CommonArgs {
         Ok(opts)
     }
 
-    pub fn get_var_opts(&self) -> CliResult<var::VarOpts> {
-        Ok(var::VarOpts {
+    pub fn get_var_opts(&self) -> CliResult<VarOpts> {
+        Ok(VarOpts {
             lists: self.meta.list.clone(),
             list_delim: self.meta.ldelim,
             has_header: self.meta.lheader,
             unordered: self.meta.unordered,
             id_col: self.meta.id_col.checked_sub(1).unwrap(),
             allow_missing: self.meta.missing,
-            attr_opts: var::AttrOpts {
+            attr_opts: AttrOpts {
                 delim: self.attr.adelim,
                 value_delim: self.attr.aval_delim,
             },
@@ -249,58 +249,76 @@ pub struct ClapCli {
 #[derive(Subcommand, Clone, Debug)]
 pub enum SubCommand {
     /// No processing done, useful for converting and attribute setting
+    #[cfg(any(feature = "all_commands", feature = "pass"))]
     #[command(aliases=&["."])]
-    Pass(PassCommand),
+    Pass(cmd::pass::PassCommand),
     /// Colored sequence view
-    #[cfg(feature = "view")]
-    View(ViewCommand),
+    #[cfg(any(feature = "all_commands", feature = "view"))]
+    View(cmd::view::ViewCommand),
     /// Count sequences (total or by sequence properties)
-    Count(CountCommand),
+    #[cfg(any(feature = "all_commands", feature = "count"))]
+    Count(cmd::count::CountCommand),
     /// Per-sequence statistics
-    Stat(StatCommand),
+    #[cfg(any(feature = "all_commands", feature = "stat"))]
+    Stat(cmd::stat::StatCommand),
 
+    #[cfg(any(feature = "all_commands", feature = "head"))]
     /// Return the first N sequences
-    Head(HeadCommand),
+    Head(cmd::head::HeadCommand),
     /// Return the last N sequences
-    Tail(TailCommand),
+    #[cfg(any(feature = "all_commands", feature = "tail"))]
+    Tail(cmd::tail::TailCommand),
     /// Get a slice of the sequences within a defined range
-    Slice(SliceCommand),
+    #[cfg(any(feature = "all_commands", feature = "slice"))]
+    Slice(cmd::slice::SliceCommand),
     /// Get a random subset of sequences
-    Sample(SampleCommand),
+    #[cfg(any(feature = "all_commands", feature = "sample"))]
+    Sample(cmd::sample::SampleCommand),
     /// Sort records by sequence or any other criterion.
-    Sort(SortCommand),
+    #[cfg(any(feature = "all_commands", feature = "sort"))]
+    Sort(cmd::sort::SortCommand),
     /// De-replicate records, returning only unique ones
-    Unique(UniqueCommand),
+    #[cfg(any(feature = "all_commands", feature = "unique"))]
+    Unique(cmd::unique::UniqueCommand),
     /// Filter based on different criteria
-    #[cfg(feature = "expr")]
-    Filter(FilterCommand),
+    #[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
+    Filter(cmd::filter::FilterCommand),
     /// Distribute sequences into multiple files
-    Split(SplitCommand),
+    #[cfg(any(feature = "all_commands", feature = "split"))]
+    Split(cmd::split::SplitCommand),
     /// Interleave seqs. from multiple files
-    Interleave(InterleaveCommand),
-
+    #[cfg(any(feature = "all_commands", feature = "interleave"))]
+    Interleave(cmd::interleave::InterleaveCommand),
     /// Find one or more patterns with optional filtering/replacement
-    #[cfg(feature = "find")]
-    Find(FindCommand),
+    #[cfg(any(feature = "all_commands", feature = "find"))]
+    Find(cmd::find::FindCommand),
     /// Fast pattern replacement
-    Replace(ReplaceCommand),
-
+    #[cfg(any(feature = "all_commands", feature = "replace"))]
+    Replace(cmd::replace::ReplaceCommand),
     /// Set a new sequence and/or header
-    Set(SetCommand),
+    #[cfg(any(feature = "all_commands", feature = "set"))]
+    Set(cmd::set::SetCommand),
     /// Delete description fields and/or attributes
-    Del(DelCommand),
+    #[cfg(any(feature = "all_commands", feature = "del"))]
+    Del(cmd::del::DelCommand),
     /// Trim sequences on the left and/or right
-    Trim(TrimCommand),
+    #[cfg(any(feature = "all_commands", feature = "trim"))]
+    Trim(cmd::trim::TrimCommand),
     /// Soft or hard mask sequence ranges
-    Mask(MaskCommand),
+    #[cfg(any(feature = "all_commands", feature = "mask"))]
+    Mask(cmd::mask::MaskCommand),
     /// Convert sequences to uppercase
-    Upper(UpperCommand),
+    #[cfg(any(feature = "all_commands", feature = "upper"))]
+    Upper(cmd::upper::UpperCommand),
     /// Convert sequences to lowercase
-    Lower(LowerCommand),
+    #[cfg(any(feature = "all_commands", feature = "lower"))]
+    Lower(cmd::lower::LowerCommand),
     /// Reverse complement DNA sequences
-    Revcomp(RevcompCommand),
+    #[cfg(any(feature = "all_commands", feature = "revcomp"))]
+    Revcomp(cmd::revcomp::RevcompCommand),
     /// Concatenate seqs. from multiple files
-    Concat(ConcatCommand),
+    #[cfg(any(feature = "all_commands", feature = "concat"))]
+    Concat(cmd::concat::ConcatCommand),
 }
 
 /// Common options

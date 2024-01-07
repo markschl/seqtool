@@ -1,8 +1,8 @@
+use regex;
+
 use crate::error::CliResult;
 
-use ::regex;
-
-use super::*;
+use super::{Hit, Match, Matcher};
 
 pub struct BytesRegexMatcher {
     re: regex::bytes::Regex,

@@ -10,15 +10,13 @@ use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, value::SimpleValue, vec::VecFactory};
 use crate::var::varstring::VarString;
 
+use super::shared::{key_var::KeyVars, sort_item::Item};
+
 use self::file::FileSorter;
-use self::item::Item;
 use self::mem::MemSorter;
-use self::var::KeyVars;
 
 pub mod file;
-pub mod item;
 pub mod mem;
-pub mod var;
 
 /// Sort records by sequence or any other criterion.
 ///

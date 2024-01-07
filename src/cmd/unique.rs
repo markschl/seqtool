@@ -10,14 +10,16 @@ use indexmap::IndexMap;
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::heap_merge::HeapMerge;
-use crate::helpers::tmp_store::{TmpHandle, TmpStore, TmpWriter};
-use crate::helpers::value::SimpleValue;
-use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
+use crate::helpers::{
+    bytesize::parse_bytesize, heap_merge::HeapMerge, value::SimpleValue, vec::VecFactory,
+};
 use crate::var::varstring::VarString;
 
-use super::sort::item::{item_size, Item};
-use super::sort::var::KeyVars;
+use super::shared::{
+    key_var::KeyVars,
+    sort_item::{item_size, Item},
+    tmp_store::{TmpHandle, TmpStore, TmpWriter},
+};
 
 type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 

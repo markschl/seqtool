@@ -1,6 +1,6 @@
-use crate::helpers::twoway_iter::TwowayIter;
+use crate::cmd::shared::twoway_iter::TwowayIter;
 
-use super::*;
+use super::{Hit, Match, Matcher, SimpleHit};
 
 pub struct ExactMatcher(Vec<u8>);
 

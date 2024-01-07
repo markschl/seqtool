@@ -1,4 +1,5 @@
-//! Utilities used by seqtool
+//! Utilities used by many commands,
+//! which do not use optional crates that depend on feature flags.
 
 #[macro_use]
 pub mod macros;
@@ -7,10 +8,6 @@ pub mod bytesize;
 pub mod heap_merge;
 pub mod key_value;
 pub mod rng;
-#[cfg_attr(not(feature = "find"), allow(dead_code))]
-pub mod seqtype;
-pub mod tmp_store;
-pub mod twoway_iter;
 pub mod util;
 pub mod value;
 pub mod var_range;

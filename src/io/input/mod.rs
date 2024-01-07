@@ -10,7 +10,6 @@ use thread_io;
 use super::*;
 use crate::error::{CliError, CliResult};
 
-#[allow(dead_code)]
 mod parallel_csv;
 
 #[derive(Eq, PartialEq, Debug, Clone)]

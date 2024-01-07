@@ -2,15 +2,11 @@ use std::fmt::Display;
 
 use itertools::Itertools;
 
-use crate::{
-    error::CliResult,
-    helpers::seqtype::{guess_seqtype, SeqType},
-};
+use crate::cmd::shared::seqtype::{guess_seqtype, SeqType};
+use crate::error::CliResult;
 
-use super::{
-    matcher::{BytesRegexMatcher, ExactMatcher, Matcher, MyersMatcher},
-    MatchOpts,
-};
+use super::matcher::{BytesRegexMatcher, ExactMatcher, Matcher, MyersMatcher};
+use super::MatchOpts;
 
 static AMBIG_DNA: &[(u8, &[u8])] = &[
     (b'M', b"AC"),

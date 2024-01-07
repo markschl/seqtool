@@ -6,7 +6,6 @@ pub struct Func {
 }
 
 impl Func {
-    #[allow(dead_code)]
     pub fn var(name: String) -> Self {
         Self::with_args(name, Default::default())
     }

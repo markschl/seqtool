@@ -93,7 +93,6 @@ pub fn parse_single_var(expr: &str, allow_suffix: bool) -> Option<(Func, &str)> 
     })
 }
 
-#[allow(dead_code)]
 pub fn parse_vars(expr: &str) -> VarIter<'_> {
     VarIter {
         expr,

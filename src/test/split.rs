@@ -90,6 +90,7 @@ fn split_key_seqlen() {
     });
 }
 
+#[cfg(feature = "gz")]
 #[test]
 fn split_compression() {
     let t = Tester::new();

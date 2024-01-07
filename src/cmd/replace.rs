@@ -3,14 +3,14 @@ use std::str;
 
 use clap::{value_parser, Parser};
 use memchr::Memchr;
-use regex;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
-use crate::helpers::twoway_iter::TwowayIter;
 use crate::helpers::util::replace_iter;
 use crate::io::{RecordEditor, SeqAttr};
 use crate::Config;
+
+use super::shared::twoway_iter::TwowayIter;
 
 /// Replaces the contents of sequence IDs, descriptions or sequences
 #[derive(Parser, Clone, Debug)]
@@ -61,7 +61,10 @@ pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
 
     let replacer: Box<dyn Replacer + Sync> = if regex {
         if attr == SeqAttr::Seq {
-            Box::new(BytesRegexReplacer(regex::bytes::Regex::new(pattern)?, has_backrefs))
+            Box::new(BytesRegexReplacer(
+                regex::bytes::Regex::new(pattern)?,
+                has_backrefs,
+            ))
         } else {
             Box::new(RegexReplacer(regex::Regex::new(pattern)?, has_backrefs))
         }
@@ -72,7 +75,7 @@ pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     };
 
     let mut format_writer = cfg.get_format_writer()?;
-    
+
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_parallel(
             num_threads - 1,
@@ -89,7 +92,6 @@ pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     })?;
     Ok(())
 }
-
 
 trait Replacer {
     fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()>;

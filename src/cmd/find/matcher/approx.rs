@@ -1,9 +1,9 @@
-use super::*;
-
 use bio::pattern_matching::myers;
 use itertools::Itertools;
 
 use crate::error::CliResult;
+
+use super::{Hit, Match, Matcher, SimpleHit};
 
 #[allow(clippy::large_enum_variant)]
 enum _Myers {

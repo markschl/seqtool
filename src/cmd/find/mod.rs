@@ -4,9 +4,11 @@ use std::str;
 
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::helpers::{seqtype::SeqType, util::replace_iter};
+use crate::helpers::util::replace_iter;
 use crate::io::{RecordEditor, SeqAttr};
 use crate::var::{varstring, VarHelp, VarProvider};
+
+use super::shared::seqtype::SeqType;
 
 mod helpers;
 mod matcher;

@@ -6,23 +6,20 @@ use std::str::{self, FromStr};
 use ansi_colours::ansi256_from_rgb;
 use clap::{value_parser, Args, Parser};
 use enterpolation::{linear::Linear, Generator, Merge};
-use palette::{
-    convert::FromColorUnclamped,
-    named,
-    rgb::{self, Rgb},
-    white_point::D65,
-    FromColor, Hsv, Mix, Srgb,
-};
-use termcolor::{self, WriteColor};
-use vec_map::VecMap;
-
 #[cfg(target_family = "unix")]
 use pager::Pager;
+use palette::convert::FromColorUnclamped;
+use palette::rgb::{self, Rgb};
+use palette::white_point::D65;
+use palette::{named, FromColor, Hsv, Mix, Srgb};
+use termcolor::{self, WriteColor};
+use vec_map::VecMap;
 
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::seqtype::{guess_seqtype, SeqType};
+
+use super::shared::seqtype::{guess_seqtype, SeqType};
 
 /// Colored sequence view
 /// View biological sequences, colored by base / amino acid, or by sequence quality.

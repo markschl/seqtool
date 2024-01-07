@@ -4,7 +4,7 @@ use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::{RecordEditor, SeqAttr};
-use crate::var::*;
+use crate::var::varstring::VarString;
 
 /// Set a new sequence and/or header
 #[derive(Parser, Clone, Debug)]
@@ -44,7 +44,7 @@ pub fn run(mut cfg: Config, args: &SetCommand) -> CliResult<()> {
         let replacements: Vec<_> = replacements
             .iter()
             .map(|&(e, attr)| {
-                let (e, _) = cfg.build_vars(|b| varstring::VarString::parse_register(e, b))?;
+                let (e, _) = cfg.build_vars(|b| VarString::parse_register(e, b))?;
                 Ok((e, attr))
             })
             .collect::<CliResult<_>>()?;

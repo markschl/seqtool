@@ -1,3 +1,6 @@
+//! This module contains a `VarProvider` for a 'key' variable, which is
+//! used by the 'sort' and 'unique' commands.
+
 use crate::error::CliResult;
 use crate::helpers::value::SimpleValue;
 use crate::var::func::Func;

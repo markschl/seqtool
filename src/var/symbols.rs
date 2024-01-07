@@ -233,7 +233,6 @@ impl SeqAttrValue {
         }
     }
 
-    #[allow(dead_code)]
     pub fn with_str<O>(
         &self,
         record: &dyn Record,
@@ -427,7 +426,6 @@ pub struct OptValue {
     is_some: bool,
 }
 
-#[allow(dead_code)]
 impl OptValue {
     pub fn inner(&self) -> Option<&Value> {
         if self.is_some {
