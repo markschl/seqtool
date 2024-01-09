@@ -6,10 +6,6 @@ use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 
-/// Returns the last sequences of the input.
-///
-/// This only works for files (not STDIN), since records are counted in a first
-/// step, and only returned after reading a second time.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct TailCommand {

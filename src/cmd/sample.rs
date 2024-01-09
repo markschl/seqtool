@@ -10,11 +10,6 @@ use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
 use crate::io::{output::FormatWriter, Record};
 
-/// Returns a random subset of sequences.
-///
-/// Either a fixed number (-n/--num-seqs) or an approximate fraction (-p/--prob)
-/// can be sampled (see help for these options). The records are returned in
-/// input order.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SampleCommand {

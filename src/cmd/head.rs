@@ -4,7 +4,6 @@ use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 
-/// Returns the first sequences of the input.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct HeadCommand {

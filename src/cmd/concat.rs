@@ -7,8 +7,6 @@ use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::OwnedRecord;
 
-/// Concatenates sequences/alignments from different files in the order
-/// in which they are provided. Fails if the IDs don't match.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct ConcatCommand {

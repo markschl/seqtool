@@ -8,8 +8,6 @@ use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::SeqQualRecord;
 
-/// Reverse complements DNA sequences. If quality scores are present,
-/// their order is just reversed.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct RevcompCommand {

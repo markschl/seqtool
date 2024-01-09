@@ -76,11 +76,7 @@ fn numeric_vars() {
 
     #[cfg(feature = "expr")]
     Tester::new()
-        .cmp(
-            &["sort", "{{ 7 + num }}"],
-            *FASTA,
-            records!(0, 1, 2, 3),
-        )
+        .cmp(&["sort", "{{ 7 + num }}"], *FASTA, records!(0, 1, 2, 3))
         // num as string in range 1-4 -> same as numeric sort
         .cmp(
             &["sort", "{{ (num).toString() }}"],
@@ -95,11 +91,7 @@ fn numeric_vars() {
         );
 
     Tester::new()
-        .cmp(
-            &["sort", "ungapped_seqlen"],
-            *FASTA,
-            records!(3, 1, 2, 0),
-        )
+        .cmp(&["sort", "ungapped_seqlen"], *FASTA, records!(3, 1, 2, 0))
         .cmp(
             &["sort", "-r", "ungapped_seqlen"],
             *FASTA,

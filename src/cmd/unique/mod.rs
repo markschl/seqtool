@@ -9,13 +9,13 @@ use crate::var::varstring::VarString;
 
 use super::shared::key_var::KeyVars;
 
+pub mod cli;
 pub mod file;
 pub mod mem;
-pub mod cli;
 
+pub use self::cli::*;
 pub use self::file::*;
 pub use self::mem::*;
-pub use self::cli::*;
 
 /// Factor indicating the memory that is found empirically by memory profiling
 /// and adjusts the calculated memory usage (based on size of items)

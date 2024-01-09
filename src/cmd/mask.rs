@@ -6,9 +6,6 @@ use crate::error::CliResult;
 use crate::helpers::var_range::VarRanges;
 use crate::io::SeqQualRecord;
 
-/// Masks the sequence within a given range or comma delimited list of ranges
-/// by converting to lowercase (soft mask) or replacing with a character (hard
-/// masking). Reverting soft masking is also possible.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct MaskCommand {

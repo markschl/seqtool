@@ -18,11 +18,7 @@ fn simple() {
         .cmp(&["unique", "{seq}"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "id"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "desc"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(
-            &["unique", "{id} {desc}"],
-            *FASTA,
-            records!(0, 1, 2, 3),
-        );
+        .cmp(&["unique", "{id} {desc}"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
     Tester::new().cmp(&["unique", "{{seq}}"], *FASTA, records!(0, 1, 2, 3));
@@ -35,11 +31,7 @@ fn attr() {
         .cmp(&["unique", "-n", "attr(p)"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(
-        &["unique", "{{attr(p)+1}}"],
-        *FASTA,
-        records!(0, 1, 2, 3),
-    );
+    Tester::new().cmp(&["unique", "{{attr(p)+1}}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
@@ -47,11 +39,7 @@ fn stats() {
     Tester::new()
         .cmp(&["unique", "seqlen"], *FASTA, records!(0))
         .cmp(&["unique", "-n", "seqlen"], *FASTA, records!(0))
-        .cmp(
-            &["unique", "ungapped_seqlen"],
-            *FASTA,
-            records!(0, 1, 3),
-        )
+        .cmp(&["unique", "ungapped_seqlen"], *FASTA, records!(0, 1, 3))
         .cmp(&["unique", "gc"], *FASTA, records!(0, 1, 3));
 }
 
@@ -153,22 +141,18 @@ fn large() {
     let t = Tester::new();
     t.temp_file("unique", Some(&all_fasta), |path, _| {
         // without memory limit: output in order of input
-        t.cmp(
-            &["unique", "id"],
-            FileInput(path),
-            &unique_fasta_inorder,
-        )
-        .cmp(
-            &["unique", "id", "-n"],
-            FileInput(path),
-            &unique_fasta_inorder,
-        )
-        // ...unless --sort is supplied
-        .cmp(
-            &["unique", "id", "--sort", "-n"],
-            FileInput(path),
-            &unique_fasta_sorted,
-        );
+        t.cmp(&["unique", "id"], FileInput(path), &unique_fasta_inorder)
+            .cmp(
+                &["unique", "id", "-n"],
+                FileInput(path),
+                &unique_fasta_inorder,
+            )
+            // ...unless --sort is supplied
+            .cmp(
+                &["unique", "id", "--sort", "-n"],
+                FileInput(path),
+                &unique_fasta_sorted,
+            );
         // with memory limit: should always be sorted
         // (numeric sort in this case)
         for rec_limit in [5, 10, 20, 50, 80] {

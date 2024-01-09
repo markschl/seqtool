@@ -20,62 +20,68 @@ impl VarHelp for FindVarHelp {
 
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
-            ("match", "The text matched by the pattern. With fuzzy string matching, \
-             this would be the hit with the smallest edit distance, or the \
-             first occurrence if --in-order was specified. With exact/regex \
-             matching, the leftmost hit is always returned. \
-             If there multiple patterns in a pattern file, the best hit of the \
+            ("match", "The text matched by the pattern. With approximate matching, \
+             this is the best hit (with the smallest edit distance) or the \
+             first (leftmost) occurrence if --in-order was specified. \
+             With exact/regex matching, the leftmost hit is always returned. \
+             With multiple patterns in a pattern file, the best hit of the \
              best-matching pattern is returned (fuzzy matching), or the first \
              hit of the first pattern (see below for selecting other hits or \
              other patterns)."),
-            ("match(h, [p=1])",
-             "The matched text of the h-th hit (or comma delimited list of all if \
-             h='all'); optionally from the p-th matching pattern if several \
-             patterns in file (default: p=1)"),
-            ("match_group(g, [h=1], [p=1])",
-             "Regex match group 'g' of hit 'h' for the p-th matching pattern. \
-              An empty string is returned if the group does not exist."),
+            ("match(hit, [pattern])",
+             "The matched text of the given hit number, or a command delimited list of
+             all hits if hit = 'all'. Hits are either sorted by the edit distance \
+             or by occurrence (with --in-order or exact matching, same as above). \
+             With multiple patterns in a pattern file, the 2nd, 3rd, etc. \
+             best matching pattern can be selected with match(<hit>, 2) or match(<hit>, 3), etc. \
+            (default: pattern=1)."),
+            ("match_group(group, [hit,] [pattern])",
+             "Text matched by regex match group of given number (0 = entire match). \
+             An empty string is returned if the group does not exist \
+             The hit number (sorted by edit distance or occurrence) and the pattern \
+             number can be specified as well (details above)."),
             ("match_dist",
-            "Edit distance (number of mismatches/insertions/deletions) of the search \
+            "Number of mismatches/insertions/deletions (edit distance) of the search \
             pattern compared to the sequence."),
-            ("match_dist(n, [p])",
-            "Edit distance of the nth hit of the p-th pattern."),
-            ("match_start", "Start coordinate of the match."),
-            ("match_end",   "End coordinate of the match."),
+            ("match_dist(hit, [pattern])",
+            "Edit distance of the h-th best hit of the p-th pattern."),
+            ("match_start", "Start coordinate of the best/first match."),
+            ("match_end",   "End coordinate of the best/first match."),
             ("match_range",  "Range of the match in the form 'start-end'"),
-            ("match_start(n, [p]); match_end(n, [p]); match_range(n, [p])",
-            "Start/end/range of the nth hit of the p-th pattern."),
-            ("matchgrp_start(g, [n], [p]); matchgrp_end(g, [n], [p]); matchgrp_range(g, [n], [p])",
-            "Start/end/range of regex match group 'g' from the the nth hit \
+            ("match_start(hit, [pattern]); match_end(hit, [pattern]); match_range(hit, [pattern])",
+            "Start/end/range of the h-th hit of the p-th pattern."),
+            ("matchgrp_start(g, [h], [p]); matchgrp_end(g, [h], [p]); matchgrp_range(g, [h], [p])",
+            "Start/end/range of regex match group number 'g' from the h-th hit \
              of the p-th pattern."),
             ("match_neg_start", "Start of the match relative to sequence end (negative number)"),
             ("match_neg_end",   "End of the match relative to sequence end (negative number)"),
-            ("match_neg_start(n, [p]), match_neg_end(n, [p])",
-            "Start/end of the match relative to sequence end (negative) of the nth hit of \
+            ("match_neg_start(hit, [pattern]), match_neg_end(hit, [pattern])",
+            "Start/end of the match relative to sequence end (negative) of the h-th hit of \
              the p-th pattern."),
-            ("matchgrp_neg_start(g, [n], [p]), matchgrp_neg_start(g, [n], [p])",
-             "Negative start/end of regex match group 'g' from the the nth hit \
+            ("matchgrp_neg_start(g, [h], [p]), matchgrp_neg_start(g, [h], [p])",
+             "Negative start/end of regex match group number 'g' from the the h-th hit \
               of the p-th pattern."),
             ("match_drange",
-            "Range of the match with two dots as delimiter (start..end). Useful with 'trim'\
-             and 'mask'"),
+            "Range of the match with two dots as delimiter (start..end). Useful if the
+            matched range(s) should be passed to the 'trim' or 'mask' commands."),
             ("match_neg_drange",
             "Range of the match (dot delimiter) relative to the sequence end (-<start>..-<end>)"),
-            ("match_drange(n, [p]), match_neg_drange(n, [p])",
-            "Match ranges (normal/from end) of the nth hit of the p-th pattern."),
-            ("matchgrp_drange(g, [n], [p]), matchgrp_neg_drange(g, [n], [p])",
+            ("match_drange(hit, [pattern]), match_neg_drange(hit, [pattern])",
+            "Match ranges (normal/from end) of the h-th hit of the p-th pattern."),
+            ("matchgrp_drange(g, [h], [p]), matchgrp_neg_drange(g, [h], [p])",
             "Match ranges (normal/from end) of regex match group 'g' from \
-             the nth hit of the p-th pattern."),
+             the h-th hit of the p-th pattern."),
             ("pattern_name",
             "Name of the matching pattern if there are multiple (pattern file), \
-            or <pattern> if one pattern specified in commandline."),
-            ("pattern_name(p)",
-            "Name of the p-th matching pattern"),
+            or '<pattern>' if a single pattern was specified in commandline."),
+            ("pattern_name(pattern)",
+            "Name of the p-th matching pattern (sorted by edit distance and/or \
+            pattern number)"),
         ])
     }
-    fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[])
-    }
+    // fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
+    //     Some(&[])
+    // }
 }
 
 // Variables
@@ -331,4 +337,8 @@ impl VarProvider for FindVars {
         true
         // !self.vars.is_empty()
     }
+}
+
+pub fn get_varprovider(args: &FindCommand) -> Option<Box<dyn VarProvider>> {
+    Some(Box::new(FindVars::new(args.patterns.len())))
 }

@@ -3,17 +3,10 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use crate::cli::CommonArgs;
+use crate::cmd::shared::key_var::KeyVars;
 use crate::helpers::bytesize::parse_bytesize;
+use crate::var::VarProvider;
 
-/// De-replicate records by sequence or any other criterion, returning only 
-/// unique records.
-///
-/// The unique key can be 'seq' or any variable/function, expression, or
-/// text containing them (see <KEY> help).
-///
-/// The order of the records is the same as in the input unless the memory limit
-/// is exceeded, in which case temporary files are used and the records are
-/// sorted by the unique key. Specify -s/--sorted to always sort the output.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct UniqueCommand {
@@ -43,11 +36,11 @@ pub struct UniqueCommand {
     pub max_mem: usize,
 
     /// Path to temporary directory (only if memory limit is exceeded)
-    #[arg(long)]
+    #[arg(long, value_name = "PATH")]
     pub temp_dir: Option<PathBuf>,
 
     /// Maximum number of temporary files allowed
-    #[arg(long, default_value_t = 1000)]
+    #[arg(long, value_name = "N", default_value_t = 1000)]
     pub temp_file_limit: usize,
 
     /// Silence any warnings
@@ -56,4 +49,8 @@ pub struct UniqueCommand {
 
     #[command(flatten)]
     pub common: CommonArgs,
+}
+
+pub fn get_varprovider(_args: &UniqueCommand) -> Option<Box<dyn VarProvider>> {
+    Some(Box::<KeyVars>::default())
 }

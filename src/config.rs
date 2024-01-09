@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::io;
-use std::process::exit;
 
 use fxhash::FxHashMap;
 
@@ -49,13 +48,13 @@ impl Config {
         let mut var_modules = Vec::new();
         init_vars(&mut var_modules, command_vars, &var_opts, &output_opts)?;
 
-        // if --var-help requested, exit
-        if var_opts.var_help {
-            for m in &var_modules {
-                eprintln!("{}", m.help());
-            }
-            exit(2);
-        }
+        // // if --var-help requested, exit
+        // if var_opts.var_help {
+        //     for m in &var_modules {
+        //         eprintln!("{}", m.help());
+        //     }
+        //     exit(2);
+        // }
 
         // Where are attributes (key=value) appended?
         let append_attr = if var_opts.attr_opts.delim == ' ' {

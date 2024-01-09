@@ -5,7 +5,6 @@ use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::SeqQualRecord;
 
-/// Converts all characters in the sequence to uppercase.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct LowerCommand {

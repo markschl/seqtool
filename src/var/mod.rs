@@ -1,5 +1,4 @@
-use std::fmt::Debug;
-use std::fmt::Display;
+use std::fmt::{self, Debug, Display, Write};
 use std::fs::File;
 
 use crate::error::CliResult;
@@ -149,42 +148,72 @@ pub trait VarHelp: Debug {
     }
 }
 
+impl VarHelp for Box<dyn VarHelp> {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+    fn usage(&self) -> Option<&'static str> {
+        (**self).usage()
+    }
+    fn desc(&self) -> Option<&'static str> {
+        (**self).desc()
+    }
+    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
+        (**self).vars()
+    }
+    fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
+        (**self).examples()
+    }
+}
+
 impl Display for &dyn VarHelp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(u) = self.usage() {
-            writeln!(f, "{}. Usage: {}", self.name(), u).unwrap();
+            writeln!(f, "{}. Usage: {}", self.name(), u)?;
             let w = self.name().len() + 9 + u.len().min(80);
-            writeln!(f, "{1:-<0$}", w, "").unwrap();
+            writeln!(f, "{1:=<0$}", w, "")?;
         } else {
-            writeln!(f, "{}\n{2:-<1$}", self.name(), self.name().len(), "").unwrap();
+            writeln!(f, "{}\n{2:=<1$}", self.name(), self.name().len(), "")?;
         }
         if let Some(desc) = self.desc() {
             for d in textwrap::wrap(desc, 80) {
-                writeln!(f, "{}", d).unwrap();
+                writeln!(f, "{}", d)?;
             }
-            writeln!(f).unwrap();
+            writeln!(f)?;
         }
         if let Some(v) = self.vars() {
             for &(name, desc) in v {
                 for (i, d) in textwrap::wrap(desc, 68).into_iter().enumerate() {
-                    let n = if i == 0 { name } else { "" };
-                    writeln!(f, "{: <12} {}", n, d).unwrap();
+                    if i == 0 {
+                        if name.len() < 10 {
+                            writeln!(f, "{: <12} {}", name, d)?;
+                            continue;
+                        } else {
+                            writeln!(f, "{}", name)?;
+                        }
+                    }
+                    writeln!(f, "{: <12} {}", "", d)?;
                 }
             }
-            writeln!(f).unwrap();
+            writeln!(f)?;
         }
         if let Some(examples) = self.examples() {
-            writeln!(f, "Example{}:", if examples.len() > 1 { "s" } else { "" }).unwrap();
+            let mut ex = "Example".to_string();
+            if examples.len() > 1 {
+                ex.push('s');
+            }
+            writeln!(f, "{}", ex)?;
+            writeln!(f, "{1:-<0$}", ex.len(), "")?;
             for &(desc, example) in examples {
                 let mut desc = desc.to_string();
                 desc.push(':');
                 for d in textwrap::wrap(&desc, 80) {
-                    writeln!(f, "{}", d).unwrap();
+                    writeln!(f, "{}", d)?;
                 }
-                writeln!(f, "> {}", example).unwrap();
+                writeln!(f, "> {}", example)?;
+                writeln!(f)?;
             }
         }
-        writeln!(f).unwrap();
         Ok(())
     }
 }
@@ -251,4 +280,22 @@ pub fn init_vars(
     }
 
     Ok(())
+}
+
+pub fn get_var_help(custom_help: Option<Box<dyn VarHelp>>) -> Result<String, fmt::Error> {
+    let mut out = "".to_string();
+    if let Some(m) = custom_help {
+        write!(&mut out, "{}\n", &m as &dyn VarHelp)?;
+    }
+    write!(
+        &mut out,
+        "{}\n",
+        &modules::builtins::BuiltinHelp as &dyn VarHelp
+    )?;
+    write!(&mut out, "{}\n", &modules::stats::StatHelp as &dyn VarHelp)?;
+    write!(&mut out, "{}\n", &modules::attr::AttrHelp as &dyn VarHelp)?;
+    write!(&mut out, "{}\n", &modules::list::ListHelp as &dyn VarHelp)?;
+    #[cfg(feature = "expr")]
+    write!(&mut out, "{}\n", &modules::expr::ExprHelp as &dyn VarHelp)?;
+    Ok(out)
 }

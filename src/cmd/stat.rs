@@ -6,9 +6,6 @@ use crate::{config::Config, io::FormatVariant};
 
 use super::pass::{self, PassCommand};
 
-/// Returns per sequence statistics as tab delimited list. All variables
-/// (seqlen, exp_err, charcount(...), etc.) can be used (see `st stat --help-vars`).
-/// The command is equivalent to `st pass --to-tsv 'id,var1,var2,...' input`
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct StatCommand {

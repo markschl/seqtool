@@ -6,8 +6,6 @@ use crate::error::CliResult;
 use crate::helpers::{rng::Range, var_range::VarRanges};
 use crate::io::{Record, SeqQualRecord};
 
-/// Trim sequences on the left and/or right (single range)
-/// or extract and concatenate several non-overlapping ranges.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct TrimCommand {

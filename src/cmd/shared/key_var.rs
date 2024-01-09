@@ -18,10 +18,7 @@ impl VarHelp for KeyVarHelp {
     }
 
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[(
-            "key",
-            "The value of the key.",
-        )])
+        Some(&[("key", "The value of the key.")])
     }
 }
 

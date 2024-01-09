@@ -1,23 +1,50 @@
+use std::process::exit;
+
 use crate::cmd;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::bytesize::parse_bytesize;
-use crate::io::Compression;
 use crate::io::{
-    input::*,
+    input::{InFormat, InputKind, InputOptions},
     output::{OutFormat, OutputKind, OutputOptions},
-    Attribute, FileInfo, FormatVariant, QualFormat,
+    Attribute, Compression, FileInfo, FormatVariant, QualFormat,
 };
-use crate::var::{AttrOpts, VarOpts};
+use crate::var::{AttrOpts, VarHelp, VarOpts};
 
-use clap::value_parser;
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
+
+/// This type only serves as a workaround to allow displaying
+/// custom help page that explains all variables (--help-vars)
+/// The actual CLI interface is defined by `ClapCli`
+#[derive(Parser, Debug, Clone)]
+struct VarHelpCli {
+    command: String,
+
+    #[arg(long)]
+    help_vars: bool,
+}
 
 #[derive(Debug, Clone)]
 pub struct Cli(ClapCli);
 
 impl Cli {
     pub fn new() -> Self {
+        // first, try to look for --help-vars using the extra Clap parser
+        // in order to work around the fact that clap exits with a
+        // 'missing argument error' for command with positional args.
+        // TODO: any better way to do this?
+        if let Ok(m) = VarHelpCli::try_parse() {
+            if m.help_vars {
+                let custom_help: Option<Box<dyn VarHelp>> = match m.command.as_str() {
+                    "sort" | "unique" => Some(Box::new(cmd::shared::key_var::KeyVarHelp)),
+                    "split" => Some(Box::new(cmd::split::ChunkVarHelp)),
+                    "find" => Some(Box::new(cmd::find::FindVarHelp)),
+                    _ => None,
+                };
+                eprintln!("{}", crate::var::get_var_help(custom_help).unwrap());
+                exit(2);
+            }
+        }
         Self(ClapCli::parse())
     }
 
@@ -25,7 +52,7 @@ impl Cli {
         use SubCommand::*;
         macro_rules! run {
             ($cmdmod:ident, $opts:expr) => {
-                cmd::$cmdmod::run(Config::new(&$opts.common)?, $opts)
+                run!($cmdmod, $opts, None)
             };
 
             ($cmdmod:ident, $opts:expr, $var_mod:expr) => {
@@ -50,29 +77,17 @@ impl Cli {
             #[cfg(any(feature = "all_commands", feature = "sample"))]
             Sample(ref opts) => run!(sample, opts),
             #[cfg(any(feature = "all_commands", feature = "sort"))]
-            Sort(ref opts) => run!(
-                sort,
-                opts,
-                Some(Box::<cmd::shared::key_var::KeyVars>::default())
-            ),
+            Sort(ref opts) => run!(sort, opts, cmd::sort::get_varprovider(opts)),
             #[cfg(any(feature = "all_commands", feature = "unique"))]
-            Unique(ref opts) => run!(
-                unique,
-                opts,
-                Some(Box::<cmd::shared::key_var::KeyVars>::default())
-            ),
+            Unique(ref opts) => run!(unique, opts, cmd::unique::get_varprovider(opts)),
             #[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
             Filter(ref opts) => run!(filter, opts),
             #[cfg(any(feature = "all_commands", feature = "split"))]
-            Split(ref opts) => run!(split, opts, cmd::split::get_split_vars(opts)),
+            Split(ref opts) => run!(split, opts, cmd::split::get_varprovider(opts)),
             #[cfg(any(feature = "all_commands", feature = "interleave"))]
             Interleave(ref opts) => run!(interleave, opts),
             #[cfg(any(feature = "all_commands", feature = "find"))]
-            Find(ref opts) => run!(
-                find,
-                opts,
-                Some(Box::new(cmd::find::FindVars::new(opts.patterns.len())))
-            ),
+            Find(ref opts) => run!(find, opts, cmd::find::get_varprovider(opts)),
             #[cfg(any(feature = "all_commands", feature = "replace"))]
             Replace(ref opts) => run!(replace, opts),
             #[cfg(any(feature = "all_commands", feature = "set"))]
@@ -235,12 +250,10 @@ impl CommonArgs {
 }
 
 #[derive(Parser, Clone, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about)]
 pub struct ClapCli {
     #[command(subcommand)]
     pub command: SubCommand,
-    // #[command(flatten)]
-    // pub common: CommonArgs,
 }
 
 /// Commands (optional)
@@ -248,61 +261,124 @@ pub struct ClapCli {
 pub enum SubCommand {
     /// No processing done, useful for converting and attribute setting
     #[cfg(any(feature = "all_commands", feature = "pass"))]
-    #[command(aliases=&["."])]
+    #[command(visible_aliases=&["."])]
     Pass(cmd::pass::PassCommand),
     /// Colored sequence view
+    ///
+    /// View biological sequences, colored by base / amino acid, or by sequence quality.
+    /// The output is automatically forwarded to the 'less' pager on UNIX.
     #[cfg(any(feature = "all_commands", feature = "view"))]
     View(cmd::view::ViewCommand),
     /// Count sequences (total or by sequence properties)
+    ///
+    /// This command counts the number of sequences in total or per category.
+    /// Results are printed to STDOUT.
+    /// Advanced grouping of sequences is possible by supplying or more key strings
+    /// containing variables (-k/--key).
     #[cfg(any(feature = "all_commands", feature = "count"))]
     Count(cmd::count::CountCommand),
-    /// Per-sequence statistics
+    /// Per-sequence statistics as tab-delimited list
+    ///
+    /// Returns per sequence statistics as tab delimited list. All variables
+    /// (seqlen, exp_err, charcount(...), etc.) can be used (see `st stat --help-vars`).
+    /// The command is equivalent to `st pass --to-tsv 'id,var1,var2,...' input`
     #[cfg(any(feature = "all_commands", feature = "stat"))]
     Stat(cmd::stat::StatCommand),
-
-    #[cfg(any(feature = "all_commands", feature = "head"))]
     /// Return the first N sequences
+    #[cfg(any(feature = "all_commands", feature = "head"))]
     Head(cmd::head::HeadCommand),
     /// Return the last N sequences
+    ///
+    /// This only works for files (not STDIN), since records are counted in a first
+    /// step, and only returned after reading a second time.
     #[cfg(any(feature = "all_commands", feature = "tail"))]
     Tail(cmd::tail::TailCommand),
-    /// Get a slice of the sequences within a defined range
+    /// Return a range of sequence records from the input
+    ///
+    /// The range is specified as start..end, whereby start and end
+    /// are the sequence numbers (starting from 1). Open ranges are
+    /// possible. The following commmands are equivalent with the
+    /// 'head' and 'tail' commands:
+    ///
+    /// > st slice ..10 input.fasta
+    ///
+    /// > st slice '-10..' input.fasta
+    ///
+    /// This command does not extract subsequences (see trim command for that).
     #[cfg(any(feature = "all_commands", feature = "slice"))]
     Slice(cmd::slice::SliceCommand),
     /// Get a random subset of sequences
+    ///
+    /// Either a fixed number (-n/--num-seqs) or an approximate fraction of the
+    /// input (-p/--prob) can be sampled (see help for these options).
+    /// The records are returned in input order.
     #[cfg(any(feature = "all_commands", feature = "sample"))]
     Sample(cmd::sample::SampleCommand),
     /// Sort records by sequence or any other criterion.
+    ///
+    /// The sort key can be 'seq', 'id', or any variable/function, expression, or
+    /// text containing them (see <KEY> help).
+    ///
+    /// Records are sorted in memory, it is up to the user of this function
+    /// to ensure that the whole input will fit into memory.
+    /// The default sort is by sequence.
+    ///
+    /// The actual value of the key is available through the 'key' variable. It can
+    /// be written to a header attribute or TSV field.
+    /// This may be useful with JavaScript expressions, whose evaluation takes time,
+    /// and whose result should be written to the headers, e.g.:
+    /// 'st sort -n '{{ id.substring(3, 5) }}' -a id_num='{key}' input.fasta'
     #[cfg(any(feature = "all_commands", feature = "sort"))]
     Sort(cmd::sort::cli::SortCommand),
-    /// De-replicate records, returning only unique ones
+    /// De-replicate records by sequence or any other criterion, returning only
+    /// unique records.
+    ///
+    /// The unique key can be 'seq' or any variable/function, expression, or
+    /// text containing them (see <KEY> help).
+    ///
+    /// The order of the records is the same as in the input unless the memory limit
+    /// is exceeded, in which case temporary files are used and the records are
+    /// sorted by the unique key. Specify -s/--sorted to always sort the output.
     #[cfg(any(feature = "all_commands", feature = "unique"))]
+    #[clap(about, long_about)]
     Unique(cmd::unique::cli::UniqueCommand),
-    /// Filter based on different criteria
+    /// Filter sequences using Javascript expressions
     #[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
     Filter(cmd::filter::FilterCommand),
-    /// Distribute sequences into multiple files
+    /// Distribute sequences into multiple files based on variable/function(s)
+    /// or advanced expressions.
+    ///
+    /// In contrast to other commands, the output (-o) argument can
+    /// contain variables in order to determine the file path for each sequence.
     #[cfg(any(feature = "all_commands", feature = "split"))]
     Split(cmd::split::SplitCommand),
-    /// Interleave seqs. from multiple files
+    /// Interleave records of all files in the input.
+    ///
+    /// The records will returned in the same order as in the input files.
     #[cfg(any(feature = "all_commands", feature = "interleave"))]
     Interleave(cmd::interleave::InterleaveCommand),
-    /// Find one or more patterns with optional filtering/replacement
+    /// Search for one or more patterns in sequences or headers for
+    /// record filtering, pattern replacement or writing matches to the output.
     #[cfg(any(feature = "all_commands", feature = "find"))]
     Find(cmd::find::FindCommand),
-    /// Fast pattern replacement
+    /// Fast and simple pattern replacement in sequences or sequence headers
     #[cfg(any(feature = "all_commands", feature = "replace"))]
     Replace(cmd::replace::ReplaceCommand),
-    /// Set a new sequence and/or header
+    /// Replace the header, header attributes or sequence with new content
     #[cfg(any(feature = "all_commands", feature = "set"))]
     Set(cmd::set::SetCommand),
-    /// Delete description fields and/or attributes
+    /// Delete header ID/description and/or attributes
     #[cfg(any(feature = "all_commands", feature = "del"))]
     Del(cmd::del::DelCommand),
-    /// Trim sequences on the left and/or right
+    /// Trim sequences on the left and/or right (single range)
+    /// or extract and concatenate several subsequences.
     #[cfg(any(feature = "all_commands", feature = "trim"))]
     Trim(cmd::trim::TrimCommand),
     /// Soft or hard mask sequence ranges
+    ///
+    /// Masks the sequence within a given range or comma delimited list of ranges
+    /// by converting to lowercase (soft mask) or replacing with a character (hard
+    /// masking). Reverting soft masking is also possible.
     #[cfg(any(feature = "all_commands", feature = "mask"))]
     Mask(cmd::mask::MaskCommand),
     /// Convert sequences to uppercase
@@ -311,10 +387,14 @@ pub enum SubCommand {
     /// Convert sequences to lowercase
     #[cfg(any(feature = "all_commands", feature = "lower"))]
     Lower(cmd::lower::LowerCommand),
-    /// Reverse complement DNA sequences
+    /// Reverse complements DNA sequences. If quality scores are present,
+    /// their order is just reversed.
     #[cfg(any(feature = "all_commands", feature = "revcomp"))]
     Revcomp(cmd::revcomp::RevcompCommand),
-    /// Concatenate seqs. from multiple files
+    /// Concatenates sequences/alignments from different files in the order
+    /// in which they are provided.
+    ///
+    /// Fails if the sequence IDs don't match.
     #[cfg(any(feature = "all_commands", feature = "concat"))]
     Concat(cmd::concat::ConcatCommand),
 }
@@ -352,12 +432,7 @@ pub struct GeneralArgs {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// Display this message
-    // #[arg(short, long)]
-    // help: bool,
-
-    /// List and explain all available variables
-    /// TODO: does not work
+    /// List and explain all variables/functions available
     #[arg(long)]
     pub help_vars: bool,
 }
@@ -410,7 +485,7 @@ pub struct InputArgs {
     pub fq: bool,
 
     #[arg(long)]
-    /// FASTQ input in Illumina 1.3+ format (alias to --fmt fastq-illumina)
+    /// FASTQ input in Illumina 1.3-1.7 format (alias to --fmt fastq-illumina)
     pub fq_illumina: bool,
 
     #[arg(long, value_name = "FIELDS", value_delimiter = ',')]

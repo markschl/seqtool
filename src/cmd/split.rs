@@ -14,11 +14,6 @@ use crate::var::{
     varstring, VarBuilder, VarHelp, VarProvider,
 };
 
-/// This command distributes sequences into multiple files based on different
-/// criteria. In contrast to other commands, the output (-o) argument can
-/// contain variables in order to determine the file path for each sequence.
-///
-/// Example splitting a file into evenly sized chunks:
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SplitCommand {
@@ -37,7 +32,7 @@ pub struct SplitCommand {
     pub common: CommonArgs,
 }
 
-pub fn get_split_vars(args: &SplitCommand) -> Option<Box<dyn VarProvider>> {
+pub fn get_varprovider(args: &SplitCommand) -> Option<Box<dyn VarProvider>> {
     if let Some(n) = args.num_seqs {
         Some(Box::new(ChunkNum::new(n)))
     } else {

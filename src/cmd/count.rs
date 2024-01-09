@@ -11,10 +11,6 @@ use crate::helpers::value::SimpleValue;
 use crate::io::Record;
 use crate::var::{symbols::SymbolTable, varstring, VarBuilder};
 
-/// This command counts the number of sequences in total or per category.
-/// Results are printed to STDOUT.
-/// Advanced grouping of sequences is possible by supplying or more key strings
-/// containing variables (-k/--key).
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct CountCommand {

@@ -7,9 +7,6 @@ use crate::{cli::CommonArgs, error::CliResult};
 
 use super::{Color, PaletteType, QualPaletteType, SeqPaletteType, SimplePal};
 
-/// Colored sequence view
-/// View biological sequences, colored by base / amino acid, or by sequence quality.
-/// The output is automatically forwarded to the 'less' pager on UNIX.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct ViewCommand {

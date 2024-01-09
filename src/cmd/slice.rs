@@ -5,7 +5,6 @@ use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::rng::Range;
 
-/// Returns a slice of the sequences within a defined range.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SliceCommand {

@@ -120,16 +120,16 @@ impl VarHelp for ExprHelp {
         Some(&[
             (
                 "Set the GC content as attribute in the header (e.g. >id gc=0.568), \
-                however calculate a proportion instead of percentage.",
+                however calculate a proportion instead of percentage",
                 "st pass -a gc='{{ gc/100 }}' seqs.fasta"
             ),
             (
-                "The GC content calculation can also be done differently:",
+                "The GC content calculation can also be done differently",
                 "st pass -a gc='{{ charcount(\"GC\")/seqlen }}' seqs.fasta"
             ),
             (
                 "Keep only sequences with <1% ambiguous bases \
-                (>=99% non-ambiguous) and with at least 100bp.",
+                (>=99% non-ambiguous) and with at least 100bp",
                 "st filter 'charcount(\"ACGT\") / seqlen >= .99 && seqlen >= 100' input.fasta",
             ),
             (
@@ -137,7 +137,7 @@ impl VarHelp for ExprHelp {
                 obtained using a more complex rule. Note the 'return' statments, \
                 which are necessary here, since it is not a simple expression. \
                 With even longer code, consider using an extra script and supplying \
-                -o \"outdir/{{ file:code.js }}.fasta\" instead.",
+                -o \"outdir/{{ file:code.js }}.fasta\" instead",
                 "st split -po \"outdir/{{ if (id.startsWith('some_prefix_')) { return 'file_1' } return 'file_2' }}.fasta\" input.fasta",
             ),
         ])

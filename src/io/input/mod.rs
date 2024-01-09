@@ -12,7 +12,6 @@ use crate::error::{CliError, CliResult};
 
 mod parallel_csv;
 
-
 static DEFAULT_READER_BUFSIZE: usize = 64 * 1024;
 
 #[derive(Eq, PartialEq, Debug, Clone)]

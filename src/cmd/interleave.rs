@@ -4,8 +4,6 @@ use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 
-/// Interleaves records of all files in the input. The records will returned in
-/// the same order as the files.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct InterleaveCommand {

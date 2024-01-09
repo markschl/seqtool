@@ -3,22 +3,10 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use crate::cli::CommonArgs;
+use crate::cmd::shared::key_var::KeyVars;
 use crate::helpers::bytesize::parse_bytesize;
+use crate::var::VarProvider;
 
-/// Sort records by sequence or any other criterion.
-///
-/// The sort key can be 'seq', 'id', or any variable/function, expression, or
-/// text containing them (see <KEY> help).
-/// 
-/// Records are sorted in memory, it is up to the user of this function
-/// to ensure that the whole input will fit into memory.
-/// The default sort is by sequence.
-///
-/// The actual value of the key is available through the 'key' variable. It can
-/// be written to a header attribute or TSV field.
-/// This may be useful with JavaScript expressions, whose evaluation takes time,
-/// and whose result should be written to the headers, e.g.:
-/// 'st sort -n '{{ id.substring(3, 5) }}' -a id_num='{key}' input.fasta'
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SortCommand {
@@ -53,11 +41,11 @@ pub struct SortCommand {
     pub max_mem: usize,
 
     /// Path to temporary directory (only if memory limit is exceeded)
-    #[arg(long)]
+    #[arg(long, value_name = "PATH")]
     pub temp_dir: Option<PathBuf>,
 
     /// Maximum number of temporary files allowed
-    #[arg(long, default_value_t = 1000)]
+    #[arg(long, value_name = "N", default_value_t = 1000)]
     pub temp_file_limit: usize,
 
     /// Silence any warnings
@@ -66,4 +54,8 @@ pub struct SortCommand {
 
     #[command(flatten)]
     pub common: CommonArgs,
+}
+
+pub fn get_varprovider(_args: &SortCommand) -> Option<Box<dyn VarProvider>> {
+    Some(Box::<KeyVars>::default())
 }

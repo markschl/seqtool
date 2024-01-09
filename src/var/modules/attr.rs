@@ -12,7 +12,7 @@ pub struct AttrHelp;
 
 impl VarHelp for AttrHelp {
     fn name(&self) -> &'static str {
-        "Attributes"
+        "Header attributes"
     }
     fn usage(&self) -> Option<&'static str> {
         Some("attr(name) or attr('name') or attr(\"name\")")

@@ -12,7 +12,6 @@ use crate::Config;
 
 use super::shared::twoway_iter::TwowayIter;
 
-/// Replaces the contents of sequence IDs, descriptions or sequences
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct ReplaceCommand {

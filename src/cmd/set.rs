@@ -6,7 +6,6 @@ use crate::error::CliResult;
 use crate::io::{RecordEditor, SeqAttr};
 use crate::var::varstring::VarString;
 
-/// Set a new sequence and/or header
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SetCommand {

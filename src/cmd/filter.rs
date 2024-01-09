@@ -8,7 +8,6 @@ use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::var::{func::Func, symbols::Value};
 
-/// Filters sequences by a mathematical expression which may contain any variable.
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct FilterCommand {

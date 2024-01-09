@@ -103,7 +103,7 @@ fn qual_convert() {
             &fq_records([33, 53, 73], [93, 103, 126]),
             &fq_records([64, 84, 104], [124, 126, 126]),
         )
-        // Illumina 1.3 -> Sanger
+        // Illumina 1.3+ -> Sanger
         .cmp(
             &[".", "--fq-illumina", "--to", "fq"],
             &fq_records([64, 84, 104], [124, 126]),

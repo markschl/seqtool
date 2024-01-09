@@ -161,14 +161,14 @@ impl QualConverter {
 }
 
 /// Converts between Phred scores (0-93) and ASCII formats
-/// (Sanger = Sanger + Illumina 1.8+, Illumina = Illumina 1.3+, Solexa)
+/// (Sanger = Sanger + Illumina 1.8+, Illumina = Illumina 1.3-1.7, Solexa)
 #[inline(always)]
 pub fn convert(q: &mut u8, from: QualFormat, to: QualFormat) {
     match from {
         Sanger => {
             match to {
                 // min(): quality scores that cannot be represented in
-                // Illumina 1.3+/Solexa with an offset of 64 are silently truncated.
+                // Illumina 1.3-1.7/Solexa with an offset of 64 are silently truncated.
                 // This seems acceptable, since it is just a loss of precision
                 // (very low error probabilities cannot be represented).
                 // Phred scores > 41 will anyway rarely occur.

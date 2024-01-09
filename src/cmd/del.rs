@@ -6,7 +6,6 @@ use crate::error::CliResult;
 use crate::io::DefRecord;
 use crate::var::attr;
 
-/// Deletes description field or attributes
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct DelCommand {
