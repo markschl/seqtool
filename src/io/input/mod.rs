@@ -12,8 +12,6 @@ use crate::error::{CliError, CliResult};
 
 mod parallel_csv;
 
-static DEFAULT_READER_BUFSIZE: usize = 64 * 1024;
-
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum InputKind {
     Stdin,
@@ -71,8 +69,8 @@ impl InputOptions {
         self
     }
 
-    pub fn reader_opts(mut self, cap: Option<usize>, max_mem: usize) -> Self {
-        self.cap = cap.unwrap_or(DEFAULT_READER_BUFSIZE);
+    pub fn reader_opts(mut self, cap: usize, max_mem: usize) -> Self {
+        self.cap = cap;
         self.max_mem = max_mem;
         self
     }
