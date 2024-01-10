@@ -13,7 +13,7 @@ build = "build.rs"
 [dependencies]
 # general
 lazy_static = "1.4"
-regex = { version = "1.10", default-features = false, features = ["std", "perf", "unicode-perl"] }
+regex-lite = "0.1"
 fxhash = "0.2"
 memchr = "2.7"
 vec_map = "0.8"
@@ -42,6 +42,7 @@ rquickjs = { version = "0.4.0", features=["classes", "properties", "bindgen", "r
 # find, replace, revcomp, view commands
 bio = { version = "1.5", default-features = false, optional = true }
 twoway = { version = "0.2", optional = true }
+regex = { version = "1.10", optional = true }
 # view command
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"], optional = true }
 enterpolation = { version = "0.2", default-features = false, features = ["std", "linear"], optional = true }
@@ -61,7 +62,7 @@ tempdir = { version = "0.3", optional = true }
 pager = { version = "0.16", optional = true }
 
 [build-dependencies]
-regex = { version = "1.10", default-features = false }
+regex-lite = "0.1"
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -72,12 +73,17 @@ rand_xoshiro = "0.6.0"
 tempdir = "0.3"
 
 [features]
-default = ["all_commands", "expr", "gz", "lz4", "zstd"]
+default = ["all_commands", "regex-fast", "expr", "gz", "lz4", "zstd"]
+# JavaScript expressions
 expr = ["rquickjs"]
+# Compression formats
 gz = ["flate2"]
 lz4 = ["dep:lz4"]
 zstd = ["dep:zstd"]
 bz2 = ["bzip2"]
+# Regex searching in find/replace
+regex-fast = ["regex"]  # adds ~1.4 MiB to binary (Linux)
+# Commands
 all_commands = [
     "palette", "enterpolation", "termcolor", "ansi_colours", "pager",  # view
     "rand", "rand_xoshiro",  # sample
@@ -117,5 +123,6 @@ name = "st"
 lto = true
 codegen-units = 1
 panic = "abort"
-#strip = true
-debug=true
+strip = true
+#debug=true
+#opt-level = "z"

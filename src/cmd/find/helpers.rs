@@ -4,8 +4,9 @@ use itertools::Itertools;
 
 use crate::cmd::shared::seqtype::{guess_seqtype, SeqType};
 use crate::error::CliResult;
+use crate::io::SeqAttr;
 
-use super::matcher::{BytesRegexMatcher, ExactMatcher, Matcher, MyersMatcher};
+use super::matcher::{BytesRegexMatcher, ExactMatcher, Matcher, MyersMatcher, RegexMatcher};
 use super::MatchOpts;
 
 static AMBIG_DNA: &[(u8, &[u8])] = &[
@@ -162,6 +163,7 @@ where
 pub(crate) fn get_matcher<'a>(
     pattern: &str,
     algorithm: Algorithm,
+    attr: SeqAttr,
     ambig: bool,
     o: &MatchOpts,
 ) -> CliResult<Box<dyn Matcher + Send + 'a>> {
@@ -170,8 +172,13 @@ pub(crate) fn get_matcher<'a>(
     }
     Ok(match algorithm {
         Algorithm::Exact => Box::new(ExactMatcher::new(pattern.as_bytes())),
-        // TODO: string regexes for ID/desc
-        Algorithm::Regex => Box::new(BytesRegexMatcher::new(pattern, o.has_groups)?),
+        Algorithm::Regex => {
+            if attr == SeqAttr::Seq {
+                Box::new(BytesRegexMatcher::new(pattern, o.has_groups)?)
+            } else {
+                Box::new(RegexMatcher::new(pattern, o.has_groups)?)
+            }
+        }
         Algorithm::Myers => {
             let ambig_map = if ambig {
                 match o.seqtype {

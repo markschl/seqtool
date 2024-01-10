@@ -51,7 +51,7 @@ impl Matches {
         }
     }
 
-    pub fn find<M: Matcher>(&mut self, text: &[u8], matchers: &mut [M]) {
+    pub fn find<M: Matcher>(&mut self, text: &[u8], matchers: &mut [M]) -> CliResult<()> {
         let mut text = text;
 
         if let Some(bounds) = self.bounds {
@@ -69,7 +69,7 @@ impl Matches {
                 &mut self.match_vecs[0],
                 self.max_shift.as_ref(),
                 self.offset,
-            );
+            )?;
         } else {
             for (i, ((matcher, matches), (best_dist, idx, has_matches))) in matchers
                 .iter_mut()
@@ -83,7 +83,7 @@ impl Matches {
                     matches,
                     self.max_shift.as_ref(),
                     self.offset,
-                );
+                )?;
                 // take distance of first match (assumed to be sorted if necessary)
                 *best_dist = matches
                     .get(0)
@@ -95,6 +95,7 @@ impl Matches {
             self.dist_order.sort_by_key(|&(dist, _, _)| dist);
             self.has_matches = self.dist_order[0].2;
         }
+        Ok(())
     }
 
     pub fn has_matches(&self) -> bool {
@@ -190,7 +191,7 @@ impl SearchConfig {
         matches: &mut Vec<Option<Match>>,
         max_shift: Option<&Shift>,
         offset: usize,
-    ) -> bool
+    ) -> CliResult<bool>
     where
         M: Matcher,
     {
@@ -230,8 +231,8 @@ impl SearchConfig {
             }
 
             true
-        });
-        num_found > 0
+        })?;
+        Ok(num_found > 0)
     }
 
     fn iter<'a>(&self, group: usize, matches: &'a [Option<Match>]) -> MatchesIter<'a> {

@@ -43,13 +43,15 @@ pub struct FindCommand {
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Search options")]
 pub struct SearchArgs {
-    /// Treat the pattern(s) as regular expressions.
-    #[arg(short, long)]
-    pub regex: bool,
-
     /// Fuzzy string matching with maximum edit distance of <dist> [default: 0]
     #[arg(short, long, default_value_t = 0)]
     pub dist: usize,
+
+    /// Interpret pattern(s) as regular expression(s).
+    /// Unicode characters are supported when searching in IDs/descriptions,
+    /// but not for sequence searches.
+    #[arg(short, long)]
+    pub regex: bool,
 
     /// Report hits in the order of their occurrence instead of sorting by distance (with -d > 0)
     #[arg(long)]

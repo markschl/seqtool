@@ -1,29 +1,39 @@
 use super::*;
 
+static INPUT: &str = ">id_123 some desc\nA\nT\nGC\n";
+
 #[test]
-fn replace() {
-    let fa = ">id_123 some desc\nA\nT\nGC\n";
+fn exact() {
     Tester::new()
-        .cmp(&["replace", "T", "U"], fa, ">id_123 some desc\nAUGC\n")
-        .cmp(&["replace", "ATG", "TGA"], fa, ">id_123 some desc\nTGAC\n")
+        .cmp(&["replace", "T", "U"], INPUT, ">id_123 some desc\nAUGC\n")
+        .cmp(
+            &["replace", "ATG", "TGA"],
+            INPUT,
+            ">id_123 some desc\nTGAC\n",
+        )
+        .cmp(
+            &["replace", "-d", "e", "a"],
+            INPUT,
+            ">id_123 soma dasc\nATGC\n",
+        );
+}
+
+#[test]
+fn regex() {
+    Tester::new()
         .cmp(
             &["replace", "-r", "[AT]", "?"],
-            fa,
+            INPUT,
             ">id_123 some desc\n??GC\n",
         )
         .cmp(
             &["replace", "-ir", r"_\d{3}", ".."],
-            fa,
+            INPUT,
             ">id.. some desc\nATGC\n",
         )
         .cmp(
             &["replace", "-ir", r"_(\d{3})", "..$1"],
-            fa,
+            INPUT,
             ">id..123 some desc\nATGC\n",
-        )
-        .cmp(
-            &["replace", "-d", "e", "a"],
-            fa,
-            ">id_123 soma dasc\nATGC\n",
         );
 }

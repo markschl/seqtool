@@ -11,7 +11,7 @@ fn main() {
 fn write_js() {
     let js_include = read_to_string(Path::new("js").join("include.js")).unwrap();
 
-    let js_include = regex::Regex::new(r"(\s+|\n)")
+    let js_include = regex_lite::Regex::new(r"(\s+|\n)")
         .unwrap()
         .replace_all(&js_include, " ");
 

@@ -117,7 +117,11 @@ impl MyersMatcher {
 }
 
 impl Matcher for MyersMatcher {
-    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
+    fn iter_matches(
+        &mut self,
+        text: &[u8],
+        func: &mut dyn FnMut(&dyn Hit) -> bool,
+    ) -> CliResult<()> {
         self.myers.iter_matches(
             text,
             func,
@@ -125,6 +129,7 @@ impl Matcher for MyersMatcher {
             self.max_dist,
             self.sort_vec.as_mut(),
         );
+        Ok(())
     }
 }
 

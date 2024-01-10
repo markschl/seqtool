@@ -1,4 +1,4 @@
-use crate::cmd::shared::twoway_iter::TwowayIter;
+use crate::{cmd::shared::twoway_iter::TwowayIter, error::CliResult};
 
 use super::{Hit, Match, Matcher, SimpleHit};
 
@@ -11,7 +11,11 @@ impl ExactMatcher {
 }
 
 impl Matcher for ExactMatcher {
-    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
+    fn iter_matches(
+        &mut self,
+        text: &[u8],
+        func: &mut dyn FnMut(&dyn Hit) -> bool,
+    ) -> CliResult<()> {
         let l = self.0.len();
         for start in TwowayIter::new(text, &self.0) {
             let h = SimpleHit(Match::new(start, start + l, 0, 0, 0, 0));
@@ -19,5 +23,6 @@ impl Matcher for ExactMatcher {
                 break;
             }
         }
+        Ok(())
     }
 }

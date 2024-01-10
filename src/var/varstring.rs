@@ -4,7 +4,16 @@ use std::{io, str};
 
 use bstr::ByteSlice;
 use ordered_float::OrderedFloat;
-use regex::{self, CaptureMatches, Captures};
+cfg_if::cfg_if! {
+    // The fully blown regex implementation is only used if it is effectively
+    // used by some command. Otherwise, we just use regex-lite.
+    if #[cfg(all(feature = "regex-fast", any(feature = "all_commands", feature = "find", feature = "replace")))] {
+        use regex as regex_mod;
+    } else {
+        use regex_lite as regex_mod;
+    }
+}
+use regex_mod::{CaptureMatches, Captures, Regex};
 
 use crate::error::CliResult;
 use crate::helpers::util::{text_to_float, text_to_int};
@@ -18,19 +27,19 @@ use super::Func;
 lazy_static! {
     // matches { var } or {{ expr }}
     // TODO: but does not handle quoted braces
-    static ref WRAPPED_VAR_RE: regex::Regex =
-        regex::Regex::new(r"(\{\{(.*?)\}\}|\{(.*?)\})").unwrap();
+    static ref WRAPPED_VAR_RE: Regex =
+        Regex::new(r"(\{\{(.*?)\}\}|\{(.*?)\})").unwrap();
 
     // Regex for matching variables / functions
     // TODO: Regex parsing may be replaced by a more sophisticated parser some time
-    static ref VAR_RE: regex::Regex =
-        regex::Regex::new(r#"(?x)
+    static ref VAR_RE: Regex =
+        Regex::new(r#"(?x)
         (?:
           "(?:[^"\\]|\\.)+" | '(?:[^'\\]|\\.)+' | `(?:[^`\\]|\\.)+` |   # ignore quoted stuff
           \/(?:[^\/\\]|\\.)+\/[a-z]*   # ignore content of regexes
           |
-          \b
-          ([a-z_]+)\b  # var/function name
+          (?-u:\b)
+          ([a-z_]+) (?-u:\b)  # var/function name
           (?:
             \(       # opening bracket for functions
               (
@@ -41,7 +50,7 @@ lazy_static! {
           )?
         )
     "#).unwrap();
-    static ref ARG_RE: regex::Regex = regex::Regex::new(
+    static ref ARG_RE: Regex = Regex::new(
         r#"\s*("(?:[^"\\]|\\.)+"|'(?:[^'\\]|\\.)+'|[^(),]+)\s*,?"#
     ).unwrap();
 }

@@ -161,7 +161,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                     .iter()
                     .zip(&patterns)
                     .map(|(&(algo, is_ambig), patt)| {
-                        helpers::get_matcher(patt, algo, is_ambig, &opts)
+                        helpers::get_matcher(patt, algo, attr, is_ambig, &opts)
                     })
                     .collect::<CliResult<Vec<_>>>()
             },
@@ -180,8 +180,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                 // do the searching in the worker threads
                 let text = editor.get(attr, &record, false);
                 // update the `Matches` object with the results reported by every `Matcher`
-                matches.find(text, matchers);
-                Ok(())
+                matches.find(text, matchers)
             },
             |record, &mut (ref mut editor, ref matches), ctx| {
                 // handle results in main thread, write output

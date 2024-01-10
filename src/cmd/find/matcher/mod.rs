@@ -4,22 +4,36 @@ mod approx;
 mod exact;
 mod regex;
 
+use crate::error::CliResult;
+
 pub use self::approx::*;
 pub use self::exact::*;
 pub use self::regex::*;
 
 pub trait Matcher {
-    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool);
+    fn iter_matches(
+        &mut self,
+        text: &[u8],
+        func: &mut dyn FnMut(&dyn Hit) -> bool,
+    ) -> CliResult<()>;
 }
 
 impl<M: Matcher + ?Sized> Matcher for Box<M> {
-    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
+    fn iter_matches(
+        &mut self,
+        text: &[u8],
+        func: &mut dyn FnMut(&dyn Hit) -> bool,
+    ) -> CliResult<()> {
         (**self).iter_matches(text, func)
     }
 }
 
 impl<'a, M: Matcher> Matcher for &'a mut M {
-    fn iter_matches(&mut self, text: &[u8], func: &mut dyn FnMut(&dyn Hit) -> bool) {
+    fn iter_matches(
+        &mut self,
+        text: &[u8],
+        func: &mut dyn FnMut(&dyn Hit) -> bool,
+    ) -> CliResult<()> {
         (**self).iter_matches(text, func)
     }
 }

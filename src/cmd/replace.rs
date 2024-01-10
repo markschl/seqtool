@@ -29,7 +29,9 @@ pub struct ReplaceCommand {
     #[arg(short, long)]
     desc: bool,
 
-    /// Interpret <pattern> as regular expression
+    /// Interpret pattern as a regular expression.
+    /// Unicode characters are supported when searching in IDs/descriptions,
+    /// but not for sequence searches.
     #[arg(short, long)]
     regex: bool,
 
@@ -50,28 +52,13 @@ pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     } else {
         SeqAttr::Seq
     };
-
     let pattern = &args.pattern;
     let replacement = args.replacement.as_bytes();
-
     let has_backrefs = replacement.contains(&b'$');
     let regex = args.regex;
     let num_threads = args.threads;
 
-    let replacer: Box<dyn Replacer + Sync> = if regex {
-        if attr == SeqAttr::Seq {
-            Box::new(BytesRegexReplacer(
-                regex::bytes::Regex::new(pattern)?,
-                has_backrefs,
-            ))
-        } else {
-            Box::new(RegexReplacer(regex::Regex::new(pattern)?, has_backrefs))
-        }
-    } else if pattern.len() == 1 {
-        Box::new(SingleByteReplacer(pattern.as_bytes()[0]))
-    } else {
-        Box::new(BytesReplacer(pattern.as_bytes().to_owned()))
-    };
+    let replacer = get_replacer(pattern, attr, regex, has_backrefs)?;
 
     let mut format_writer = cfg.get_format_writer()?;
 
@@ -116,36 +103,66 @@ impl Replacer for BytesReplacer {
     }
 }
 
-struct BytesRegexReplacer(regex::bytes::Regex, bool);
-
-impl Replacer for BytesRegexReplacer {
-    fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
-        if !self.1 {
-            let matches = self.0.find_iter(text).map(|m| (m.start(), m.end()));
-            replace_iter(text, replacement, out, matches);
-        } else {
-            // requires allocations
-            let replaced = self.0.replace_all(text, replacement);
-            out.extend_from_slice(&replaced);
+macro_rules! regex_replacer_impl {
+    ($name:ident, $regex:ty, $to_string:expr, $to_bytes:expr) => {
+        struct $name {
+            re: $regex,
+            has_backrefs: bool,
         }
-        Ok(())
+
+        impl $name {
+            fn new(pattern: &str, has_backrefs: bool) -> CliResult<Self> {
+                Ok(Self {
+                    re: <$regex>::new(pattern)?,
+                    has_backrefs,
+                })
+            }
+        }
+
+        impl Replacer for $name {
+            fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
+                let search_text = $to_string(text)?;
+                if !self.has_backrefs {
+                    let matches = self.re.find_iter(search_text).map(|m| (m.start(), m.end()));
+                    replace_iter(text, replacement, out, matches);
+                } else {
+                    // requires allocations
+                    let repl_text = $to_string(replacement)?;
+                    let replaced = self.re.replace_all(search_text, repl_text);
+                    out.extend_from_slice($to_bytes(replaced.as_ref()));
+                }
+                Ok(())
+            }
+        }
+    };
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "regex-fast")] {
+        regex_replacer_impl!(RegexReplacer, regex::Regex, |t| std::str::from_utf8(t), str::as_bytes);
+        regex_replacer_impl!(BytesRegexReplacer, regex::bytes::Regex, |t| Ok::<_, crate::error::CliError>(t), |s| s);
+    } else {
+        regex_replacer_impl!(RegexReplacer, regex_lite::Regex, |t| std::str::from_utf8(t), str::as_bytes);
+        type BytesRegexReplacer = RegexReplacer;
     }
 }
 
-struct RegexReplacer(regex::Regex, bool);
-
-impl Replacer for RegexReplacer {
-    fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
-        let string = str::from_utf8(text)?;
-        if !self.1 {
-            let matches = self.0.find_iter(string).map(|m| (m.start(), m.end()));
-            replace_iter(text, replacement, out, matches);
-        } else {
-            // requires allocations
-            let replacement = str::from_utf8(replacement)?;
-            let replaced = self.0.replace_all(string, replacement);
-            out.extend_from_slice(replaced.as_bytes());
+fn get_replacer(
+    pattern: &str,
+    attr: SeqAttr,
+    regex: bool,
+    has_backrefs: bool,
+) -> CliResult<Box<dyn Replacer + Sync>> {
+    if regex {
+        if attr == SeqAttr::Seq {
+            return Ok(Box::new(BytesRegexReplacer::new(pattern, has_backrefs)?));
         }
-        Ok(())
+        return Ok(Box::new(RegexReplacer::new(pattern, has_backrefs)?));
     }
+    let pattern = pattern.as_bytes();
+    Ok(if pattern.len() == 1 {
+        Box::new(SingleByteReplacer(pattern[0]))
+    } else {
+        Box::new(BytesReplacer(pattern.to_owned()))
+    })
 }
