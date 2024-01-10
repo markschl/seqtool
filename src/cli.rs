@@ -36,8 +36,11 @@ impl Cli {
         if let Ok(m) = VarHelpCli::try_parse() {
             if m.help_vars {
                 let custom_help: Option<Box<dyn VarHelp>> = match m.command.as_str() {
+                    #[cfg(any(feature = "all_commands", feature = "sort", feature = "unique"))]
                     "sort" | "unique" => Some(Box::new(cmd::shared::key_var::KeyVarHelp)),
+                    #[cfg(any(feature = "all_commands", feature = "split"))]
                     "split" => Some(Box::new(cmd::split::ChunkVarHelp)),
+                    #[cfg(any(feature = "all_commands", feature = "find"))]
                     "find" => Some(Box::new(cmd::find::FindVarHelp)),
                     _ => None,
                 };
