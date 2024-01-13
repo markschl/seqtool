@@ -25,7 +25,14 @@ pub struct FilterCommand {
 }
 
 pub fn run(mut cfg: Config, args: &FilterCommand) -> CliResult<()> {
-    let expr = &args.expression;
+    let expr = args.expression.trim();
+    if expr.starts_with("{{") && expr.ends_with("}}") {
+        eprintln!(
+            "Warning: found filter expression in the form {{ expression }}. \
+            The double brackets are unnecessary and should be removed for the \
+            expression to work properly."
+        )
+    }
     let dropped_file = args.dropped.as_ref();
 
     let mut format_writer = cfg.get_format_writer()?;
@@ -35,12 +42,17 @@ pub fn run(mut cfg: Config, args: &FilterCommand) -> CliResult<()> {
         let mut dropped_file = dropped_file
             .map(|f| Ok::<_, CliError>(BufWriter::new(File::create(f)?)))
             .transpose()?;
-
-            cfg.read(|record, ctx| {
+        cfg.read(|record, ctx| {
             let v = ctx.symbols.get(expr_id);
             let result = match v.inner() {
                 Some(Value::Bool(b)) => *b.get(),
-                _ => return fail!(format!("Filter expression did not return a boolean (true/false) value, found {} instead", v))
+                _ => {
+                    return fail!(
+                        "Filter expression did not return a boolean (true/false), \
+                    found '{}' instead",
+                        v
+                    )
+                }
             };
 
             if result {
