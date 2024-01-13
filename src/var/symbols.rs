@@ -447,7 +447,7 @@ impl OptValue {
 
 impl fmt::Display for OptValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.is_some {
+        if self.is_some {
             write!(f, "{}", self.value)
         } else {
             write!(f, "undefined")
