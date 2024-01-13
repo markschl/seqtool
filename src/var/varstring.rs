@@ -27,16 +27,15 @@ use super::Func;
 lazy_static! {
     // matches { var } or {{ expr }}
     // TODO: but does not handle quoted braces
-    static ref WRAPPED_VAR_RE: Regex =
+    static ref FUNC_BRACES_RE: Regex =
         Regex::new(r"(\{\{(.*?)\}\}|\{(.*?)\})").unwrap();
 
     // Regex for matching variables / functions
     // TODO: Regex parsing may be replaced by a more sophisticated parser some time
-    static ref VAR_RE: Regex =
+    static ref VAR_FUNC_RE: Regex =
         Regex::new(r#"(?x)
         (?:
-          "(?:[^"\\]|\\.)+" | '(?:[^'\\]|\\.)+' | `(?:[^`\\]|\\.)+` |   # ignore quoted stuff
-          \/(?:[^\/\\]|\\.)+\/[a-z]*   # ignore content of regexes
+          "(?:[^"\\]|\\.)+" | '(?:[^'\\]|\\.)+' | `(?:[^`\\]|\\.)+`   # ignore quoted ("'`) stuff
           |
           (?-u:\b)
           ([a-z_]+) (?-u:\b)  # var/function name
@@ -55,10 +54,16 @@ lazy_static! {
     ).unwrap();
 }
 
+/// Struct containing positional information of a `Func` in a text:
+/// The first range is the full range, the second is the range of the arguments.
 #[derive(Debug, Clone)]
-pub struct FuncRange(pub Range<usize>, pub Vec<Range<usize>>);
+pub struct FuncRange {
+    pub full: Range<usize>,
+    pub name: Range<usize>,
+    pub args: Vec<Range<usize>>,
+}
 
-fn parse_re(text: &str, c: Captures<'_>) -> Option<(FuncRange, Func)> {
+fn _parse_re_captures(text: &str, c: Captures<'_>) -> Option<(FuncRange, Func)> {
     c.get(1).and_then(|m| {
         let name = m.as_str().to_string();
         let full_rng = c.get(0).unwrap().range();
@@ -67,7 +72,11 @@ fn parse_re(text: &str, c: Captures<'_>) -> Option<(FuncRange, Func)> {
             // and the function is thus not valid
             return None;
         }
-        let mut rng = FuncRange(full_rng, vec![]);
+        let mut rng = FuncRange {
+            full: full_rng,
+            name: m.range(),
+            args: vec![],
+        };
         let mut args = Vec::new();
         if let Some(arg_group) = c.get(2) {
             // function with args
@@ -78,7 +87,7 @@ fn parse_re(text: &str, c: Captures<'_>) -> Option<(FuncRange, Func)> {
                 let mut r = m.range();
                 r.start += offset;
                 r.end += offset;
-                rng.1.push(r);
+                rng.args.push(r);
             }
         }
         let f = Func::with_args(name, args);
@@ -86,26 +95,12 @@ fn parse_re(text: &str, c: Captures<'_>) -> Option<(FuncRange, Func)> {
     })
 }
 
-/// Attempts to find a single variable/function. The text should start with it
-/// (if allow_suffix = false, it should be composed of the variable entirely).
-/// Otherwise None will be returned.
-pub fn parse_single_var(expr: &str, allow_suffix: bool) -> Option<(Func, &str)> {
-    let expr = expr.trim();
-    VAR_RE.captures(expr).and_then(|c| {
-        parse_re(expr, c).and_then(|(rng, func)| {
-            let suffix = &expr[rng.0.end..];
-            if rng.0.start > 0 || !allow_suffix && !suffix.is_empty() {
-                return None;
-            }
-            Some((func, suffix))
-        })
-    })
-}
-
+/// Parses all variables/functions (according to 'seqtool' syntax) that
+/// are found at any place in the text.
 pub fn parse_vars(expr: &str) -> VarIter<'_> {
     VarIter {
         expr,
-        matches: VAR_RE.captures_iter(expr),
+        matches: VAR_FUNC_RE.captures_iter(expr),
     }
 }
 
@@ -119,7 +114,7 @@ impl Iterator for VarIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(c) = self.matches.next() {
-                if let Some(item) = parse_re(self.expr, c) {
+                if let Some(item) = _parse_re_captures(self.expr, c) {
                     return Some(item);
                 }
                 continue;
@@ -129,25 +124,53 @@ impl Iterator for VarIter<'_> {
     }
 }
 
+/// Attempts to find a single variable/function at the *start of the input text.*
+/// Whitespace is ignored.
+/// This is different from `parse_vars()`, which returns all variables/functions
+/// matched at any place in the text.
+/// Returns the `Func` and the remaining text or `None` if no var/func found.
+pub fn parse_var(expr: &str) -> Option<(Func, &str)> {
+    let expr = expr.trim();
+    parse_vars(expr).next().and_then(|(rng, func)| {
+        if rng.full.start == 0 {
+            return Some((func, &expr[rng.full.end..]));
+        }
+        None
+    })
+}
+
+/// Attempts to find a single variable/function that matches the *whole* text.
+/// Whitespace is ignored.
+pub fn parse_single_var(expr: &str) -> Option<Func> {
+    parse_var(expr).and_then(|(f, rest)| {
+        if !rest.is_empty() {
+            return None;
+        }
+        Some(f)
+    })
+}
+
 /// Progressively parses a delimited list of variables/functions, whereby the delimiter
 /// (such as a comma) may also be present in the functions themselves.
 /// First, the whole item is registered as variable/function. If that fails,
 /// a VarString containing mixed text/variables/expressions in braces is assumed.
+/// If `allow_single_var` is true, a the whole text is be interpreted
+/// as variable (if registration succeeeds), otherwise as text.
 pub fn register_var_list(
     text: &str,
-    delim: &str,
+    delim: char,
     vars: &mut var::VarBuilder,
     out: &mut Vec<VarString>,
+    allow_single_var: bool,
 ) -> CliResult<()> {
     let mut text = text;
-    loop {
-        let (s, _, rest) = VarString::_var_or_composed(text, vars, Some(delim))?;
+    while !text.is_empty() {
+        let (s, _, rest) =
+            VarString::parse_register_until(text, vars, Some(delim), allow_single_var)?;
         out.push(s);
-        if rest.is_empty() {
-            return Ok(());
-        }
-        text = &rest[1..];
+        text = rest;
     }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -165,7 +188,9 @@ impl VarStringPart {
     }
 }
 
-/// This type represents text, which can contain variables and/or expressions
+/// This type represents text, which can contain variables and/or expressions.
+/// It implements `Deref<Target=[VarStringPart]>` for easy access to the individual
+/// components.
 #[derive(Debug, Clone, Default)]
 pub struct VarString {
     parts: Vec<VarStringPart>,
@@ -176,6 +201,7 @@ pub struct VarString {
 
 impl VarString {
     pub fn from_parts(parts: &[VarStringPart]) -> Self {
+        debug_assert!(!parts.is_empty());
         Self {
             parts: parts.to_vec(),
             one_var: match parts[0] {
@@ -211,83 +237,63 @@ impl VarString {
         None
     }
 
-    /// Attempts to parse and register a single variable/function, terminated by the end
-    /// of the text or a stop pattern.
-    /// Returns None if there is no valid variable/function or there is some residual
-    /// text before/after the next variable
-    pub fn func<'a>(
-        text: &'a str,
-        vars: &mut var::VarBuilder,
-        stop: Option<&str>,
-    ) -> Option<(CliResult<(Self, Option<VarType>)>, &'a str)> {
-        parse_single_var(text, stop.is_some()).and_then(|(func, rest)| {
-            let res = vars.register_var(&func).transpose().map(|v| {
-                v.map(|(id, ty, _)| {
-                    (
-                        Self {
-                            parts: vec![(VarStringPart::Var(id))],
-                            one_var: Some(id),
-                        },
-                        ty,
-                    )
-                })
-            })?;
-            Some((res, rest))
-        })
-    }
-
-    /// Constructs as VarString that either consists of a single variable
-    /// (no {braces} required), or is composed of text, optionally containing
-    /// variables/expressions in braces.
-    pub fn var_or_composed(
-        text: &str,
-        vars: &mut var::VarBuilder,
-    ) -> CliResult<(Self, Option<VarType>)> {
-        Self::_var_or_composed(text, vars, None).map(|(s, ty, _)| (s, ty))
-    }
-
-    /// Same as var_or_composed, but allows for stopping the search before a given
-    /// stop sequence and only constructing a VarString from &text[0..stop].
-    pub fn _var_or_composed<'a>(
-        text: &'a str,
-        vars: &mut var::VarBuilder,
-        stop: Option<&str>,
-    ) -> CliResult<(Self, Option<VarType>, &'a str)> {
-        if let Some((s, rest)) = Self::func(text, vars, stop) {
-            let (s, ty) = s?;
-            return Ok((s, ty, rest));
-        }
-        Self::_parse_register(text, vars, stop)
-    }
-
     /// Parses a string containing variables in the form "{varname}"
     /// and/or expressions in the form "{{expression}}"
+    /// If `allow_single_var` is true, a the whole text is be interpreted
+    /// as variable (if registration succeeeds), otherwise as text.
     pub fn parse_register(
         expr: &str,
         vars: &mut var::VarBuilder,
+        allow_single_var: bool,
     ) -> CliResult<(Self, Option<VarType>)> {
-        Self::_parse_register(expr, vars, None).map(|(s, ty, _)| (s, ty))
+        Self::parse_register_until(expr, vars, None, allow_single_var).map(|(s, ty, _)| (s, ty))
     }
 
-    pub fn _parse_register<'a>(
-        expr: &'a str,
+    /// Main function for parsing VarStrings from text.
+    /// The optional stop pattern can be used to parse delimited lists.
+    /// If `allow_single_var` is true, a the whole text (until the stop char)
+    /// is be interpreted as variable (if registration succeeeds), otherwise
+    /// as text.
+    pub fn parse_register_until<'a>(
+        text: &'a str,
         vars: &mut var::VarBuilder,
-        stop: Option<&str>,
+        stop: Option<char>,
+        allow_single_var: bool,
     ) -> CliResult<(Self, Option<VarType>, &'a str)> {
-        // println!("parse reg {:?} {:?}", expr, vars);
+        // println!("parse reg {:?} {:?}", text, vars);
+
+        // If `allow_single_var`, try registering the whole text content (until stop)
+        // as variable/function
+        if allow_single_var {
+            if let Some((func, rest)) = parse_var(text) {
+                let (one_var, rest) = if rest.is_empty() {
+                    (true, "")
+                } else {
+                    stop.map(|c| (rest.starts_with(c), &rest[1..]))
+                        .unwrap_or((false, rest))
+                };
+                if one_var {
+                    if let Some((var_id, ty, _)) = vars.register_var(&func)? {
+                        return Ok((Self::from_parts(&[VarStringPart::Var(var_id)]), ty, rest));
+                    }
+                }
+            }
+        }
+
+        // otherwise, parse different components
         let mut parts = vec![];
         let mut prev_pos = 0;
-        let mut stop_pos = expr.len();
         let mut vtype = Some(VarType::Text);
 
-        for m in WRAPPED_VAR_RE.find_iter(expr) {
-            // first check the text preceding this variable/function for
-            // the delimiter, and finish if found
-            let str_before = &expr[prev_pos..m.start()];
-            // println!("str before {:?}", str_before);
+        // Search for variables/functions
+        // (the stop char is only searched afterwards, since function args
+        // may also contain the stop)
+        for m in FUNC_BRACES_RE.find_iter(text) {
+            // Once a var is found, further check the preceding text for
+            // the stop, and finish if found
+            let str_before = &text[prev_pos..m.start()];
             if let Some(s) = stop {
-                if let Some(pos) = str_before.find(s) {
-                    stop_pos = prev_pos + pos;
+                if str_before.contains(s) {
                     break;
                 }
             }
@@ -300,15 +306,16 @@ impl VarString {
                 let func = Func::expr(expr);
                 vars.register_var(&func)?.unwrap()
             } else {
-                // matched { variable }
-                let var_str = &var[1..var.len() - 1];
-                let (func, _) = parse_single_var(var_str, false).ok_or_else(|| {
+                // matched { variable } or { function(arg,...) }
+                let func_str = &var[1..var.len() - 1];
+                let func = parse_single_var(func_str).ok_or_else(|| {
+                    let extra = "Advanced expressions (with calculations, etc.) \
+                    are enclosed in double braces: {{ expression }}";
                     format!(
                         "Invalid variable/function: {}. \
-                        Expecting a single variable {{ variable }} or function {{ func(arg) }}. \
-                        Advanced expressions (with calculations, etc.) are enclosed in double \
-                        braces: {{{{ expression }}}}",
-                        var
+                        Expecting a single variable {{ variable }} or function {{ func(arg) }}.{}",
+                        var,
+                        if cfg!(feature = "expr") { extra } else { "" }
                     )
                 })?;
                 vars.register_var(&func)?
@@ -326,26 +333,28 @@ impl VarString {
             prev_pos = m.end();
         }
 
-        // add the rest
-        let mut rest = &expr[prev_pos..stop_pos];
-        if let Some(b) = stop {
-            // TODO: find() called twice on same text
-            // (but this function is rarely called, so not really a problem)
-            if let Some(pos) = rest.find(b) {
-                stop_pos = pos;
-                rest = &rest[..stop_pos];
-            }
-        }
-        if !rest.is_empty() {
-            parts.push(VarStringPart::Text(rest.as_bytes().to_owned()));
+        // This part handles all text that does not contain variables/functions
+        // (that is, either the whole text or the remaining part after vars/funcs)
+        let text = &text[prev_pos..];
+
+        // Check for stop sequence
+        let (stop_pos, rest_start) = stop
+            .and_then(|b| text.find(b).map(|p| (p, p + 1)))
+            .unwrap_or((text.len(), text.len()));
+        let trimmed = &text[..stop_pos];
+
+        // add text component
+        if !trimmed.is_empty() || parts.is_empty() {
+            parts.push(VarStringPart::Text(trimmed.as_bytes().to_owned()));
         }
 
+        // set type [back] to text if VarString is composed of multiple parts
+        // (e.g. concatenated numeric variables would result in text)
         if parts.len() > 1 {
-            // set type (back) to text
             vtype = Some(VarType::Text);
         }
-
-        Ok((Self::from_parts(&parts), vtype, &expr[stop_pos..]))
+        // println!("--> out: {:?} / {:?}, rest: {}", parts, vtype, &text[rest_start..]);
+        Ok((Self::from_parts(&parts), vtype, &text[rest_start..]))
     }
 
     // #[inline]

@@ -62,7 +62,8 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
         return fail!("The split command requires either '-n' or '-o'.");
     };
 
-    let (out_key, _) = cfg.build_vars(|b| varstring::VarString::parse_register(out_key, b))?;
+    let (out_key, _) =
+        cfg.build_vars(|b| varstring::VarString::parse_register(out_key, b, false))?;
     // file path -> writer
     let mut outfiles = FxHashMap::default();
     // path buffer

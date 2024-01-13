@@ -100,7 +100,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                 match_vars.register_all(0);
                 Ok(())
             })?;
-            let (s, _) = cfg.build_vars(|b| varstring::VarString::var_or_composed(text, b))?;
+            let (s, _) = cfg.build_vars(|b| varstring::VarString::parse_register(text, b, true))?;
             Ok::<_, CliError>(s)
         })
         .transpose()?;

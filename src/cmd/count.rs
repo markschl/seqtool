@@ -112,7 +112,7 @@ impl VarKey {
     fn from_str(s: &str, builder: &mut VarBuilder) -> CliResult<Self> {
         let (interval, key) = parse_key(s, 1., 0);
         Ok(Self {
-            key: varstring::VarString::var_or_composed(key, builder)?.0,
+            key: varstring::VarString::parse_register(key, builder, true)?.0,
             val_buf: SimpleValue::Text(Vec::new()),
             interval: interval.clone().unwrap_or(Interval::new(1., 0)),
             is_discrete: true,

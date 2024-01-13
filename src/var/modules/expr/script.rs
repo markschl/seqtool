@@ -61,8 +61,8 @@ impl ScriptEditor {
     }
 }
 
-// replace variables with characters not accepted by the expression parser,
-// simultaneously obtaining a list of them
+/// Replaces variables with characters not accepted by the expression parser,
+/// simultaneously obtaining a list of them
 pub fn replace_register_vars(expr: &str, b: &mut VarBuilder) -> CliResult<(String, Vec<Var>)> {
     let expr_string = code_or_file(expr)?.to_string();
     let mut editor = ScriptEditor::new(&expr_string);
@@ -71,7 +71,7 @@ pub fn replace_register_vars(expr: &str, b: &mut VarBuilder) -> CliResult<(Strin
         // exclude method calls and reserved words
         // println!("func {:?}", func);
         let byte_before = rng
-            .0
+            .full
             .start
             .checked_sub(1)
             .and_then(|i| expr_string.as_bytes().get(i));
@@ -80,7 +80,7 @@ pub fn replace_register_vars(expr: &str, b: &mut VarBuilder) -> CliResult<(Strin
         {
             // We try to register a variable/function
             if let Some((var_id, _, _)) = b.register_dependent_var(&func)? {
-                let varname = editor.replace_var(rng.0, &func);
+                let varname = editor.replace_var(rng.full, &func);
                 vars.insert(var_id, varname);
                 continue;
             }
@@ -90,7 +90,7 @@ pub fn replace_register_vars(expr: &str, b: &mut VarBuilder) -> CliResult<(Strin
         // which could again be a seqtool variable.
         // The regex in varstring.rs does not match functions with deeper
         // nesting, this code should thus detect every possible variable.
-        for (arg, arg_rng) in func.args.iter().zip(&rng.1) {
+        for (arg, arg_rng) in func.args.iter().zip(&rng.args) {
             let f: Func = Func::var(arg.to_string());
             // println!("arg {:?} {:?}", arg_rng, f);
             if let Some((var_id, _, _)) = b.register_dependent_var(&f)? {

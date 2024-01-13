@@ -35,7 +35,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
 
     cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
-        let (var_key, _) = cfg.build_vars(|b| VarString::var_or_composed(&args.key, b))?;
+        let (var_key, _) = cfg.build_vars(|b| VarString::parse_register(&args.key, b, true))?;
         let mut dedup = Deduplicator::new(max_mem);
 
         cfg.read(|record, ctx| {

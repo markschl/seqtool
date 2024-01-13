@@ -28,9 +28,21 @@ fn filter() {
             fa,
             "id2\n",
         )
-        // Javascript Regex
+        // Javascript Regex:
+        // currently /regex/ syntax with strings matching any variable/function
+        // cannot be handled
+        // .cmp(
+        //     &["filter", r"(/id\d+/).test(id)", "--to-tsv", "id"],
+        //     fa,
+        //     "id2\nid3\n",
+        // )
         .cmp(
-            &["filter", r"(/id\d+/).test(id)", "--to-tsv", "id"],
+            &[
+                "filter",
+                r"(new RegExp('id\\d+')).test(id)",
+                "--to-tsv",
+                "id",
+            ],
             fa,
             "id2\nid3\n",
         );

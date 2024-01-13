@@ -17,7 +17,7 @@ impl<S: SeqWriter> AttrWriter<S> {
     pub fn new(writer: S, attrs: &[Attribute], builder: &mut var::VarBuilder) -> CliResult<Self> {
         let mut registered_attrs = VecMap::new();
         for attr in attrs {
-            let (e, _) = var::varstring::VarString::parse_register(&attr.value, builder)?;
+            let (e, _) = var::varstring::VarString::parse_register(&attr.value, builder, false)?;
             let id = builder.register_attr(&attr.name, Some(var::attr::Action::Edit));
             registered_attrs.insert(id, e);
         }
