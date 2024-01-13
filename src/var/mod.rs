@@ -231,7 +231,7 @@ pub fn init_vars(
     // lists
     for (i, path) in opts.metadata_sources.iter().enumerate() {
         modules.push(Box::new(
-            modules::list::MetaVars::new(
+            modules::meta::MetaVars::new(
                 i + 1,
                 opts.metadata_sources.len(),
                 path,
@@ -273,7 +273,7 @@ pub fn get_var_help(custom_help: Option<Box<dyn VarHelp>>) -> Result<String, fmt
     )?;
     write!(&mut out, "{}\n", &modules::stats::StatHelp as &dyn VarHelp)?;
     write!(&mut out, "{}\n", &modules::attr::AttrHelp as &dyn VarHelp)?;
-    write!(&mut out, "{}\n", &modules::list::MetaHelp as &dyn VarHelp)?;
+    write!(&mut out, "{}\n", &modules::meta::MetaHelp as &dyn VarHelp)?;
     #[cfg(feature = "expr")]
     write!(&mut out, "{}\n", &modules::expr::ExprHelp as &dyn VarHelp)?;
     Ok(out)
