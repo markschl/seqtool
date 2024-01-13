@@ -264,17 +264,17 @@ pub fn init_vars(
 pub fn get_var_help(custom_help: Option<Box<dyn VarHelp>>) -> Result<String, fmt::Error> {
     let mut out = "".to_string();
     if let Some(m) = custom_help {
-        write!(&mut out, "{}\n", &m as &dyn VarHelp)?;
+        writeln!(&mut out, "{}", &m as &dyn VarHelp)?;
     }
-    write!(
+    writeln!(
         &mut out,
-        "{}\n",
+        "{}",
         &modules::builtins::BuiltinHelp as &dyn VarHelp
     )?;
-    write!(&mut out, "{}\n", &modules::stats::StatHelp as &dyn VarHelp)?;
-    write!(&mut out, "{}\n", &modules::attr::AttrHelp as &dyn VarHelp)?;
-    write!(&mut out, "{}\n", &modules::meta::MetaHelp as &dyn VarHelp)?;
+    writeln!(&mut out, "{}", &modules::stats::StatHelp as &dyn VarHelp)?;
+    writeln!(&mut out, "{}", &modules::attr::AttrHelp as &dyn VarHelp)?;
+    writeln!(&mut out, "{}", &modules::meta::MetaHelp as &dyn VarHelp)?;
     #[cfg(feature = "expr")]
-    write!(&mut out, "{}\n", &modules::expr::ExprHelp as &dyn VarHelp)?;
+    writeln!(&mut out, "{}", &modules::expr::ExprHelp as &dyn VarHelp)?;
     Ok(out)
 }

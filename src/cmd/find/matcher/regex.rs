@@ -19,6 +19,7 @@ macro_rules! matcher_impl {
         }
 
         impl Matcher for $name {
+            #[allow(clippy::redundant_closure_call)]
             fn iter_matches(
                 &mut self,
                 text: &[u8],
@@ -71,7 +72,7 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "regex-fast")] {
         use regex::bytes as regex_bytes;
         matcher_impl!(RegexMatcher, regex, |t| std::str::from_utf8(t));
-        matcher_impl!(BytesRegexMatcher, regex_bytes, |t| Ok::<_, crate::error::CliError>(t));
+        matcher_impl!(BytesRegexMatcher, regex_bytes, Ok::<_, crate::error::CliError>);
     } else {
         matcher_impl!(RegexMatcher, regex_lite, |t| std::str::from_utf8(t));
         pub type BytesRegexMatcher = RegexMatcher;

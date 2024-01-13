@@ -9,6 +9,17 @@ use super::func::Func;
 use super::symbols::VarType;
 use super::VarProvider;
 
+/// Object used for registering variables/functions to different `VarProvider` modules.
+/// It does so by 'asking' each of the providers (in order of occurrence),
+/// whether it 'knows' a function name. If so, the provider will be presented
+/// with each sequence record (using `VarProvider::set()`) and is then responsible
+/// for updating the `SymbolTable` with values for all the variables that it knows.
+///
+/// A `VarProvider` can itself register variables, querying all providers *before*
+/// it in the modules list. This functionality is used by `expr::ExprVars`.
+/// However, it *must* use `VarBuilder::register_dependent_var()`, since vars/functions
+/// from certain providers used in commands (that have `VarProvider::allow_dependent() == false`)
+/// cannot be used in expressions.
 #[derive(Debug)]
 pub struct VarBuilder<'a> {
     modules: &'a mut [Box<dyn VarProvider>],
@@ -43,6 +54,8 @@ impl<'a> VarBuilder<'a> {
         attr_id
     }
 
+    /// Attempts at registering a variable/function
+    /// Returns `Some((var_id, var_type, allow_nested))` if successful
     pub fn register_var(
         &mut self,
         var: &Func,
@@ -50,7 +63,6 @@ impl<'a> VarBuilder<'a> {
         self._register_var(var, false)
     }
 
-    #[allow(dead_code)]
     pub fn register_dependent_var(
         &mut self,
         var: &Func,

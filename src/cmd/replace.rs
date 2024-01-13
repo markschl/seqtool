@@ -120,6 +120,7 @@ macro_rules! regex_replacer_impl {
         }
 
         impl Replacer for $name {
+            #[allow(clippy::redundant_closure_call)]
             fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
                 let search_text = $to_string(text)?;
                 if !self.has_backrefs {
@@ -140,7 +141,7 @@ macro_rules! regex_replacer_impl {
 cfg_if::cfg_if! {
     if #[cfg(feature = "regex-fast")] {
         regex_replacer_impl!(RegexReplacer, regex::Regex, |t| std::str::from_utf8(t), str::as_bytes);
-        regex_replacer_impl!(BytesRegexReplacer, regex::bytes::Regex, |t| Ok::<_, crate::error::CliError>(t), |s| s);
+        regex_replacer_impl!(BytesRegexReplacer, regex::bytes::Regex, Ok::<_, crate::error::CliError>, |s| s);
     } else {
         regex_replacer_impl!(RegexReplacer, regex_lite::Regex, |t| std::str::from_utf8(t), str::as_bytes);
         type BytesRegexReplacer = RegexReplacer;

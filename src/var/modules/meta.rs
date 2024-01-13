@@ -396,7 +396,7 @@ impl IdFinder {
                 let n = self.initial_seq_ids.len();
                 if n <= DUPLICATE_CHECK_N {
                     if n == 0 {
-                        self.initial_seq_ids.reserve(DUPLICATE_CHECK_N/2);
+                        self.initial_seq_ids.reserve(DUPLICATE_CHECK_N / 2);
                     }
                     if !self.initial_seq_ids.insert(seq_id.to_owned()) {
                         return fail!(
