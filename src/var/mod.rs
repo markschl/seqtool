@@ -1,5 +1,4 @@
 use std::fmt::{self, Debug, Display, Write};
-use std::fs::File;
 
 use crate::error::CliResult;
 use crate::helpers::any::AsAnyMut;
@@ -20,12 +19,11 @@ pub mod varstring;
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct VarOpts {
     // metadata
-    pub lists: Vec<String>,
-    pub list_delim: char,
+    pub metadata_sources: Vec<String>,
+    pub meta_delim_override: Option<u8>,
     pub has_header: bool,
-    pub unordered: bool,
-    pub id_col: u32,
-    pub allow_missing: bool,
+    pub meta_id_col: u32,
+    pub meta_dup_ids: bool,
     // attributes
     pub attr_opts: AttrOpts,
     // expressions
@@ -231,37 +229,18 @@ pub fn init_vars(
     }
 
     // lists
-    for (i, list) in opts.lists.iter().enumerate() {
-        let csv_file = File::open(list).map_err(|e| format!("Error opening '{}': {}", list, e))?;
-        if opts.unordered {
-            let finder = modules::list::Unordered::new();
-            modules.push(Box::new(
-                modules::list::ListVars::new(
-                    i + 1,
-                    opts.lists.len(),
-                    csv_file,
-                    finder,
-                    opts.list_delim as u8,
-                )
-                .id_col(opts.id_col)
-                .has_header(opts.has_header)
-                .allow_missing(opts.allow_missing),
-            ));
-        } else {
-            let finder = modules::list::SyncIds;
-            modules.push(Box::new(
-                modules::list::ListVars::new(
-                    i + 1,
-                    opts.lists.len(),
-                    csv_file,
-                    finder,
-                    opts.list_delim as u8,
-                )
-                .id_col(opts.id_col)
-                .has_header(opts.has_header)
-                .allow_missing(opts.allow_missing),
-            ));
-        }
+    for (i, path) in opts.metadata_sources.iter().enumerate() {
+        modules.push(Box::new(
+            modules::list::MetaVars::new(
+                i + 1,
+                opts.metadata_sources.len(),
+                path,
+                opts.meta_delim_override,
+                opts.meta_dup_ids,
+            )?
+            .id_col(opts.meta_id_col)
+            .set_has_header(opts.has_header),
+        ));
     }
 
     // other modules
@@ -294,7 +273,7 @@ pub fn get_var_help(custom_help: Option<Box<dyn VarHelp>>) -> Result<String, fmt
     )?;
     write!(&mut out, "{}\n", &modules::stats::StatHelp as &dyn VarHelp)?;
     write!(&mut out, "{}\n", &modules::attr::AttrHelp as &dyn VarHelp)?;
-    write!(&mut out, "{}\n", &modules::list::ListHelp as &dyn VarHelp)?;
+    write!(&mut out, "{}\n", &modules::list::MetaHelp as &dyn VarHelp)?;
     #[cfg(feature = "expr")]
     write!(&mut out, "{}\n", &modules::expr::ExprHelp as &dyn VarHelp)?;
     Ok(out)

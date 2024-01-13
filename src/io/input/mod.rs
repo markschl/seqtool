@@ -174,15 +174,18 @@ impl BufPolicy for LimitedBuffer {
     }
 }
 
-fn get_io_reader<'a>(o: &InputOptions) -> CliResult<Box<dyn io::Read + Send + 'a>> {
-    let rdr: Box<dyn io::Read + Send> = match o.kind {
+pub fn get_io_reader<'a>(
+    kind: &InputKind,
+    compression: Compression,
+) -> CliResult<Box<dyn io::Read + Send + 'a>> {
+    let rdr: Box<dyn io::Read + Send> = match kind {
         InputKind::File(ref path) => Box::new(
             File::open(path)
                 .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?,
         ),
         InputKind::Stdin => Box::new(io::stdin()),
     };
-    get_compr_reader(rdr, o.compression).map_err(From::from)
+    get_compr_reader(rdr, compression).map_err(From::from)
 }
 
 fn get_compr_reader<'a>(
@@ -206,7 +209,7 @@ fn io_reader<F, O>(o: &InputOptions, func: F) -> CliResult<O>
 where
     for<'a> F: FnOnce(Box<dyn io::Read + Send + 'a>) -> CliResult<O>,
 {
-    let rdr = get_io_reader(o)?;
+    let rdr = get_io_reader(&o.kind, o.compression)?;
     if o.compression != Compression::None || o.threaded {
         // read in different thread
         let thread_bufsize = o
@@ -300,7 +303,14 @@ where
 {
     let mut readers: Vec<_> = opts
         .into_iter()
-        .map(|o| get_reader(get_io_reader(o)?, &o.format, o.cap, o.max_mem))
+        .map(|o| {
+            get_reader(
+                get_io_reader(&o.kind, o.compression)?,
+                &o.format,
+                o.cap,
+                o.max_mem,
+            )
+        })
         .collect::<CliResult<_>>()?;
 
     loop {

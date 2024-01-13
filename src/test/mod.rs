@@ -90,6 +90,14 @@ impl Tester {
         self
     }
 
+    fn cmp_stderr<I: Input>(&self, args: &[&str], input: I, expected: &str, stderr: &str) -> &Self {
+        self.cmd(args, input)
+            .stdout(eq(expected).from_utf8())
+            .stderr(contains(stderr).from_utf8())
+            .success();
+        self
+    }
+
     fn succeeds<I: Input>(&self, args: &[&str], input: I) -> &Self {
         self.cmd(args, input).success();
         self
@@ -220,3 +228,4 @@ mod trim;
 mod unique;
 #[cfg(any(feature = "all_commands", feature = "upper"))]
 mod upper;
+mod vars;

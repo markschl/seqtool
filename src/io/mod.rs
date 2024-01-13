@@ -133,13 +133,17 @@ impl FileInfo {
         }
     }
 
-    pub fn from_path<P: AsRef<Path>>(path: P, default_format: FormatVariant) -> Self {
-        let mut path = path.as_ref().to_owned();
+    pub fn from_path<P: AsRef<Path>>(
+        path: P,
+        default_format: FormatVariant,
+        report_default: bool,
+    ) -> Self {
+        let mut _path = path.as_ref().to_owned();
 
-        let compression = match path.extension() {
+        let compression = match _path.extension() {
             Some(ext) => match Compression::from_str(ext.to_str().unwrap_or("")) {
                 Ok(c) => {
-                    path = path.file_stem().unwrap().into();
+                    _path = _path.file_stem().unwrap().into();
                     c
                 }
                 Err(_) => Compression::None,
@@ -147,7 +151,7 @@ impl FileInfo {
             None => Compression::None,
         };
 
-        let format = match path.extension() {
+        let format = match _path.extension() {
             Some(ext) => match FormatVariant::from_str(ext.to_str().unwrap_or("")) {
                 Ok(f) => f,
                 Err(_) => {
@@ -163,7 +167,13 @@ impl FileInfo {
                 }
             },
             None => {
-                eprintln!("No extension assuming {} format", default_format);
+                if report_default {
+                    eprintln!(
+                        "No extension for file '{}' assuming {} format",
+                        path.as_ref().to_string_lossy(),
+                        default_format
+                    );
+                }
                 default_format
             }
         };

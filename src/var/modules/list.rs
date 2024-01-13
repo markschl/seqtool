@@ -1,12 +1,16 @@
 use std::collections::hash_map::Entry;
 use std::fmt;
 use std::io;
+use std::str::FromStr;
 
 use csv::{self, ByteRecord, Reader, ReaderBuilder};
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 
-use crate::error::{CliError, CliResult};
-use crate::io::{QualConverter, Record};
+use crate::error::CliResult;
+use crate::io::{
+    input::{get_io_reader, InputKind},
+    FileInfo, FormatVariant, QualConverter, Record,
+};
 use crate::var::{
     attr::Attrs,
     func::{ArgValue, Func},
@@ -15,98 +19,156 @@ use crate::var::{
 };
 
 #[derive(Debug)]
-pub struct ListHelp;
+pub struct MetaHelp;
 
-impl VarHelp for ListHelp {
+impl VarHelp for MetaHelp {
     fn name(&self) -> &'static str {
-        "Entries of associated lists"
+        "Associated metadata from delimited text files"
     }
 
     fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[(
-            "list_col(fieldnum) or list_col(fieldname)",
-            "Obtain a value from an associated list column.",
-        )])
+        Some(&[
+            (
+                "meta(field-number) or meta(field-name) = meta('field-name') = meta(\"field-name\")",
+                "Obtain a value from a column of the delimited text file. \
+                Missing entries are not allowed for any sequence record. \
+                Field names can be quoted (but this is not required).",
+            ),
+            (
+                "meta(file-num, field-num) or meta(file-num, field-name)",
+                "Obtain a value from a column of the text file no. <file-num>. \
+                The numbering (1, 2, 3, etc.) reflects the order in which the \
+                files were provided in the commandline (-m file1 -m file2 -m file3). \
+                Missing entries are not allowed. Field name quoting is optional.",
+            ),
+            (
+                "opt_meta(field-number) or opt_meta(field-name)",
+                "Like meta(field-number) or meta(field-name), but not all sequence records \
+                are required to have an associated metadata value. \
+                Missing values will result in an empty string or 'undefined' \
+                in JavaScript expressions.",
+            ),
+            (
+                "opt_meta(file-num, field-num) or opt_meta(file-num, field-name)",
+                "Like meta(file-num, field-num) / meta(file-num, field-name), \
+                but missing metadata will result in an empty string \
+                (or 'undefined' in expressions) instead of an error.",
+            ),
+            (
+                "has_meta or has_meta() or has_meta(file-num)",
+                "Returns true if the given record has a metadata entry in the \
+                in the given file. In case of multiple files, the file number \
+                can be supplied as an argument.",
+            ),
+        ])
     }
 
     fn desc(&self) -> Option<&'static str> {
         Some(
-            "Fields from associated lists. (`-l` argument). Specify either a column number \
-            e.g. {list_col(4)}, or a column name {list_col(fieldname)} if there is a header. \
-            With multiple -l arguments, the lists are selected by index in the order \
-            in which they were specified, e.g. \
-            `list_col(field)`, `list_col(2, field)`, `list_col(3, field)`, and so on.",
+            "The `meta`, `opt_meta` and `has_meta` variables/functions allow accessing \
+            associated metadata in plain delimited text files \
+            (optionally compressed, auto-recognized). \
+            These files must contain a column with the sequence ID \
+            (default: 1st column; change with --meta-idcol). \
+            The column delimiter is guessed if possible (override with --meta-delim): \
+            '.csv' is interpreted as comma(,)-delimited, '.tsv'/'.txt' or other (unknown) \
+            extensions are assumed to be tab-delimited. \
+            The first line is implicitly assumed to contain \
+            column names if a non-numeric field name is requested, e.g. `meta(fieldname)`. \
+            Use --meta-header to explicitly enable header lines \
+            (necessary if column names are numbers). \
+            Multiple metadata files can be supplied (-m file1 -m file2 -m file3...) and \
+            are addressed via 'file-num' (see function descriptions). \
+            For maximum performance, provide metadata records in the same order as \
+            sequence records. \
+            \n\
+            *Note:* Specify '--dup-ids' if the sequence input is expected to contain \
+            duplicate IDs (which is rather unusual). See the help page (-h/--help) \
+            for more information. 
+            ",
         )
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
             (
-                "Extracting sequences with coordinates stored in a BED file",
-                "st trim -l coordinates.bed -0 {list_col(2)}..{list_col(3)} input.fa > output.fa",
+                "Add taxonomic lineages stored in the second column of a GZIP-compressed \
+                 TSV file to the FASTA headers, as description after the first space. \
+                 The resulting headers look like this: '>id1 k__Fungi;p__Basidiomycota;c__...'",
+                "st set -m taxonomy.tsv.gz -d '{meta(2)}' input.fa > output.fa",
             ),
             (
-                "Selecting only sequences present in an associated list",
-                "st filter -uml selected_ids.txt 'list_col(1) != undefined' input.fa > output.fa",
+                "Integrate metadata from an Excel-generated CSV file \
+                (with semicolon delimiter and column names) \
+                into sequence records in form of a header attribute (-a/--attr) \
+                (possible output: >id1 info=somevalue)",
+                "st pass -m metadata.csv --meta-sep ';' -a 'info={meta(column-name)}' input.fa > output.fa",
+            ),
+            (
+                "Extract sequences with coordinates stored in a BED file",
+                "st trim -m coordinates.bed -0 {meta(2)}..{meta(3)} input.fa > output.fa",
+            ),
+            (
+                "Filter sequences by ID, keeping only those present in the given text file",
+                "st filter -m selected_ids.txt 'has_meta()' input.fa > output.fa",
             ),
         ])
     }
 }
 
 #[derive(Debug)]
-enum ListVarType {
-    Col(usize),
+enum MetaVarType {
+    // column index, allow missing
+    Col(usize, bool),
     Exists,
 }
 
-pub struct ListVars<R, H>
-where
-    R: io::Read,
-    H: IdFinder<R>,
-{
-    list_num: usize,
-    total_lists: usize,
-    rdr: Reader<R>,
-    // used for reading data into it
-    record: ByteRecord,
-    // (var_id, col_idx)
-    vars: Vec<(usize, ListVarType)>,
-    // specifies user choice and used as flag to indicate whether header has not yet been skipped
-    has_header: bool,
+pub struct MetaVars {
+    // file
+    file_num: usize,
+    total_files: usize,
+    path: String,
+    // CSV reader
+    rdr: Reader<Box<dyn io::Read + Send>>,
+    has_header: bool, // user choice overriding auto-detection
     header: Option<FxHashMap<String, usize>>,
-    handler: H,
+    current_record: ByteRecord,
+    // object doing the ID lookup
+    finder: IdFinder,
     id_col: u32,
-    allow_missing: bool,
+    // registered variables: (var_id, col_idx)
+    vars: Vec<(usize, MetaVarType)>,
 }
 
-impl<R, H> ListVars<R, H>
-where
-    R: io::Read,
-    H: IdFinder<R>,
-{
+impl MetaVars {
     pub fn new(
-        list_num: usize,
-        total_lists: usize,
-        reader: R,
-        handler: H,
-        delim: u8,
-    ) -> ListVars<R, H> {
-        let r = ReaderBuilder::new()
-            .delimiter(delim)
-            .has_headers(false)
-            .flexible(true)
-            .from_reader(reader);
-        ListVars {
-            list_num,
-            total_lists,
-            rdr: r,
-            record: ByteRecord::new(),
-            vars: vec![],
-            header: None,
-            handler,
-            id_col: 0,
+        file_num: usize,
+        total_files: usize,
+        path: &str,
+        delim: Option<u8>,
+        dup_ids: bool,
+    ) -> CliResult<Self> {
+        let info = FileInfo::from_path(path, FormatVariant::Tsv, false);
+        let io_reader = get_io_reader(&InputKind::from_str(path)?, info.compression)?;
+        let delim = delim.unwrap_or(match info.format {
+            FormatVariant::Csv => b',',
+            _ => b'\t',
+        });
+        Ok(Self {
+            file_num,
+            total_files,
+            path: path.to_string(),
+            rdr: ReaderBuilder::new()
+                .delimiter(delim)
+                .has_headers(false)
+                .flexible(true)
+                .from_reader(io_reader),
             has_header: false,
-            allow_missing: false,
-        }
+            header: None,
+            current_record: ByteRecord::new(),
+            finder: IdFinder::new(!dup_ids),
+            id_col: 0,
+            vars: vec![],
+        })
     }
 
     pub fn id_col(mut self, id_col: u32) -> Self {
@@ -114,13 +176,8 @@ where
         self
     }
 
-    pub fn has_header(mut self, has_header: bool) -> Self {
+    pub fn set_has_header(mut self, has_header: bool) -> Self {
         self.has_header = has_header;
-        self
-    }
-
-    pub fn allow_missing(mut self, allow_missing: bool) -> Self {
-        self.allow_missing = allow_missing;
         self
     }
 
@@ -129,7 +186,7 @@ where
             // assuming column indices
             if let Ok(idx) = col.parse::<usize>() {
                 if idx == 0 {
-                    return fail!("Error in associated list: 0 is not a valid row index.");
+                    return fail!("Metadata columns must be > 0 (file: {})", self.path);
                 }
                 if self.header.is_none() {
                     return Ok(idx - 1);
@@ -139,8 +196,8 @@ where
 
         // switch to header mode
         // look up column name
-        let col_name: String =
-            ArgValue::from_str(col).ok_or_else(|| format!("Invalid list column: {}", col))?;
+        let col_name: String = ArgValue::from_str(col)
+            .ok_or_else(|| format!("Invalid metadata column: {} (file: {})", col, self.path))?;
         self.has_header = true;
         if self.header.is_none() {
             let map = self
@@ -157,59 +214,65 @@ where
             return Ok(*i);
         }
 
-        fail!(format!("Unknown list column: '{}'", col_name))
+        fail!(
+            "Metadata column '{}' not found in '{}'",
+            col_name,
+            self.path
+        )
     }
 
-    fn check_list_num(&self, list_num: usize) -> CliResult<bool> {
-        if list_num > self.total_lists {
-            return fail!(format!(
-                "`list_col` requested list No. {}, but only {} lists were supplied with -l/--list",
-                list_num, self.total_lists
-            ));
+    fn check_file_num(&self, num: usize, func_name: &str) -> CliResult<bool> {
+        if num > self.total_files {
+            return fail!(
+                "Metadata file no. {} was requested by `{}`, \
+                but only {} metadata sources were supplied with -m/--meta",
+                num,
+                func_name,
+                self.total_files
+            );
         }
-        if list_num != self.list_num {
-            // another list, not the current one
+        if num == 0 {
+            return fail!("Invalid metadata file no. requested: 0.",);
+        }
+        if num != self.file_num {
+            // another file, not the current one
             return Ok(false);
         }
         Ok(true)
     }
 }
 
-impl<R, H> VarProvider for ListVars<R, H>
-where
-    R: io::Read + 'static,
-    H: IdFinder<R> + 'static,
-{
+impl VarProvider for MetaVars {
     fn help(&self) -> &dyn VarHelp {
-        &ListHelp
+        &MetaHelp
     }
 
     fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
         let (var, vtype) = match func.name.as_ref() {
-            "has_entry" => {
+            "has_meta" => {
                 func.ensure_arg_range(0, 1)?;
-                let list_num = func.arg_as::<usize>(0).transpose()?.unwrap_or(1);
-                if !self.check_list_num(list_num)? {
+                let file_num = func.arg_as::<usize>(0).transpose()?.unwrap_or(1);
+                if !self.check_file_num(file_num, &func.name)? {
                     return Ok(None);
                 }
-                (ListVarType::Exists, VarType::Bool)
+                (MetaVarType::Exists, VarType::Bool)
             }
-            "list_col" => {
-                debug_assert!(self.list_num != 0);
-                let (list_num, col) = match func.num_args() {
+            "meta" | "opt_meta" => {
+                debug_assert!(self.file_num != 0);
+                let (file_num, col) = match func.num_args() {
                     1 => (1, func.arg(0).unwrap()),
                     2 => (
                             func.arg_as::<i64>(0).unwrap()? as usize,
                             func.arg(1).unwrap()
                         ),
-                    _ => return fail!("`list_col` accepts only 1 or 2 arguments: list_col(col) or list_col(n, col)")
+                    _ => return fail!("`meta`/`opt_meta` accept only 1 or 2 arguments: meta(field) or meta(file-num, field)")
                 };
-                if !self.check_list_num(list_num)? {
+                if !self.check_file_num(file_num, &func.name)? {
                     return Ok(None);
                 }
 
                 let i = self.get_col_index(col)?;
-                (ListVarType::Col(i), VarType::Text)
+                (MetaVarType::Col(i, func.name == "opt_meta"), VarType::Text)
             }
             _ => return Ok(None),
         };
@@ -231,34 +294,42 @@ where
     ) -> CliResult<()> {
         // read header record once (if present)
         if self.has_header {
-            self.rdr.read_byte_record(&mut self.record)?;
+            self.rdr.read_byte_record(&mut self.current_record)?;
             self.has_header = false;
         }
 
         // find the next record
         let id = record.id_bytes();
-        let exists = self.handler.find(
-            self.id_col,
-            id,
-            &mut self.rdr,
-            &mut self.record,
-            self.allow_missing,
-        )?;
+        let exists = self
+            .finder
+            .find(id, self.id_col, &mut self.rdr, &mut self.current_record)?;
 
+        // copy to symbol table
         for (var_id, var) in &self.vars {
             match var {
-                ListVarType::Col(i) => {
+                MetaVarType::Col(i, allow_missing) => {
+                    if !allow_missing && !exists {
+                        return fail!(
+                            "ID '{}' not found in metadata. Use the `opt_meta(field)` function \
+                            instead of `meta(field)` if you expect missing entries.",
+                            String::from_utf8_lossy(id)
+                        );
+                    }
                     let sym = symbols.get_mut(*var_id);
-                    if let Some(text) = self.record.get(*i) {
+                    if let Some(text) = self.current_record.get(*i) {
                         sym.inner_mut().set_text(text);
                     } else {
-                        if !self.allow_missing {
-                            return fail!(ListError::ColMissing(id.to_owned(), *i));
+                        if !allow_missing {
+                            return fail!(
+                                "Column no. {} not found in metadata entry for '{}'",
+                                *i + 1,
+                                String::from_utf8_lossy(id)
+                            );
                         }
                         sym.set_none();
                     }
                 }
-                ListVarType::Exists => {
+                MetaVarType::Exists => {
                     symbols.get_mut(*var_id).inner_mut().set_bool(exists);
                 }
             }
@@ -269,155 +340,132 @@ where
 }
 
 // stub
-impl<R: io::Read, H: IdFinder<R>> fmt::Debug for ListVars<R, H> {
+impl fmt::Debug for MetaVars {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ListVars {{ list_num: {} }}", self.list_num)
+        write!(f, "MetaVars {{ file_num: {} }}", self.file_num)
     }
 }
 
-pub trait IdFinder<R: io::Read> {
-    fn find(
-        &mut self,
-        id_col: u32,
-        id: &[u8],
-        rdr: &mut Reader<R>,
-        rec: &mut ByteRecord,
-        allow_missing: bool,
-    ) -> Result<bool, ListError>;
+/// Initial hash map index capacity
+const IDX_INITIAL_CAP: usize = 5000;
+
+/// Number of records for which to check for duplicate IDs
+const DUPLICATE_CHECK_N: usize = 10000;
+/// Object reponsible for looking up a metadata record with the given ID.
+/// First, it tries reading records in order, but switches to a hash map
+/// approach for storing records that are already read.
+pub struct IdFinder {
+    in_sync: bool,
+    started_in_sync: bool,
+    meta_map: FxHashMap<Vec<u8>, ByteRecord>,
+    initial_seq_ids: FxHashSet<Vec<u8>>,
+    dup_reported: bool,
 }
 
-pub struct SyncIds;
-
-impl<R: io::Read> IdFinder<R> for SyncIds {
-    fn find(
-        &mut self,
-        id_col: u32,
-        id: &[u8],
-        rdr: &mut Reader<R>,
-        rec: &mut ByteRecord,
-        _allow_missing: bool,
-    ) -> Result<bool, ListError> {
-        if !rdr.read_byte_record(rec)? {
-            return Err(ListError::ListTooShort(id.to_owned()));
+impl IdFinder {
+    pub fn new(in_sync: bool) -> Self {
+        let mut meta_map = FxHashMap::default();
+        if !in_sync {
+            meta_map.reserve(IDX_INITIAL_CAP);
         }
-        let row_id = rec
-            .get(id_col as usize)
-            .ok_or_else(|| ListError::NoId(rdr.position().clone()))?;
-        if row_id != id {
-            return Err(ListError::IdMismatch(id.to_owned(), row_id.to_owned()));
-        }
-        Ok(true)
-    }
-}
-
-pub struct Unordered {
-    record_map: FxHashMap<Vec<u8>, ByteRecord>,
-    dup_found: bool,
-}
-
-impl Unordered {
-    pub fn new() -> Unordered {
-        Unordered {
-            record_map: FxHashMap::default(),
-            dup_found: false,
+        Self {
+            in_sync,
+            started_in_sync: in_sync,
+            meta_map,
+            initial_seq_ids: FxHashSet::default(),
+            dup_reported: false,
         }
     }
-}
 
-impl<R: io::Read> IdFinder<R> for Unordered {
-    fn find(
+    fn find<R: io::Read>(
         &mut self,
-        id_col: u32,
-        id: &[u8],
-        rdr: &mut Reader<R>,
+        seq_id: &[u8],
+        meta_id_col: u32,
+        meta_rdr: &mut Reader<R>,
         rec: &mut ByteRecord,
-        allow_missing: bool,
-    ) -> Result<bool, ListError> {
+    ) -> CliResult<bool> {
         // first, check the record map for the given ID
-        if let Some(found) = self.record_map.get(id) {
-            rec.clone_from(found);
-            return Ok(true);
-        }
-
-        // if not found, read until the ID is encountered
-        while rdr.read_byte_record(rec)? {
-            let row_id = rec
-                .get(id_col as usize)
-                .ok_or_else(|| ListError::NoId(rdr.position().clone()))?;
-
-            match self.record_map.entry(row_id.to_owned()) {
-                Entry::Vacant(e) => {
-                    e.insert(rec.clone());
-                }
-                Entry::Occupied(_) => {
-                    if !self.dup_found {
-                        eprintln!(
-                            "Found duplicate IDs in associated list (first: {}). \
-                            Only the first entry in the list is used.",
-                            String::from_utf8_lossy(row_id)
+        if !self.in_sync {
+            // If the reader switched from in sync -> hash map index parsing,
+            // we check at least `DUPLICATE_CHECK_SIZE` sequence IDs for
+            // duplication (since duplicates are problematic in this case).
+            // These will not detect all duplicates, but
+            // (1) ID duplicates are unusual and rather a corner case, and
+            // (2) checking all IDs would be slower
+            if self.started_in_sync {
+                let n = self.initial_seq_ids.len();
+                if n <= DUPLICATE_CHECK_N {
+                    if n == 0 {
+                        self.initial_seq_ids.reserve(DUPLICATE_CHECK_N/2);
+                    }
+                    if !self.initial_seq_ids.insert(seq_id.to_owned()) {
+                        return fail!(
+                            "Found duplicate sequence ID: '{}'. \
+                            Please specify --dup-ids, otherwise the `meta` and `has_meta` functions \
+                            can lead to errors and `opt_meta` may incorrectly report.",
+                            String::from_utf8_lossy(seq_id)
                         );
-                        self.dup_found = true;
+                    }
+                    if n == DUPLICATE_CHECK_N {
+                        // clear hash set to save memory
+                        self.initial_seq_ids.clear();
                     }
                 }
             }
 
-            if row_id == id {
+            // now return if sequence ID in index
+            if let Some(found) = self.meta_map.get(seq_id) {
+                rec.clone_from(found);
                 return Ok(true);
             }
         }
 
-        if allow_missing {
-            return Ok(false);
+        // if the metadata was not found, read until the ID is encountered
+        while meta_rdr.read_byte_record(rec)? {
+            let row_id = rec.get(meta_id_col as usize).ok_or_else(|| {
+                format!(
+                    "ID Column not found in record no. {} at line {}",
+                    meta_rdr.position().record() + 1,
+                    meta_rdr.position().line()
+                )
+            })?;
+
+            if self.in_sync {
+                // if the first encountered entry is the correct one, we are
+                // still in sync
+                if row_id == seq_id {
+                    return Ok(true);
+                }
+                // Otherwise, proceed to reading & building a hash map index
+                // until an entry is found.
+                // (but previous entries from 'in sync' reading are no available)
+                self.in_sync = false;
+                self.meta_map.reserve(IDX_INITIAL_CAP);
+            }
+
+            match self.meta_map.entry(row_id.to_owned()) {
+                Entry::Vacant(e) => {
+                    e.insert(rec.clone());
+                }
+                Entry::Occupied(_) => {
+                    if !self.dup_reported {
+                        let extra = " Also make sure to specify --dup-ids \
+                        if you expect duplicate IDs in *sequence records*!";
+                        eprintln!(
+                            "Found duplicate IDs in associated metadata (first: {}). \
+                            Only the first entry is used.{}",
+                            String::from_utf8_lossy(row_id),
+                            if self.started_in_sync { extra } else { "" }
+                        );
+                        self.dup_reported = true;
+                    }
+                }
+            }
+
+            if row_id == seq_id {
+                return Ok(true);
+            }
         }
-        Err(ListError::EntryMissing(id.to_owned()))
-    }
-}
-
-pub enum ListError {
-    NoId(csv::Position),
-    IdMismatch(Vec<u8>, Vec<u8>),
-    ListTooShort(Vec<u8>),
-    EntryMissing(Vec<u8>),
-    ColMissing(Vec<u8>, usize),
-    Csv(csv::Error),
-}
-
-impl From<csv::Error> for ListError {
-    fn from(err: csv::Error) -> ListError {
-        ListError::Csv(err)
-    }
-}
-
-impl From<ListError> for CliError {
-    fn from(err: ListError) -> CliError {
-        let msg = match err {
-            ListError::IdMismatch(ref list_id, ref seq_id) => format!(
-                "ID mismatch: expected '{}' but found '{}'. Use -u/--unordered if sequences and \
-                 lists are not in same order.",
-                String::from_utf8_lossy(list_id),
-                String::from_utf8_lossy(seq_id)
-            ),
-            ListError::ListTooShort(ref seq_id) => format!(
-                "Associated list does not have enough entries, expected '{}'.",
-                String::from_utf8_lossy(seq_id)
-            ),
-            ListError::EntryMissing(ref list_id) => format!(
-                "ID '{}' not found in associated list. Use -m/--missing if you expect \
-                 missing entries.",
-                String::from_utf8_lossy(list_id)
-            ),
-            ListError::NoId(ref pos) => format!(
-                "ID Column not found in record no. {} at line {}",
-                pos.record() + 1,
-                pos.line()
-            ),
-            ListError::ColMissing(ref rec_id, idx) => format!(
-                "Column no. {} not found in list entry for '{}'",
-                idx + 1,
-                String::from_utf8_lossy(rec_id)
-            ),
-            ListError::Csv(ref err) => format!("{}", err),
-        };
-        CliError::Other(msg)
+        Ok(false)
     }
 }

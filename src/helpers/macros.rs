@@ -2,8 +2,8 @@ macro_rules! fail {
     ($e:expr) => {
         Err($e.into())
     };
-    ($e:expr, $($arg:expr)+) => {
-        Err(format!($e, $($arg)+,).into())
+    ($e:expr, $($arg:expr),*) => {
+        Err(format!($e, $($arg),*).into())
     };
 }
 

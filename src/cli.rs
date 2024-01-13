@@ -130,7 +130,7 @@ impl CommonArgs {
                 // if no format from args, infer from path
                 let mut _info = info.clone().unwrap_or_else(|| match kind {
                     InputKind::Stdin => FileInfo::new(FormatVariant::Fasta, Compression::None),
-                    InputKind::File(path) => FileInfo::from_path(path, FormatVariant::Fasta),
+                    InputKind::File(path) => FileInfo::from_path(path, FormatVariant::Fasta, true),
                 });
 
                 // --fa/--fq/--tsv, etc have highest priority
@@ -194,7 +194,7 @@ impl CommonArgs {
         // if no format specified, infer from path or input format (in that order)
         let mut info = info.unwrap_or_else(|| match &output {
             OutputKind::Stdout => FileInfo::new(infmt.clone(), Compression::None),
-            OutputKind::File(path) => FileInfo::from_path(path, infmt.clone()),
+            OutputKind::File(path) => FileInfo::from_path(path, infmt.clone(), true),
         });
 
         // furthermore, --fa/--fq/--tsv, etc. have highest priority
@@ -236,12 +236,11 @@ impl CommonArgs {
 
     pub fn get_var_opts(&self) -> CliResult<VarOpts> {
         Ok(VarOpts {
-            lists: self.meta.list.clone(),
-            list_delim: self.meta.ldelim,
-            has_header: self.meta.lheader,
-            unordered: self.meta.unordered,
-            id_col: self.meta.id_col.checked_sub(1).unwrap(),
-            allow_missing: self.meta.missing,
+            metadata_sources: self.meta.meta.clone(),
+            meta_delim_override: self.meta.meta_delim.map(|d| d as u8),
+            has_header: self.meta.meta_header,
+            meta_id_col: self.meta.meta_idcol.checked_sub(1).unwrap(),
+            meta_dup_ids: self.meta.dup_ids,
             attr_opts: AttrOpts {
                 delim: self.attr.adelim,
                 value_delim: self.attr.aval_delim,
@@ -453,7 +452,7 @@ pub struct InputArgs {
     /// (e.g. if reading from STDIN). 'fasta' is assumed as default
     /// (can be configured with ST_FORMAT). Possibilities:
     /// fasta (default), fastq (fastq-illumina, fastq-solexa),
-    /// csv, tsv or 'fa-qual:<qfile_path>.qual'
+    /// csv or tsv
     /// Compression: <format>.<compression> (.gz, .bz2 or .lz4).
     /// The csv and tsv variants also accept a comma-separated field list
     /// (instead of --fields). Instead of 'fa-qual', --qfile can be supplied.
@@ -566,7 +565,7 @@ pub struct OutputArgs {
 pub struct AttrArgs {
     /// Add an attribute in the form name=value to FASTA/FASTQ
     /// headers (multiple -a key=value args possible).
-    /// The default output format is: '>id some description key=value key2=value2'.
+    /// The default output format is: '>id some description key1=value1 key2=value2'.
     /// To change the format, use --adelim and --aval-delim
     #[arg(short, long, value_name = "KEY=VALUE", action = ArgAction::Append)]
     pub attr: Vec<Attribute>,
@@ -590,30 +589,32 @@ pub struct AttrArgs {
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Associated metadata (all commands)")]
 pub struct MetaArgs {
-    /// Path to list with metadata (multiple -l args possible)
+    /// Delimited text file path (or '-' for STDIN) containing associated metadata,
+    /// accessed using the `meta(field)` function, or `meta(file-num, field)` in case
+    /// of multiple metadata files (supplied like this: -m file1 -m file2 ...).
     #[arg(short, long, value_name = "FILE", action = ArgAction::Append)]
-    pub list: Vec<String>,
+    pub meta: Vec<String>,
 
-    /// Delimiter for list
+    /// Metadata column delimiter. Inferred from the file extension if possible:
+    /// '.csv' is interpreted as comma(,)-delimited, '.tsv'/'.txt' or other (unknown)
+    /// extensions are assumed to be tab-delimited.
     #[arg(long, value_name = "CHAR", default_value = "\t")]
-    pub ldelim: char,
+    pub meta_delim: Option<char>,
 
-    /// List contains a header row. Automatically enabled if
-    /// supplying a function with a field name {list_col(fieldname)}.
+    /// Specify if the first row of the metadata file(s) contains column names.
+    /// Automatically enabled if a non-numeric field names are used, e.g. 'meta(fieldname)'.
     #[arg(long)]
-    pub lheader: bool,
+    pub meta_header: bool,
 
-    /// ID column number
+    /// Column number containing the sequence record IDs
     #[arg(long, value_name = "NUM", default_value_t = 1, value_parser = value_parser!(u32).range(1..))]
-    pub id_col: u32,
+    pub meta_idcol: u32,
 
-    /// Allow lists to in different order than sequences.
-    #[arg(short, long)]
-    pub unordered: bool,
-
-    /// Allow missing rows with '-u'. Variable output is empty.
-    #[arg(short, long)]
-    pub missing: bool,
+    /// Specify if the sequence input is expected to contain duplicate IDs.
+    /// Without this flag, there may be an error (`meta` and `has_meta` functions),
+    /// whereas `opt_meta` may wrongly return missing values.
+    #[arg(long)]
+    pub dup_ids: bool,
 }
 
 #[derive(Args, Clone, Debug)]
