@@ -121,7 +121,7 @@ pub struct SearchActionArgs {
     #[arg(long, value_name = "FILE")]
     pub dropped: Option<String>,
 
-    /// Replace by a composable string
+    /// Replace by a string, which may also contain variables/functions
     #[arg(long, value_name = "BY")]
     pub rep: Option<String>,
 }

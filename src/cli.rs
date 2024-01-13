@@ -450,13 +450,10 @@ pub struct InputArgs {
     #[arg(long, env = "ST_FORMAT")]
     /// Input format, only needed if it cannot be guessed from the extension
     /// (e.g. if reading from STDIN). 'fasta' is assumed as default
-    /// (can be configured with ST_FORMAT). Possibilities:
+    /// (can be configured with ST_FORMAT). Possible choices:
     /// fasta (default), fastq (fastq-illumina, fastq-solexa),
     /// csv or tsv
     /// Compression: <format>.<compression> (.gz, .bz2 or .lz4).
-    /// The csv and tsv variants also accept a comma-separated field list
-    /// (instead of --fields). Instead of 'fa-qual', --qfile can be supplied.
-    /// Complex combinations possible: --fmt tsv.gz:id:2,desc:6,seq:9
     pub fmt: Option<FileInfo>,
 
     #[arg(
