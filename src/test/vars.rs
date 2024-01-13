@@ -2,17 +2,55 @@ use super::*;
 
 #[test]
 fn attrs() {
+    let t = Tester::new();
     let fa = ">seq;a=0 b=3\nATGC\n";
-    Tester::new()
-        .cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")
+    // present
+    t.cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")
         .cmp(&[".", "--to-tsv", "attr(b)"], fa, "3\n")
-        .cmp(&[".", "--to-tsv", "attr(a)"], fa, "\"\"")
-        .cmp(&[".", "--to-tsv", "attr(a)", "--adelim", ";"], fa, "0\n")
-        .cmp(&[".", "--to-tsv", "attr(b)", "--adelim", ";"], fa, "\"\"")
-        .cmp(&[".", "--to-tsv", "id,desc,seq"], fa, "seq;a=0\tb=3\tATGC\n")
-        .cmp(&[".", "-a", "b={attr(a)}", "--adelim", ";"], fa, ">seq;a=0;b=0 b=3\nATGC\n")
-        .cmp(&[".", "-a", "c={attr(b)}"], fa, ">seq;a=0 b=3 c=3\nATGC\n")
-        .cmp(&[".", "-a", "c={attr_del(b)}"], fa, ">seq;a=0 c=3\nATGC\n");
+        .cmp(&[".", "--to-tsv", "has_attr(b)"], fa, "true\n");
+    #[cfg(feature = "expr")]
+    t.cmp(
+        &[".", "--to-tsv", "{{Num(attr(p))+1}}"],
+        *FASTA,
+        "3\n2\n11\n12\n",
+    );
+
+    // missing
+    t.cmp(&[".", "--to-tsv", "opt_attr(a)"], fa, "\n")
+        .cmp(&[".", "--to-tsv", "has_attr(a)"], fa, "false\n")
+        .fails(&[".", "--to-tsv", "attr(a)"], fa, "not found in record");
+    #[cfg(feature = "expr")]
+    t.cmp(
+        &[".", "--to-tsv", "{{opt_attr(a) === undefined}}"],
+        fa,
+        "true\n",
+    );
+    // different delimiter (search in ID)
+    t.cmp(&[".", "--to-tsv", "attr(a)", "--adelim", ";"], fa, "0\n")
+        .cmp(
+            &[".", "--to-tsv", "has_attr(a)", "--adelim", ";"],
+            fa,
+            "true\n",
+        )
+        .cmp(&[".", "--to-tsv", "opt_attr(b)", "--adelim", ";"], fa, "\n")
+        .fails(
+            &[".", "--to-tsv", "attr(b)", "--adelim", ";"],
+            fa,
+            "not found in record",
+        );
+    // setting attributes
+    t.cmp(
+        &[".", "--to-tsv", "id,desc,seq,attr(b),{attr(b)}"],
+        fa,
+        "seq;a=0\tb=3\tATGC\t3\t3\n",
+    )
+    .cmp(
+        &[".", "-a", "b={attr(a)}", "--adelim", ";"],
+        fa,
+        ">seq;a=0;b=0 b=3\nATGC\n",
+    )
+    .cmp(&[".", "-a", "c={attr(b)}"], fa, ">seq;a=0 b=3 c=3\nATGC\n")
+    .cmp(&[".", "-a", "c={attr_del(b)}"], fa, ">seq;a=0 c=3\nATGC\n");
 }
 
 static META: &str = "
@@ -278,3 +316,13 @@ fn meta_compressed() {
         );
     });
 }
+
+// expressions: regexes with variables inside will yield errors
+// test quoted stuff
+// charcount(GC) / seqlen == gc / 100
+// --to-tsv id,{{charcount(GC)/seqlen}}
+// --to-tsv id,{{charcount("GC,")/seqlen}}
+// --to-tsv id,,...
+// MDN: const re = /\w+/;
+// OR
+// const re = new RegExp("\\w+");
