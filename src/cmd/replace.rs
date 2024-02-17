@@ -2,15 +2,13 @@ use std::borrow::ToOwned;
 use std::str;
 
 use clap::{value_parser, Parser};
-use memchr::Memchr;
+use memchr::memmem::Finder;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
 use crate::helpers::util::replace_iter;
 use crate::io::{RecordEditor, SeqAttr};
 use crate::Config;
-
-use super::shared::twoway_iter::TwowayIter;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
@@ -83,21 +81,14 @@ trait Replacer {
     fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()>;
 }
 
-struct SingleByteReplacer(u8);
-
-impl Replacer for SingleByteReplacer {
-    fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
-        let matches = Memchr::new(self.0, text).map(|start| (start, start + 1));
-        replace_iter(text, replacement, out, matches);
-        Ok(())
-    }
-}
-
 struct BytesReplacer(Vec<u8>);
 
 impl Replacer for BytesReplacer {
     fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
-        let matches = TwowayIter::new(text, &self.0).map(|start| (start, start + self.0.len()));
+        let finder = Finder::new(&self.0);
+        let matches = finder
+            .find_iter(text)
+            .map(|start| (start, start + self.0.len()));
         replace_iter(text, replacement, out, matches);
         Ok(())
     }
@@ -156,14 +147,11 @@ fn get_replacer(
 ) -> CliResult<Box<dyn Replacer + Sync>> {
     if regex {
         if attr == SeqAttr::Seq {
-            return Ok(Box::new(BytesRegexReplacer::new(pattern, has_backrefs)?));
+            Ok(Box::new(BytesRegexReplacer::new(pattern, has_backrefs)?))
+        } else {
+            Ok(Box::new(RegexReplacer::new(pattern, has_backrefs)?))
         }
-        return Ok(Box::new(RegexReplacer::new(pattern, has_backrefs)?));
-    }
-    let pattern = pattern.as_bytes();
-    Ok(if pattern.len() == 1 {
-        Box::new(SingleByteReplacer(pattern[0]))
     } else {
-        Box::new(BytesReplacer(pattern.to_owned()))
-    })
+        Ok(Box::new(BytesReplacer(pattern.as_bytes().to_owned())))
+    }
 }

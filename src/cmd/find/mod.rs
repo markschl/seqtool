@@ -5,8 +5,8 @@ use std::str;
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::helpers::util::replace_iter;
-use crate::io::{RecordEditor, SeqAttr};
-use crate::var::{varstring, VarHelp, VarProvider};
+use crate::io::{SeqAttr, RecordEditor};
+use crate::var::{varstring, VarProvider};
 
 use super::shared::seqtype::SeqType;
 
@@ -20,6 +20,7 @@ pub use self::cli::*;
 use self::matches::*;
 pub use self::vars::*;
 
+#[derive(Debug)]
 struct MatchOpts {
     has_groups: bool,
     bounds_needed: bool,
@@ -203,7 +204,6 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                                 .flatten()
                                 .map(|m| (m.start, m.end));
                             replace_iter(text, &replacement_text, out, pos);
-
                             Ok::<(), CliError>(())
                         })?;
                     }

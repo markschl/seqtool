@@ -4,9 +4,9 @@ use std::slice::Iter;
 use vec_map::VecMap;
 
 use crate::helpers::rng::Range;
+use crate::CliResult;
 
 use super::matcher::{Match, Matcher};
-use super::*;
 
 /// Sent around between threads and holds the matches found by `Matcher`
 #[derive(Debug)]
@@ -86,7 +86,7 @@ impl Matches {
                 )?;
                 // take distance of first match (assumed to be sorted if necessary)
                 *best_dist = matches
-                    .get(0)
+                    .first()
                     .and_then(|m| m.as_ref().map(|m| m.dist))
                     .unwrap_or(std::u16::MAX);
                 *idx = i;

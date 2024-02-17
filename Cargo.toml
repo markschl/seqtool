@@ -41,7 +41,6 @@ zstd = { version = "0.13", default-features = false, features = ["bindgen", "zdi
 rquickjs = { version = "0.4.0", features=["classes", "properties", "bindgen", "rust-alloc", "macro"], optional=true }
 # find, replace, revcomp, view commands
 bio = { version = "1.5", default-features = false, optional = true }
-twoway = { version = "0.2", optional = true }
 regex = { version = "1.10", optional = true }
 # view command
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"], optional = true }

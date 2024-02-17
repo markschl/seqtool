@@ -3,8 +3,6 @@
 
 #[cfg(any(feature = "all_commands", feature = "find", feature = "view"))]
 pub mod seqtype;
-#[cfg(any(feature = "all_commands", feature = "find", feature = "replace"))]
-pub mod twoway_iter;
 cfg_if::cfg_if! { if #[cfg(any(feature = "all_commands", feature = "sort", feature = "unique"))] {
     pub mod tmp_store;
     pub mod sort_item;

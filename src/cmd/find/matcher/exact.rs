@@ -1,7 +1,10 @@
-use crate::{cmd::shared::twoway_iter::TwowayIter, error::CliResult};
+use memchr::memmem::Finder;
+
+use crate::error::CliResult;
 
 use super::{Hit, Match, Matcher, SimpleHit};
 
+#[derive(Debug)]
 pub struct ExactMatcher(Vec<u8>);
 
 impl ExactMatcher {
@@ -17,7 +20,8 @@ impl Matcher for ExactMatcher {
         func: &mut dyn FnMut(&dyn Hit) -> bool,
     ) -> CliResult<()> {
         let l = self.0.len();
-        for start in TwowayIter::new(text, &self.0) {
+        let finder = Finder::new(&self.0);
+        for start in finder.find_iter(text) {
             let h = SimpleHit(Match::new(start, start + l, 0, 0, 0, 0));
             if !func(&h) {
                 break;

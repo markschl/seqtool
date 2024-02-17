@@ -4,6 +4,7 @@ use super::{Hit, Match, Matcher};
 
 macro_rules! matcher_impl {
     ($name:ident, $re_mod:ident, $text_fn:expr) => {
+        #[derive(Debug)]
         pub struct $name {
             re: $re_mod::Regex,
             has_groups: bool,

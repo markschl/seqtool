@@ -10,7 +10,7 @@ pub use self::approx::*;
 pub use self::exact::*;
 pub use self::regex::*;
 
-pub trait Matcher {
+pub trait Matcher: Debug {
     fn iter_matches(
         &mut self,
         text: &[u8],

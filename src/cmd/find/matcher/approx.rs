@@ -6,6 +6,7 @@ use crate::error::CliResult;
 use super::{Hit, Match, Matcher, SimpleHit};
 
 #[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 enum _Myers {
     Simple(myers::Myers<u64>),
     Long(myers::long::Myers<u64>),
@@ -92,6 +93,7 @@ impl _Myers {
     }
 }
 
+#[derive(Debug)]
 pub struct MyersMatcher {
     myers: _Myers,
     max_dist: usize,
