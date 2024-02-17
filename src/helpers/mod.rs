@@ -6,7 +6,6 @@ pub mod macros;
 pub mod any;
 pub mod bytesize;
 pub mod heap_merge;
-pub mod key_value;
 pub mod rng;
 pub mod util;
 pub mod value;

@@ -14,7 +14,7 @@ use crate::io::{
     Compression, QualConverter, QualFormat, Record, SeqAttr,
 };
 use crate::var::{
-    attr::Attrs,
+    attr::{AttrFormat, Attrs},
     func::Func,
     init_vars,
     symbols::{SymbolTable, VarType},
@@ -57,7 +57,7 @@ impl Config {
         // }
 
         // Where are attributes (key=value) appended?
-        let append_attr = if var_opts.attr_opts.delim == ' ' {
+        let append_attr = if var_opts.attr_format.delim == b" " {
             SeqAttr::Desc
         } else {
             SeqAttr::Id
@@ -73,8 +73,7 @@ impl Config {
         // context used while reading
         let ctx = SeqContext::new(
             var_modules,
-            args.attr.adelim as u8,
-            args.attr.aval_delim as u8,
+            args.attr.attr_fmt.clone(),
             append_attr,
             qual_format,
             (output_opts.compression, output_opts.compression_level),
@@ -286,8 +285,7 @@ pub struct SeqContext {
 impl SeqContext {
     pub fn new(
         var_modules: Vec<Box<dyn VarProvider>>,
-        attr_delim: u8,
-        attr_value_delim: u8,
+        attr_format: AttrFormat,
         append_attr: SeqAttr,
         qual_format: QualFormat,
         out_compression: (Compression, Option<u8>),
@@ -295,7 +293,7 @@ impl SeqContext {
         Self {
             var_modules,
             symbols: SymbolTable::new(0),
-            attrs: Attrs::new(attr_delim, attr_value_delim, append_attr),
+            attrs: Attrs::new(attr_format, append_attr),
             qual_converter: QualConverter::new(qual_format),
             out_compression,
         }

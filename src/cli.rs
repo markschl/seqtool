@@ -10,6 +10,7 @@ use crate::io::{
     Attribute, Compression, FileInfo, FormatVariant, QualFormat,
 };
 use crate::var::{AttrOpts, VarHelp, VarOpts};
+use crate::var::attr::AttrFormat;
 
 use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
 
@@ -241,10 +242,7 @@ impl CommonArgs {
             has_header: self.meta.meta_header,
             meta_id_col: self.meta.meta_idcol.checked_sub(1).unwrap(),
             meta_dup_ids: self.meta.dup_ids,
-            attr_opts: AttrOpts {
-                delim: self.attr.adelim,
-                value_delim: self.attr.aval_delim,
-            },
+            attr_format: self.attr.attr_fmt.clone(),
             expr_init: self.expr.js_init.clone(),
             var_help: self.general.help_vars,
         })
@@ -563,24 +561,23 @@ pub struct AttrArgs {
     /// Add an attribute in the form name=value to FASTA/FASTQ
     /// headers (multiple -a key=value args possible).
     /// The default output format is: '>id some description key1=value1 key2=value2'.
-    /// To change the format, use --adelim and --aval-delim
+    /// Use --attr-format to change.
     #[arg(short, long, value_name = "KEY=VALUE", action = ArgAction::Append)]
     pub attr: Vec<Attribute>,
 
-    /// Attribute delimiter in the output. If not a space,
-    /// attributes are appended to the ID (before the first space)
-    /// instead of the description (which comes after the first space).
-    #[arg(long, env = "ST_ATTR_DELIM", value_name = "CHAR", default_value = " ")]
-    pub adelim: char,
-
-    /// Delimiter between attribute names and values.
+    /// Expected format of sequence header attributes, which is also used
+    /// for writing new attributes to headers (using -a/--attr).
+    /// The words 'key' and 'value' must always be present, and 'value'
+    /// must follow after 'key'. Example: ';key=value'. If the delimiter
+    /// before the key is not a space attributes are appended to the ID
+    /// (part before the first space) instead of the end of the header.
     #[arg(
         long,
-        env = "ST_ATTRVAL_DELIM",
-        value_name = "CHR",
-        default_value = "="
+        env = "ST_ATTR_FORMAT",
+        value_name = "DELIM",
+        default_value = " key=value"
     )]
-    pub aval_delim: char,
+    pub attr_fmt: AttrFormat,
 }
 
 #[derive(Args, Clone, Debug)]

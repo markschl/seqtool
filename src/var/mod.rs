@@ -16,7 +16,7 @@ pub mod modules;
 pub mod symbols;
 pub mod varstring;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct VarOpts {
     // metadata
     pub metadata_sources: Vec<String>,
@@ -25,26 +25,11 @@ pub struct VarOpts {
     pub meta_id_col: u32,
     pub meta_dup_ids: bool,
     // attributes
-    pub attr_opts: AttrOpts,
+    pub attr_format: AttrFormat,
     // expressions
     pub expr_init: Option<String>,
     // Used to remember that the variable help page has to be returned
     pub var_help: bool,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct AttrOpts {
-    pub delim: char,
-    pub value_delim: char,
-}
-
-impl Default for AttrOpts {
-    fn default() -> Self {
-        AttrOpts {
-            delim: ' ',
-            value_delim: '=',
-        }
-    }
 }
 
 pub trait VarProvider: Debug + AsAnyMut {

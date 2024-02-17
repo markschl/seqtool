@@ -16,6 +16,7 @@ lazy_static = "1.4"
 regex-lite = "0.1"
 fxhash = "0.2"
 memchr = "2.7"
+winnow = { version = "0.5", features = ["simd"] }
 vec_map = "0.8"
 itertools = "0.12"
 atoi = "2.0"

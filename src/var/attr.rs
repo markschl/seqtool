@@ -1,14 +1,52 @@
+use std::ops::Range;
+use std::str::FromStr;
+
+use memchr::memmem::{find, find_iter};
+use winnow::combinator::{alt, rest, terminated};
+use winnow::token::{take, take_until};
+use winnow::{Located, PResult, Parser as _};
+
 use crate::error::CliResult;
-use crate::helpers::key_value;
 use crate::io::SeqAttr;
 
-use memchr::memchr;
+#[derive(Debug, Clone)]
+pub struct AttrFormat {
+    pub delim: Vec<u8>,
+    pub value_delim: Vec<u8>,
+}
 
-#[derive(Debug, Clone, Default)]
-pub struct AttrPosition {
-    pub start: usize,
-    pub value_start: usize,
-    pub end: usize,
+impl AttrFormat {
+    #[cfg(test)]
+    pub fn new(delim: &[u8], value_delim: &[u8]) -> Self {
+        Self {
+            delim: delim.to_vec(),
+            value_delim: value_delim.to_vec(),
+        }
+    }
+}
+
+impl FromStr for AttrFormat {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut s = s;
+        let (delim, value_delim) =
+            _parse_attr_format(&mut s).map_err(|_| format!("Invalid attribute format: {:?}", s))?;
+        assert!(s.is_empty());
+        Ok(AttrFormat {
+            delim: delim.as_bytes().to_vec(),
+            value_delim: value_delim.as_bytes().to_vec(),
+        })
+    }
+}
+
+pub fn _parse_attr_format<'a>(s: &mut &'a str) -> PResult<(&'a str, &'a str)> {
+    let key = "key";
+    let value = "value";
+    let sep = take_until(1.., key).parse_next(s)?;
+    take(key.len()).void().parse_next(s)?; // consume 'key'
+    let value_sep = take_until(1.., value).parse_next(s)?;
+    take(value.len()).void().parse_next(s)?; // consume 'value'
+    Ok((sep, value_sep))
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -27,24 +65,22 @@ pub struct Attrs {
     _desc_actions: Vec<(usize, Action, AttrPosition)>,
     // if position was not found
     _append_ids: Vec<usize>,
-    attr_delim: u8,
-    attr_value_delim: u8,
+    format: AttrFormat,
     // the distinction of ID and description makes handling of spaces somehow complicated
     adelim_is_space: bool,
     append_attr: SeqAttr,
 }
 
 impl Attrs {
-    pub fn new(attr_delim: u8, attr_value_delim: u8, append_attr: SeqAttr) -> Attrs {
+    pub fn new(format: AttrFormat, append_attr: SeqAttr) -> Attrs {
         Attrs {
-            parser: Parser::new(attr_delim, attr_value_delim),
+            parser: Parser::new(),
             actions: vec![],
             _id_actions: vec![],
             _desc_actions: vec![],
             _append_ids: vec![],
-            attr_delim,
-            attr_value_delim,
-            adelim_is_space: attr_delim == b' ',
+            adelim_is_space: format.delim == b" ",
+            format,
             append_attr,
         }
     }
@@ -67,11 +103,12 @@ impl Attrs {
         self.parser.reset();
 
         if !self.adelim_is_space {
-            self.parser.parse(id, SeqAttr::Id, false);
+            self.parser.parse(id, &self.format, SeqAttr::Id, false);
         }
 
         if let Some(d) = desc {
-            self.parser.parse(d, SeqAttr::Desc, self.adelim_is_space);
+            self.parser
+                .parse(d, &self.format, SeqAttr::Desc, self.adelim_is_space);
         }
 
         // Distribute all positions according to ID/Desc and actions
@@ -174,12 +211,12 @@ impl Attrs {
             let (attr_name, position) = self.parser.get(attr_id);
             debug_assert!(position.is_none());
             if delim_before {
-                new_text.push(self.attr_delim);
+                new_text.extend_from_slice(&self.format.delim);
             } else {
                 delim_before = true;
             }
             new_text.extend_from_slice(attr_name.as_bytes());
-            new_text.push(self.attr_value_delim);
+            new_text.extend_from_slice(&self.format.value_delim);
             push_fn(attr_id, new_text)?;
         }
         Ok(())
@@ -242,63 +279,103 @@ impl AttrData {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct AttrPosition {
+    pub start: usize,
+    pub value_start: usize,
+    pub end: usize,
+}
+
+/// Searches a key=value pair in a string (given format). Assumes that
+/// 's' starts with the key.
+fn parse_key_value<'a>(
+    text: &'a [u8],
+    offset: usize,
+    format: &AttrFormat,
+) -> Option<(&'a [u8], &'a [u8], AttrPosition)> {
+    _parse_key_value(&mut Located::new(&text[offset..]), format)
+        .ok()
+        .map(|(k, v)| {
+            (
+                &text[offset + k.start..offset + k.end],
+                &text[offset + v.start..offset + v.end],
+                AttrPosition {
+                    start: offset + k.start,
+                    value_start: offset + v.start,
+                    end: offset + v.end,
+                },
+            )
+        })
+}
+
+/// winnow::Parser searching for key=value pairs
+fn _parse_key_value(
+    s: &mut Located<&'_ [u8]>,
+    format: &AttrFormat,
+) -> PResult<(Range<usize>, Range<usize>)> {
+    (
+        terminated(
+            take_until(1.., format.value_delim.as_slice())
+                .verify(|k: &[u8]| find(k, format.delim.as_slice()).is_none())
+                .span(),
+            take(format.value_delim.len()),
+        ),
+        alt((take_until(.., format.delim.as_slice()), rest)).span(),
+    )
+        .parse_next(s)
+}
+
 #[derive(Debug)]
 struct Parser {
     data: Vec<AttrData>,
     search_id: usize,
     num_found: usize,
-    delim: u8,
-    value_delim: u8,
 }
 
 impl Parser {
-    pub fn new(delim: u8, value_delim: u8) -> Parser {
+    pub fn new() -> Parser {
         Parser {
             data: vec![],
             search_id: 1,
             num_found: 0,
-            delim,
-            value_delim,
         }
     }
 
-    fn parse(&mut self, text: &[u8], seq_attr: SeqAttr, search_start: bool) {
+    fn parse(&mut self, text: &[u8], format: &AttrFormat, seq_attr: SeqAttr, check_start: bool) {
         if self.all_found() {
             return;
         }
-        if search_start && self.check_pos(text, 0, seq_attr) {
+        if check_start && self.find_key_value(text, format, 0, seq_attr) {
             return;
         }
-        let mut text = text;
-        let mut offset = 0;
-        while let Some(p) = memchr(self.delim, text) {
-            let p = p + 1;
-            text = text.split_at(p).1;
-            offset += p;
-            if self.check_pos(text, offset, seq_attr) {
+        let l = format.delim.len();
+        for pos in find_iter(text, &format.delim) {
+            if self.find_key_value(text, format, pos + l, seq_attr) {
                 break;
             }
         }
     }
 
-    fn check_pos(&mut self, text: &[u8], offset: usize, seq_attr: SeqAttr) -> bool {
-        let rv = key_value::parse(text, self.delim, self.value_delim);
-        if let Some((key, vstart, end)) = rv {
-            let pos = AttrPosition {
-                start: offset,
-                value_start: offset + vstart,
-                end: offset + end,
-            };
-            self.set_attr_pos(key, seq_attr, pos);
+    /// attempts at finding a key=value attribute at the start of the text
+    fn find_key_value(
+        &mut self,
+        text: &[u8],
+        format: &AttrFormat,
+        offset: usize,
+        seq_attr: SeqAttr,
+    ) -> bool {
+        if let Some((k, _v, pos)) = parse_key_value(text, offset, format) {
+            self.set_attr_pos(k, seq_attr, pos);
             return self.all_found();
         }
         false
     }
 
-    // Not a "smart" function, names must be added in order of IDs (just supplied to ensure
-    // consistency). Only used for importing attributes from VarStore, which assigns the IDs
+    /// Requests an attribute to be searched in sequence headers.
+    /// Not a "smart" function, attribute names must be added in order of IDs
+    /// (which are just supplied to ensure consistency).
     pub fn register_attr(&mut self, name: &str, id: usize) {
-        assert!(id == self.data.len());
+        assert_eq!(id, self.data.len());
         self.data.insert(
             id,
             AttrData {
@@ -320,6 +397,8 @@ impl Parser {
     }
 
     pub fn set_attr_pos(&mut self, name: &[u8], attr: SeqAttr, pos: AttrPosition) {
+        // currently we do a linear search, since we don't assume that many
+        // attributes are requested
         for d in &mut self.data {
             if name == d.name.as_bytes() {
                 if !d.set_pos(attr, pos, self.search_id) {
@@ -345,6 +424,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn key_value() {
+        let kv = |s| {
+            parse_key_value(s, 0, &AttrFormat::new(b" ", b"="))
+                .map(|(k, _, p)| (k, p.value_start, p.end))
+        };
+        assert_eq!(kv(&b"k=v "[..]), Some((&b"k"[..], 2, 3)));
+        assert_eq!(kv(&b"k=v"[..]), Some((&b"k"[..], 2, 3)));
+        assert_eq!(kv(&b" k=v "[..]), None);
+        assert_eq!(kv(&b"key=value "[..]), Some((&b"key"[..], 4, 9)));
+        assert_eq!(kv(&b"ke y=value "[..]), None);
+        assert_eq!(kv(&b"=v"[..]), None);
+    }
+
+    #[test]
     fn desc_parser() {
         let mut out_id = vec![];
         let mut out_desc = vec![];
@@ -352,7 +445,7 @@ mod tests {
         let id = b"id";
         let desc = Some(&b"desc a=0 b=1"[..]);
 
-        let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
+        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
         a.add_attr("a", 0, None);
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
@@ -364,7 +457,7 @@ mod tests {
         assert_eq!(&out_desc, b"desc a=0 b=val");
 
         let desc = Some(&b"desc a=0 c=1"[..]);
-        let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
+        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
         a.add_attr("a", 0, None);
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
@@ -376,7 +469,7 @@ mod tests {
         assert_eq!(&out_desc, b"desc a=0 c=1 b=val");
 
         let desc = Some(&b"desc a=0 b=1"[..]);
-        let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
+        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
         a.add_attr("a", 0, Some(Action::Delete));
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
@@ -395,7 +488,7 @@ mod tests {
         let id = b"id;a=0";
         let desc = Some(&b"desc a:1"[..]);
 
-        let mut a = Attrs::new(b';', b'=', SeqAttr::Id);
+        let mut a = Attrs::new(AttrFormat::new(b";", b"="), SeqAttr::Id);
         a.add_attr("a", 0, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
@@ -406,7 +499,7 @@ mod tests {
         assert_eq!(&out_id, b"id;a=val");
         assert_eq!(&out_desc, b"desc a:1");
 
-        let mut a = Attrs::new(b' ', b':', SeqAttr::Id);
+        let mut a = Attrs::new(AttrFormat::new(b" ", b":"), SeqAttr::Id);
         a.add_attr("a", 0, Some(Action::Edit));
         a.parse(id, desc);
         a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
@@ -425,7 +518,7 @@ mod tests {
         let id = b"id";
         let desc = Some(&b"desc a=0 c=2"[..]);
 
-        let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
+        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
         a.add_attr("a", 0, Some(Action::Edit));
         a.add_attr("b", 1, Some(Action::Edit));
         a.parse(id, desc);
@@ -436,7 +529,7 @@ mod tests {
         .unwrap();
         assert_eq!(&out_desc, b"desc a=val c=2 b=val");
 
-        let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
+        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
         a.add_attr("a", 0, Some(Action::Delete));
         a.add_attr("b", 1, Some(Action::Delete));
         a.parse(id, desc);
@@ -454,7 +547,7 @@ mod tests {
         let mut out_desc = vec![];
         let id = b"id";
 
-        let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
+        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
         a.add_attr("a", 0, Some(Action::Delete));
 
         let desc = Some(&b"desc a=0"[..]);
@@ -478,7 +571,7 @@ mod tests {
 
     // #[bench]
     // fn bench_attr_parser(b: &mut test::Bencher) {
-    //     let mut a = Attrs::new(b' ', b'=', SeqAttr::Desc);
+    //     let mut a = Attrs::new(b" ", b"=", SeqAttr::Desc);
     //     a.add_attr("a", 0, None);
     //     a.add_attr("b", 1, Some(Action::Edit));
     //     let id = b"id";
