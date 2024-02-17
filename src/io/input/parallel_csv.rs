@@ -4,8 +4,7 @@ use std::slice;
 use seq_io::parallel;
 
 use crate::error::{CliError, CliResult};
-
-use super::csv::*;
+use crate::io::csv::{CsvReader, CsvRecord};
 
 const RECORSET_SIZE: usize = 100;
 

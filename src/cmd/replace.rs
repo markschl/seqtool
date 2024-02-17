@@ -69,7 +69,7 @@ pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
                 })
             },
             |record, editor, ctx| {
-                format_writer.write(&editor.rec(&record), io_writer, ctx)?;
+                format_writer.write(&editor.record(&record), io_writer, ctx)?;
                 Ok(true)
             },
         )

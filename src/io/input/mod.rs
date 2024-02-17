@@ -1,14 +1,17 @@
-use std::fmt;
 use std::fs::File;
 use std::io;
 use std::path::PathBuf;
+use std::{fmt, str::FromStr};
 
-use seq_io;
 use seq_io::policy::BufPolicy;
 use thread_io;
 
-use super::*;
 use crate::error::{CliError, CliResult};
+
+use super::{
+    csv::CsvReader, fa_qual, fasta, fastq, Compression, FormatVariant, QualFormat, Record,
+    SeqReader,
+};
 
 mod parallel_csv;
 
@@ -347,7 +350,7 @@ where
             ref delim,
             ref fields,
             has_header,
-        } => Box::new(csv::CsvReader::new(rdr, *delim, fields, has_header)?),
+        } => Box::new(CsvReader::new(rdr, *delim, fields, has_header)?),
     })
 }
 
@@ -400,12 +403,12 @@ where
             |rec, &mut (ref mut d, ref mut delim), s| {
                 let rec = fasta::FastaRecord::new(rec);
                 work(&rec as &dyn Record, d, s);
-                *delim = rec.delim();
+                *delim = rec.header_delim_pos(); // cache the delimiter position
             },
             |rec, &mut (ref mut d, delim), s| {
                 let rec = fasta::FastaRecord::new(rec);
                 if let Some(_d) = delim {
-                    rec.set_delim(_d);
+                    rec.set_header_delim_pos(_d);
                 }
                 transform_result!(func(&rec, d, s))
             },
@@ -419,12 +422,12 @@ where
             |rec, &mut (ref mut d, ref mut delim), s| {
                 let rec = fastq::FastqRecord::new(rec);
                 work(&rec as &dyn Record, d, s);
-                *delim = rec.delim();
+                *delim = rec.header_delim_pos(); // cache the delimiter position
             },
             |rec, &mut (ref mut d, delim), s| {
                 let rec = fastq::FastqRecord::new(rec);
                 if let Some(_d) = delim {
-                    rec.set_delim(_d);
+                    rec.set_header_delim_pos(_d);
                 }
                 transform_result!(func(&rec, d, s))
             },
@@ -441,7 +444,7 @@ where
         } => parallel_csv::parallel_csv_init(
             n_threads,
             queue_len,
-            || csv::CsvReader::new(rdr, *delim, fields, has_header),
+            || CsvReader::new(rdr, *delim, fields, has_header),
             record_data_init,
             rset_data_init,
             |rec, d, s| work(&rec as &dyn Record, d, s),

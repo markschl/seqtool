@@ -56,7 +56,7 @@ pub fn run(mut cfg: Config, args: &SetCommand) -> CliResult<()> {
                 expr.compose(val, &ctx.symbols, record)?;
             }
 
-            format_writer.write(&editor.rec(&record), io_writer, ctx)?;
+            format_writer.write(&editor.record(&record), io_writer, ctx)?;
             Ok(true)
         })
     })

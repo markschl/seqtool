@@ -13,6 +13,7 @@ pub mod csv;
 pub mod fa_qual;
 pub mod fasta;
 pub mod fastq;
+mod fastx;
 pub mod input;
 pub mod output;
 mod qual_format;

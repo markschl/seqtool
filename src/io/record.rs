@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::str::{self, Utf8Error};
+use std::str;
 
 use seq_io::fasta;
 use strum_macros::{Display, EnumString};
@@ -11,12 +11,12 @@ pub trait Record {
     fn raw_seq(&self) -> &[u8];
     fn qual(&self) -> Option<&[u8]>;
     fn has_seq_lines(&self) -> bool;
-    fn get_header(&self) -> SeqHeader;
+    fn full_header(&self) -> SeqHeader;
     /// Returns the position of the space delimiter in the FASTA/FASTQ header,
     /// if already searched (outer option) and present (inner option)
     /// This option is used by the FastaRecord and FastqRecord wrappers
     /// in order to cache the position of the ID/description
-    fn delim(&self) -> Option<Option<usize>> {
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
         None
     }
     /// Sets the position of the space delimiter in the FASTA/FASTQ header
@@ -24,7 +24,7 @@ pub trait Record {
     /// This is used for parallel processing, in case of accessing the ID
     /// within the worker thread, its position will not have to be searched
     /// again in the main thread.
-    fn set_delim(&self, _: Option<usize>) {}
+    fn set_header_delim_pos(&self, _: Option<usize>) {}
     /// Iterator over sequence lines (for FASTA), or just the sequence (FASTQ/CSV).
     /// The idea is to prevent allocations and copying, otherwise use `write_seq`
     fn seq_segments(&self) -> SeqLineIter {
@@ -47,19 +47,19 @@ pub trait Record {
         (self.id_bytes(), self.desc_bytes())
     }
 
-    fn id(&self) -> Result<&str, Utf8Error> {
-        str::from_utf8(self.id_bytes())
-    }
+    // fn id(&self) -> Result<&str, Utf8Error> {
+    //     str::from_utf8(self.id_bytes())
+    // }
 
-    fn desc(&self) -> Option<Result<&str, Utf8Error>> {
-        self.desc_bytes().map(str::from_utf8)
-    }
+    // fn desc(&self) -> Option<Result<&str, Utf8Error>> {
+    //     self.desc_bytes().map(str::from_utf8)
+    // }
 
-    fn desc_or<'a>(&'a self, default: &'a str) -> Result<&'a str, Utf8Error> {
-        self.desc_bytes()
-            .map(str::from_utf8)
-            .unwrap_or_else(|| Ok(default))
-    }
+    // fn desc_or<'a>(&'a self, default: &'a str) -> Result<&'a str, Utf8Error> {
+    //     self.desc_bytes()
+    //         .map(str::from_utf8)
+    //         .unwrap_or_else(|| Ok(default))
+    // }
 
     fn seq_len(&self) -> usize {
         self.seq_segments().fold(0, |l, s| l + s.len())
@@ -71,24 +71,6 @@ pub trait Record {
         }
     }
 
-    /// Writes the contents of the given sequence attribute to out
-    fn write_attr(&self, attr: SeqAttr, out: &mut Vec<u8>) {
-        match attr {
-            SeqAttr::Id => {
-                out.extend_from_slice(self.id_bytes());
-            }
-            SeqAttr::Desc => {
-                if let Some(d) = self.desc_bytes() {
-                    out.extend_from_slice(d);
-                }
-            }
-            SeqAttr::Seq => {
-                for s in self.seq_segments() {
-                    out.extend_from_slice(s);
-                }
-            }
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -115,11 +97,14 @@ impl<'b, R: Record + ?Sized> Record for &'b R {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (**self).id_desc_bytes()
     }
-    fn delim(&self) -> Option<Option<usize>> {
-        (**self).delim()
+    fn full_header(&self) -> SeqHeader {
+        (**self).full_header()
     }
-    fn set_delim(&self, delim: Option<usize>) {
-        (**self).set_delim(delim)
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        (**self).header_delim_pos()
+    }
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        (**self).set_header_delim_pos(delim)
     }
     fn raw_seq(&self) -> &[u8] {
         (**self).raw_seq()
@@ -135,9 +120,6 @@ impl<'b, R: Record + ?Sized> Record for &'b R {
     }
     fn full_seq<'a>(&'a self, buf: &'a mut Vec<u8>) -> Cow<'a, [u8]> {
         (**self).full_seq(buf)
-    }
-    fn get_header(&self) -> SeqHeader {
-        (**self).get_header()
     }
 }
 
@@ -193,14 +175,14 @@ impl<'b, R: Record> Record for DefRecord<'b, R> {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (self.id, self.desc)
     }
-    fn delim(&self) -> Option<Option<usize>> {
-        self.rec.delim()
-    }
-    fn set_delim(&self, delim: Option<usize>) {
-        self.rec.set_delim(delim)
-    }
-    fn get_header(&self) -> SeqHeader {
+    fn full_header(&self) -> SeqHeader {
         SeqHeader::IdDesc(self.id, self.desc)
+    }
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.rec.header_delim_pos()
+    }
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.rec.set_header_delim_pos(delim)
     }
     fn raw_seq(&self) -> &[u8] {
         self.rec.raw_seq()
@@ -244,14 +226,14 @@ impl<'b, R: Record> Record for SeqQualRecord<'b, R> {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         self.rec.id_desc_bytes()
     }
-    fn get_header(&self) -> SeqHeader {
-        self.rec.get_header()
+    fn full_header(&self) -> SeqHeader {
+        self.rec.full_header()
     }
-    fn delim(&self) -> Option<Option<usize>> {
-        self.rec.delim()
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.rec.header_delim_pos()
     }
-    fn set_delim(&self, delim: Option<usize>) {
-        self.rec.set_delim(delim)
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.rec.set_header_delim_pos(delim)
     }
     fn raw_seq(&self) -> &[u8] {
         self.seq
@@ -287,8 +269,8 @@ impl Record for OwnedRecord {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         (self.id_bytes(), self.desc_bytes())
     }
-    fn get_header(&self) -> SeqHeader {
-        SeqHeader::IdDesc(self.id_bytes(), self.desc_bytes())
+    fn full_header(&self) -> SeqHeader {
+        SeqHeader::IdDesc(&self.id, self.desc.as_deref())
     }
     fn raw_seq(&self) -> &[u8] {
         &self.seq
@@ -338,8 +320,9 @@ impl RecordEditor {
         }
     }
 
+    /// Get the record attribute, the sequence may optionally be cached.
+    /// If get_cached = false, the cache will be reset.
     #[inline]
-    #[cfg_attr(not(feature = "find"), allow(unused))]
     pub fn get<'a>(&'a mut self, attr: SeqAttr, rec: &'a dyn Record, get_cached: bool) -> &'a [u8] {
         match attr {
             SeqAttr::Id => rec.id_bytes(),
@@ -391,7 +374,7 @@ impl RecordEditor {
     }
 
     #[inline]
-    pub fn rec<'r>(&'r self, rec: &'r dyn Record) -> EditedRecord<'r> {
+    pub fn record<'r>(&'r self, rec: &'r dyn Record) -> EditedRecord<'r> {
         EditedRecord { editor: self, rec }
     }
 }
@@ -412,27 +395,28 @@ impl<'r> Record for EditedRecord<'r> {
     fn desc_bytes(&self) -> Option<&[u8]> {
         self.editor
             .desc
-            .as_ref()
-            .map(|d| Some(d.as_slice()))
-            .unwrap_or_else(|| self.rec.desc_bytes())
+            .as_deref()
+            .or_else(|| self.rec.desc_bytes())
     }
 
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
-        (self.id_bytes(), self.rec.desc_bytes())
-    }
-    fn get_header(&self) -> SeqHeader {
-        if self.editor.id.is_some() || self.editor.desc.is_some() {
-            SeqHeader::IdDesc(self.id_bytes(), self.desc_bytes())
-        } else {
-            self.rec.get_header()
-        }
+        (self.id_bytes(), self.desc_bytes())
     }
 
-    fn delim(&self) -> Option<Option<usize>> {
-        self.rec.delim()
+    fn full_header(&self) -> SeqHeader {
+        if self.editor.id.is_some() || self.editor.desc.is_some() {
+            return SeqHeader::IdDesc(self.id_bytes(), self.desc_bytes());
+        }
+        self.rec.full_header()
     }
-    fn set_delim(&self, delim: Option<usize>) {
-        self.rec.set_delim(delim)
+
+
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.rec.header_delim_pos()
+    }
+
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.rec.set_header_delim_pos(delim)
     }
 
     fn raw_seq(&self) -> &[u8] {

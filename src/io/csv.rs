@@ -5,9 +5,10 @@ use std::io;
 use ::csv;
 use fxhash::FxHashMap;
 
-use super::*;
 use crate::error::CliResult;
 use crate::helpers::util::match_fields;
+
+use super::{Record, SeqHeader, SeqReader};
 
 // Reader
 
@@ -176,10 +177,10 @@ impl Default for CsvRecord {
 }
 
 impl Record for CsvRecord {
-    //type SeqSegments = OneSeqIter<'a>;
     fn id_bytes(&self) -> &[u8] {
         self.data.get(self.cols.id_col).unwrap_or(b"")
     }
+
     fn desc_bytes(&self) -> Option<&[u8]> {
         self.cols.desc_col.and_then(|i| self.data.get(i))
     }
@@ -188,9 +189,8 @@ impl Record for CsvRecord {
         (self.id_bytes(), self.desc_bytes())
     }
 
-    fn get_header(&self) -> SeqHeader {
-        let (id, desc) = self.id_desc_bytes();
-        SeqHeader::IdDesc(id, desc)
+    fn full_header(&self) -> SeqHeader {
+        SeqHeader::IdDesc(self.id_bytes(), self.desc_bytes())
     }
 
     fn raw_seq(&self) -> &[u8] {

@@ -3,8 +3,10 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-use seq_io::fasta::{self, Record as FR};
-use seq_io::policy::BufPolicy;
+use seq_io::{
+    fasta::{self, Record as FR},
+    policy::BufPolicy,
+};
 
 use crate::config::SeqContext;
 use crate::error::CliResult;
@@ -142,14 +144,14 @@ impl<'a> Record for FaQualRecord<'a> {
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
         self.fa_rec.id_desc_bytes()
     }
-    fn delim(&self) -> Option<Option<usize>> {
-        self.fa_rec.delim()
+    fn full_header(&self) -> SeqHeader {
+        self.fa_rec.full_header()
     }
-    fn set_delim(&self, delim: Option<usize>) {
-        self.fa_rec.set_delim(delim)
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.fa_rec.header_delim_pos()
     }
-    fn get_header(&self) -> SeqHeader {
-        self.fa_rec.get_header()
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.fa_rec.set_header_delim_pos(delim)
     }
     fn raw_seq(&self) -> &[u8] {
         self.fa_rec.raw_seq()
@@ -214,7 +216,7 @@ impl SeqWriter for FaQualWriter {
         let qual = record.qual().ok_or("No quality scores found in input.")?;
 
         // header
-        match record.get_header() {
+        match record.full_header() {
             SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.qual_out, id, desc)?,
             SeqHeader::FullHeader(h) => fasta::write_head(&mut self.qual_out, h)?,
         }

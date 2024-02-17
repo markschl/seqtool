@@ -1,13 +1,12 @@
-use std::cell::Cell;
 use std::io;
 
-use memchr::memchr;
 use seq_io::fastq::{self, Reader, Record as FR};
 use seq_io::policy::BufPolicy;
 
 use crate::config::SeqContext;
 use crate::error::CliResult;
 
+use super::fastx::FastxHeaderParser;
 use super::{QualFormat, Record, SeqHeader, SeqReader, SeqWriter};
 
 // Reader
@@ -41,7 +40,7 @@ where
 
 pub struct FastqRecord<'a> {
     rec: fastq::RefRecord<'a>,
-    delim: Cell<Option<Option<usize>>>,
+    header_parser: FastxHeaderParser,
 }
 
 impl<'a> FastqRecord<'a> {
@@ -49,44 +48,29 @@ impl<'a> FastqRecord<'a> {
     pub fn new(inner: fastq::RefRecord<'a>) -> FastqRecord<'a> {
         FastqRecord {
             rec: inner,
-            delim: Cell::new(None),
-        }
-    }
-
-    #[inline(always)]
-    fn _get_header(&self) -> (&[u8], Option<&[u8]>) {
-        if let Some(d) = self.delim.get() {
-            if let Some(d) = d {
-                let (id, desc) = self.rec.head().split_at(d);
-                (id, Some(&desc[1..]))
-            } else {
-                (self.rec.head(), None)
-            }
-        } else {
-            self.delim.set(Some(memchr(b' ', self.rec.head())));
-            self._get_header()
+            header_parser: Default::default(),
         }
     }
 }
 
 impl<'a> Record for FastqRecord<'a> {
     fn id_bytes(&self) -> &[u8] {
-        self._get_header().0
+        self.header_parser.id_desc(self.rec.head()).0
     }
     fn desc_bytes(&self) -> Option<&[u8]> {
-        self._get_header().1
+        self.header_parser.id_desc(self.rec.head()).1
     }
     fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
-        self._get_header()
+        self.header_parser.id_desc(self.rec.head())
     }
-    fn delim(&self) -> Option<Option<usize>> {
-        self.delim.get()
-    }
-    fn set_delim(&self, delim: Option<usize>) {
-        self.delim.set(Some(delim))
-    }
-    fn get_header(&self) -> SeqHeader {
+    fn full_header(&self) -> SeqHeader {
         SeqHeader::FullHeader(self.rec.head())
+    }
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.header_parser.delim_pos()
+    }
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.header_parser.set_delim_pos(Some(delim))
     }
     fn raw_seq(&self) -> &[u8] {
         self.rec.seq()
@@ -134,16 +118,16 @@ impl SeqWriter for FastqWriter {
 
         out.write_all(b"@")?;
 
-        match record.get_header() {
+        match record.full_header() {
+            SeqHeader::FullHeader(h) => {
+                out.write_all(h)?;
+            }
             SeqHeader::IdDesc(id, desc) => {
                 out.write_all(id)?;
                 if let Some(d) = desc {
                     out.write_all(b" ")?;
                     out.write_all(d)?;
                 }
-            }
-            SeqHeader::FullHeader(h) => {
-                out.write_all(h)?;
             }
         }
 
