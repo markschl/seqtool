@@ -403,9 +403,7 @@ impl VarProvider for FindVars {
     }
 
     fn has_vars(&self) -> bool {
-        // always returns true -> module is not removed and accessible with Vars::custom_mod
-        true
-        // !self.vars.is_empty()
+        !self.vars.is_empty()
     }
 }
 

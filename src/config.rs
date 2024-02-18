@@ -217,8 +217,7 @@ impl Config {
     where
         F: FnMut(&dyn Record, &mut SeqContext) -> CliResult<bool>,
     {
-        self.ctx._filter_var_modules();
-        self._init_input()?;
+        self.init_reader()?;
         input::with_io_readers(&self.input_opts, |o, rdr| {
             self.ctx.new_input(o)?;
             input::run_reader(rdr, &o.format, o.cap, o.max_mem, &mut |rec| {
@@ -239,12 +238,14 @@ impl Config {
     where
         F: FnMut(usize, &dyn Record, &mut SeqContext) -> CliResult<()>,
     {
-        self._init_input()?;
+        self.init_reader()?;
         input::read_alongside(&self.input_opts, |i, rec| func(i, rec, &mut self.ctx))
     }
 
     #[inline(never)]
-    fn _init_input(&self) -> CliResult<()> {
+    fn init_reader(&mut self) -> CliResult<()> {
+        // remove unused variable modules
+        self.ctx.filter_var_modules();
         // ensure that STDIN cannot be read twice
         // (would result in empty input on second attempt)
         if self.started.get() && self.has_stdin() {
@@ -270,7 +271,7 @@ impl Config {
         D: Send,
         Si: Fn() -> CliResult<D> + Send + Sync,
     {
-        self._init_input()?;
+        self.init_reader()?;
         input::with_io_readers(&self.input_opts, |in_opts, rdr| {
             self.ctx.new_input(in_opts)?;
             input::read_parallel(
@@ -351,14 +352,13 @@ impl SeqContext {
     }
 
     #[inline]
-    fn _filter_var_modules(&mut self) {
+    fn filter_var_modules(&mut self) {
         // remove unused modules
         self.var_modules = self
             .var_modules
             .drain(..)
             .filter(|m| m.has_vars())
             .collect();
-        // println!("vars final {:?}", self);
     }
 
     /// Provides access to the custom `VarProvider` of the given type in a closure,
@@ -370,8 +370,9 @@ impl SeqContext {
     where
         M: VarProvider + 'static,
     {
-        let m = self.var_modules.first_mut().unwrap();
-        let m = m.as_mut().as_any_mut().downcast_mut::<M>();
+        let m = self.var_modules.first_mut().and_then(|m| {
+            m.as_mut().as_any_mut().downcast_mut::<M>()
+        });
         func(m, &mut self.symbols)
     }
 

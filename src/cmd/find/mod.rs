@@ -109,7 +109,6 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
     // note: Config::with_command_vars() is called a second time here to avoid borrowing issues
     let (match_cfg, opts) = cfg.with_command_vars::<FindVars, _>(|match_vars, _| {
         let match_vars = match_vars.unwrap();
-        // TODO: has_vars() always returns true
         if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
             return fail!(
                 "Find command does nothing. Use -f/-e for filtering, --repl for replacing or \
@@ -184,42 +183,46 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
             },
             |record, &mut (ref mut editor, ref matches), ctx| {
                 // handle results in main thread, write output
+
+                // update variables (if any) with search results obtained in the 'work' closure
                 ctx.command_vars::<FindVars, _>(|match_vars, symbols| {
-                    // FindVars::has_vars() always returns true -> FindVars module must be present in Context
-                    // TODO: may slow down some uses? (filtering/excluding-only)
-                    let match_vars = match_vars.unwrap();
-                    // obtain variable values (if any) from the search results (`Matches` object see work closure)
-                    let text = editor.get(attr, &record, true);
-                    match_vars.set_with(record, matches, symbols, text)?;
-                    // records returned to main thread
-                    if let Some(rep) = replacement.as_ref() {
-                        editor.edit_with_val(attr, &record, true, |text, out| {
-                            // assemble replacement text
-                            replacement_text.clear();
-                            rep.compose(&mut replacement_text, symbols, record)?;
-                            // replace all occurrences of the pattern
-                            let pos = matches
-                                .matches_iter(0, 0)
-                                .flatten()
-                                .map(|m| (m.start, m.end));
-                            replace_iter(text, &replacement_text, out, pos);
-                            Ok::<(), CliError>(())
-                        })?;
+                    if let Some(_match_vars) = match_vars {
+                        let text = editor.get(attr, &record, true);
+                        _match_vars.set_with(record, matches, symbols, text)?;
                     }
                     Ok(())
                 })?;
+                
+                // fill in replacements (if necessary) 
+                if let Some(rep) = replacement.as_ref() {
+                    editor.edit_with_val(attr, &record, true, |text, out| {
+                        // assemble replacement text
+                        replacement_text.clear();
+                        rep.compose(&mut replacement_text, &ctx.symbols, record)?;
+                        // replace all occurrences of the pattern
+                        let pos = matches
+                            .matches_iter(0, 0)
+                            .flatten()
+                            .map(|m| (m.start, m.end));
+                        replace_iter(text, &replacement_text, out, pos);
+                        Ok::<(), CliError>(())
+                    })?;
+                }    
 
                 // keep / exclude
                 if let Some(keep) = filter {
                     if matches.has_matches() ^ keep {
                         if let Some(ref mut f) = dropped_file {
+                            // we don't write the edited record, since there are no hits to report
                             format_writer.write(&record, f, ctx)?;
                         }
                         return Ok(true);
                     }
                 }
+                
                 // write non-excluded to output
-                format_writer.write(&editor.record(&record), io_writer, ctx)?;
+                let edited_rec = editor.record(&record);
+                format_writer.write(&edited_rec, io_writer, ctx)?;
                 Ok(true)
             },
         )?;

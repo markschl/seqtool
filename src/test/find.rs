@@ -8,7 +8,9 @@ fn exact_filter() {
         // filter
         .cmp(&["find", "-f", "GGCAGGCC"], *FASTA, records!(0, 1, 2))
         // exclude
-        .cmp(&["find", "-e", "GGCAGGCC"], *FASTA, records!(3));
+        .cmp(&["find", "-e", "GGCAGGCC"], *FASTA, records!(3))
+        // nothing: should fail
+        .fails(&["find", "GGCAGGCC"], *FASTA, "Find command does nothing");
 }
 
 #[test]
