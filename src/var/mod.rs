@@ -219,19 +219,20 @@ pub trait VarProviderInfo: Debug {
             }
             writeln!(out)?;
         }
-        if !self.vars().is_empty() {
+        if self.vars().iter().any(|v| !v.hidden) {
             for info in self.vars() {
-                for (i, d) in textwrap::wrap(info.description, 68).into_iter().enumerate() {
-                    if i == 0 {
-                        let fn_call = info.display_func().join(" or ");
-                        if fn_call.len() < 10 {
-                            writeln!(out, "{: <12} {}", fn_call, d)?;
-                            continue;
-                        } else {
+                if !info.hidden {
+                    for (i, d) in textwrap::wrap(info.description, 68).into_iter().enumerate() {
+                        if i == 0 {
+                            let fn_call = info.display_func().join(" or ");
+                            if fn_call.len() < 10 {
+                                writeln!(out, "{: <12} {}", fn_call, d)?;
+                                continue;
+                            }
                             writeln!(out, "{}", fn_call)?;
                         }
+                        writeln!(out, "{: <12} {}", "", d)?;
                     }
-                    writeln!(out, "{: <12} {}", "", d)?;
                 }
             }
             writeln!(out)?;
@@ -265,16 +266,18 @@ pub trait VarProviderInfo: Debug {
         if let Some(desc) = self.desc() {
             writeln!(out, "{}\n", desc)?;
         }
-        if !self.vars().is_empty() {
+        if self.vars().iter().any(|v| !v.hidden) {
             writeln!(out, "| variable/function | description |")?;
             writeln!(out, "|----|----|")?;
             for info in self.vars() {
-                writeln!(
-                    out,
-                    "| {} | {} |",
-                    info.display_func().join(" or "),
-                    info.description
-                )?;
+                if !info.hidden {
+                    writeln!(
+                        out,
+                        "| {} | {} |",
+                        info.display_func().join(" or "),
+                        info.description
+                    )?;
+                }
             }
         }
         if let Some(examples) = self.examples() {
