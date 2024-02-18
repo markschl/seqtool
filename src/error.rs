@@ -60,6 +60,7 @@ from_err!(String);
 from_err!(fmt::Error);
 from_err!(seq_io::fasta::Error);
 from_err!(seq_io::fastq::Error);
+#[cfg(any(feature = "all-commands", feature = "find", feature = "replace"))]
 from_err!(regex_lite::Error);
 #[cfg(feature = "regex-fast")]
 from_err!(regex::Error);

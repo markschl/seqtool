@@ -7,7 +7,7 @@ use ordered_float::OrderedFloat;
 // TODO: may belong in cmd::shared, but Value is also used in VarString::get_simple()
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 #[cfg_attr(
-    any(feature = "all_commands", feature = "sort", feature = "unique"),
+    any(feature = "all-commands", feature = "sort", feature = "unique"),
     derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize),
     archive(compare(PartialEq), check_bytes)
 )]

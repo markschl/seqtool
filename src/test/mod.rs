@@ -168,6 +168,16 @@ static SEQS: [&str; 4] = [
     ">seq2 p=11\nACGG-AGGCC-AGGCCGATGGATCA\n",
 ];
 
+// >seq1 p=2
+// TTGGCAGGCCAAGGCCGATGGATCA
+// >seq0 p=1
+// CTGGCAGGCC-AGGCCGATGGATCA
+// >seq3 p=10
+// CAGGCAGGCC-AGGCCGATGGATCA
+// >seq2 p=11
+// ACGG-AGGCC-AGGCCGATGGATCA
+
+
 // id	desc	seq
 // seq1	p=2	    TTGGCAGGCCAAGGCCGATGGATCA (0) len=25, GC=0.6
 // seq0	p=1	    CTGGCAGGCC-AGGCCGATGGATCA (1) len=24, GC=0.667
@@ -186,51 +196,53 @@ macro_rules! records {
     }
 }
 
+#[cfg(any(feature = "gz", feature = "lz4"))]
 mod compress;
-#[cfg(any(feature = "all_commands", feature = "concat"))]
+#[cfg(any(feature = "all-commands", feature = "concat"))]
 mod concat;
-#[cfg(any(feature = "all_commands", feature = "convert"))]
+#[cfg(any(feature = "all-commands", feature = "convert"))]
 mod convert;
-#[cfg(any(feature = "all_commands", feature = "count"))]
+#[cfg(any(feature = "all-commands", feature = "count"))]
 mod count;
-#[cfg(any(feature = "all_commands", feature = "del"))]
+#[cfg(any(feature = "all-commands", feature = "del"))]
 mod del;
-#[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
+#[cfg(any(all(feature = "expr", feature = "all-commands"), all(feature = "expr", feature = "filter")))]
 mod filter;
-#[cfg(any(feature = "all_commands", feature = "find"))]
+#[cfg(any(feature = "all-commands", feature = "find"))]
 mod find;
-#[cfg(any(feature = "all_commands", feature = "head"))]
+#[cfg(any(feature = "all-commands", feature = "head"))]
 mod head;
-#[cfg(any(feature = "all_commands", feature = "interleave"))]
+#[cfg(any(feature = "all-commands", feature = "interleave"))]
 mod interleave;
-#[cfg(any(feature = "all_commands", feature = "lower"))]
+#[cfg(any(feature = "all-commands", feature = "lower"))]
 mod lower;
-#[cfg(any(feature = "all_commands", feature = "mask"))]
+#[cfg(any(feature = "all-commands", feature = "mask"))]
 mod mask;
-#[cfg(any(feature = "all_commands", feature = "pass"))]
+#[cfg(any(feature = "all-commands", feature = "pass"))]
 mod pass;
-#[cfg(any(feature = "all_commands", feature = "replace"))]
+#[cfg(any(feature = "all-commands", feature = "replace"))]
 mod replace;
-#[cfg(any(feature = "all_commands", feature = "revcomp"))]
+#[cfg(any(feature = "all-commands", feature = "revcomp"))]
 mod revcomp;
-#[cfg(any(feature = "all_commands", feature = "sample"))]
+#[cfg(any(feature = "all-commands", feature = "sample"))]
 mod sample;
-#[cfg(any(feature = "all_commands", feature = "set"))]
+#[cfg(any(feature = "all-commands", feature = "set"))]
 mod set;
-#[cfg(any(feature = "all_commands", feature = "slice"))]
+#[cfg(any(feature = "all-commands", feature = "slice"))]
 mod slice;
-#[cfg(any(feature = "all_commands", feature = "sort"))]
+#[cfg(any(feature = "all-commands", feature = "sort"))]
 mod sort;
-#[cfg(any(feature = "all_commands", feature = "split"))]
+#[cfg(any(feature = "all-commands", feature = "split"))]
 mod split;
-#[cfg(any(feature = "all_commands", all(feature = "pass", feature = "stat")))]
+#[cfg(any(feature = "all-commands", feature = "stat"))]
 mod stat;
-#[cfg(any(feature = "all_commands", feature = "tail"))]
+#[cfg(any(feature = "all-commands", feature = "tail"))]
 mod tail;
-#[cfg(any(feature = "all_commands", feature = "trim"))]
+#[cfg(any(feature = "all-commands", feature = "trim"))]
 mod trim;
-#[cfg(any(feature = "all_commands", feature = "unique"))]
+#[cfg(any(feature = "all-commands", feature = "unique"))]
 mod unique;
-#[cfg(any(feature = "all_commands", feature = "upper"))]
+#[cfg(any(feature = "all-commands", feature = "upper"))]
 mod upper;
+#[cfg(any(feature = "all-commands", feature = "pass"))]
 mod vars;

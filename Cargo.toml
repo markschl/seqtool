@@ -72,7 +72,7 @@ rand_xoshiro = "0.6.0"
 tempdir = "0.3"
 
 [features]
-default = ["all_commands", "regex-fast", "expr", "gz", "lz4", "zstd"]
+default = ["all-commands", "regex-fast", "expr", "gz", "lz4", "zstd"]
 # JavaScript expressions
 expr = ["rquickjs"]
 # Compression formats
@@ -83,7 +83,7 @@ bz2 = ["bzip2"]
 # Regex searching in find/replace
 regex-fast = ["regex"]  # adds ~1.4 MiB to binary (Linux)
 # Commands
-all_commands = [
+all-commands = [
     "palette", "enterpolation", "termcolor", "ansi_colours", "pager",  # view
     "rand", "rand_xoshiro",  # sample
     "indexmap", "rkyv", "byteorder", "tempdir",  # sort, unique

@@ -1,15 +1,18 @@
 #!/bin/bash
-
-# This scripts runs the compilation and unit tests for each individual feature
+# This script runs the compilation and unit tests for each individual feature
 
 set -euo pipefail
 
 features=( \
-    "" \
-    gz,pass lz4,pass zstd,pass bz2,pass \
+    pass,gz \
+    pass,lz4 \
+    pass,zstd \
+    pass,bz2 \
     expr \
-    all_commands,expr \
+    all-commands \
+    all-commands,expr \
     pass \
+    pass,regex-fast \
     view \
     count \
     stat \
@@ -23,7 +26,9 @@ features=( \
     split \
     interleave \
     find \
+    find,regex-fast \
     replace \
+    replace,regex-fast \
     del \
     set \
     trim \
@@ -36,18 +41,23 @@ features=( \
 
 cores=8
 
-# no features at all
 echo "===== NO features ======================"
 echo -n "build... "
-RUSTFLAGS=-Awarnings cargo build -q -j $cores --no-default-features
+cargo build -q -j $cores --no-default-features
 echo "test..."
-RUSTFLAGS=-Awarnings cargo test -q -j $cores --no-default-features
+cargo test -q -j $cores --no-default-features
+
+echo "===== Default features ======================"
+echo -n "build... "
+cargo build -q -j $cores
+echo "test..."
+cargo test -q -j $cores
 
 # single feature
 for feature in ${features[@]}; do
-    echo "===== Feature '$feature' ======================"
+    echo "===== Feature(s) '$feature' ======================"
     echo -n "build... "
-    RUSTFLAGS=-Awarnings cargo build -q -j $cores --no-default-features --features=$feature
+    cargo build -q -j $cores --no-default-features --features=$feature
     echo "test..."
-    RUSTFLAGS=-Awarnings cargo test -q -j $cores --no-default-features --features=$feature
+    cargo test -q -j $cores --no-default-features --features=$feature
 done

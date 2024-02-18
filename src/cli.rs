@@ -47,11 +47,11 @@ impl Cli {
         if let Ok(m) = VarHelpCli::try_parse() {
             if m.help_vars || m.help_vars_md {
                 let custom_help: Option<Box<dyn VarProviderInfo>> = match m.command.as_str() {
-                    #[cfg(any(feature = "all_commands", feature = "sort", feature = "unique"))]
+                    #[cfg(any(feature = "all-commands", feature = "sort", feature = "unique"))]
                     "sort" | "unique" => Some(Box::new(cmd::shared::key_var::KeyVarHelp)),
-                    #[cfg(any(feature = "all_commands", feature = "split"))]
+                    #[cfg(any(feature = "all-commands", feature = "split"))]
                     "split" => Some(Box::new(cmd::split::ChunkVarInfo)),
-                    #[cfg(any(feature = "all_commands", feature = "find"))]
+                    #[cfg(any(feature = "all-commands", feature = "find"))]
                     "find" => Some(Box::new(cmd::find::FindVarHelp)),
                     _ => None,
                 };
@@ -77,51 +77,51 @@ impl Cli {
             };
         }
         match self.0.command {
-            #[cfg(any(feature = "all_commands", feature = "pass"))]
+            #[cfg(any(feature = "all-commands", feature = "pass"))]
             Pass(ref opts) => run!(pass, opts),
-            #[cfg(any(feature = "all_commands", feature = "view"))]
+            #[cfg(any(feature = "all-commands", feature = "view"))]
             View(ref opts) => run!(view, opts),
-            #[cfg(any(feature = "all_commands", feature = "count"))]
+            #[cfg(any(feature = "all-commands", feature = "count"))]
             Count(ref opts) => run!(count, opts),
-            #[cfg(any(feature = "all_commands", feature = "stat"))]
+            #[cfg(any(feature = "all-commands", feature = "stat"))]
             Stat(ref opts) => run!(stat, opts),
-            #[cfg(any(feature = "all_commands", feature = "head"))]
+            #[cfg(any(feature = "all-commands", feature = "head"))]
             Head(ref opts) => run!(head, opts),
-            #[cfg(any(feature = "all_commands", feature = "tail"))]
+            #[cfg(any(feature = "all-commands", feature = "tail"))]
             Tail(ref opts) => run!(tail, opts),
-            #[cfg(any(feature = "all_commands", feature = "slice"))]
+            #[cfg(any(feature = "all-commands", feature = "slice"))]
             Slice(ref opts) => run!(slice, opts),
-            #[cfg(any(feature = "all_commands", feature = "sample"))]
+            #[cfg(any(feature = "all-commands", feature = "sample"))]
             Sample(ref opts) => run!(sample, opts),
-            #[cfg(any(feature = "all_commands", feature = "sort"))]
+            #[cfg(any(feature = "all-commands", feature = "sort"))]
             Sort(ref opts) => run!(sort, opts, cmd::sort::get_varprovider(opts)),
-            #[cfg(any(feature = "all_commands", feature = "unique"))]
+            #[cfg(any(feature = "all-commands", feature = "unique"))]
             Unique(ref opts) => run!(unique, opts, cmd::unique::get_varprovider(opts)),
-            #[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
+            #[cfg(any(all(feature = "expr", feature = "all-commands"), all(feature = "expr", feature = "filter")))]
             Filter(ref opts) => run!(filter, opts),
-            #[cfg(any(feature = "all_commands", feature = "split"))]
+            #[cfg(any(feature = "all-commands", feature = "split"))]
             Split(ref opts) => run!(split, opts, cmd::split::get_varprovider(opts)),
-            #[cfg(any(feature = "all_commands", feature = "interleave"))]
+            #[cfg(any(feature = "all-commands", feature = "interleave"))]
             Interleave(ref opts) => run!(interleave, opts),
-            #[cfg(any(feature = "all_commands", feature = "find"))]
+            #[cfg(any(feature = "all-commands", feature = "find"))]
             Find(ref opts) => run!(find, opts, cmd::find::get_varprovider(opts)),
-            #[cfg(any(feature = "all_commands", feature = "replace"))]
+            #[cfg(any(feature = "all-commands", feature = "replace"))]
             Replace(ref opts) => run!(replace, opts),
-            #[cfg(any(feature = "all_commands", feature = "set"))]
+            #[cfg(any(feature = "all-commands", feature = "set"))]
             Set(ref opts) => run!(set, opts),
-            #[cfg(any(feature = "all_commands", feature = "del"))]
+            #[cfg(any(feature = "all-commands", feature = "del"))]
             Del(ref opts) => run!(del, opts),
-            #[cfg(any(feature = "all_commands", feature = "trim"))]
+            #[cfg(any(feature = "all-commands", feature = "trim"))]
             Trim(ref opts) => run!(trim, opts),
-            #[cfg(any(feature = "all_commands", feature = "mask"))]
+            #[cfg(any(feature = "all-commands", feature = "mask"))]
             Mask(ref opts) => run!(mask, opts),
-            #[cfg(any(feature = "all_commands", feature = "upper"))]
+            #[cfg(any(feature = "all-commands", feature = "upper"))]
             Upper(ref opts) => run!(upper, opts),
-            #[cfg(any(feature = "all_commands", feature = "lower"))]
+            #[cfg(any(feature = "all-commands", feature = "lower"))]
             Lower(ref opts) => run!(lower, opts),
-            #[cfg(any(feature = "all_commands", feature = "revcomp"))]
+            #[cfg(any(feature = "all-commands", feature = "revcomp"))]
             Revcomp(ref opts) => run!(revcomp, opts),
-            #[cfg(any(feature = "all_commands", feature = "concat"))]
+            #[cfg(any(feature = "all-commands", feature = "concat"))]
             Concat(ref opts) => run!(concat, opts),
         }
     }
@@ -273,14 +273,14 @@ pub struct ClapCli {
 #[derive(Subcommand, Clone, Debug)]
 pub enum SubCommand {
     /// No processing done, useful for converting and attribute setting
-    #[cfg(any(feature = "all_commands", feature = "pass"))]
+    #[cfg(any(feature = "all-commands", feature = "pass"))]
     #[command(visible_aliases=&["."])]
     Pass(cmd::pass::PassCommand),
     /// Colored sequence view
     ///
     /// View biological sequences, colored by base / amino acid, or by sequence quality.
     /// The output is automatically forwarded to the 'less' pager on UNIX.
-    #[cfg(any(feature = "all_commands", feature = "view"))]
+    #[cfg(any(feature = "all-commands", feature = "view"))]
     View(cmd::view::ViewCommand),
     /// Count sequences (total or by sequence properties)
     ///
@@ -288,23 +288,23 @@ pub enum SubCommand {
     /// Results are printed to STDOUT.
     /// Advanced grouping of sequences is possible by supplying or more key strings
     /// containing variables (-k/--key).
-    #[cfg(any(feature = "all_commands", feature = "count"))]
+    #[cfg(any(feature = "all-commands", feature = "count"))]
     Count(cmd::count::CountCommand),
     /// Per-sequence statistics as tab-delimited list
     ///
     /// Returns per sequence statistics as tab delimited list. All variables
     /// (seqlen, exp_err, charcount(...), etc.) can be used (see `st stat --help-vars`).
     /// The command is equivalent to `st pass --to-tsv 'id,var1,var2,...' input`
-    #[cfg(any(feature = "all_commands", feature = "stat"))]
+    #[cfg(any(feature = "all-commands", feature = "stat"))]
     Stat(cmd::stat::StatCommand),
     /// Return the first N sequences
-    #[cfg(any(feature = "all_commands", feature = "head"))]
+    #[cfg(any(feature = "all-commands", feature = "head"))]
     Head(cmd::head::HeadCommand),
     /// Return the last N sequences
     ///
     /// This only works for files (not STDIN), since records are counted in a first
     /// step, and only returned after reading a second time.
-    #[cfg(any(feature = "all_commands", feature = "tail"))]
+    #[cfg(any(feature = "all-commands", feature = "tail"))]
     Tail(cmd::tail::TailCommand),
     /// Return a range of sequence records from the input
     ///
@@ -318,14 +318,14 @@ pub enum SubCommand {
     /// > st slice '-10..' input.fasta
     ///
     /// This command does not extract subsequences (see trim command for that).
-    #[cfg(any(feature = "all_commands", feature = "slice"))]
+    #[cfg(any(feature = "all-commands", feature = "slice"))]
     Slice(cmd::slice::SliceCommand),
     /// Get a random subset of sequences
     ///
     /// Either a fixed number (-n/--num-seqs) or an approximate fraction of the
     /// input (-p/--prob) can be sampled (see help for these options).
     /// The records are returned in input order.
-    #[cfg(any(feature = "all_commands", feature = "sample"))]
+    #[cfg(any(feature = "all-commands", feature = "sample"))]
     Sample(cmd::sample::SampleCommand),
     /// Sort records by sequence or any other criterion.
     ///
@@ -341,7 +341,7 @@ pub enum SubCommand {
     /// This may be useful with JavaScript expressions, whose evaluation takes time,
     /// and whose result should be written to the headers, e.g.:
     /// 'st sort -n '{{ id.substring(3, 5) }}' -a id_num='{key}' input.fasta'
-    #[cfg(any(feature = "all_commands", feature = "sort"))]
+    #[cfg(any(feature = "all-commands", feature = "sort"))]
     Sort(cmd::sort::cli::SortCommand),
     /// De-replicate records by sequence or any other criterion, returning only
     /// unique records.
@@ -352,63 +352,63 @@ pub enum SubCommand {
     /// The order of the records is the same as in the input unless the memory limit
     /// is exceeded, in which case temporary files are used and the records are
     /// sorted by the unique key. Specify -s/--sorted to always sort the output.
-    #[cfg(any(feature = "all_commands", feature = "unique"))]
+    #[cfg(any(feature = "all-commands", feature = "unique"))]
     #[clap(about, long_about)]
     Unique(cmd::unique::cli::UniqueCommand),
     /// Filter sequences using Javascript expressions
-    #[cfg(any(feature = "all_commands", all(feature = "expr", feature = "filter")))]
+    #[cfg(any(all(feature = "expr", feature = "all-commands"), all(feature = "expr", feature = "filter")))]
     Filter(cmd::filter::FilterCommand),
     /// Distribute sequences into multiple files based on variable/function(s)
     /// or advanced expressions.
     ///
     /// In contrast to other commands, the output (-o) argument can
     /// contain variables in order to determine the file path for each sequence.
-    #[cfg(any(feature = "all_commands", feature = "split"))]
+    #[cfg(any(feature = "all-commands", feature = "split"))]
     Split(cmd::split::SplitCommand),
     /// Interleave records of all files in the input.
     ///
     /// The records will returned in the same order as in the input files.
-    #[cfg(any(feature = "all_commands", feature = "interleave"))]
+    #[cfg(any(feature = "all-commands", feature = "interleave"))]
     Interleave(cmd::interleave::InterleaveCommand),
     /// Search for one or more patterns in sequences or headers for
     /// record filtering, pattern replacement or writing matches to the output.
-    #[cfg(any(feature = "all_commands", feature = "find"))]
+    #[cfg(any(feature = "all-commands", feature = "find"))]
     Find(cmd::find::FindCommand),
     /// Fast and simple pattern replacement in sequences or sequence headers
-    #[cfg(any(feature = "all_commands", feature = "replace"))]
+    #[cfg(any(feature = "all-commands", feature = "replace"))]
     Replace(cmd::replace::ReplaceCommand),
     /// Replace the header, header attributes or sequence with new content
-    #[cfg(any(feature = "all_commands", feature = "set"))]
+    #[cfg(any(feature = "all-commands", feature = "set"))]
     Set(cmd::set::SetCommand),
     /// Delete header ID/description and/or attributes
-    #[cfg(any(feature = "all_commands", feature = "del"))]
+    #[cfg(any(feature = "all-commands", feature = "del"))]
     Del(cmd::del::DelCommand),
     /// Trim sequences on the left and/or right (single range)
     /// or extract and concatenate several subsequences.
-    #[cfg(any(feature = "all_commands", feature = "trim"))]
+    #[cfg(any(feature = "all-commands", feature = "trim"))]
     Trim(cmd::trim::TrimCommand),
     /// Soft or hard mask sequence ranges
     ///
     /// Masks the sequence within a given range or comma delimited list of ranges
     /// by converting to lowercase (soft mask) or replacing with a character (hard
     /// masking). Reverting soft masking is also possible.
-    #[cfg(any(feature = "all_commands", feature = "mask"))]
+    #[cfg(any(feature = "all-commands", feature = "mask"))]
     Mask(cmd::mask::MaskCommand),
     /// Convert sequences to uppercase
-    #[cfg(any(feature = "all_commands", feature = "upper"))]
+    #[cfg(any(feature = "all-commands", feature = "upper"))]
     Upper(cmd::upper::UpperCommand),
     /// Convert sequences to lowercase
-    #[cfg(any(feature = "all_commands", feature = "lower"))]
+    #[cfg(any(feature = "all-commands", feature = "lower"))]
     Lower(cmd::lower::LowerCommand),
     /// Reverse complements DNA sequences. If quality scores are present,
     /// their order is just reversed.
-    #[cfg(any(feature = "all_commands", feature = "revcomp"))]
+    #[cfg(any(feature = "all-commands", feature = "revcomp"))]
     Revcomp(cmd::revcomp::RevcompCommand),
     /// Concatenates sequences/alignments from different files in the order
     /// in which they are provided.
     ///
     /// Fails if the sequence IDs don't match.
-    #[cfg(any(feature = "all_commands", feature = "concat"))]
+    #[cfg(any(feature = "all-commands", feature = "concat"))]
     Concat(cmd::concat::ConcatCommand),
 }
 
