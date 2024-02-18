@@ -112,12 +112,11 @@ fn trim<'r>(
                             // -> continue to next range (if any)
                             out_seq.extend_from_slice(&segment[start..end]);
                             break;
-                        } else {
-                            // requested fragment is larger than sequence segment
-                            // -> obtain next segment and continue
-                            out_seq.extend_from_slice(&segment[start..]);
-                            start = 0;
                         }
+                        // requested fragment is larger than sequence segment
+                        // -> obtain next segment and continue
+                        out_seq.extend_from_slice(&segment[start..]);
+                        start = 0;
                     } else {
                         start -= segment.len();
                     }

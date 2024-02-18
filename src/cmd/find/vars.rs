@@ -37,9 +37,8 @@ impl VarProviderInfo for FindVarHelp {
                 all hits if hit = 'all'. Hits are either sorted by the edit distance \
                 or by occurrence (with `--in-order` or exact matching, same as described above). \
                 With multiple patterns in a pattern file, the 2nd, 3rd, etc. \
-                best matching pattern can be selected with `match(<hit>, 2)` or `match(<hit>, 3)`,
-                etc. \
-                (default: pattern=1)."
+                best matching pattern can be selected with `match(<hit>, 2)` or `match(<hit>, 3)`, \
+                etc. (default: pattern=1)."
             ),
             var_info!(
                 match_group (group, [hit], [pattern]) =>
@@ -99,7 +98,8 @@ impl VarProviderInfo for FindVarHelp {
             ),
             var_info!(
                 match_neg_drange [ (), (hit, [pattern]) ] =>
-                "Range of the match (dot delimiter) relative to the sequence end (-<start>..-<end>)."
+                "Range of the match (dot delimiter) relative to the sequence end \
+                (-<start>..-<end>)."
             ),
             var_info!(
                 matchgrp_start (group, [h], [p]) =>

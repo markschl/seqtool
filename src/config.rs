@@ -187,20 +187,6 @@ impl Config {
         self.build_vars(|b| from_format(&fmt, b))
     }
 
-    // /// Provides a format writer and an I/O writer within a scope closure.
-    // /// The output format is deduced from the CLI options and/or the path.
-    // /// The IO writer may compress the data if configured accordingly (CLI options)
-    // /// or deduced from the extension.
-    // pub fn with_writer<F, O>(&self, func: F) -> CliResult<O>
-    // where
-    //     F: FnOnce(&mut dyn FormatWriter, &mut dyn io::Write) -> CliResult<O>,
-    // {
-    //     with_io_writer(&self.output_opts, |io_writer| {
-    //         let mut format_writer = self.get_format_writer()?;
-    //         func(&mut format_writer, io_writer)
-    //     })
-    // }
-
     /// Provides an io Writer and `Vars` in a scope and takes care of cleanup (flushing)
     /// when done.
     pub fn with_io_writer<F, O>(self, func: F) -> CliResult<O>
