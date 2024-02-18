@@ -1,27 +1,17 @@
 use std::fmt;
 use std::str;
 
-use crate::error::{CliError, CliResult};
-use crate::io::Record;
-use crate::var::symbols::{OptValue, SymbolTable, Value};
-
 use rquickjs::{
     context::intrinsic::*, Atom, Context as RContext, Ctx, Error, Exception, Function, IntoJs,
     Persistent, Runtime, Type,
 };
 // use rquickjs::{embed, loader::Bundle};
 
-use super::Var;
-use super::{ExprContext, Expression};
+use crate::error::{CliError, CliResult};
+use crate::io::Record;
+use crate::var::symbols::{OptValue, SymbolTable, Value};
 
-// static RESERVED_WORDS: Set<&'static str> = phf_set! {
-//     "break", "case", "catch", "class", "const", "continue", "debugger",
-//     "default", "delete", "do", "else", "export", "extends", "false",
-//     "finally", "for", "function", "if", "import", "in", "instanceof",
-//     "new", "null", "return", "super", "switch", "this", "throw", "true",
-//     "try", "typeof", "var", "void", "while", "with", "let", "static", "yield",
-//     "arguments", "as", "async", "eval", "get", "of", "set", "undefined"
-// };
+use super::{ExprContext, Expression, Var};
 
 fn to_js_value<'a>(
     value: Option<&Value>,

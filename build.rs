@@ -10,8 +10,8 @@ fn main() {
 #[cfg_attr(not(feature = "expr"), allow(unused))]
 fn write_js() {
     let js_include = read_to_string(Path::new("js").join("include.js")).unwrap();
-
-    let js_include = regex_lite::Regex::new(r"(\s+|\n)")
+    // very simple "minifier" that removes unnecessary whitespace
+    let js_include = regex_lite::Regex::new(r"(\s+|\n|^\n//[^\n]+)")
         .unwrap()
         .replace_all(&js_include, " ");
 
@@ -19,6 +19,7 @@ fn write_js() {
         .join("var")
         .join("modules")
         .join("expr")
+        .join("js")
         .join("_js_include.rs");
     let mut out = BufWriter::new(File::create(path).unwrap());
 

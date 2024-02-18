@@ -31,7 +31,7 @@ fn attr() {
         .cmp(&["unique", "-n", "attr(p)"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{{attr(p)+1}}"], *FASTA, records!(0, 1, 2, 3));
+    Tester::new().cmp(&["unique", "{{attr('p')+1}}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn force_numeric() {
 fn expr() {
     Tester::new()
         .cmp(
-            &["unique", "{{ num + parseInt(attr(p)) }}"],
+            &["unique", "{{ num + parseInt(attr('p')) }}"],
             *FASTA,
             records!(0, 2, 3),
         )

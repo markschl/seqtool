@@ -2,8 +2,11 @@ use std::str::FromStr;
 
 use crate::error::CliResult;
 use crate::io::Record;
-use crate::var::varstring::{register_var_list, VarString};
-use crate::var::{self, VarBuilder};
+use crate::var::{
+    symbols::SymbolTable,
+    varstring::{register_var_list, VarString},
+    VarBuilder,
+};
 
 use super::rng::Range;
 
@@ -30,7 +33,7 @@ impl RngBound {
 
     pub fn value(
         &self,
-        symbols: &var::symbols::SymbolTable,
+        symbols: &SymbolTable,
         record: &dyn Record,
         text_buf: &mut Vec<u8>,
     ) -> CliResult<isize> {
@@ -76,7 +79,7 @@ impl VarRange {
     /// Replace variables to obtain the actual range
     pub fn resolve(
         &mut self,
-        symbols: &var::symbols::SymbolTable,
+        symbols: &SymbolTable,
         record: &dyn Record,
         text_buf: &mut Vec<u8>,
     ) -> CliResult<Range> {
@@ -121,7 +124,7 @@ impl VarRanges {
     pub fn from_str(s: &str, var_builder: &mut VarBuilder) -> CliResult<VarRanges> {
         // first, we collect all comma-delimited parts, registering any variables
         let mut parts = vec![];
-        register_var_list(s.trim(), ',', var_builder, &mut parts, true)?;
+        register_var_list(s.trim(), var_builder, &mut parts, true)?;
         // then, we parse all ranges
         let mut ranges: Vec<VarRange> = parts
             .into_iter()
@@ -145,7 +148,7 @@ impl VarRanges {
 
     pub fn resolve(
         &mut self,
-        symbols: &var::symbols::SymbolTable,
+        symbols: &SymbolTable,
         record: &dyn Record,
         text_buf: &mut Vec<u8>,
     ) -> CliResult<&[Range]> {

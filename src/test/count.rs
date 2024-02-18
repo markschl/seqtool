@@ -38,12 +38,12 @@ fn missing() {
     #[cfg(feature = "expr")]
     Tester::new()
         .cmp(
-            &["count", "-k", "{{opt_attr(missing) + 1}}"],
+            &["count", "-k", "{{opt_attr('missing') + 1}}"],
             *FASTA,
             "NaN\t4\n",
         )
         .cmp(
-            &["count", "-k", "n:{{opt_attr(missing) + 1}}"],
+            &["count", "-k", "n:{{opt_attr('missing') + 1}}"],
             *FASTA,
             "NaN\t4\n",
         );

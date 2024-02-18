@@ -10,7 +10,7 @@ fn attrs() {
         .cmp(&[".", "--to-tsv", "has_attr(b)"], ATTR_FA, "true\n");
     #[cfg(feature = "expr")]
     t.cmp(
-        &[".", "--to-tsv", "{{Num(attr(p))+1}}"],
+        &[".", "--to-tsv", "{{Num(attr('p'))+1}}"],
         *FASTA,
         "3\n2\n11\n12\n",
     );
@@ -123,7 +123,7 @@ fn meta() {
         t.cmp(&[".", "-m", p, "--to-tsv", "{meta(2)}"], *FASTA, exp);
         #[cfg(feature = "expr")]
         t.cmp(
-            &[".", "-m", p, "--to-tsv", "{{ attr(p) - meta(2) }}"],
+            &[".", "-m", p, "--to-tsv", "{{ attr('p') - meta(2) }}"],
             *FASTA,
             "0\n0\n0\n0\n",
         );
@@ -382,7 +382,7 @@ fn meta_compressed() {
 // expressions: regexes with variables inside will yield errors
 // test quoted stuff
 // charcount(GC) / seqlen == gc / 100
-// --to-tsv id,{{charcount(GC)/seqlen}}
+// --to-tsv id,{{charcount('GC')/seqlen}}
 // --to-tsv id,{{charcount("GC,")/seqlen}}
 // --to-tsv id,,...
 // MDN: const re = /\w+/;

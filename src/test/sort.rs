@@ -27,7 +27,7 @@ fn attr() {
         .cmp(&["sort", "{attr(p)}"], *FASTA, records!(1, 2, 3, 0));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["sort", "{{attr(p)}}"], *FASTA, records!(1, 2, 3, 0));
+    Tester::new().cmp(&["sort", "{{attr('p')}}"], *FASTA, records!(1, 2, 3, 0));
 }
 
 #[test]
@@ -39,7 +39,7 @@ fn numeric_attr() {
 
     #[cfg(feature = "expr")]
     Tester::new().cmp(
-        &["sort", "-n", "{{attr(p)+1}}"],
+        &["sort", "-n", "{{attr('p')+1}}"],
         *FASTA,
         records!(1, 0, 2, 3),
     );

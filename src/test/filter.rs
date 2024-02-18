@@ -5,7 +5,7 @@ fn filter() {
     let fa = ">id\nSEQ\n>id2 a=20\nSEQ\n>id3 a=\nSEQ";
     Tester::new()
         .cmp(
-            &["filter", "seqlen > ungapped_seqlen && attr(p) >= 10"],
+            &["filter", "seqlen > ungapped_seqlen && attr('p') >= 10"],
             *FASTA,
             &SEQS[2..].concat(),
         )
@@ -16,7 +16,7 @@ fn filter() {
         .cmp(
             &[
                 "filter",
-                "opt_attr(a) != undefined && opt_attr(a) >= 20",
+                "opt_attr('a') != undefined && opt_attr('a') >= 20",
                 "--to-tsv",
                 "id",
             ],
@@ -24,7 +24,7 @@ fn filter() {
             "id2\n",
         )
         .cmp(
-            &["filter", "opt_attr(a) >= 20", "--to-tsv", "id"],
+            &["filter", "opt_attr('a') >= 20", "--to-tsv", "id"],
             fa,
             "id2\n",
         )

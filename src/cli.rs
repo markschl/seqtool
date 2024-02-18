@@ -9,8 +9,8 @@ use crate::io::{
     output::{OutFormat, OutputKind, OutputOptions},
     Attribute, Compression, FileInfo, FormatVariant, QualFormat,
 };
-use crate::var::{VarOpts, VarProviderInfo};
 use crate::var::attr::AttrFormat;
+use crate::var::{VarOpts, VarProviderInfo};
 
 use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
 

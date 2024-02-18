@@ -2,8 +2,7 @@ use std::io;
 
 use super::{FormatWriter, Record};
 use crate::config::SeqContext;
-use crate::var;
-use crate::var::varstring;
+use crate::var::{varstring, VarBuilder};
 use crate::{error::CliResult, var::varstring::register_var_list};
 
 pub struct CsvWriter {
@@ -12,7 +11,7 @@ pub struct CsvWriter {
 }
 
 impl CsvWriter {
-    pub fn new(field_list: &str, delim: u8, builder: &mut var::VarBuilder) -> CliResult<CsvWriter> {
+    pub fn new(field_list: &str, delim: u8, builder: &mut VarBuilder) -> CliResult<CsvWriter> {
         let mut out = Self {
             delim,
             fields: vec![],
@@ -20,7 +19,7 @@ impl CsvWriter {
 
         // progressively parse fields; this is necessary because there can be
         // commas in functions as well
-        register_var_list(field_list, ',', builder, &mut out.fields, true)?;
+        register_var_list(field_list, builder, &mut out.fields, true)?;
         Ok(out)
     }
 }

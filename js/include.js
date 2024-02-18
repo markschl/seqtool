@@ -3,10 +3,10 @@
 function Int(x) {
     let i = parseInt(x);
     if (isNaN(i)) {
-        throw `Not an integer: ${x}`;
+        throw `Could not convert '${x}' to integer`;
     }
     if (x.includes(".")) {
-        throw `Decimal number cannot be converted to integer: ${x}`;
+        throw `Could not convert decimal number '${x}' to integer`;
     }
     return i;
 }
@@ -14,7 +14,7 @@ function Int(x) {
 function Num(x) {
     let f = parseFloat(x);
     if (isNaN(f)) {
-        throw `Not a number: ${x}`;
+        throw `Could not convert '${x}' to decimal number`;
     }
     return f;
 }

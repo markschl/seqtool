@@ -13,7 +13,6 @@ build = "build.rs"
 [dependencies]
 # general
 lazy_static = "1.4"
-regex-lite = "0.1"
 fxhash = "0.2"
 memchr = "2.7"
 winnow = { version = "0.5", features = ["simd"] }
@@ -89,7 +88,7 @@ all_commands = [
     "rand", "rand_xoshiro",  # sample
     "indexmap", "rkyv", "byteorder", "tempdir",  # sort, unique
     "bio",  # find, revcomp, view
-    "twoway", # find, replace
+    "regex-lite",  # find, replace
 ]
 pass = []
 view = ["bio", "palette", "enterpolation", "termcolor", "ansi_colours", "pager"]
@@ -104,8 +103,8 @@ unique = ["indexmap", "rkyv", "byteorder", "tempdir"]
 filter = []
 split = []
 interleave = []
-find = ["bio", "twoway"]
-replace = ["twoway"]
+find = ["bio", "regex-lite"]
+replace = ["regex-lite"]
 del = []
 set = []
 trim = []
