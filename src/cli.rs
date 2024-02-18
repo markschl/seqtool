@@ -9,7 +9,7 @@ use crate::io::{
     output::{OutFormat, OutputKind, OutputOptions},
     Attribute, Compression, FileInfo, FormatVariant, QualFormat,
 };
-use crate::var::{AttrOpts, VarHelp, VarOpts};
+use crate::var::{VarOpts, VarProviderInfo};
 use crate::var::attr::AttrFormat;
 
 use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
@@ -23,6 +23,16 @@ struct VarHelpCli {
 
     #[arg(long)]
     help_vars: bool,
+
+    /// Variable help formatted as Markdown (undocumented)
+    // #[cfg(debug_assertions)]
+    #[arg(long, hide = true)]
+    pub help_vars_md: bool,
+
+    /// Variable help only for current command variable(s), not for common ones (undocumented)
+    // #[cfg(debug_assertions)]
+    #[arg(long, hide = true)]
+    pub help_cmd_vars: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -35,17 +45,20 @@ impl Cli {
         // 'missing argument error' for command with positional args.
         // TODO: any better way to do this?
         if let Ok(m) = VarHelpCli::try_parse() {
-            if m.help_vars {
-                let custom_help: Option<Box<dyn VarHelp>> = match m.command.as_str() {
+            if m.help_vars || m.help_vars_md {
+                let custom_help: Option<Box<dyn VarProviderInfo>> = match m.command.as_str() {
                     #[cfg(any(feature = "all_commands", feature = "sort", feature = "unique"))]
                     "sort" | "unique" => Some(Box::new(cmd::shared::key_var::KeyVarHelp)),
                     #[cfg(any(feature = "all_commands", feature = "split"))]
-                    "split" => Some(Box::new(cmd::split::ChunkVarHelp)),
+                    "split" => Some(Box::new(cmd::split::ChunkVarInfo)),
                     #[cfg(any(feature = "all_commands", feature = "find"))]
                     "find" => Some(Box::new(cmd::find::FindVarHelp)),
                     _ => None,
                 };
-                eprintln!("{}", crate::var::get_var_help(custom_help).unwrap());
+                eprintln!(
+                    "{}",
+                    crate::var::get_var_help(custom_help, m.help_vars_md, m.help_cmd_vars).unwrap()
+                );
                 exit(2);
             }
         }
@@ -435,6 +448,11 @@ pub struct GeneralArgs {
     /// List and explain all variables/functions available
     #[arg(long)]
     pub help_vars: bool,
+
+    /// Help formatted as Markdown (undocumented)
+    #[cfg(debug_assertions)]
+    #[arg(long, hide = true)]
+    pub md_help: bool,
 }
 
 /// Input options

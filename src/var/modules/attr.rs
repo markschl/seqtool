@@ -1,16 +1,18 @@
 use crate::error::CliResult;
 use crate::io::{QualConverter, Record};
+use crate::var::VarInfo;
 use crate::var::{
     attr::{self, Attrs},
     func::Func,
     symbols::{SymbolTable, VarType},
-    VarBuilder, VarHelp, VarProvider,
+    VarBuilder, VarProvider, VarProviderInfo,
 };
+use crate::var_info;
 
 #[derive(Debug)]
-pub struct AttrHelp;
+pub struct AttrInfo;
 
-impl VarHelp for AttrHelp {
+impl VarProviderInfo for AttrInfo {
     fn name(&self) -> &'static str {
         "Header attributes"
     }
@@ -18,34 +20,34 @@ impl VarHelp for AttrHelp {
         Some("attr(name) or attr('name') or attr(\"name\")")
     }
 
-    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "attr(name) or attr('name') or attr(\"name\")",
-                "Obtain an attribute of given name (must be present in all sequences)",
+    fn vars(&self) -> &[VarInfo] {
+        &[
+            var_info!(
+                attr ( name ) =>
+                "Obtain an attribute of given name (must be present in all sequences)"
             ),
-            (
-                "opt_attr(name) or opt_attr('name'), etc.",
+            var_info!(
+                opt_attr ( name ) =>
                 "Obtain an attribute value, or an empty string if missing. In \
-                Javascript expressions, missing attributes equal to `undefined`.",
+                Javascript expressions, missing attributes equal to `undefined`."
             ),
-            (
-                "attr_del(name), etc.",
+            var_info!(
+                attr_del ( name ) =>
                 "Obtain an attribute (must be present), simultaneously removing \
-                it from the header.",
+                it from the header."
             ),
-            (
-                "opt_attr_del(name), etc.",
+            var_info!(
+                opt_attr_del ( name ) =>
                 "Obtain an attribute (may be missing), simultaneously removing \
-                it from the header.",
+                it from the header."
             ),
-            (
-                "has_attr(name), etc.",
+            var_info!(
+                has_attr ( name ) =>
                 "Returns `true` if the given attribute is present, otherwise \
                 returns `false`. Especially useful with the `filter` command; \
-                equivalent to the expression `opt_attr(name) != undefined`.",
+                equivalent to the expression `opt_attr(name) != undefined`."
             ),
-        ])
+        ]
     }
 
     fn desc(&self) -> Option<&'static str> {
@@ -92,11 +94,11 @@ impl AttrVars {
 }
 
 impl VarProvider for AttrVars {
-    fn help(&self) -> &dyn VarHelp {
-        &AttrHelp
+    fn info(&self) -> &dyn VarProviderInfo {
+        &AttrInfo
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
         let (paction, rtype, vtype, allow_missing) = match func.name.as_str() {
             "attr" => (None, AttrVarType::Value, VarType::Text, false),
             "has_attr" => (None, AttrVarType::Exists, VarType::Bool, true),
@@ -113,9 +115,9 @@ impl VarProvider for AttrVars {
                 VarType::Text,
                 true,
             ),
-            _ => return Ok(None),
+            _ => unreachable!(), // shouldn't happen
         };
-        let name = func.one_arg_as::<String>()?;
+        let name = func.arg_as::<String>(0)?;
         if name.is_empty() {
             return fail!("Attribute names cannot be empty.");
         }
@@ -127,7 +129,7 @@ impl VarProvider for AttrVars {
             id: b.symbol_id(),
             allow_missing,
         });
-        Ok(Some(Some(vtype)))
+        Ok(Some(vtype))
     }
 
     fn has_vars(&self) -> bool {
@@ -152,7 +154,9 @@ impl VarProvider for AttrVars {
                     } else {
                         if !var.allow_missing {
                             return fail!(format!(
-                                "Attribute '{}' not found in record '{}'",
+                                "Attribute '{}' not found in record '{}'. \
+                                Use 'opt_attr()' if attributes may be missing in some records. \
+                                Set the correct attribute format with --attr-format.",
                                 var.name,
                                 String::from_utf8_lossy(rec.id_bytes())
                             ));

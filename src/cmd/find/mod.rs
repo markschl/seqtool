@@ -1,11 +1,10 @@
 use std::fs::File;
 use std::io::BufWriter;
-use std::str;
 
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::helpers::util::replace_iter;
-use crate::io::{SeqAttr, RecordEditor};
+use crate::io::{RecordEditor, SeqAttr};
 use crate::var::{varstring, VarProvider};
 
 use super::shared::seqtype::SeqType;
@@ -110,7 +109,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
     // note: Config::with_command_vars() is called a second time here to avoid borrowing issues
     let (match_cfg, opts) = cfg.with_command_vars::<FindVars, _>(|match_vars, _| {
         let match_vars = match_vars.unwrap();
-
+        // TODO: has_vars() always returns true
         if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
             return fail!(
                 "Find command does nothing. Use -f/-e for filtering, --repl for replacing or \

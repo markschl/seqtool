@@ -5,79 +5,149 @@ use crate::io::Record;
 use crate::var::{
     func::Func,
     symbols::{SymbolTable, Value, VarType},
-    VarBuilder,
+    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
 };
-
-use super::*;
+use crate::var_info;
 
 #[derive(Debug)]
 pub struct FindVarHelp;
 
-impl VarHelp for FindVarHelp {
+impl VarProviderInfo for FindVarHelp {
     fn name(&self) -> &'static str {
         "Variables/functions to obtain pattern matches"
     }
 
-    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            ("match", "The text matched by the pattern. With approximate matching, \
-             this is the best hit (with the smallest edit distance) or the \
-             first (leftmost) occurrence if --in-order was specified. \
-             With exact/regex matching, the leftmost hit is always returned. \
-             With multiple patterns in a pattern file, the best hit of the \
-             best-matching pattern is returned (fuzzy matching), or the first \
-             hit of the first pattern (see below for selecting other hits or \
-             other patterns)."),
-            ("match(hit, [pattern])",
-             "The matched text of the given hit number, or a command delimited list of
-             all hits if hit = 'all'. Hits are either sorted by the edit distance \
-             or by occurrence (with --in-order or exact matching, same as above). \
-             With multiple patterns in a pattern file, the 2nd, 3rd, etc. \
-             best matching pattern can be selected with match(<hit>, 2) or match(<hit>, 3), etc. \
-            (default: pattern=1)."),
-            ("match_group(group, [hit,] [pattern])",
-             "Text matched by regex match group of given number (0 = entire match). \
-             An empty string is returned if the group does not exist \
-             The hit number (sorted by edit distance or occurrence) and the pattern \
-             number can be specified as well (details above)."),
-            ("match_dist",
-            "Number of mismatches/insertions/deletions (edit distance) of the search \
-            pattern compared to the sequence."),
-            ("match_dist(hit, [pattern])",
-            "Edit distance of the h-th best hit of the p-th pattern."),
-            ("match_start", "Start coordinate of the best/first match."),
-            ("match_end",   "End coordinate of the best/first match."),
-            ("match_range",  "Range of the match in the form 'start-end'"),
-            ("match_start(hit, [pattern]); match_end(hit, [pattern]); match_range(hit, [pattern])",
-            "Start/end/range of the h-th hit of the p-th pattern."),
-            ("matchgrp_start(g, [h], [p]); matchgrp_end(g, [h], [p]); matchgrp_range(g, [h], [p])",
-            "Start/end/range of regex match group number 'g' from the h-th hit \
-             of the p-th pattern."),
-            ("match_neg_start", "Start of the match relative to sequence end (negative number)"),
-            ("match_neg_end",   "End of the match relative to sequence end (negative number)"),
-            ("match_neg_start(hit, [pattern]), match_neg_end(hit, [pattern])",
-            "Start/end of the match relative to sequence end (negative) of the h-th hit of \
-             the p-th pattern."),
-            ("matchgrp_neg_start(g, [h], [p]), matchgrp_neg_start(g, [h], [p])",
-             "Negative start/end of regex match group number 'g' from the the h-th hit \
-              of the p-th pattern."),
-            ("match_drange",
-            "Range of the match with two dots as delimiter (start..end). Useful if the
-            matched range(s) should be passed to the 'trim' or 'mask' commands."),
-            ("match_neg_drange",
-            "Range of the match (dot delimiter) relative to the sequence end (-<start>..-<end>)"),
-            ("match_drange(hit, [pattern]), match_neg_drange(hit, [pattern])",
-            "Match ranges (normal/from end) of the h-th hit of the p-th pattern."),
-            ("matchgrp_drange(g, [h], [p]), matchgrp_neg_drange(g, [h], [p])",
-            "Match ranges (normal/from end) of regex match group 'g' from \
-             the h-th hit of the p-th pattern."),
-            ("pattern_name",
+    fn vars(&self) -> &[VarInfo] {
+        &[
+            var_info!(
+                match =>
+                "The text matched by the pattern. With approximate matching \
+                (`-d/--dist` argument), this is the best hit \
+                (with the smallest edit distance) or the \
+                leftmost occurrence if `--in-order` was specified. \
+                With exact/regex matching, the leftmost hit is always returned. \
+                With multiple patterns in a pattern file, the best hit of the \
+                best-matching pattern is returned (fuzzy matching), or the first \
+                hit of the first pattern with an exact match; \
+                see below for selecting other hits or other patterns)."
+            ),
+            var_info!(
+                match (hit, [pattern]) =>
+                "The matched text of the given hit number, or a command delimited list of \
+                all hits if hit = 'all'. Hits are either sorted by the edit distance \
+                or by occurrence (with `--in-order` or exact matching, same as described above). \
+                With multiple patterns in a pattern file, the 2nd, 3rd, etc. \
+                best matching pattern can be selected with `match(<hit>, 2)` or `match(<hit>, 3)`,
+                etc. \
+                (default: pattern=1)."
+            ),
+            var_info!(
+                match_group (group, [hit], [pattern]) =>
+                "Text matched by regex match group of given number (0 = entire match). \
+                An empty string is returned if the group does not exist \
+                The hit number (sorted by edit distance or occurrence) and the pattern \
+                number can be specified as well (details above)."
+            ),
+            var_info!(
+                match_dist [ (), (hit, [pattern]) ] =>
+                "Number of mismatches/insertions/deletions (edit distance) of the search \
+                pattern compared to the sequence. Either just `match_dist` for the best match, \
+                or `match_dist(h, [p])` to get the edit distance of the h-th best hit of \
+                the p-th pattern. `match_dist('all', [p]) will return a comma delimited list of \
+                distances for all hits of a pattern."
+            ),
+            var_info!(
+                        match_start [ (), (hit, [pattern]) ] =>
+                        "Start coordinate of the first/best match. \
+                        Other hits/patterns are selected with `match_start(hit, [pattern])`, \
+                        for details see `match`)"
+            ),
+            var_info!(
+            match_neg_start [ (), (hit, [pattern]) ] =>
+                "Start of the first/best match relative to sequence end (negative coordinate). \
+                Other hits/patterns are selected with `match_neg_start(hit, [pattern])`, \
+                for details see `match`)"
+            ),
+            var_info!(
+                    match_end [ (), (hit, [pattern]) ] =>
+                    "End coordinate of the first/best match. \
+                    Other hits/patterns are selected with `match_end(hit, [pattern])`, \
+                    for details see `match`)"
+            ),
+            var_info!(
+            match_neg_end [ (), (hit, [pattern]) ] =>
+                "End of the first/best match relative to sequence end (negative coordinate). \
+                Other hits/patterns are selected with `match_neg_end(hit, [pattern])`, \
+                for details see `match`)"
+                ),
+            var_info!(
+                match_range [ (), (hit, [pattern]) ] =>
+                "Range (start-end) of the first/best match. \
+                Other hits/patterns are selected with `match_range(hit, [pattern])`, \
+                for details see `match`)"
+            ),
+            var_info!(
+            match_neg_range [ (), (hit, [pattern]) ] =>
+                "Range of the first/best match relative to sequence end (negative coordinate). \
+                Other hits/patterns are selected with `match_neg_end(hit, [pattern])`, \
+                for details see `match`)"
+            ),
+            var_info!(
+                match_drange [ (), (hit, [pattern]) ] =>
+                "Range of the match with two dots as delimiter (start..end). Useful if the \
+                matched range(s) should be passed to the 'trim' or 'mask' commands."
+            ),
+            var_info!(
+                match_neg_drange [ (), (hit, [pattern]) ] =>
+                "Range of the match (dot delimiter) relative to the sequence end (-<start>..-<end>)."
+            ),
+            var_info!(
+                matchgrp_start (group, [h], [p]) =>
+                "Start of regex match group no. 'group' of the first/best match. \
+                Other hits/patterns are selected with `h` and `p` (for details see `match`)."
+            ),
+            var_info!(
+                matchgrp_neg_start (group, [h], [p]) =>
+                "Start coordinate of regex match group no. 'group' relative to the sequence end \
+                (negative coordinate)."
+            ),
+            var_info!(
+                matchgrp_end (group, [h], [p]) =>
+                "End coordinate of regex match group no. 'group' of the first/best match. \
+                Other hits/patterns are selected with `h` and `p` (for details see `match`)."
+            ),
+            var_info!(
+                matchgrp_neg_end (group, [h], [p]) =>
+                "End coordinate of regex match group no. 'group' relative to the sequence end \
+                (negative coordinate)."
+            ),
+            var_info!(
+                matchgrp_range (group, [h], [p]) =>
+                "Range (start-end) of regex match group no. 'group' of the \
+                first/best match. \
+                Other hits/patterns are selected with `h` and `p` (for details see `match`)."
+            ),
+            var_info!(
+                matchgrp_drange (group, [h], [p]) =>
+                "Range (start..end) of regex match group no. 'group'."
+            ),
+            var_info!(
+                matchgrp_neg_drange (group, [h], [p]) =>
+                "Range of regex match group no. 'group', with '..' delimiter and relative to the \
+                sequence end (`-<start>..-<end>`)."
+            ),
+            var_info!(
+                pattern_name [ (), (p) ] =>
+                "Name of the matching pattern if there are multiple \
+                supplied using `file:patterns.fasta`, or just `<pattern>` if a single pattern \
+                was specified in commandline."
+            ),
+            var_info!(pattern_name =>
             "Name of the matching pattern if there are multiple (pattern file), \
-            or '<pattern>' if a single pattern was specified in commandline."),
-            ("pattern_name(pattern)",
-            "Name of the p-th matching pattern (sorted by edit distance and/or \
-            pattern number)"),
-        ])
+            or '<pattern>' if a single pattern was specified in commandline. \
+            `pattern_name(p)` allows selecting the p-th matching pattern \
+            (sorted by edit distance and/or pattern number)"),
+        ]
     }
     // fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
     //     Some(&[])
@@ -100,6 +170,8 @@ pub enum FindVarType {
 }
 
 use self::FindVarType::*;
+
+use super::{FindCommand, Matches, SearchConfig};
 
 #[derive(Debug)]
 pub struct VarPos {
@@ -237,18 +309,18 @@ impl FindVars {
 }
 
 impl VarProvider for FindVars {
-    fn help(&self) -> &dyn VarHelp {
+    fn info(&self) -> &dyn VarProviderInfo {
         &FindVarHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
         let name = func.name.as_str();
-        // new-style variables/functions
-        let (var_type, out_t, hit_i, pat_i, grp_i, min_args, max_args) = match name {
-            "match_dist" => (Dist, VarType::Int, Some(0), 1, None, 0, 2),
-            "match" => (Match, VarType::Text, Some(0), 1, None, 0, 2),
-            "match_group" => (Match, VarType::Text, Some(1), 2, Some(0), 1, 3),
-            "pattern_name" => (Name, VarType::Text, None, 0, None, 0, 1),
+        // obtain args (hit number, pattern number, regex group number)
+        let (var_type, out_t, hit_i, pat_i, grp_i) = match name {
+            "match_dist" => (Dist, VarType::Int, Some(0), 1, None),
+            "match" => (Match, VarType::Text, Some(0), 1, None),
+            "match_group" => (Match, VarType::Text, Some(1), 2, Some(0)),
+            "pattern_name" => (Name, VarType::Text, None, 0, None),
             _ => {
                 #[allow(clippy::manual_strip)]
                 let (grp, name) = if name.starts_with("matchgrp_") {
@@ -256,7 +328,7 @@ impl VarProvider for FindVars {
                 } else if name.starts_with("match_") {
                     (false, &name[6..])
                 } else {
-                    return Ok(None);
+                    unreachable!();
                 };
                 let var = match name {
                     "start" => Start,
@@ -266,20 +338,18 @@ impl VarProvider for FindVars {
                     "range" => Range("-".into()),
                     "drange" => Range("..".into()),
                     "neg_drange" => NegRange("..".into()),
-                    _ => return Ok(None),
+                    _ => unreachable!(),
                 };
                 if grp {
-                    (var, VarType::Int, Some(1), 2, Some(0), 0, 3)
+                    (var, VarType::Int, Some(1), 2, Some(0))
                 } else {
-                    (var, VarType::Int, Some(0), 1, None, 0, 2)
+                    (var, VarType::Int, Some(0), 1, None)
                 }
             }
         };
 
-        func.ensure_arg_range(min_args, max_args)?;
-
         // set variable defaults
-        let hit_num = hit_i.and_then(|i| func.arg(i));
+        let hit_num = hit_i.and_then(|i| func.opt_arg(i));
         let hit_pos = match hit_num {
             None => Some(0),
             Some("all") => None,
@@ -293,13 +363,13 @@ impl VarProvider for FindVars {
         };
 
         let match_group = grp_i
-            .and_then(|i| func.arg_as::<usize>(i))
+            .and_then(|i| func.opt_arg_as::<usize>(i))
             .transpose()?
             // we use group = 0 to indicate the whole match
             .unwrap_or(0);
 
         // pattern rank:
-        let pattern_rank = func.arg_as::<usize>(pat_i).transpose()?.unwrap_or(1);
+        let pattern_rank = func.opt_arg_as::<usize>(pat_i).transpose()?.unwrap_or(1);
 
         debug_assert!(self.num_patterns > 0);
         if pattern_rank > self.num_patterns {
@@ -329,7 +399,7 @@ impl VarProvider for FindVars {
             pattern_rank,
         };
         self.register_match(pos)?;
-        Ok(Some(Some(out_t)))
+        Ok(Some(out_t))
     }
 
     fn has_vars(&self) -> bool {

@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::io;
 
 use fxhash::FxHashMap;
+use itertools::Itertools;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
@@ -13,6 +14,7 @@ use crate::io::{
     },
     Compression, QualConverter, QualFormat, Record, SeqAttr,
 };
+use crate::var::ArgInfo;
 use crate::var::{
     attr::{AttrFormat, Attrs},
     func::Func,
@@ -25,9 +27,17 @@ use crate::var::{
 pub struct Config {
     input_opts: Vec<InputOptions>,
     output_opts: OutputOptions,
+    // context provided along with individual sequence records,
+    // contains the symbol table
     ctx: SeqContext,
-    var_map: FxHashMap<Func, (usize, Option<VarType>, bool)>,
-    attr_map: FxHashMap<String, usize>,
+    // registry of all variables by name,
+    // with: - index of corresponding `VarProvider` module in ctx.var_modules)
+    //       - range of expected arguments
+    var_map: FxHashMap<String, (usize, (usize, usize))>,
+    // used to remember, which variables have been registered to which ID
+    registered_vars: FxHashMap<Func, (usize, Option<VarType>, bool)>,
+    // used to remember, which attributes have been registered to which ID
+    registered_attrs: FxHashMap<String, usize>,
     started: Cell<bool>,
 }
 
@@ -48,13 +58,51 @@ impl Config {
         let mut var_modules = Vec::new();
         init_vars(&mut var_modules, command_vars, &var_opts, &output_opts)?;
 
-        // // if --var-help requested, exit
-        // if var_opts.var_help {
-        //     for m in &var_modules {
-        //         eprintln!("{}", m.help());
-        //     }
-        //     exit(2);
-        // }
+        // build variable registry with expected number of arguments
+        let mut vars: Vec<((String, usize), (usize, usize))> = var_modules
+            .iter()
+            .enumerate()
+            .flat_map(|(i, v)| {
+                v.info().vars().iter().flat_map(move |vars| {
+                    let key = (vars.name.to_string(), i);
+                    vars.args.iter().map(move |args| {
+                        (
+                            key.clone(),
+                            (
+                                args.iter()
+                                    .filter(|a| matches!(a, ArgInfo::Required(_)))
+                                    .count(),
+                                args.len(),
+                            ),
+                        )
+                    })
+                })
+            })
+            .collect();
+        vars.sort_by_key(|(k, _)| k.clone());
+        let mut arg_num = Vec::new();
+        let var_map = vars
+            .into_iter()
+            .group_by(|(k, _)| k.clone())
+            .into_iter()
+            .map(|((varname, provider_i), group)| {
+                arg_num.clear();
+                for (_, (min_args, max_args)) in group {
+                    arg_num.push(min_args);
+                    arg_num.push(max_args);
+                }
+                (
+                    varname,
+                    (
+                        provider_i,
+                        (
+                            *arg_num.iter().min().unwrap(),
+                            *arg_num.iter().max().unwrap(),
+                        ),
+                    ),
+                )
+            })
+            .collect();
 
         // Where are attributes (key=value) appended?
         let append_attr = if var_opts.attr_format.delim == b" " {
@@ -83,8 +131,9 @@ impl Config {
             output_opts,
             input_opts,
             ctx,
-            var_map: FxHashMap::default(),
-            attr_map: FxHashMap::default(),
+            var_map,
+            registered_vars: FxHashMap::default(),
+            registered_attrs: FxHashMap::default(),
             started: Cell::new(false),
         })
     }
@@ -104,14 +153,15 @@ impl Config {
         let rv = {
             let mut builder = VarBuilder::new(
                 &mut self.ctx.var_modules,
-                &mut self.var_map,
-                &mut self.attr_map,
+                &self.var_map,
+                &mut self.registered_vars,
+                &mut self.registered_attrs,
                 &mut self.ctx.attrs,
             );
             action(&mut builder)
         };
         // done, grow the symbol table
-        self.ctx.symbols.resize(self.var_map.len());
+        self.ctx.symbols.resize(self.registered_vars.len());
         rv
     }
 
@@ -273,7 +323,8 @@ impl Config {
 #[derive(Debug)]
 pub struct SeqContext {
     var_modules: Vec<Box<dyn VarProvider>>,
-    // these fields are public in order to avoid borrowing issues
+    // These fields are public in order to avoid borrowing issues
+    // in some implementations.
     pub symbols: SymbolTable,
     pub attrs: Attrs,
     pub qual_converter: QualConverter,

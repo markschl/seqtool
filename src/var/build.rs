@@ -17,39 +17,44 @@ use super::VarProvider;
 ///
 /// A `VarProvider` can itself register variables, querying all providers *before*
 /// it in the modules list. This functionality is used by `expr::ExprVars`.
-/// However, it *must* use `VarBuilder::register_dependent_var()`, since vars/functions
-/// from certain providers used in commands (that have `VarProvider::allow_dependent() == false`)
+/// However, it *must* use `VarBuilder::register_nested_var()`, since vars/functions
+/// from certain providers used in commands (that have `VarProvider::allow_nested() == false`)
 /// cannot be used in expressions.
 #[derive(Debug)]
 pub struct VarBuilder<'a> {
     modules: &'a mut [Box<dyn VarProvider>],
+    // varname -> (module_idx, (min_args, max_args))
+    var_map: &'a FxHashMap<String, (usize, (usize, usize))>,
     // func -> (var_id, var_type, allow_nested)
-    var_map: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
-    attr_map: &'a mut FxHashMap<String, usize>,
+    registered_vars: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
+    // attrname -> attr_id
+    registered_attrs: &'a mut FxHashMap<String, usize>,
     attrs: &'a mut Attrs,
 }
 
 impl<'a> VarBuilder<'a> {
     pub fn new(
         modules: &'a mut [Box<dyn VarProvider>],
-        var_map: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
-        attr_map: &'a mut FxHashMap<String, usize>,
+        var_map: &'a FxHashMap<String, (usize, (usize, usize))>,
+        registered_vars: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
+        registered_attrs: &'a mut FxHashMap<String, usize>,
         attrs: &'a mut Attrs,
     ) -> Self {
         Self {
             modules,
             var_map,
-            attr_map,
+            registered_vars,
+            registered_attrs,
             attrs,
         }
     }
 
     pub fn register_attr(&mut self, name: &str, action: Option<Action>) -> usize {
-        if let Some(&attr_id) = self.attr_map.get(name) {
+        if let Some(&attr_id) = self.registered_attrs.get(name) {
             return attr_id;
         }
-        let attr_id = self.attr_map.len();
-        self.attr_map.insert(name.to_string(), attr_id);
+        let attr_id = self.registered_attrs.len();
+        self.registered_attrs.insert(name.to_string(), attr_id);
         self.attrs.add_attr(name, attr_id, action);
         attr_id
     }
@@ -63,7 +68,8 @@ impl<'a> VarBuilder<'a> {
         self._register_var(var, false)
     }
 
-    pub fn register_dependent_var(
+    /// Register a variable/function from within another `VarProvider`
+    pub fn register_nested_var(
         &mut self,
         var: &Func,
     ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
@@ -72,48 +78,100 @@ impl<'a> VarBuilder<'a> {
 
     pub fn _register_var(
         &mut self,
-        var: &Func,
-        dependent: bool,
+        func: &Func,
+        nested: bool,
     ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
-        if let Some((id, var_type, allow_nested)) = self.var_map.get(var) {
-            // eprintln!("var present {:?} {} {:?}", var, id, var_type);
-            if dependent && !allow_nested {
-                return Err(DependentVarError(var.name.to_string()).into());
+        if let Some((id, var_type, allow_nested)) = self.registered_vars.get(func) {
+            // eprintln!("var present {:?} {} {:?}", func, id, var_type);
+            if nested && !allow_nested {
+                return Err(NestedVarError(func.name.to_string()).into());
             }
             return Ok(Some((*id, var_type.clone(), true)));
         }
-        if let Some((t, other)) = self.modules.split_last_mut() {
-            let mut b = VarBuilder {
-                modules: other,
-                attrs: self.attrs,
+        if let Some(mod_idx) = self.lookup_var(func).transpose()? {
+            let (dep_mod, other_mod) = self.modules.split_at_mut(mod_idx);
+            let var_mod = other_mod.first_mut().unwrap();
+            // dbg!("=============");
+            // dbg!(var_mod.info());
+            // dbg!("=============");
+            // for m in &*dep_mod {
+            //     dbg!(m.info());
+            // }
+            let mut nested_builder = VarBuilder {
+                modules: dep_mod,
                 var_map: self.var_map,
-                attr_map: self.attr_map,
+                registered_vars: self.registered_vars,
+                registered_attrs: self.registered_attrs,
+                attrs: self.attrs,
             };
-            if let Some(vtype) = t.register(var, &mut b)? {
-                let var_id = self.var_map.len();
-                let allow_nested = t.allow_dependent();
-                if dependent && !allow_nested {
-                    return Err(DependentVarError(var.name.to_string()).into());
-                }
-                self.var_map
-                    .insert(var.clone(), (var_id, vtype.clone(), allow_nested));
-                // eprintln!("successful {:?}  =>  {} / {:?} in  {:?}", var, var_id, vtype, t);
-                return Ok(Some((var_id, vtype, false)));
+            let vtype = var_mod.register(func, &mut nested_builder)?;
+            let allow_nested = var_mod.allow_nested();
+            if nested && !allow_nested {
+                return Err(NestedVarError(func.name.to_string()).into());
             }
-            return b._register_var(var, dependent);
+            let var_id = self.registered_vars.len();
+            self.registered_vars
+                .insert(func.clone(), (var_id, vtype.clone(), allow_nested));
+            // eprintln!(
+            //     "successful {:?}  =>  {} / {:?} in  {:?}",
+            //     func, var_id, vtype, var_mod
+            // );
+            return Ok(Some((var_id, vtype, false)));
         }
         Ok(None)
     }
 
+    pub fn has_var(&self, varname: &str) -> bool {
+        self.var_map
+            .get(varname)
+            .map(|(i, _)| *i < self.modules.len())
+            .unwrap_or(false)
+    }
+
+    // returns the module index of the given function/variable if known
+    fn lookup_var(&'a self, func: &Func) -> Option<Result<usize, String>> {
+        self.var_map
+            .get(&func.name)
+            .and_then(|(i, (min_args, max_args))| {
+                // dbg!(&func, i, min_args, max_args, self.modules.len());
+                if *i < self.modules.len() {
+                    // validate function args
+                    let num_args = func.args.len();
+                    let what = if num_args < *min_args {
+                        "Not enough"
+                    } else if num_args > *max_args {
+                        "Too many"
+                    } else {
+                        return Some(Ok(*i));
+                    };
+                    Some(Err(format!(
+                        "{} arguments provided to function '{}', expected {} but found {}.",
+                        what,
+                        func.name,
+                        if min_args != max_args {
+                            format!("{}-{}", min_args, max_args)
+                        } else {
+                            min_args.to_string()
+                        },
+                        num_args
+                    )))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Current variable ID, which `VarProvider`s may store for later accessing values from the symbol
+    /// table.
     pub fn symbol_id(&self) -> usize {
-        self.var_map.len()
+        self.registered_vars.len()
     }
 }
 
-pub struct DependentVarError(String);
+pub struct NestedVarError(String);
 
-impl From<DependentVarError> for CliError {
-    fn from(e: DependentVarError) -> Self {
+impl From<NestedVarError> for CliError {
+    fn from(e: NestedVarError) -> Self {
         CliError::Other(format!(
             "The variable/function '{}' can unfortunately not be used as \
             within an {{ expression }}.",

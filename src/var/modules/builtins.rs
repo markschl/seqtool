@@ -13,44 +13,37 @@ use crate::var::{
     attr::Attrs,
     func::Func,
     symbols::{SymbolTable, VarType},
-    VarBuilder, VarHelp, VarProvider,
+    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
 };
+use crate::var_info;
 
 #[derive(Debug)]
 pub struct BuiltinHelp;
 
-impl VarHelp for BuiltinHelp {
+impl VarProviderInfo for BuiltinHelp {
     fn name(&self) -> &'static str {
         "Data from records and input files"
     }
 
-    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "id",
-                "Record ID (in FASTA/FASTQ: everything before first space)",
+    fn vars(&self) -> &[VarInfo] {
+        &[
+            var_info!(id => "Record ID (in FASTA/FASTQ: everything before first space)"),
+            var_info!(desc => "Record description (everything after first space)"),
+            var_info!(seq => "Record sequence"),
+            var_info!(
+                num =>
+                    "Sequence number, starting with 1. Note that the output order can vary with \
+                    multithreaded processing."
             ),
-            ("desc", "Record description (everything after first space)"),
-            ("seq", "Record sequence"),
-            ("num", "Sequence number starting with 1"),
-            (
-                "path",
-                "Path to the current input file (or '-' if reading from STDIN)",
+            var_info!(path => "Path to the current input file (or '-' if reading from STDIN)"),
+            var_info!(filename => "Name of the current input file with extension (or '-')"),
+            var_info!(filestem => "Name of the current input file without extension (or '-')"),
+            var_info!(dirname => "Name of the base directory of the current file (or '')"),
+            var_info!(default_ext =>
+                "Default file extension for the configured output format \
+                (e.g. 'fasta' or 'fastq')"
             ),
-            (
-                "filename",
-                "Name of the current input file with extension (or '-')",
-            ),
-            (
-                "filestem",
-                "Name of the current input file without extension (or '-')",
-            ),
-            ("extension", "Extension of the current input file."),
-            (
-                "dirname",
-                "Name of the base directory of the current file (or '')",
-            ),
-        ])
+        ]
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
@@ -108,11 +101,11 @@ impl BuiltinVars {
 }
 
 impl VarProvider for BuiltinVars {
-    fn help(&self) -> &dyn VarHelp {
+    fn info(&self) -> &dyn VarProviderInfo {
         &BuiltinHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
         let (vt, var) = match func.name.as_str() {
             "id" => (VarType::Attr, Id),
             "desc" => (VarType::Attr, Desc),
@@ -139,11 +132,10 @@ impl VarProvider for BuiltinVars {
                 (VarType::Text, Dir)
             }
             "default_ext" => (VarType::Text, DefaultExt),
-            _ => return Ok(None),
+            _ => unreachable!(), // shouldn't happen
         };
-        func.ensure_num_args(0)?;
         self.vars.push((var, b.symbol_id()));
-        Ok(Some(Some(vt)))
+        Ok(Some(vt))
     }
 
     fn has_vars(&self) -> bool {

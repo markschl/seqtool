@@ -73,9 +73,9 @@ fn meta() {
             "0\n0\n0\n0\n",
         );
         // invalid column
-        let msg = "Metadata columns must be > 0";
+        let msg = "column numbers must be > 0";
         t.fails(&[".", "-m", p, "--to-tsv", "{meta(0)}"], *FASTA, msg);
-        let msg = "Column no. 3 not found in metadata entry for 'seq1'";
+        let msg = "Column no. 3 not found in metadata entry for record 'seq1'";
         t.fails(&[".", "-m", p, "--to-tsv", "{meta(3)}"], *FASTA, msg);
     });
 }
@@ -115,7 +115,7 @@ fn meta_header() {
             *FASTA,
             out,
         );
-        let msg = "Metadata column 'somecol' not found in ";
+        let msg = "Column 'somecol' not found";
         t.fails(&[".", "-m", p, "--to-tsv", "{meta(somecol)}"], *FASTA, msg);
     });
 }
@@ -217,6 +217,13 @@ fn meta_multi_file() {
                 t.fails(&[".", "-m", f1, "--to-tsv", "has_meta(0)"], *FASTA, msg);
                 let msg = "Metadata file no. 2 was requested";
                 t.fails(&[".", "-m", f1, "--to-tsv", "meta(2, 1)"], *FASTA, msg);
+                // file number not supplied
+                let msg = "Please specify the file number as first argument";
+                t.fails(
+                    &[".", "-m", f1, "-m", f2, "--to-tsv", "meta(1)"],
+                    *FASTA,
+                    msg,
+                );
             });
         });
     });

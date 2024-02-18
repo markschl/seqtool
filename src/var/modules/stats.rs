@@ -7,45 +7,50 @@ use crate::var::{
     attr::Attrs,
     func::Func,
     symbols::{SymbolTable, VarType},
-    VarBuilder, VarHelp, VarProvider,
+    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
 };
+use crate::var_info;
 
 #[derive(Debug)]
 pub struct StatHelp;
 
-impl VarHelp for StatHelp {
+impl VarProviderInfo for StatHelp {
     fn name(&self) -> &'static str {
         "Sequence statistics"
     }
 
-    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            ("seqlen", "Sequence length"),
-            ("ungapped_seqlen", "Sequence length without gaps (-)"),
-            (
-                "gc",
+    fn vars(&self) -> &[VarInfo] {
+        &[
+            var_info!(seqlen => "Sequence length"),
+            var_info!(ungapped_seqlen => "Ungapped sequence length (without gap characters `-`)"),
+            var_info!(
+                gc =>
                 "GC content as percentage of total bases. Lowercase (=masked) letters \
-                 / characters other than ACGTU are not taken into account.",
+                 or characters other than ACGTU are not taken into account."
             ),
-            (
-                "charcount",
-                "Count occurrence one or more characters. \
-                Example counting count non-ambiguous bases: \
-                `charcount(\"ACGT\")` or `charcount('ACGT')`.",
+            var_info!(
+                charcount (characters) =>
+                "Count occurrence one or more characters."
             ),
-            (
-                "exp_err",
+            var_info!(
+                exp_err =>
                 "Total number of errors expected in the sequence, calculated from the quality scores \
                  as the sum of all error probabilities. For FASTQ, make sure to specify the correct \
-                 format (--fmt) in case the scores are not in the Sanger/Illumina 1.8+ format.",
+                 format (--fmt) in case the scores are not in the Sanger/Illumina 1.8+ format."
             ),
-        ])
+        ]
     }
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[(
-            "Get absolute GC content (not relative to sequence length)",
-            "st stat gc input.fa",
-        )])
+        Some(&[
+            (
+                "Get absolute GC content (not relative to sequence length)",
+                "st stat gc input.fa",
+            ),
+            (
+                "Remove DNA sequences with at least 1% ambiguous bases",
+                "st filter 'charcount(\"ACGT\") / seqlen >= 0.01' input.fa",
+            ),
+        ])
     }
 }
 
@@ -71,14 +76,14 @@ impl StatVars {
 }
 
 impl VarProvider for StatVars {
-    fn help(&self) -> &dyn VarHelp {
+    fn info(&self) -> &dyn VarProviderInfo {
         &StatHelp
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
         let name = func.name.as_str();
         let (vt, stat) = if name == "charcount" {
-            let v = func.one_arg_as::<String>()?;
+            let v = func.arg_as::<String>(0)?;
             let c = v.as_bytes();
             if c.len() == 1 {
                 (VarType::Int, Stat::Count(c[0]))
@@ -86,18 +91,16 @@ impl VarProvider for StatVars {
                 (VarType::Int, Stat::MultiCount(c.to_owned()))
             }
         } else {
-            let res = match name {
+            match name {
                 "seqlen" => (VarType::Int, SeqLen),
                 "ungapped_seqlen" => (VarType::Int, UngappedLen),
                 "gc" => (VarType::Float, GC),
                 "exp_err" => (VarType::Float, ExpErr),
                 _ => return Ok(None),
-            };
-            func.ensure_no_args()?;
-            res
+            }
         };
         self.stats.push((stat, b.symbol_id()));
-        Ok(Some(Some(vt)))
+        Ok(Some(vt))
     }
 
     fn has_vars(&self) -> bool {

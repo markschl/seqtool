@@ -6,9 +6,8 @@ use crate::var::{
     attr::Attrs,
     func::Func,
     symbols::{OptValue, SymbolTable, VarType},
-    VarBuilder, VarHelp, VarProvider,
+    ArgInfo, VarBuilder, VarInfo, VarProvider, VarProviderInfo,
 };
-
 mod js;
 // mod simple;
 mod one_expr;
@@ -62,20 +61,18 @@ impl ExprVars {
 }
 
 impl VarProvider for ExprVars {
-    fn help(&self) -> &dyn VarHelp {
-        &ExprHelp
+    fn info(&self) -> &dyn VarProviderInfo {
+        &ExprInfo
     }
 
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
-        if var.name != "____expr" || var.num_args() != 1 {
-            return Ok(None);
-        }
-        let expr = var.arg_as::<String>(0).unwrap()?;
-        self.0.register_expr(&expr, b)?;
-        Ok(Some(None))
+    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
+        assert_eq!(var.name, "____expr");
+        let expr = var.arg(0);
+        self.0.register_expr(expr, b)?;
+        Ok(None)
     }
 
-    fn allow_dependent(&self) -> bool {
+    fn allow_nested(&self) -> bool {
         false
     }
 
@@ -95,15 +92,17 @@ impl VarProvider for ExprVars {
 }
 
 #[derive(Debug)]
-pub struct ExprHelp;
+pub struct ExprInfo;
 
-impl VarHelp for ExprHelp {
+impl VarProviderInfo for ExprInfo {
     fn name(&self) -> &'static str {
         "Expressions (Javascript)"
     }
+
     fn usage(&self) -> Option<&'static str> {
         Some("{{ expression }}")
     }
+
     fn desc(&self) -> Option<&'static str> {
         Some(
             "Expressions with variables, from simple mathematical operations to \
@@ -116,6 +115,16 @@ impl VarHelp for ExprHelp {
             explicitly require a 'return' statement to return the value.",
         )
     }
+
+    fn vars(&self) -> &[VarInfo] {
+        &[VarInfo {
+            name: "____expr",
+            args: &[&[ArgInfo::Required("")]],
+            description: "",
+            hidden: true,
+        }]
+    }
+
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
             (

@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use csv::{self, ByteRecord, Reader, ReaderBuilder};
 use fxhash::{FxHashMap, FxHashSet};
+use strum_macros::{Display, EnumString};
 
 use crate::error::CliResult;
 use crate::io::{
@@ -15,75 +16,78 @@ use crate::var::{
     attr::Attrs,
     func::{ArgValue, Func},
     symbols::{SymbolTable, VarType},
-    VarBuilder, VarHelp, VarProvider,
+    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
 };
+use crate::var_info;
 
 #[derive(Debug)]
-pub struct MetaHelp;
+pub struct MetaInfo;
 
-impl VarHelp for MetaHelp {
+impl VarProviderInfo for MetaInfo {
     fn name(&self) -> &'static str {
         "Associated metadata from delimited text files"
     }
 
-    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "meta(field-number) or meta(field-name) = meta('field-name') = meta(\"field-name\")",
-                "Obtain a value from a column of the delimited text file. \
-                Missing entries are not allowed for any sequence record. \
-                Field names can be quoted (but this is not required).",
+    fn vars(&self) -> &[VarInfo] {
+        &[
+            var_info!(
+                meta [ (column_number), (column_name) ] =>
+                "Obtain a value from a column (1, 2, 3, etc. or 'name') of the delimited text file \
+                supplied with `-m` or `--meta`. \
+                Missing entries are not allowed. \
+                Field may be quoted or not (but quoting is required in Javascript expressions)."
             ),
-            (
-                "meta(file-num, field-num) or meta(file-num, field-name)",
-                "Obtain a value from a column of the text file no. <file-num>. \
-                The numbering (1, 2, 3, etc.) reflects the order in which the \
-                files were provided in the commandline (-m file1 -m file2 -m file3). \
-                Missing entries are not allowed. Field name quoting is optional.",
+            var_info!(
+                meta [ (file_num, col_num), (file_num, col_name) ] =>
+                "If there are multiple metadata files supplied with -m/--meta \
+                (`-m file1 -m file2 -m file3, ...`), the specific file can be referenced \
+                by supplying `<file-number>` (1, 2, 3, ...) as first argument, followed by  \
+                the column number. If only a single file is supplied, only the column \
+                number or name is required (see above use case). \
+                Missing entries are not allowed."
             ),
-            (
-                "opt_meta(field-number) or opt_meta(field-name)",
-                "Like meta(field-number) or meta(field-name), but not all sequence records \
-                are required to have an associated metadata value. \
-                Missing values will result in an empty string or 'undefined' \
-                in JavaScript expressions.",
+            var_info!(
+                opt_meta [ (column_number), (column_name) ] =>
+                "Like `meta(column_number)` or `meta(column_name)`, but not every sequence record \
+                is required to have an associated metadata row matching the given record ID. \
+                Missing values will result in an empty string in the output \
+                (or 'undefined' in JavaScript expressions)."
             ),
-            (
-                "opt_meta(file-num, field-num) or opt_meta(file-num, field-name)",
-                "Like meta(file-num, field-num) / meta(file-num, field-name), \
-                but missing metadata will result in an empty string \
-                (or 'undefined' in expressions) instead of an error.",
+            var_info!(
+                opt_meta [ (file_num, col_num), (file_num, col_name) ] =>
+                "Like `meta(file_num, column)`, \
+                but missing metadata entries are possible."
             ),
-            (
-                "has_meta or has_meta() or has_meta(file-num)",
-                "Returns true if the given record has a metadata entry in the \
+            var_info!(
+                has_meta [ (), (file_number) ] =>
+                "Returns true if the given record has a metadata entry with the same ID in the \
                 in the given file. In case of multiple files, the file number \
-                can be supplied as an argument.",
+                must be supplied as an argument."
             ),
-        ])
+        ]
     }
 
     fn desc(&self) -> Option<&'static str> {
         Some(
-            "The `meta`, `opt_meta` and `has_meta` variables/functions allow accessing \
+            "The functions `meta`, `opt_meta` and `has_meta` allow accessing \
             associated metadata in plain delimited text files \
             (optionally compressed, auto-recognized). \
             These files must contain a column with the sequence ID \
-            (default: 1st column; change with --meta-idcol). \
-            The column delimiter is guessed if possible (override with --meta-delim): \
-            '.csv' is interpreted as comma(,)-delimited, '.tsv'/'.txt' or other (unknown) \
-            extensions are assumed to be tab-delimited. \
+            (default: 1st column; change with `--meta-idcol`).\n\
+            The column delimiter is guessed if possible (override with `--meta-delim`): \
+            `.csv` is interpreted as comma(,)-delimited, `.tsv`/`.txt` or other (unknown) \
+            extensions are assumed to be tab-delimited.\n\
             The first line is implicitly assumed to contain \
             column names if a non-numeric field name is requested, e.g. `meta(fieldname)`. \
-            Use --meta-header to explicitly enable header lines \
-            (necessary if column names are numbers). \
-            Multiple metadata files can be supplied (-m file1 -m file2 -m file3...) and \
-            are addressed via 'file-num' (see function descriptions). \
+            Use `--meta-header` to explicitly enable header lines \
+            (necessary if column names are numbers).\n\n\
+            Multiple metadata files can be supplied (`-m file1 -m file2 -m file3 ...`) and \
+            are addressed via `file-num` (see function descriptions).\n\n\
             For maximum performance, provide metadata records in the same order as \
             sequence records. \
-            \n\
-            *Note:* Specify '--dup-ids' if the sequence input is expected to contain \
-            duplicate IDs (which is rather unusual). See the help page (-h/--help) \
+            \n\n\
+            *Note:* Specify `--dup-ids` if the sequence input is expected to contain \
+            duplicate IDs (which is rather unusual). See the help page (`-h/--help`) \
             for more information. 
             ",
         )
@@ -91,20 +95,21 @@ impl VarHelp for MetaHelp {
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         Some(&[
             (
-                "Add taxonomic lineages stored in the second column of a GZIP-compressed \
-                 TSV file to the FASTA headers, as description after the first space. \
-                 The resulting headers look like this: '>id1 k__Fungi;p__Basidiomycota;c__...'",
+                "Add taxonomic lineages stored in a GZIP-compressed TSV file (column no. 2) \
+                to the FASTA headers, as description after the first space. \
+                 The resulting headers look like this: `>id1 k__Fungi;p__Basidiomycota;c__...`",
                 "st set -m taxonomy.tsv.gz -d '{meta(2)}' input.fa > output.fa",
             ),
             (
                 "Integrate metadata from an Excel-generated CSV file \
                 (with semicolon delimiter and column names) \
-                into sequence records in form of a header attribute (-a/--attr) \
-                (possible output: >id1 info=somevalue)",
+                into sequence records in form of a header attribute (`-a/--attr`); \
+                resulting output: >id1 info=somevalue",
                 "st pass -m metadata.csv --meta-sep ';' -a 'info={meta(column-name)}' input.fa > output.fa",
             ),
             (
-                "Extract sequences with coordinates stored in a BED file",
+                "Extract sequences with coordinates stored in a BED file \
+                (equivalent to `bedtools getfasta`)",
                 "st trim -m coordinates.bed -0 {meta(2)}..{meta(3)} input.fa > output.fa",
             ),
             (
@@ -122,12 +127,169 @@ enum MetaVarType {
     Exists,
 }
 
+#[derive(Debug)]
 pub struct MetaVars {
-    // file
-    file_num: usize,
-    total_files: usize,
+    // metadata readers together with registered variabbles (var_id, col_idx)
+    readers: Vec<(MetaReader, Vec<(usize, MetaVarType)>)>,
+}
+
+impl MetaVars {
+    pub fn new<I: IntoIterator<Item = P>, P: AsRef<str>>(
+        paths: I,
+        delim: Option<u8>,
+        dup_ids: bool,
+    ) -> CliResult<Self> {
+        let readers = paths
+            .into_iter()
+            .map(|path| Ok((MetaReader::new(path.as_ref(), delim, dup_ids)?, Vec::new())))
+            .collect::<CliResult<_>>()?;
+        Ok(Self { readers })
+    }
+
+    pub fn set_id_col(mut self, id_col: u32) -> Self {
+        for (rdr, _) in &mut self.readers {
+            rdr.set_id_col(id_col);
+        }
+        self
+    }
+
+    pub fn set_has_header(mut self, has_header: bool) -> Self {
+        for (rdr, _) in &mut self.readers {
+            rdr.set_has_header(has_header);
+        }
+        self
+    }
+}
+
+impl VarProvider for MetaVars {
+    fn info(&self) -> &dyn VarProviderInfo {
+        &MetaInfo
+    }
+
+    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
+        // Get function type as enum to avoid multiple string comparisons
+        #[derive(Debug, Display, EnumString, PartialEq)]
+        #[strum(serialize_all = "snake_case")]
+        enum _VarType {
+            Meta,
+            OptMeta,
+            HasMeta,
+        }
+        // note: unwrap is ok, since only functions with names present in MetaInfo are supplied
+        let var = _VarType::from_str(&func.name).unwrap();
+
+        // there should be at least one metadata file
+        if self.readers.is_empty() {
+            return fail!("The '{}' function is used, but no metadata source was supplied with -m/--meta <file>.", func.name);
+        }
+        // get file number
+        // obtain and validate file number
+        let (file_num, arg_offset) = if var == _VarType::HasMeta {
+            (func.opt_arg_as::<usize>(0).transpose()?, 0)
+        } else if func.args.len() == 2 {
+            (Some(func.arg_as::<usize>(0)?), 1)
+        } else {
+            (None, 0)
+        };
+        let file_num = if self.readers.len() == 1 {
+            file_num.unwrap_or(1)
+        } else {
+            file_num.ok_or_else(|| format!(
+                "The '{}' function does not have enough arguments. Please specify the file number as first argument, \
+                since multiple metadata files were supplied with -m/--meta.",
+                func.name
+            ))?
+        };
+        if file_num == 0 {
+            return fail!("Invalid metadata file no. requested: 0",);
+        }
+        if file_num > self.readers.len() {
+            return fail!(
+                "Metadata file no. {} was requested by `{}`, \
+                but only {} metadata source(s) were supplied with -m/--meta",
+                file_num,
+                func.name,
+                self.readers.len()
+            );
+        }
+        let (rdr, vars) = &mut self.readers[file_num - 1];
+
+        let (var, vtype) = match var {
+            _VarType::HasMeta => (MetaVarType::Exists, VarType::Bool),
+            _VarType::Meta | _VarType::OptMeta => {
+                let col = func.arg(arg_offset);
+                let i = rdr.get_col_index(col)?;
+                (MetaVarType::Col(i, var == _VarType::OptMeta), VarType::Text)
+            }
+        };
+        vars.push((b.symbol_id(), var));
+        Ok(Some(vtype))
+    }
+
+    fn has_vars(&self) -> bool {
+        self.readers.iter().any(|(_, vars)| !vars.is_empty())
+    }
+
+    fn set(
+        &mut self,
+        record: &dyn Record,
+        symbols: &mut SymbolTable,
+        _: &mut Attrs,
+        _: &mut QualConverter,
+    ) -> CliResult<()> {
+        // find the next record for all readers
+        let id = record.id_bytes();
+
+        for (rdr, vars) in &mut self.readers {
+            // find the next record
+            let opt_record = rdr.find_next(id)?;
+
+            // copy to symbol table
+            for (var_id, var) in vars {
+                match var {
+                    MetaVarType::Col(i, ref allow_missing) => {
+                        let sym = symbols.get_mut(*var_id);
+                        if let Some(rec) = opt_record {
+                            if let Some(text) = rec.get(*i) {
+                                sym.inner_mut().set_text(text);
+                            } else {
+                                if !allow_missing {
+                                    return fail!(
+                                        "Column no. {} not found in metadata entry for record '{}'",
+                                        *i + 1,
+                                        String::from_utf8_lossy(id)
+                                    );
+                                }
+                                sym.set_none();
+                            }
+                        } else {
+                            if !allow_missing {
+                                return fail!(
+                                    "ID '{}' not found in metadata file '{}'. Use the `opt_meta(field)` function \
+                                    instead of `meta(field)` if you expect missing entries.",
+                                    String::from_utf8_lossy(id),
+                                    rdr.path
+                                );
+                            }
+                            sym.set_none();
+                        }
+                    }
+                    MetaVarType::Exists => {
+                        symbols
+                            .get_mut(*var_id)
+                            .inner_mut()
+                            .set_bool(opt_record.is_some());
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub struct MetaReader {
     path: String,
-    // CSV reader
     rdr: Reader<Box<dyn io::Read + Send>>,
     has_header: bool, // user choice overriding auto-detection
     header: Option<FxHashMap<String, usize>>,
@@ -135,18 +297,17 @@ pub struct MetaVars {
     // object doing the ID lookup
     finder: IdFinder,
     id_col: u32,
-    // registered variables: (var_id, col_idx)
-    vars: Vec<(usize, MetaVarType)>,
 }
 
-impl MetaVars {
-    pub fn new(
-        file_num: usize,
-        total_files: usize,
-        path: &str,
-        delim: Option<u8>,
-        dup_ids: bool,
-    ) -> CliResult<Self> {
+// stub
+impl fmt::Debug for MetaReader {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MetaReader {{ path: \"{}\", ... }}", self.path)
+    }
+}
+
+impl MetaReader {
+    pub fn new(path: &str, delim: Option<u8>, dup_ids: bool) -> CliResult<Self> {
         let info = FileInfo::from_path(path, FormatVariant::Tsv, false);
         let io_reader = get_io_reader(&InputKind::from_str(path)?, info.compression)?;
         let delim = delim.unwrap_or(match info.format {
@@ -154,8 +315,6 @@ impl MetaVars {
             _ => b'\t',
         });
         Ok(Self {
-            file_num,
-            total_files,
             path: path.to_string(),
             rdr: ReaderBuilder::new()
                 .delimiter(delim)
@@ -167,18 +326,15 @@ impl MetaVars {
             current_record: ByteRecord::new(),
             finder: IdFinder::new(!dup_ids),
             id_col: 0,
-            vars: vec![],
         })
     }
 
-    pub fn id_col(mut self, id_col: u32) -> Self {
+    pub fn set_id_col(&mut self, id_col: u32) {
         self.id_col = id_col;
-        self
     }
 
-    pub fn set_has_header(mut self, has_header: bool) -> Self {
+    pub fn set_has_header(&mut self, has_header: bool) {
         self.has_header = has_header;
-        self
     }
 
     fn get_col_index(&mut self, col: &str) -> CliResult<usize> {
@@ -186,7 +342,10 @@ impl MetaVars {
             // assuming column indices
             if let Ok(idx) = col.parse::<usize>() {
                 if idx == 0 {
-                    return fail!("Metadata columns must be > 0 (file: {})", self.path);
+                    return fail!(
+                        "Invalid metadata column access: column numbers must be > 0 (file: '{}')",
+                        self.path
+                    );
                 }
                 if self.header.is_none() {
                     return Ok(idx - 1);
@@ -197,7 +356,7 @@ impl MetaVars {
         // switch to header mode
         // look up column name
         let col_name: String = ArgValue::from_str(col)
-            .ok_or_else(|| format!("Invalid metadata column: {} (file: {})", col, self.path))?;
+            .ok_or_else(|| format!("Invalid metadata column: '{}' (file: '{}')", col, self.path))?;
         self.has_header = true;
         if self.header.is_none() {
             let map = self
@@ -215,83 +374,13 @@ impl MetaVars {
         }
 
         fail!(
-            "Metadata column '{}' not found in '{}'",
+            "Column '{}' not found in header of metadata file '{}'",
             col_name,
             self.path
         )
     }
 
-    fn check_file_num(&self, num: usize, func_name: &str) -> CliResult<bool> {
-        if num > self.total_files {
-            return fail!(
-                "Metadata file no. {} was requested by `{}`, \
-                but only {} metadata sources were supplied with -m/--meta",
-                num,
-                func_name,
-                self.total_files
-            );
-        }
-        if num == 0 {
-            return fail!("Invalid metadata file no. requested: 0.",);
-        }
-        if num != self.file_num {
-            // another file, not the current one
-            return Ok(false);
-        }
-        Ok(true)
-    }
-}
-
-impl VarProvider for MetaVars {
-    fn help(&self) -> &dyn VarHelp {
-        &MetaHelp
-    }
-
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
-        let (var, vtype) = match func.name.as_ref() {
-            "has_meta" => {
-                func.ensure_arg_range(0, 1)?;
-                let file_num = func.arg_as::<usize>(0).transpose()?.unwrap_or(1);
-                if !self.check_file_num(file_num, &func.name)? {
-                    return Ok(None);
-                }
-                (MetaVarType::Exists, VarType::Bool)
-            }
-            "meta" | "opt_meta" => {
-                debug_assert!(self.file_num != 0);
-                let (file_num, col) = match func.num_args() {
-                    1 => (1, func.arg(0).unwrap()),
-                    2 => (
-                            func.arg_as::<i64>(0).unwrap()? as usize,
-                            func.arg(1).unwrap()
-                        ),
-                    _ => return fail!("`meta`/`opt_meta` accept only 1 or 2 arguments: meta(field) or meta(file-num, field)")
-                };
-                if !self.check_file_num(file_num, &func.name)? {
-                    return Ok(None);
-                }
-
-                let i = self.get_col_index(col)?;
-                (MetaVarType::Col(i, func.name == "opt_meta"), VarType::Text)
-            }
-            _ => return Ok(None),
-        };
-
-        self.vars.push((b.symbol_id(), var));
-        Ok(Some(Some(vtype)))
-    }
-
-    fn has_vars(&self) -> bool {
-        !self.vars.is_empty()
-    }
-
-    fn set(
-        &mut self,
-        record: &dyn Record,
-        symbols: &mut SymbolTable,
-        _: &mut Attrs,
-        _: &mut QualConverter,
-    ) -> CliResult<()> {
+    fn find_next(&mut self, id: &[u8]) -> CliResult<Option<&ByteRecord>> {
         // read header record once (if present)
         if self.has_header {
             self.rdr.read_byte_record(&mut self.current_record)?;
@@ -299,50 +388,15 @@ impl VarProvider for MetaVars {
         }
 
         // find the next record
-        let id = record.id_bytes();
         let exists = self
             .finder
             .find(id, self.id_col, &mut self.rdr, &mut self.current_record)?;
 
-        // copy to symbol table
-        for (var_id, var) in &self.vars {
-            match var {
-                MetaVarType::Col(i, allow_missing) => {
-                    if !allow_missing && !exists {
-                        return fail!(
-                            "ID '{}' not found in metadata. Use the `opt_meta(field)` function \
-                            instead of `meta(field)` if you expect missing entries.",
-                            String::from_utf8_lossy(id)
-                        );
-                    }
-                    let sym = symbols.get_mut(*var_id);
-                    if let Some(text) = self.current_record.get(*i) {
-                        sym.inner_mut().set_text(text);
-                    } else {
-                        if !allow_missing {
-                            return fail!(
-                                "Column no. {} not found in metadata entry for '{}'",
-                                *i + 1,
-                                String::from_utf8_lossy(id)
-                            );
-                        }
-                        sym.set_none();
-                    }
-                }
-                MetaVarType::Exists => {
-                    symbols.get_mut(*var_id).inner_mut().set_bool(exists);
-                }
-            }
+        if exists {
+            Ok(Some(&self.current_record))
+        } else {
+            Ok(None)
         }
-
-        Ok(())
-    }
-}
-
-// stub
-impl fmt::Debug for MetaVars {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MetaVars {{ file_num: {} }}", self.file_num)
     }
 }
 
@@ -449,7 +503,7 @@ impl IdFinder {
                 }
                 Entry::Occupied(_) => {
                     if !self.dup_reported {
-                        let extra = " Also make sure to specify --dup-ids \
+                        let extra = " Additionally make sure to specify --dup-ids \
                         if you expect duplicate IDs in *sequence records*!";
                         eprintln!(
                             "Found duplicate IDs in associated metadata (first: {}). \

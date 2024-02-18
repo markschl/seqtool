@@ -3,22 +3,23 @@
 
 use crate::error::CliResult;
 use crate::helpers::value::SimpleValue;
-use crate::var::func::Func;
 use crate::var::{
+    func::Func,
     symbols::{SymbolTable, VarType},
-    VarBuilder, VarHelp, VarProvider,
+    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
 };
+use crate::var_info;
 
 #[derive(Debug)]
 pub struct KeyVarHelp;
 
-impl VarHelp for KeyVarHelp {
+impl VarProviderInfo for KeyVarHelp {
     fn name(&self) -> &'static str {
         "Sort command variables"
     }
 
-    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[("key", "The value of the key.")])
+    fn vars(&self) -> &[VarInfo] {
+        &[var_info!(key => "The value of the key")]
     }
 }
 
@@ -41,20 +42,17 @@ impl KeyVars {
 }
 
 impl VarProvider for KeyVars {
-    fn help(&self) -> &dyn VarHelp {
+    fn info(&self) -> &dyn VarProviderInfo {
         &KeyVarHelp
     }
 
-    fn allow_dependent(&self) -> bool {
+    fn allow_nested(&self) -> bool {
         false
     }
 
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
-        if var.name == "key" {
-            var.ensure_no_args()?;
-            self.id = Some(b.symbol_id());
-            return Ok(Some(None));
-        }
+    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
+        assert_eq!(var.name, "key");
+        self.id = Some(b.symbol_id());
         Ok(None)
     }
 

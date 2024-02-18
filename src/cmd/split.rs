@@ -11,8 +11,9 @@ use crate::io::output::{FormatWriter, OutputKind};
 use crate::var::{
     func::Func,
     symbols::{self, VarType},
-    varstring, VarBuilder, VarHelp, VarProvider,
+    varstring, VarBuilder, VarInfo, VarProvider, VarProviderInfo,
 };
+use crate::var_info;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
@@ -118,20 +119,20 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
 }
 
 #[derive(Debug)]
-pub struct ChunkVarHelp;
+pub struct ChunkVarInfo;
 
-impl VarHelp for ChunkVarHelp {
+impl VarProviderInfo for ChunkVarInfo {
     fn name(&self) -> &'static str {
         "Split command variables"
     }
 
-    fn vars(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[(
-            "chunk",
-            "Chunk number starting with 1. With the -n argument, it will \
-             increment by one each time the size limit <N> is reached. \
-             Otherwise, it will always be 1.",
-        )])
+    fn vars(&self) -> &[VarInfo] {
+        &[var_info!(
+                chunk =>
+                "Chunk number starting with 1. With the -n argument, it will \
+                increment by one each time the size limit <N> is reached. \
+                Otherwise, it will always be 1."
+        )]
     }
 }
 
@@ -171,16 +172,14 @@ impl ChunkNum {
 }
 
 impl VarProvider for ChunkNum {
-    fn help(&self) -> &dyn VarHelp {
-        &ChunkVarHelp
+    fn info(&self) -> &dyn VarProviderInfo {
+        &ChunkVarInfo
     }
 
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<Option<VarType>>> {
-        if var.name == "chunk" {
-            self.id = Some(b.symbol_id());
-            return Ok(Some(Some(VarType::Int)));
-        }
-        Ok(None)
+    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
+        assert_eq!(var.name, "chunk");
+        self.id = Some(b.symbol_id());
+        Ok(Some(VarType::Int))
     }
 
     fn has_vars(&self) -> bool {
