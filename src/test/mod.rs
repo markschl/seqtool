@@ -42,14 +42,19 @@ impl Input for MultiFileInput {
 }
 
 struct Tester {
-    vars: FxHashMap<String, String>,
+    env: FxHashMap<String, String>,
 }
 
 impl Tester {
     fn new() -> Tester {
         Tester {
-            vars: FxHashMap::default(),
+            env: FxHashMap::default(),
         }
+    }
+
+    fn env(&mut self, var: &str, value: &str) -> &Self {
+        self.env.insert(var.to_string(), value.to_owned());
+        self
     }
 
     fn temp_dir<F, O>(&self, prefix: &str, mut f: F) -> O
@@ -79,7 +84,7 @@ impl Tester {
 
     fn cmd<I: Input>(&self, args: &[&str], mut input: I) -> Assert {
         let mut a = Command::cargo_bin("st").unwrap();
-        a.args(args).envs(&self.vars);
+        a.args(args).envs(&self.env);
         input.set(&mut a).assert()
     }
 

@@ -18,7 +18,7 @@ fn split_n() {
                     "-n",
                     &format!("{}", size),
                     "-po",
-                    &key.to_str().unwrap(),
+                    (key.to_str().unwrap()),
                 ],
                 *FASTA,
             );
@@ -100,7 +100,7 @@ fn split_compression() {
 
         let key = &subdir.join("{id}_{attr(p)}.fa.gz");
 
-        t.succeeds(&["split", "-po", &key.to_str().unwrap()], *FASTA);
+        t.succeeds(&["split", "-po", (key.to_str().unwrap())], *FASTA);
 
         let expected: &[&str] = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
 

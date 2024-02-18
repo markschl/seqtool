@@ -9,7 +9,7 @@ fn stats() {
     let vars = "seqlen,ungapped_seqlen,gc,charcount(A),charcount(AT)";
     Tester::new()
         .cmp(&[".", "--to-tsv", &format!("id,{}", vars)], seq, retval)
-        .cmp(&["stat", &vars], seq, retval);
+        .cmp(&["stat", vars], seq, retval);
 }
 
 #[test]

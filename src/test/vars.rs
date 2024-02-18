@@ -1,56 +1,111 @@
 use super::*;
 
+static ATTR_FA: &str = ">seq;a=0 b=3\nATGC\n";
+
 #[test]
 fn attrs() {
     let t = Tester::new();
-    let fa = ">seq;a=0 b=3\nATGC\n";
-    // present
     t.cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")
-        .cmp(&[".", "--to-tsv", "attr(b)"], fa, "3\n")
-        .cmp(&[".", "--to-tsv", "has_attr(b)"], fa, "true\n");
+        .cmp(&[".", "--to-tsv", "attr(b)"], ATTR_FA, "3\n")
+        .cmp(&[".", "--to-tsv", "has_attr(b)"], ATTR_FA, "true\n");
     #[cfg(feature = "expr")]
     t.cmp(
         &[".", "--to-tsv", "{{Num(attr(p))+1}}"],
         *FASTA,
         "3\n2\n11\n12\n",
     );
+}
 
-    // missing
-    t.cmp(&[".", "--to-tsv", "opt_attr(a)"], fa, "\n")
-        .cmp(&[".", "--to-tsv", "has_attr(a)"], fa, "false\n")
-        .fails(&[".", "--to-tsv", "attr(a)"], fa, "not found in record");
-    #[cfg(feature = "expr")]
-    t.cmp(
-        &[".", "--to-tsv", "{{opt_attr(a) === undefined}}"],
-        fa,
-        "true\n",
-    );
-    // different delimiter (search in ID)
-    t.cmp(&[".", "--to-tsv", "attr(a)", "--adelim", ";"], fa, "0\n")
-        .cmp(
-            &[".", "--to-tsv", "has_attr(a)", "--adelim", ";"],
-            fa,
-            "true\n",
-        )
-        .cmp(&[".", "--to-tsv", "opt_attr(b)", "--adelim", ";"], fa, "\n")
+#[test]
+fn attrs_missing() {
+    let t = Tester::new();
+    t.cmp(&[".", "--to-tsv", "opt_attr(a)"], ATTR_FA, "\n")
+        .cmp(&[".", "--to-tsv", "has_attr(a)"], ATTR_FA, "false\n")
         .fails(
-            &[".", "--to-tsv", "attr(b)", "--adelim", ";"],
-            fa,
+            &[".", "--to-tsv", "attr(a)"],
+            ATTR_FA,
             "not found in record",
         );
-    // setting attributes
+    #[cfg(feature = "expr")]
+    t.cmp(
+        &[".", "--to-tsv", "{{opt_attr('a') === undefined}}"],
+        ATTR_FA,
+        "true\n",
+    );
+}
+
+#[test]
+fn attr_format() {
+    let fa = ">seq;a=0 |b__3|c:2 |d:  5\nATGC\n";
+    let t = Tester::new();
+    t.cmp(
+        &[".", "--to-tsv", "attr(a)", "--attr-fmt", ";key=value"],
+        fa,
+        "0\n",
+    )
+    .cmp(
+        &[".", "--to-tsv", "has_attr(a)", "--attr-fmt", ";key=value"],
+        fa,
+        "true\n",
+    )
+    .cmp(&[".", "--to-tsv", "opt_attr(a)"], fa, "\n")
+    .fails(
+        &[".", "--to-tsv", "attr(b)", "--attr-fmt", ";key=value"],
+        fa,
+        "not found in record",
+    )
+    .cmp(
+        &[".", "--to-tsv", "attr(b)", "--attr-fmt", "|key__value"],
+        fa,
+        "3\n",
+    )
+    .cmp(
+        &[".", "--to-tsv", "attr(b)", "--attr-fmt", "|key_value"],
+        fa,
+        "_3\n",
+    )
+    .fails(
+        &[".", "--to-tsv", "attr(b)", "--attr-fmt", "|key___value"],
+        fa,
+        "not found in record",
+    )
+    .cmp(
+        &[".", "--to-tsv", "attr(c)", "--attr-fmt", "|key:value"],
+        fa,
+        "2 \n",
+    );
+    // with env vars
+    let mut t = Tester::new();
+    t.env("ST_ATTR_FORMAT", ";key=value")
+        .cmp(&[".", "--to-tsv", "attr(a)"], fa, "0\n");
+    t.env("ST_ATTR_FORMAT", "|key:value")
+        .cmp(&[".", "--to-tsv", "attr(c)"], fa, "2 \n")
+        .cmp(&[".", "--to-tsv", "attr(d)"], fa, "  5\n");
+}
+
+#[test]
+fn attr_set() {
+    let t = Tester::new();
     t.cmp(
         &[".", "--to-tsv", "id,desc,seq,attr(b),{attr(b)}"],
-        fa,
+        ATTR_FA,
         "seq;a=0\tb=3\tATGC\t3\t3\n",
     )
     .cmp(
-        &[".", "-a", "b={attr(a)}", "--adelim", ";"],
-        fa,
+        &[".", "-a", "b={attr(a)}", "--attr-fmt", ";key=value"],
+        ATTR_FA,
         ">seq;a=0;b=0 b=3\nATGC\n",
     )
-    .cmp(&[".", "-a", "c={attr(b)}"], fa, ">seq;a=0 b=3 c=3\nATGC\n")
-    .cmp(&[".", "-a", "c={attr_del(b)}"], fa, ">seq;a=0 c=3\nATGC\n");
+    .cmp(
+        &[".", "-a", "c={attr(b)}"],
+        ATTR_FA,
+        ">seq;a=0 b=3 c=3\nATGC\n",
+    )
+    .cmp(
+        &[".", "-a", "c={attr_del(b)}"],
+        ATTR_FA,
+        ">seq;a=0 c=3\nATGC\n",
+    );
 }
 
 static META: &str = "
