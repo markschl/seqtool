@@ -3,7 +3,10 @@
 */
 
 // suppress warnings unless most features are used
-#![cfg_attr(not(all(feature = "all-commands", feature = "expr")), allow(warnings, unused))]
+#![cfg_attr(
+    not(all(feature = "all-commands", feature = "expr")),
+    allow(warnings, unused)
+)]
 
 #[macro_use]
 extern crate lazy_static;

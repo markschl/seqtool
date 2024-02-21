@@ -177,7 +177,6 @@ static SEQS: [&str; 4] = [
 // >seq2 p=11
 // ACGG-AGGCC-AGGCCGATGGATCA
 
-
 // id	desc	seq
 // seq1	p=2	    TTGGCAGGCCAAGGCCGATGGATCA (0) len=25, GC=0.6
 // seq0	p=1	    CTGGCAGGCC-AGGCCGATGGATCA (1) len=24, GC=0.667
@@ -206,7 +205,10 @@ mod convert;
 mod count;
 #[cfg(any(feature = "all-commands", feature = "del"))]
 mod del;
-#[cfg(any(all(feature = "expr", feature = "all-commands"), all(feature = "expr", feature = "filter")))]
+#[cfg(any(
+    all(feature = "expr", feature = "all-commands"),
+    all(feature = "expr", feature = "filter")
+))]
 mod filter;
 #[cfg(any(feature = "all-commands", feature = "find"))]
 mod find;

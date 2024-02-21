@@ -361,7 +361,10 @@ pub enum SubCommand {
     #[clap(about, long_about)]
     Unique(cmd::unique::cli::UniqueCommand),
     /// Filter sequences using Javascript expressions
-    #[cfg(any(all(feature = "expr", feature = "all-commands"), all(feature = "expr", feature = "filter")))]
+    #[cfg(any(
+        all(feature = "expr", feature = "all-commands"),
+        all(feature = "expr", feature = "filter")
+    ))]
     Filter(cmd::filter::FilterCommand),
     /// Distribute sequences into multiple files based on variable/function(s)
     /// or advanced expressions.

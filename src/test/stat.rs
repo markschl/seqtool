@@ -30,9 +30,5 @@ fn qualstat() {
             &format!("@id\nA\n+\n{}\n", str::from_utf8(&[32]).unwrap()),
             "Invalid quality",
         )
-        .fails(
-            &["stat", "exp_err"],
-            ">seq\nAA",
-            "No quality scores",
-        );
+        .fails(&["stat", "exp_err"], ">seq\nAA", "No quality scores");
 }

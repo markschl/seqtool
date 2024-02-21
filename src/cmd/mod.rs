@@ -10,7 +10,10 @@ pub mod count;
 #[cfg(any(feature = "all-commands", feature = "stat"))]
 pub mod stat;
 
-#[cfg(any(all(feature = "expr", feature = "all-commands"), all(feature = "expr", feature = "filter")))]
+#[cfg(any(
+    all(feature = "expr", feature = "all-commands"),
+    all(feature = "expr", feature = "filter")
+))]
 pub mod filter;
 #[cfg(any(feature = "all-commands", feature = "head"))]
 pub mod head;

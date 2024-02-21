@@ -356,9 +356,10 @@ impl SeqContext {
     where
         M: VarProvider + 'static,
     {
-        let m = self.var_modules.first_mut().and_then(|m| {
-            m.as_mut().as_any_mut().downcast_mut::<M>()
-        });
+        let m = self
+            .var_modules
+            .first_mut()
+            .and_then(|m| m.as_mut().as_any_mut().downcast_mut::<M>());
         func(m, &mut self.symbols)
     }
 
