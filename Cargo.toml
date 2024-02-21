@@ -15,13 +15,13 @@ build = "build.rs"
 lazy_static = "1.4"
 fxhash = "0.2"
 memchr = "2.7"
-winnow = { version = "0.5", features = ["simd"] }
+winnow = { version = "0.6", features = ["simd"] }
 vec_map = "0.8"
 itertools = "0.12"
 atoi = "2.0"
 bytecount = "0.6"
-strum = "0.25"
-strum_macros = "0.25"
+strum = "0.26"
+strum_macros = "0.26"
 bstr = { version = "1.9", default-features = false, features = ["std"] }
 ordered-float = { version = "4.2", default-features = false, features = ["std", "rkyv", "rkyv_ck"] }
 cfg-if = "1.0"
@@ -41,6 +41,7 @@ zstd = { version = "0.13", default-features = false, features = ["bindgen", "zdi
 rquickjs = { version = "0.4.0", features=["classes", "properties", "bindgen", "rust-alloc", "macro"], optional=true }
 # find, replace, revcomp, view commands
 bio = { version = "1.5", default-features = false, optional = true }
+regex-lite = { version = "0.1", optional = true }
 regex = { version = "1.10", optional = true }
 # view command
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"], optional = true }
@@ -65,7 +66,7 @@ regex-lite = "0.1"
 
 [dev-dependencies]
 assert_cmd = "2.0"
-predicates = "3.0"
+predicates = "3.1"
 approx = "0.5"
 rand = "0.8"
 rand_xoshiro = "0.6.0"

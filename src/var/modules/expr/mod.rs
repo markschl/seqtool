@@ -35,7 +35,7 @@ pub trait ExprContext: Default {
     fn fill(&mut self, symbols: &SymbolTable, record: &dyn Record)
         -> Result<(), (usize, CliError)>;
 
-    fn clear(&mut self) {}
+    // fn clear(&mut self) {}
 
     fn register(&mut self, _var: &Var) -> CliResult<()> {
         Ok(())

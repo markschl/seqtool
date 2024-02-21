@@ -392,6 +392,7 @@ trait StrStream<'a>:
     Stream<Slice = &'a str, Token = char>
     + StreamIsPartial
     + Compare<&'a str>
+    + Compare<char>
     + FindSlice<&'a str>
     + FindSlice<char>
 {

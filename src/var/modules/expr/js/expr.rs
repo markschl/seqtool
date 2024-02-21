@@ -115,9 +115,9 @@ impl ExprContext for Context {
         Ok(())
     }
 
-    fn clear(&mut self) {
-        self.vars.clear();
-    }
+    // fn clear(&mut self) {
+    //     self.vars.clear();
+    // }
 
     fn register(&mut self, var: &Var) -> CliResult<()> {
         if !self.vars.iter().any(|(v, _)| *v == var.symbol_id) {
@@ -171,7 +171,7 @@ impl Expression for Expr {
             let func: Function = match ctx.eval(arrow_script) {
                 Ok(rv) => rv,
                 Err(_) => {
-                    // not a valid arrow function, try regular function (assumes return statement)
+                    // not a valid arrow function, try regular function (assumes a return statement to be present)
                     let fn_script = format!("var {} = function() {{ {} }}", fn_name, expr);
                     // println!("fn: {:?}", fn_script);
                     ctx.eval::<(), _>(fn_script)
@@ -206,9 +206,9 @@ impl From<rquickjs::Error> for CliError {
 }
 
 fn obtain_exception(e: Error, ctx: Ctx<'_>) -> String {
-    if let Error::Exception = e {
+    let msg = if let Error::Exception = e {
         let v = ctx.catch();
-        let m = match v.type_of() {
+        match v.type_of() {
             Type::Exception => Exception::from_object(v.into_object().unwrap())
                 .and_then(|o| o.message())
                 .unwrap_or_else(|| "Unknown error".to_string()),
@@ -218,9 +218,9 @@ fn obtain_exception(e: Error, ctx: Ctx<'_>) -> String {
                 .to_string()
                 .unwrap_or_else(|_| format!("{:?}", v)),
             _ => format!("{:?}", v),
-        };
-        format!("Javascript error: {}", m)
+        }
     } else {
-        format!("Javascript error: {}", e)
-    }
+        e.to_string()
+    };
+    format!("Javascript error: {}", msg)
 }
