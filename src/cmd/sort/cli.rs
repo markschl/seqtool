@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use super::SortVars;
 use crate::cli::CommonArgs;
-use crate::cmd::shared::key_var::KeyVars;
 use crate::helpers::bytesize::parse_bytesize;
 use crate::var::VarProvider;
 
@@ -57,5 +57,5 @@ pub struct SortCommand {
 }
 
 pub fn get_varprovider(_args: &SortCommand) -> Option<Box<dyn VarProvider>> {
-    Some(Box::<KeyVars>::default())
+    Some(Box::<SortVars>::default())
 }

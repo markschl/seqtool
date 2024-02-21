@@ -7,15 +7,15 @@ use crate::error::CliResult;
 use crate::helpers::{value::SimpleValue, vec::VecFactory};
 use crate::var::varstring::VarString;
 
-use super::shared::key_var::KeyVars;
-
 pub mod cli;
 pub mod file;
 pub mod mem;
+pub mod vars;
 
 pub use self::cli::*;
 pub use self::file::*;
 pub use self::mem::*;
+pub use self::vars::*;
 
 /// Factor indicating the memory that is found empirically by memory profiling
 /// and adjusts the calculated memory usage (based on size of items)
@@ -36,32 +36,28 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
         let (var_key, _) = cfg.build_vars(|b| VarString::parse_register(&args.key, b, true))?;
-        let mut dedup = Deduplicator::new(max_mem);
+        let count_duplicates = cfg
+            .with_command_vars::<UniqueVars, _>(|v, _| Ok(v.unwrap().needs_duplicates()))
+            .unwrap();
+        let mut dedup = Deduplicator::new(max_mem, count_duplicates);
 
         cfg.read(|record, ctx| {
             // assemble key
-            let key = ctx.command_vars::<KeyVars, _>(|key_mod, symbols| {
+            let key = ctx.command_vars::<UniqueVars, _>(|key_mod, symbols| {
                 let key = var_key.get_simple(&mut key_buf, symbols, record, force_numeric)?;
                 if let Some(m) = key_mod {
                     m.set(&key, symbols);
                 }
                 Ok(key)
             })?;
-            // add formatted record to hash set:
-            // first, look for the entry without any copying/allocation
-            if !dedup.has_key(&key) {
-                // if not present, format the record and create an owned key that
-                // we can add to the hashmap
-                let record_out =
-                    record_buf_factory.fill_vec(|out| format_writer.write(&record, out, ctx))?;
-                dedup.insert(
-                    key.into_owned(),
-                    record_out,
-                    &tmp_path,
-                    args.temp_file_limit,
-                    args.quiet,
-                )?;
-            }
+            // add formatted record to hash set (if doensn't exist)
+            dedup.insert(
+                &key,
+                || record_buf_factory.fill_vec(|out| format_writer.write(&record, out, ctx)),
+                &tmp_path,
+                args.temp_file_limit,
+                args.quiet,
+            )?;
             Ok(true)
         })?;
         // write unique output
@@ -77,28 +73,21 @@ enum Deduplicator {
 }
 
 impl Deduplicator {
-    fn new(max_mem: usize) -> Self {
-        Self::Mem(MemDeduplicator::new(max_mem))
-    }
-
-    fn has_key(&self, key: &SimpleValue) -> bool {
-        match self {
-            Self::Mem(m) => m.has_key(key),
-            Self::File(f) => f.has_key(key),
-        }
+    fn new(max_mem: usize, count_duplicates: bool) -> Self {
+        Self::Mem(MemDeduplicator::new(max_mem, count_duplicates))
     }
 
     fn insert(
         &mut self,
-        key: SimpleValue,
-        record: Vec<u8>,
+        key: &SimpleValue,
+        record_fn: impl FnMut() -> CliResult<Vec<u8>>,
         tmp_path: &Path,
         file_limit: usize,
         quiet: bool,
     ) -> CliResult<()> {
         match self {
             Self::Mem(m) => {
-                if !m.insert(key, record) {
+                if !m.insert(key, record_fn)? {
                     if !quiet {
                         eprintln!(
                             "Memory limit reached after {} records, writing to temporary file(s). \
@@ -113,7 +102,7 @@ impl Deduplicator {
                 }
             }
             Self::File(f) => {
-                f.insert(key, record, quiet)?;
+                f.insert(key, record_fn, quiet)?;
             }
         }
         Ok(())

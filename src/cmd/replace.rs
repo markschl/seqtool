@@ -1,8 +1,9 @@
 use std::borrow::ToOwned;
+use std::io::Write;
 use std::str;
 
 use clap::{value_parser, Parser};
-use memchr::memmem::Finder;
+use memchr::memmem::find_iter;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
@@ -85,11 +86,8 @@ struct BytesReplacer(Vec<u8>);
 
 impl Replacer for BytesReplacer {
     fn replace(&self, text: &[u8], replacement: &[u8], out: &mut Vec<u8>) -> CliResult<()> {
-        let finder = Finder::new(&self.0);
-        let matches = finder
-            .find_iter(text)
-            .map(|start| (start, start + self.0.len()));
-        replace_iter(text, replacement, out, matches);
+        let matches = find_iter(text, &self.0).map(|start| (start, start + self.0.len()));
+        replace_iter(text, |o| o.write_all(replacement), matches, out).unwrap();
         Ok(())
     }
 }
@@ -116,7 +114,7 @@ macro_rules! regex_replacer_impl {
                 let search_text = $to_string(text)?;
                 if !self.has_backrefs {
                     let matches = self.re.find_iter(search_text).map(|m| (m.start(), m.end()));
-                    replace_iter(text, replacement, out, matches);
+                    replace_iter(text, |o| o.write_all(replacement), matches, out).unwrap();
                 } else {
                     // requires allocations
                     let repl_text = $to_string(replacement)?;

@@ -107,6 +107,13 @@ fn key_var() {
 }
 
 #[test]
+fn dup_var() {
+    let fa = ">s1\nA\n>s2\nA\n>s3\nB\n";
+    let out = ">s1 n=2\nA\n>s3 n=1\nB\n";
+    Tester::new().cmp(&["unique", "seq", "-a", "n={n_duplicates}"], fa, out);
+}
+
+#[test]
 fn large() {
     // the expected output is a collection of 100 records
     let n_records = 100;

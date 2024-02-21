@@ -47,8 +47,10 @@ impl Cli {
         if let Ok(m) = VarHelpCli::try_parse() {
             if m.help_vars || m.help_vars_md {
                 let custom_help: Option<Box<dyn VarProviderInfo>> = match m.command.as_str() {
-                    #[cfg(any(feature = "all-commands", feature = "sort", feature = "unique"))]
-                    "sort" | "unique" => Some(Box::new(cmd::shared::key_var::KeyVarHelp)),
+                    #[cfg(any(feature = "all-commands", feature = "sort"))]
+                    "sort" => Some(Box::new(cmd::sort::SortVarInfo)),
+                    #[cfg(any(feature = "all-commands", feature = "unique"))]
+                    "unique" => Some(Box::new(cmd::unique::UniqueVarInfo)),
                     #[cfg(any(feature = "all-commands", feature = "split"))]
                     "split" => Some(Box::new(cmd::split::ChunkVarInfo)),
                     #[cfg(any(feature = "all-commands", feature = "find"))]
@@ -97,7 +99,10 @@ impl Cli {
             Sort(ref opts) => run!(sort, opts, cmd::sort::get_varprovider(opts)),
             #[cfg(any(feature = "all-commands", feature = "unique"))]
             Unique(ref opts) => run!(unique, opts, cmd::unique::get_varprovider(opts)),
-            #[cfg(any(all(feature = "expr", feature = "all-commands"), all(feature = "expr", feature = "filter")))]
+            #[cfg(any(
+                all(feature = "expr", feature = "all-commands"),
+                all(feature = "expr", feature = "filter")
+            ))]
             Filter(ref opts) => run!(filter, opts),
             #[cfg(any(feature = "all-commands", feature = "split"))]
             Split(ref opts) => run!(split, opts, cmd::split::get_varprovider(opts)),

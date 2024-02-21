@@ -4,7 +4,7 @@ use ordered_float::OrderedFloat;
 
 /// A simple value type that can be either text, numeric or none.
 /// Can also be serialized using rkyv (only enabled for sort and unique commands).
-// TODO: may belong in cmd::shared, but Value is also used in VarString::get_simple()
+// TODO: may belong in cmd::shared, but SimpleValue is also used in VarString::get_simple()
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 #[cfg_attr(
     any(feature = "all-commands", feature = "sort", feature = "unique"),

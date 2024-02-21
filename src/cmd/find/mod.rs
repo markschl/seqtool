@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
@@ -192,8 +192,8 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                     }
                     Ok(())
                 })?;
-                
-                // fill in replacements (if necessary) 
+
+                // fill in replacements (if necessary)
                 if let Some(rep) = replacement.as_ref() {
                     editor.edit_with_val(attr, &record, true, |text, out| {
                         // assemble replacement text
@@ -204,10 +204,10 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                             .matches_iter(0, 0)
                             .flatten()
                             .map(|m| (m.start, m.end));
-                        replace_iter(text, &replacement_text, out, pos);
+                        replace_iter(text, |o| o.write_all(&replacement_text), pos, out).unwrap();
                         Ok::<(), CliError>(())
                     })?;
-                }    
+                }
 
                 // keep / exclude
                 if let Some(keep) = filter {
@@ -219,7 +219,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                         return Ok(true);
                     }
                 }
-                
+
                 // write non-excluded to output
                 let edited_rec = editor.record(&record);
                 format_writer.write(&edited_rec, io_writer, ctx)?;

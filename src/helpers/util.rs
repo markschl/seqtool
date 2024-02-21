@@ -1,5 +1,5 @@
 //use std::ops::Deref;
-use std::convert::AsRef;
+use std::{convert::AsRef, io};
 
 use fxhash::FxHashMap;
 
@@ -24,17 +24,25 @@ where
 }
 
 #[inline]
-pub fn replace_iter<M>(text: &[u8], replacement: &[u8], out: &mut Vec<u8>, matches: M)
+pub fn replace_iter<R, M, W>(
+    text: &[u8],
+    mut write_replacement: R,
+    matches: M,
+    out: &mut W,
+) -> io::Result<()>
 where
+    R: FnMut(&mut W) -> io::Result<()>,
     M: Iterator<Item = (usize, usize)>,
+    W: io::Write + ?Sized,
 {
     let mut last_end = 0;
     for (start, end) in matches {
-        out.extend_from_slice(&text[last_end..start]);
-        out.extend_from_slice(replacement);
+        out.write_all(&text[last_end..start])?;
+        write_replacement(out)?;
         last_end = end;
     }
-    out.extend_from_slice(&text[last_end..]);
+    out.write_all(&text[last_end..])?;
+    Ok(())
 }
 
 // pub unsafe fn replace_iter_unchecked<M>(text: &[u8], replacement: &[u8], out: &mut Vec<u8>, matches: M)
@@ -80,6 +88,8 @@ pub fn text_to_float(text: &[u8]) -> Result<f64, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     #[test]
     fn replace_iter() {
         let pos = &[(1, 2), (4, 6), (7, 8)];
@@ -87,7 +97,13 @@ mod tests {
         let replaced = b"0x23x6x8";
 
         let mut out = vec![];
-        super::replace_iter(text, b"x", &mut out, pos.iter().cloned());
+        super::replace_iter(
+            text,
+            |out| out.write_all(b"x"),
+            pos.iter().cloned(),
+            &mut out,
+        )
+        .unwrap();
         assert_eq!(&out, replaced);
 
         // let mut out = vec![];

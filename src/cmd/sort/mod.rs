@@ -7,15 +7,17 @@ use crate::error::CliResult;
 use crate::helpers::{value::SimpleValue, vec::VecFactory};
 use crate::var::varstring::VarString;
 
-use super::shared::{key_var::KeyVars, sort_item::Item};
+use super::shared::sort_item::Item;
 
 pub mod cli;
 pub mod file;
 pub mod mem;
+pub mod vars;
 
 pub use self::cli::*;
 pub use self::file::*;
 pub use self::mem::*;
+pub use self::vars::*;
 
 /// Factor indicating the memory that is found empirically by memory profiling
 /// and adjusts the calculated memory usage (based on size of items)
@@ -45,7 +47,7 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
 
         cfg.read(|record, ctx| {
             // assemble key
-            let key = ctx.command_vars::<KeyVars, _>(|key_mod, symbols| {
+            let key = ctx.command_vars::<SortVars, _>(|key_mod, symbols| {
                 let key = var_key.get_simple(&mut key_buf, symbols, record, force_numeric)?;
                 if let Some(m) = key_mod {
                     m.set(&key, symbols);

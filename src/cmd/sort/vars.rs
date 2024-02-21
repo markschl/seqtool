@@ -11,26 +11,26 @@ use crate::var::{
 use crate::var_info;
 
 #[derive(Debug)]
-pub struct KeyVarHelp;
+pub struct SortVarInfo;
 
-impl VarProviderInfo for KeyVarHelp {
+impl VarProviderInfo for SortVarInfo {
     fn name(&self) -> &'static str {
         "Sort command variables"
     }
 
     fn vars(&self) -> &[VarInfo] {
-        &[var_info!(key => "The value of the key")]
+        &[var_info!(key => "The value of the key used for sorting")]
     }
 }
 
 #[derive(Debug, Default)]
-pub struct KeyVars {
-    id: Option<usize>,
+pub struct SortVars {
+    key_id: Option<usize>,
 }
 
-impl KeyVars {
+impl SortVars {
     pub fn set(&mut self, key: &SimpleValue, symbols: &mut SymbolTable) {
-        if let Some(var_id) = self.id {
+        if let Some(var_id) = self.key_id {
             let v = symbols.get_mut(var_id);
             match key {
                 SimpleValue::Text(t) => v.inner_mut().set_text(t),
@@ -41,9 +41,9 @@ impl KeyVars {
     }
 }
 
-impl VarProvider for KeyVars {
+impl VarProvider for SortVars {
     fn info(&self) -> &dyn VarProviderInfo {
-        &KeyVarHelp
+        &SortVarInfo
     }
 
     fn allow_nested(&self) -> bool {
@@ -52,11 +52,11 @@ impl VarProvider for KeyVars {
 
     fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
         assert_eq!(var.name, "key");
-        self.id = Some(b.symbol_id());
+        self.key_id = Some(b.symbol_id());
         Ok(None)
     }
 
     fn has_vars(&self) -> bool {
-        self.id.is_some()
+        self.key_id.is_some()
     }
 }

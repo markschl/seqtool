@@ -34,12 +34,13 @@ impl FileDeduplicator {
         })
     }
 
-    pub fn has_key(&self, key: &SimpleValue) -> bool {
-        self.mem_dedup.has_key(key)
-    }
-
-    pub fn insert(&mut self, key: SimpleValue, record: Vec<u8>, quiet: bool) -> CliResult<bool> {
-        if !self.mem_dedup.insert(key, record) {
+    pub fn insert(
+        &mut self,
+        key: &SimpleValue,
+        record_fn: impl FnMut() -> CliResult<Vec<u8>>,
+        quiet: bool,
+    ) -> CliResult<bool> {
+        if !self.mem_dedup.insert(key, record_fn)? {
             self.write_to_file(quiet)?;
         }
         Ok(true)
