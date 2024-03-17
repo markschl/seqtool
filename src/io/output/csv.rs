@@ -25,10 +25,10 @@ impl CsvWriter {
 }
 
 impl FormatWriter for CsvWriter {
-    #[inline]
-    fn has_vars(&self) -> bool {
-        !self.fields.is_empty()
-    }
+    // #[inline]
+    // fn has_vars(&self) -> bool {
+    //     !self.fields.is_empty()
+    // }
 
     fn write(
         &mut self,

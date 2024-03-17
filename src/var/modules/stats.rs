@@ -4,7 +4,7 @@ use self::Stat::*;
 use crate::error::CliResult;
 use crate::io::{QualConverter, Record};
 use crate::var::{
-    attr::Attrs,
+    attr::Attributes,
     func::Func,
     symbols::{SymbolTable, VarType},
     VarBuilder, VarInfo, VarProvider, VarProviderInfo,
@@ -111,7 +111,7 @@ impl VarProvider for StatVars {
         &mut self,
         rec: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attrs,
+        _: &mut Attributes,
         qual_converter: &mut QualConverter,
     ) -> CliResult<()> {
         for &(ref stat, id) in &self.stats {

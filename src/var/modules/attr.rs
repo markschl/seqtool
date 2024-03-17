@@ -2,7 +2,7 @@ use crate::error::CliResult;
 use crate::io::{QualConverter, Record};
 use crate::var::VarInfo;
 use crate::var::{
-    attr::{self, Attrs},
+    attr::{self, Attributes},
     func::Func,
     symbols::{SymbolTable, VarType},
     VarBuilder, VarProvider, VarProviderInfo,
@@ -104,13 +104,13 @@ impl VarProvider for AttrVars {
             "has_attr" => (None, AttrVarType::Exists, VarType::Bool, true),
             "opt_attr" => (None, AttrVarType::Value, VarType::Text, true),
             "attr_del" => (
-                Some(attr::Action::Delete),
+                Some(attr::AttrWriteAction::Delete),
                 AttrVarType::Value,
                 VarType::Text,
                 false,
             ),
             "opt_attr_del" => (
-                Some(attr::Action::Delete),
+                Some(attr::AttrWriteAction::Delete),
                 AttrVarType::Value,
                 VarType::Text,
                 true,
@@ -121,7 +121,7 @@ impl VarProvider for AttrVars {
         if name.is_empty() {
             return fail!("Attribute names cannot be empty.");
         }
-        let attr_id = b.register_attr(&name, paction);
+        let attr_id = b.register_attr(&name, paction)?.unwrap();
         self.vars.push(Var {
             name: name.to_string(),
             return_type: rtype,
@@ -140,16 +140,14 @@ impl VarProvider for AttrVars {
         &mut self,
         rec: &dyn Record,
         symbols: &mut SymbolTable,
-        attrs: &mut Attrs,
+        attrs: &mut Attributes,
         _: &mut QualConverter,
     ) -> CliResult<()> {
         for var in &self.vars {
             let sym = symbols.get_mut(var.id);
             match var.return_type {
                 AttrVarType::Value => {
-                    if let Some(val) =
-                        attrs.get_value(var.attr_id, rec.id_bytes(), rec.desc_bytes())
-                    {
+                    if let Some(val) = attrs.get_value(var.attr_id, rec.id(), rec.desc()) {
                         sym.inner_mut().set_text(val);
                     } else {
                         if !var.allow_missing {
@@ -158,7 +156,7 @@ impl VarProvider for AttrVars {
                                 Use 'opt_attr()' if attributes may be missing in some records. \
                                 Set the correct attribute format with --attr-format.",
                                 var.name,
-                                String::from_utf8_lossy(rec.id_bytes())
+                                String::from_utf8_lossy(rec.id())
                             ));
                         }
                         sym.set_none();

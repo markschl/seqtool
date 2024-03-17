@@ -239,9 +239,25 @@ impl CommonArgs {
         let delim = delim.or(indelim);
 
         // assemble
+        let mut attrs = Vec::with_capacity(self.attr.attr.len() + self.attr.attr_append.len());
+        for a in &self.attr.attr {
+            attrs.push((a.clone(), true));
+        }
+        for a in &self.attr.attr_append {
+            attrs.push((a.clone(), false));
+        }
+        if !attrs.is_empty()
+            && !matches!(info.format, FormatVariant::Fasta | FormatVariant::Fastq(_))
+        {
+            return Err(
+                "Header attributes were specified using `-a/--attr` or `-A/--attr-append`, \
+                but the output format is not FASTA or FASTQ."
+                    .into(),
+            );
+        }
         let format = OutFormat::from_opts(
             info.format,
-            &self.attr.attr,
+            &attrs,
             opts.wrap.map(|w| w as usize),
             delim,
             &fields,
@@ -585,11 +601,19 @@ pub struct OutputArgs {
 #[clap(next_help_heading = "FASTA/Q header attributes (all commands)")]
 pub struct AttrArgs {
     /// Add an attribute in the form name=value to FASTA/FASTQ
-    /// headers (multiple -a key=value args possible).
+    /// headers or replace their value if the given name already exists
+    /// (multiple -a key=value arguments possible).
     /// The default output format is: '>id some description key1=value1 key2=value2'.
     /// Use --attr-format to change.
     #[arg(short, long, value_name = "KEY=VALUE", action = ArgAction::Append)]
     pub attr: Vec<Attribute>,
+
+    /// Append one or multiple attributes in the form name=value to FASTA/FASTQ
+    /// headers. Compared to `-a/--attr`, existing attributes in headers are NOT
+    /// replaced. This will result in a duplicate entry if the given attribute
+    /// name already exists.
+    #[arg(short = 'A', long, value_name = "KEY=VALUE", action = ArgAction::Append)]
+    pub attr_append: Vec<Attribute>,
 
     /// Expected format of sequence header attributes, which is also used
     /// for writing new attributes to headers (using -a/--attr).

@@ -4,7 +4,7 @@ use fxhash::FxHashMap;
 
 use crate::error::{CliError, CliResult};
 
-use super::attr::{Action, Attrs};
+use super::attr::{AttrWriteAction, Attributes};
 use super::func::Func;
 use super::symbols::VarType;
 use super::VarProvider;
@@ -27,9 +27,7 @@ pub struct VarBuilder<'a> {
     var_map: &'a FxHashMap<String, (usize, (usize, usize))>,
     // func -> (var_id, var_type, allow_nested)
     registered_vars: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
-    // attrname -> attr_id
-    registered_attrs: &'a mut FxHashMap<String, usize>,
-    attrs: &'a mut Attrs,
+    attrs: &'a mut Attributes,
 }
 
 impl<'a> VarBuilder<'a> {
@@ -37,26 +35,22 @@ impl<'a> VarBuilder<'a> {
         modules: &'a mut [Box<dyn VarProvider>],
         var_map: &'a FxHashMap<String, (usize, (usize, usize))>,
         registered_vars: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
-        registered_attrs: &'a mut FxHashMap<String, usize>,
-        attrs: &'a mut Attrs,
+        attrs: &'a mut Attributes,
     ) -> Self {
         Self {
             modules,
             var_map,
             registered_vars,
-            registered_attrs,
             attrs,
         }
     }
 
-    pub fn register_attr(&mut self, name: &str, action: Option<Action>) -> usize {
-        if let Some(&attr_id) = self.registered_attrs.get(name) {
-            return attr_id;
-        }
-        let attr_id = self.registered_attrs.len();
-        self.registered_attrs.insert(name.to_string(), attr_id);
-        self.attrs.add_attr(name, attr_id, action);
-        attr_id
+    pub fn register_attr(
+        &mut self,
+        name: &str,
+        action: Option<AttrWriteAction>,
+    ) -> Result<Option<usize>, String> {
+        self.attrs.add_attr(name, action)
     }
 
     /// Attempts at registering a variable/function
@@ -101,7 +95,6 @@ impl<'a> VarBuilder<'a> {
                 modules: dep_mod,
                 var_map: self.var_map,
                 registered_vars: self.registered_vars,
-                registered_attrs: self.registered_attrs,
                 attrs: self.attrs,
             };
             let vtype = var_mod.register(func, &mut nested_builder)?;

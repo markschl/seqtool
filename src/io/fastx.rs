@@ -23,6 +23,11 @@ impl FastxHeaderParser {
             (head, None)
         }
     }
+
+    pub fn parsed_id_desc<'a>(&self, head: &'a [u8]) -> Option<(&'a [u8], Option<&'a [u8]>)> {
+        self.delim_pos.get().map(|d| Self::_split_header(head, d))
+    }
+
     pub fn delim_pos(&self) -> Option<Option<usize>> {
         self.delim_pos.get()
     }

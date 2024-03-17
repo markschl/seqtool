@@ -6,7 +6,7 @@ use crate::error::CliResult;
 use crate::helpers::any::AsAnyMut;
 use crate::io::{input::InputOptions, output::OutputOptions, QualConverter, Record};
 
-use self::attr::{AttrFormat, Attrs};
+use self::attr::{AttrFormat, Attributes};
 pub use self::build::*;
 use self::func::Func;
 use self::symbols::{SymbolTable, VarType};
@@ -62,7 +62,7 @@ pub trait VarProvider: Debug + AsAnyMut {
         &mut self,
         _rec: &dyn Record,
         _sym: &mut SymbolTable,
-        _attr: &mut Attrs,
+        _attr: &mut Attributes,
         _qc: &mut QualConverter,
     ) -> CliResult<()> {
         Ok(())
@@ -96,7 +96,7 @@ impl VarProvider for Box<dyn VarProvider> {
         &mut self,
         record: &dyn Record,
         symbols: &mut SymbolTable,
-        attrs: &mut Attrs,
+        attrs: &mut Attributes,
         qual_converter: &mut QualConverter,
     ) -> CliResult<()> {
         (**self).set(record, symbols, attrs, qual_converter)

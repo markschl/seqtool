@@ -5,9 +5,11 @@ use seq_io::policy::BufPolicy;
 
 use crate::config::SeqContext;
 use crate::error::CliResult;
+use crate::var::VarBuilder;
 
 use super::fastx::FastxHeaderParser;
-use super::{QualFormat, Record, SeqHeader, SeqReader, SeqWriter};
+use super::output::{attr::register_attributes, FormatWriter};
+use super::{Attribute, MaybeModified, QualFormat, Record, RecordHeader, SeqReader};
 
 // Reader
 
@@ -54,91 +56,104 @@ impl<'a> FastqRecord<'a> {
 }
 
 impl<'a> Record for FastqRecord<'a> {
-    fn id_bytes(&self) -> &[u8] {
+    fn id(&self) -> &[u8] {
         self.header_parser.id_desc(self.rec.head()).0
     }
-    fn desc_bytes(&self) -> Option<&[u8]> {
+
+    fn desc(&self) -> Option<&[u8]> {
         self.header_parser.id_desc(self.rec.head()).1
     }
-    fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
+
+    fn id_desc(&self) -> (&[u8], Option<&[u8]>) {
         self.header_parser.id_desc(self.rec.head())
     }
-    fn full_header(&self) -> SeqHeader {
-        SeqHeader::FullHeader(self.rec.head())
+
+    fn current_header(&self) -> RecordHeader {
+        if let Some((id, desc)) = self.header_parser.parsed_id_desc(self.rec.head()) {
+            RecordHeader::IdDesc(
+                MaybeModified::new(id, false),
+                MaybeModified::new(desc, false),
+            )
+        } else {
+            RecordHeader::Full(self.rec.head())
+        }
     }
-    fn header_delim_pos(&self) -> Option<Option<usize>> {
-        self.header_parser.delim_pos()
-    }
-    fn set_header_delim_pos(&self, delim: Option<usize>) {
-        self.header_parser.set_delim_pos(Some(delim))
-    }
+
     fn raw_seq(&self) -> &[u8] {
         self.rec.seq()
     }
-    fn has_seq_lines(&self) -> bool {
-        false
-    }
+
     fn qual(&self) -> Option<&[u8]> {
         Some(<fastq::RefRecord as fastq::Record>::qual(&self.rec))
+    }
+
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.header_parser.delim_pos()
+    }
+
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.header_parser.set_delim_pos(Some(delim))
     }
 }
 
 // Writer
 
 pub struct FastqWriter {
-    qual_fmt: QualFormat,
+    format: QualFormat,
 }
 
 impl FastqWriter {
-    pub fn new(qual_fmt: QualFormat) -> Self {
-        Self { qual_fmt }
+    pub fn new(
+        format: QualFormat,
+        attrs: &[(Attribute, bool)],
+        builder: &mut VarBuilder,
+    ) -> CliResult<Self> {
+        register_attributes(attrs, builder)?;
+        Ok(Self { format })
     }
 }
 
-impl SeqWriter for FastqWriter {
-    fn write<W: io::Write>(
+impl FormatWriter for FastqWriter {
+    fn write(
         &mut self,
         record: &dyn Record,
+        out: &mut dyn io::Write,
         ctx: &mut SeqContext,
-        mut out: W,
     ) -> CliResult<()> {
-        let qual = record.qual().ok_or("No quality scores found in input.")?;
-        let qual = ctx
-            .qual_converter
-            .convert_to(qual, self.qual_fmt)
-            .map_err(|e| {
-                format!(
-                    "Error writing record '{}'. {}",
-                    String::from_utf8_lossy(record.id_bytes()),
-                    e
-                )
-            })?;
-
-        // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
-
-        out.write_all(b"@")?;
-
-        match record.full_header() {
-            SeqHeader::FullHeader(h) => {
-                out.write_all(h)?;
-            }
-            SeqHeader::IdDesc(id, desc) => {
-                out.write_all(id)?;
-                if let Some(d) = desc {
-                    out.write_all(b" ")?;
-                    out.write_all(d)?;
-                }
-            }
-        }
-
-        out.write_all(b"\n")?;
-        for seq in record.seq_segments() {
-            out.write_all(seq)?;
-        }
-        out.write_all(b"\n+\n")?;
-        out.write_all(qual)?;
-        out.write_all(b"\n")?;
-
-        Ok(())
+        write_fastq(record, out, ctx, self.format)
     }
+}
+
+fn write_fastq<W: io::Write>(
+    record: &dyn Record,
+    mut out: W,
+    ctx: &mut SeqContext,
+    format: QualFormat,
+) -> CliResult<()> {
+    // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
+
+    // header
+    out.write_all(b"@")?;
+    ctx.attrs.write_head(record, &mut out, &ctx.symbols)?;
+    out.write_all(b"\n")?;
+
+    // sequence
+    for seq in record.seq_segments() {
+        out.write_all(seq)?;
+    }
+    out.write_all(b"\n+\n")?;
+
+    // quality scores
+    let qual = record.qual().ok_or("No quality scores found in input.")?;
+    let qual = ctx.qual_converter.convert_to(qual, format).map_err(|e| {
+        format!(
+            "Error writing record '{}'. {}",
+            String::from_utf8_lossy(record.id()),
+            e
+        )
+    })?;
+    out.write_all(qual)?;
+    out.write_all(b"\n")?;
+
+    Ok(())
 }

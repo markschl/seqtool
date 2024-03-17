@@ -1,3 +1,4 @@
+use std::io;
 use std::ops::Range;
 use std::str::FromStr;
 
@@ -6,8 +7,11 @@ use winnow::combinator::{alt, rest, terminated};
 use winnow::token::{take, take_until};
 use winnow::{Located, PResult, Parser as _};
 
-use crate::error::CliResult;
-use crate::io::SeqAttr;
+use crate::io::{MaybeModified, Record, RecordAttr};
+use crate::{CliError, CliResult};
+
+use super::symbols::SymbolTable;
+use super::varstring::VarString;
 
 #[derive(Debug, Clone)]
 pub struct AttrFormat {
@@ -49,175 +53,213 @@ pub fn _parse_attr_format<'a>(s: &mut &'a str) -> PResult<(&'a str, &'a str)> {
     Ok((sep, value_sep))
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum Action {
-    Edit,
+/// Action to perform on header attributes when writing to output
+#[derive(Debug, Clone, PartialEq)]
+pub enum AttrWriteAction {
+    /// Add the given VarString without overwriting (can lead to duplicates of the same attribute)
+    Append(VarString),
+    /// Replace with value of VarString if already present, otherwise append to the end
+    Edit(VarString),
+    /// Delete attribute
     Delete,
 }
 
 #[derive(Debug)]
-pub struct Attrs {
+pub struct Attributes {
     parser: Parser,
-    // (attr_id, name, action)
-    actions: Vec<(usize, Action)>,
-    // used to store current positions for each action
-    _id_actions: Vec<(usize, Action, AttrPosition)>,
-    _desc_actions: Vec<(usize, Action, AttrPosition)>,
-    // if position was not found
-    _append_ids: Vec<usize>,
-    format: AttrFormat,
-    // the distinction of ID and description makes handling of spaces somehow complicated
+    // Since ID and description are parsed separately, we need to know if the delimiter before the attribute
+    // is a space. In that case, attributes may also be found at the start of the description (which is, after a space)
     adelim_is_space: bool,
-    append_attr: SeqAttr,
+    // List of attribute IDs encountered in the record ID and description line.
+    // These IDs allow accessing the attribute positions in the header with Parser::get(attr_id)
+    id_attrs: Vec<usize>,
+    desc_attrs: Vec<usize>,
+    // // Intermediate buffer for descriptions, used in complicated cases where it is previously unknown, whether
+    // // the description is empty or not, and therefore directly writing to the output is not possible.
+    // desc_buf: Vec<u8>,
 }
 
-impl Attrs {
-    pub fn new(format: AttrFormat, append_attr: SeqAttr) -> Attrs {
-        Attrs {
-            parser: Parser::new(),
-            actions: vec![],
-            _id_actions: vec![],
-            _desc_actions: vec![],
-            _append_ids: vec![],
-            adelim_is_space: format.delim == b" ",
-            format,
-            append_attr,
+impl Attributes {
+    pub fn new(format: AttrFormat) -> Attributes {
+        let adelim_is_space = format.delim == b" ";
+        Attributes {
+            adelim_is_space,
+            parser: Parser::new(format),
+            id_attrs: Vec::new(),
+            desc_attrs: Vec::new(),
+            // desc_buf: Vec::new(),
         }
     }
 
-    // Not a "smart" function, names must be added in order of IDs (just supplied to ensure
-    // consistency). Only used for importing attributes from VarStore, which assigns the IDs
-    pub fn add_attr(&mut self, name: &str, id: usize, action: Option<Action>) {
-        if let Some(a) = action {
-            self.actions.push((id, a));
-        }
-        self.parser.register_attr(name, id);
+    /// Requests an attribute to be searched in sequence headers.
+    /// Returns the corresponding attribute ID (which is the index of the data in the array).
+    /// The attribute may already exist, in which case the index (ID) of the existing slot is returned.
+    pub fn add_attr(
+        &mut self,
+        name: &str,
+        action: Option<AttrWriteAction>,
+    ) -> Result<Option<usize>, String> {
+        self.parser.register_attr(name, action)
     }
+
+    // #[inline]
+    // pub fn has_attrs(&self) -> bool {
+    //     self.has_read_attrs() || self.has_append_attrs()
+    // }
 
     #[inline]
-    pub fn has_attrs(&self) -> bool {
-        self.parser.has_attrs()
+    pub fn has_read_attrs(&self) -> bool {
+        self.parser.n_read_edit_attrs() > 0
     }
 
-    pub fn parse(&mut self, id: &[u8], desc: Option<&[u8]>) {
-        self.parser.reset();
+    // #[inline]
+    // pub fn has_append_attrs(&self) -> bool {
+    //     self.parser.n_append_attrs() > 0
+    // }
 
+    pub fn parse(&mut self, record: &dyn Record) {
+        // Only run the parser if necessary.
+        // Also, calling `id_desc()` involves searching for the space delimiter,
+        // (if not already done), we want to avoid that if possible.
+        if self.has_read_attrs() {
+            // In case of parsing attributes, we *always* search them in the ID/description parts
+            // separately, instead of just searching the full header.
+            // Reasons:
+            // - (The ID/descriptions may already have been modified (we don't know the type of &dyn Record).
+            //   However, with the current implementation, this is not the case.)
+            // - The ID/descriptions may be modified later. Since they are modified separately,
+            //   attributes can still be edited in the other part of the header. Appending is never
+            //   a problem, even if modified.
+            // - If the delimiter before the key=value attribute is a space, (the default!),
+            //   e.g. '>id description key=value', then searching attributes in the
+            //   full header line and *also* searching for the space to separate ID and description
+            //   would mean that the same work is done twice.
+            // - With non-space delimiters, the full header (ID and description) must be searched,
+            //   and separating these parts is not necessarily required.
+            //   But if also writing attributes to the output, they will be appended to the ID
+            //   and not the description, so the end of the ID must again be known.
+            //   Example: '>id;key=value some description'
+            // Overall, it seems still easiest to do it separately, even if this may complicate the code here.
+            let (id, desc) = record.id_desc();
+            self._parse(id, desc);
+            // dbg!(self);
+        }
+    }
+
+    fn _parse(&mut self, id: &[u8], desc: Option<&[u8]>) {
+        // initiate parser
+        self.parser.init();
+        // parse ID (everything before space) only if the delimiter before the key=value attribute
+        // is not a space
         if !self.adelim_is_space {
-            self.parser.parse(id, &self.format, SeqAttr::Id, false);
-        }
-
-        if let Some(d) = desc {
+            self.id_attrs.clear(); // TODO: where to clear?
             self.parser
-                .parse(d, &self.format, SeqAttr::Desc, self.adelim_is_space);
+                .parse(id, RecordAttr::Id, false, &mut self.id_attrs);
         }
 
-        // Distribute all positions according to ID/Desc and actions
-        self._id_actions.clear();
-        self._desc_actions.clear();
-        self._append_ids.clear();
-        for &(attr_id, action) in &self.actions {
-            let (_, position) = self.parser.get(attr_id);
-            if let Some(&(seq_attr, ref pos)) = position {
-                match seq_attr {
-                    SeqAttr::Id => self._id_actions.push((attr_id, action, pos.clone())),
-                    SeqAttr::Desc => self._desc_actions.push((attr_id, action, pos.clone())),
-                    _ => unimplemented!(),
-                }
-            } else if action != Action::Delete {
-                self._append_ids.push(attr_id);
-            }
-        }
-    }
-
-    /// Composes attributes from input ID and description and writes them to
-    /// output ID and description.
-    /// The output vectors are cleared before composing.
-    /// `push_fn` needs to be a custom supplied lookup function that translates
-    /// attribute "ID"s to their corresponding values.
-    pub fn compose<F>(
-        &self,
-        id: &[u8],
-        desc: Option<&[u8]>,
-        out_id: &mut Vec<u8>,
-        out_desc: &mut Vec<u8>,
-        mut push_fn: F,
-    ) -> CliResult<()>
-    where
-        F: FnMut(usize, &mut Vec<u8>) -> CliResult<()>,
-    {
-        out_id.clear();
-        out_desc.clear();
-
-        self._compose(id, &self._id_actions, out_id, &mut push_fn)?;
-
+        // the description (after space) is always searched
         if let Some(d) = desc {
-            self._compose(d, &self._desc_actions, out_desc, &mut push_fn)?;
+            self.desc_attrs.clear();
+            self.parser.parse(
+                d,
+                RecordAttr::Desc,
+                self.adelim_is_space,
+                &mut self.desc_attrs,
+            );
         }
-
-        if self.append_attr == SeqAttr::Id {
-            self.append_missing(out_id, &self._append_ids, true, &mut push_fn)?;
-        } else if self.append_attr == SeqAttr::Desc {
-            let delim_before = !(self.adelim_is_space && out_desc.is_empty());
-            self.append_missing(out_desc, &self._append_ids, delim_before, &mut push_fn)?;
-        }
-        Ok(())
     }
 
-    fn _compose<F>(
+    /// Writes the whole header line of the given record to output,
+    /// adding in attributes where necesary.
+    #[inline(always)]
+    pub fn write_head<W: io::Write + ?Sized>(
         &self,
-        text: &[u8],
-        positions: &[(usize, Action, AttrPosition)],
-        new_text: &mut Vec<u8>,
-        mut push_fn: F,
-    ) -> CliResult<()>
-    where
-        F: FnMut(usize, &mut Vec<u8>) -> CliResult<()>,
-    {
-        let mut prev_end = 0;
-        for &(id, action, ref pos) in positions {
-            match action {
-                Action::Edit => {
-                    new_text.extend_from_slice(&text[prev_end..pos.value_start]);
-                    push_fn(id, new_text)?;
-                }
-                Action::Delete => {
-                    // remove the delimiter before if possible, but pos.start == 0 is also possible
-                    let end = if pos.start > prev_end {
-                        pos.start - 1
-                    } else {
-                        pos.start
-                    };
-                    new_text.extend_from_slice(&text[prev_end..end]);
-                }
+        record: &dyn Record,
+        out: &mut W,
+        symbols: &SymbolTable,
+    ) -> CliResult<()> {
+        let (id_head, opt_desc) = record.current_header().parts();
+
+        if self.parser.n_write_attrs() == 0 {
+            // nothing to do, just write the header
+            // (either full header or separate ID/description parts, depending on what is available)
+            out.write_all(&id_head)?;
+            if let Some(d) = opt_desc.inner {
+                out.write_all(b" ")?;
+                out.write_all(d)?;
             }
-            prev_end = pos.end;
+            return Ok(());
         }
-        new_text.extend_from_slice(&text[prev_end..]);
-        Ok(())
+        // Otherwise, we need to modify something and write the modified header to `out`.
+        self.write_head_with_attrs(id_head, opt_desc, record, out, symbols)
     }
 
-    fn append_missing<F>(
+    /// Writes the whole header line of the given record to output,
+    /// adding in attributes where necesary.
+    fn write_head_with_attrs<W: io::Write + ?Sized>(
         &self,
-        new_text: &mut Vec<u8>,
-        ids: &[usize],
-        delim_before: bool,
-        mut push_fn: F,
-    ) -> CliResult<()>
-    where
-        F: FnMut(usize, &mut Vec<u8>) -> CliResult<()>,
-    {
-        let mut delim_before = delim_before;
-        for &attr_id in ids {
-            let (attr_name, position) = self.parser.get(attr_id);
-            debug_assert!(position.is_none());
-            if delim_before {
-                new_text.extend_from_slice(&self.format.delim);
+        id_head: MaybeModified<&[u8]>,
+        opt_desc: MaybeModified<Option<&[u8]>>,
+        record: &dyn Record,
+        out: &mut W,
+        symbols: &SymbolTable,
+    ) -> CliResult<()> {
+        // We can assume that `id_head` is the record ID, since the ID and description
+        // parts were searched separately in `parse()`
+        // ID
+        #[inline(never)]
+        fn mod_err(what: &str) -> CliError {
+            format!(
+                "Attempting to modify key=value attribute(s) in the record {0}, \
+                but the {0} is simultaneously modified in another way",
+                what
+            )
+            .into()
+        }
+
+        let any_written = if !self.id_attrs.is_empty() {
+            if id_head.modified {
+                return Err(mod_err("ID"));
+            }
+            self.parser
+                .compose(&id_head, out, &self.id_attrs, symbols, record)?
+        } else if !id_head.is_empty() {
+            out.write_all(&id_head)?;
+            true
+        } else {
+            false
+        };
+        if !self.adelim_is_space {
+            // we append to the ID if the delimiter preceding the attribute is *not* a space
+            self.parser
+                .append_remaining(out, any_written, symbols, record)?;
+        }
+
+        // description
+        if self.parser.has_append_attrs() && self.adelim_is_space || opt_desc.inner.is_some() {
+            out.write_all(b" ")?;
+        }
+        let any_written = if let Some(desc) = opt_desc.inner {
+            if !self.desc_attrs.is_empty() {
+                if opt_desc.modified {
+                    return Err(mod_err("description"));
+                }
+                self.parser
+                    .compose(desc, out, &self.desc_attrs, symbols, record)?
+            } else if !desc.is_empty() {
+                out.write_all(desc)?;
+                true
             } else {
-                delim_before = true;
+                false
             }
-            new_text.extend_from_slice(attr_name.as_bytes());
-            new_text.extend_from_slice(&self.format.value_delim);
-            push_fn(attr_id, new_text)?;
+        } else {
+            debug_assert!(self.desc_attrs.is_empty());
+            false
+        };
+        if self.adelim_is_space {
+            // we append to the description if the delimiter preceding the attribute *is* a space
+            self.parser
+                .append_remaining(out, any_written, symbols, record)?;
         }
         Ok(())
     }
@@ -234,10 +276,10 @@ impl Attrs {
         desc_text: Option<&'a [u8]>,
     ) -> Option<&'a [u8]> {
         let (_, position) = self.parser.get(attr_id);
-        position.and_then(|&(seq_attr, ref pos)| {
+        position.and_then(|(seq_attr, ref pos)| {
             let text = match seq_attr {
-                SeqAttr::Id => id_text,
-                SeqAttr::Desc => desc_text?,
+                RecordAttr::Id => id_text,
+                RecordAttr::Desc => desc_text?,
                 _ => panic!(),
             };
             Some(&text[pos.value_start..pos.end])
@@ -245,33 +287,366 @@ impl Attrs {
     }
 }
 
+/// Parses and stores all attributes that have to be searched
+/// (the names of these attributes is known beforehand).
+/// After all requested attributes have been found, `parse` will stop
+/// and ignore all additional attributes.
+/// The attributes are stored in a vector, ordered by their attribute ID,
+/// so obtaining values for attributes is a simple indexing operation if the
+/// attribute ID is known.
 #[derive(Debug)]
-struct AttrData {
-    // used to know if the position is up-to date
-    // (instead of resetting before each record)
+struct Parser {
+    format: AttrFormat,
+    // read and/or replace, delete
+    read_edit_attrs: Vec<AttributeData>,
+    n_edit_attrs: usize,
+    has_delete_attrs: bool,
+    n_write_attrs: usize,
+    // append to end of ID or description: list of (name, value builder)
+    append_attrs: Vec<(String, VarString)>,
     search_id: usize,
-    // attribute name, edit/delete action if requested (add_attr)
-    name: String,
-    // Positional information, changes with each record.
-    // (Id/Desc, (start of value, end), search id
-    pos: (SeqAttr, AttrPosition),
+    num_found: usize,
+    num_edit_attrs_found: usize,
+    reported_duplicates: Vec<Vec<u8>>,
 }
 
-impl AttrData {
-    fn get_pos(&self, search_id: usize) -> Option<&(SeqAttr, AttrPosition)> {
-        // TODO: replace search_id with Option<something>?
+impl Parser {
+    pub fn new(format: AttrFormat) -> Parser {
+        Parser {
+            format,
+            read_edit_attrs: Vec::new(),
+            n_edit_attrs: 0,
+            has_delete_attrs: false,
+            n_write_attrs: 0,
+            append_attrs: Vec::new(),
+            search_id: 0,
+            num_found: 0,
+            num_edit_attrs_found: 0,
+            reported_duplicates: Vec::new(),
+        }
+    }
+
+    /// Requests an attribute to be searched in sequence headers.
+    /// Returns the corresponding attribute slot ("ID"), which is the index of the data
+    /// in the array and is used to obtain the attribute value.
+    /// Returns `None` if `write_action` is `Some(AttrWriteAction::Append)`,
+    /// (means only reading, no writing).
+    /// The attribute may already exist, in which case the ID of the existing slot is returned.
+    /// Multiple incompatible actions for the same attribute name will cause an error.
+    /// - 'delete' conflicts with any other action to prevent inconsistent use
+    /// - 'append' conflicts with any other action as well: if used in any other way (reading or writing),
+    ///    appending is not a good idea. The attribute has to be searched, but will then be duplicated.
+    pub fn register_attr(
+        &mut self,
+        name: &str,
+        write_action: Option<AttrWriteAction>,
+    ) -> Result<Option<usize>, String> {
+        // dbg!(name, &write_action);
+        // first check if any 'read/edit' actions are already present,
+        // and if so return the corresponding slot ID
+        #[inline(never)]
+        fn dup_err<T>(name: &str) -> Result<T, String> {
+            Err(format!(
+                "The FASTA/FASTQ header attribute '{}' is added/edited twice",
+                name
+            ))
+        }
+        for (i, d) in self.read_edit_attrs.iter_mut().enumerate() {
+            if d.name == name {
+                if matches!(write_action, Some(AttrWriteAction::Edit(_)))
+                    && matches!(d.write_action, Some(AttrWriteAction::Edit(_)))
+                {
+                    return dup_err(name);
+                }
+                if write_action != d.write_action {
+                    if matches!(d.write_action, Some(AttrWriteAction::Delete))
+                        || matches!(write_action, Some(AttrWriteAction::Delete))
+                    {
+                        return Err(format!(
+                            "The FASTA/FASTQ header attribute '{}' is supposed to be deleted \
+                            (e.g. using the `attr_del()` function), \
+                            but the same attribute name is used in a different way. \
+                            Make sure to use `attr_del` consistently at all places, \
+                            and not to write this attribute the output using \
+                            `-a/--attr {}=...` at the same time.",
+                            name, name
+                        ));
+                    }
+                    match write_action {
+                        Some(AttrWriteAction::Append(_)) => return Err(format!(
+                            "The FASTA/FASTQ header attribute '{}' is supposed to be appended \
+                            to the header without first checking for its presence in the headers \
+                            (`-A/--attr-append` argument; for maximum speed). \
+                            However, the same attribute name is used in a different way as well. \
+                            Make sure not to use functions such as `attr()`, `attr_del()` or `has_attr()` \
+                            together with `-A/--attr-append`.", name,
+                        )),
+                        Some(AttrWriteAction::Edit(_)) => {
+                            // replace 'read'-only (action = None) with the write action
+                            d.write_action = write_action;
+                            self.n_write_attrs += 1;
+                            self.n_edit_attrs += 1;
+                        }
+                        _ => {}
+                    }
+                }
+                return Ok(Some(i));
+            }
+        }
+        // handle 'write actions'
+        if write_action.is_some() {
+            self.n_write_attrs += 1;
+            match write_action {
+                Some(AttrWriteAction::Delete) => {
+                    self.has_delete_attrs = true;
+                }
+                Some(AttrWriteAction::Edit(_)) => {
+                    self.n_edit_attrs += 1;
+                }
+                _ => {}
+            }
+        }
+        if let Some(AttrWriteAction::Append(varstring)) = write_action {
+            if self.append_attrs.iter().any(|(n, _)| n == name) {
+                return dup_err(name);
+            }
+            self.append_attrs.push((name.to_string(), varstring));
+            Ok(None)
+        } else {
+            let i = self.read_edit_attrs.len();
+            self.read_edit_attrs.push(AttributeData {
+                name: name.to_string(),
+                // initial values, will be replaced
+                rec_attr: RecordAttr::Id,
+                position: AttrPosition::default(),
+                write_action,
+                search_id: usize::MAX, // should be different from self.search_id
+            });
+            Ok(Some(i))
+        }
+    }
+
+    pub fn init(&mut self) {
+        self.search_id = self.search_id.wrapping_add(1);
+        self.num_found = 0;
+        self.num_edit_attrs_found = 0;
+    }
+
+    /// Parses a given record header part (ID or description), searching for all
+    /// key=value attributes of the given format.
+    /// Also, fills the `hit_ids` vector with a list of attribute IDs
+    /// (which are the slot indexes in the `data` vector)
+    fn parse(
+        &mut self,
+        text: &[u8],
+        rec_attr: RecordAttr,
+        check_start: bool,
+        hit_ids: &mut Vec<usize>,
+    ) {
+        if self.num_found == self.read_edit_attrs.len() {
+            return;
+        }
+        let start_pos = if check_start { Some(0) } else { None };
+        let pos_iter = start_pos
+            .into_iter()
+            .chain(find_iter(text, &self.format.delim).map(|pos| pos + 1));
+        for pos in pos_iter {
+            // at every delimiter position, we try to parse a key=value pair
+            // or proceed with the next delimiter if not valid
+            if let Some((key, _value, pos)) = parse_key_value(text, pos, &self.format) {
+                // We do a linear search for the name, since we don't assume many attributes to be searched/added.
+                for (i, d) in self.read_edit_attrs.iter_mut().enumerate() {
+                    if key == d.name.as_bytes() {
+                        if d.set_pos(rec_attr, pos, self.search_id) {
+                            // attribute found and not a duplicate
+                            self.num_found += 1;
+                            hit_ids.push(i);
+                            if matches!(d.write_action, Some(AttrWriteAction::Edit(_))) {
+                                self.num_edit_attrs_found += 1;
+                            }
+                        } else {
+                            // duplicate attribute found
+                            // (this only happens if attribute parsing didn't stop earlier because
+                            // all of them were found already)
+                            if !self.reported_duplicates.iter().any(|name| name == key) {
+                                eprintln!(
+                                    "Warning: The FASTA/FASTQ header attribute '{}' was found to be \
+                                    duplicated. Only the first occurrence is used. This can happen if \
+                                    `-A/--attr-append` was used in an earlier command. \
+                                    Note that not all duplicates are reported, there may be more...",
+                                    String::from_utf8_lossy(key)
+                                );
+                                self.reported_duplicates.push(key.to_owned());
+                            }
+                        }
+                        break;
+                    }
+                }
+                if self.num_found == self.read_edit_attrs.len() {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Compose a header part (ID or description) by editing and/or deleting attributes
+    fn compose<W: io::Write + ?Sized>(
+        &self,
+        text: &[u8],
+        out: &mut W,
+        hit_ids: &[usize],
+        symbols: &SymbolTable,
+        record: &dyn Record,
+    ) -> io::Result<bool> {
+        let mut prev_end = 0;
+        let mut any_written = false;
+        macro_rules! do_write {
+            ($text: expr) => {
+                if !$text.is_empty() {
+                    if !any_written {
+                        any_written = true;
+                    }
+                    out.write_all($text)?;
+                }
+            };
+        }
+        // if self.num_found > 0 {
+        for attr_id in hit_ids {
+            let d = &self.read_edit_attrs[*attr_id];
+            debug_assert!(d.get_pos(self.search_id).is_some());
+            match &d.write_action {
+                Some(AttrWriteAction::Edit(vs)) => {
+                    out.write_all(&text[prev_end..d.position.value_start])?;
+                    vs.compose(out, symbols, record)?;
+                    any_written = true;
+                }
+                Some(AttrWriteAction::Delete) => {
+                    // remove preceding delimiter, unless start = 0
+                    let end = if d.position.start > prev_end {
+                        d.position.start - 1
+                    } else {
+                        d.position.start
+                    };
+                    do_write!(&text[prev_end..end]);
+                }
+                _ => continue,
+            }
+            prev_end = d.position.end;
+        }
+        // }
+        do_write!(&text[prev_end..]);
+        Ok(any_written)
+    }
+
+    fn has_append_attrs(&self) -> bool {
+        !self.append_attrs.is_empty() || self.num_edit_attrs_found < self.n_edit_attrs
+    }
+
+    // fn has_delete_attrs(&self) -> bool {
+    //     self.has_delete_attrs
+    // }
+
+    /// Appends attributes of type `Edit` that were not found in the record, or `Append` attributes
+    /// to the output (which may be the ID or description)
+    /// `delim_before`: should the first attribute have a delimiter before it?
+    fn append_remaining<W: io::Write + ?Sized>(
+        &self,
+        out: &mut W,
+        initial_delim: bool,
+        symbols: &SymbolTable,
+        record: &dyn Record,
+    ) -> io::Result<()> {
+        // the 'edit' attributes *not found* in the header come first
+        // TODO: if num_found == self.read_edit_attrs.len() this search is actually unnecessary
+        let attr_iter = self
+            .read_edit_attrs
+            .iter()
+            .filter_map(|d| {
+                if d.get_pos(self.search_id).is_none() {
+                    if let Some(AttrWriteAction::Edit(vs)) = &d.write_action {
+                        return Some((d.name.as_str(), vs));
+                    }
+                }
+                None
+            })
+            // next, the 'append' attributes
+            .chain(
+                self.append_attrs
+                    .iter()
+                    .map(|(name, vs)| (name.as_str(), vs)),
+            )
+            .enumerate();
+        // do the writing
+        for (i, (name, vs)) in attr_iter {
+            if initial_delim || i != 0 {
+                // TODO: check position?
+                out.write_all(&self.format.delim)?;
+            }
+            out.write_all(name.as_bytes())?;
+            out.write_all(&self.format.value_delim)?;
+            vs.compose(out, symbols, record)?;
+        }
+        Ok(())
+    }
+
+    pub fn get(&self, attr_id: usize) -> (&str, Option<(RecordAttr, AttrPosition)>) {
+        let d = self.read_edit_attrs.get(attr_id).unwrap();
+        (&d.name, d.get_pos(self.search_id))
+    }
+
+    // pub fn num_found(&self) -> usize {
+    //     self.num_found
+    // }
+
+    pub fn n_write_attrs(&self) -> usize {
+        self.n_write_attrs
+    }
+
+    pub fn n_read_edit_attrs(&self) -> usize {
+        self.read_edit_attrs.len()
+    }
+
+    // pub fn n_append_attrs(&self) -> usize {
+    //     self.append_attrs.len()
+    // }
+}
+
+/// Object holding information about attributes that we want to find,
+/// as well as information about the position of the hit (if found)
+#[derive(Debug)]
+struct AttributeData {
+    // attribute name
+    name: String,
+    // The record attribute (ID/desc), in which the hit was found
+    rec_attr: RecordAttr,
+    // Positional information, changes with each record.
+    position: AttrPosition,
+    /// The action to perform when writing to output
+    write_action: Option<AttrWriteAction>,
+    // Search ID: used to know if the position is up-to date
+    // (instead of resetting before each record)
+    // The search ID is essentially the record index, which will
+    // restart at 0 when the index overflows (using wrapping_add(), see parser)
+    search_id: usize,
+}
+
+impl AttributeData {
+    fn get_pos(&self, search_id: usize) -> Option<(RecordAttr, AttrPosition)> {
         if search_id == self.search_id {
-            Some(&self.pos)
+            Some((self.rec_attr, self.position.clone()))
         } else {
             None
         }
     }
 
-    // returns true if the position already exists for this search ID
-    fn set_pos(&mut self, attr: SeqAttr, pos: AttrPosition, search_id: usize) -> bool {
+    /// Sets the position for the given search ID.
+    /// Returns true if the position did not previously exist in this search
+    /// (so it is not a duplicate hit)
+    fn set_pos(&mut self, attr: RecordAttr, pos: AttrPosition, search_id: usize) -> bool {
         if search_id != self.search_id {
             // position was not yet found in this round
-            self.pos = (attr, pos);
+            self.rec_attr = attr;
+            self.position = pos;
             self.search_id = search_id;
             return true;
         }
@@ -279,6 +654,7 @@ impl AttrData {
     }
 }
 
+/// Position of an attribute in the header ID or description
 #[derive(Debug, Clone, Default)]
 pub struct AttrPosition {
     pub start: usize,
@@ -325,102 +701,15 @@ fn _parse_key_value(
         .parse_next(s)
 }
 
-#[derive(Debug)]
-struct Parser {
-    data: Vec<AttrData>,
-    search_id: usize,
-    num_found: usize,
-}
-
-impl Parser {
-    pub fn new() -> Parser {
-        Parser {
-            data: vec![],
-            search_id: 1,
-            num_found: 0,
-        }
-    }
-
-    fn parse(&mut self, text: &[u8], format: &AttrFormat, seq_attr: SeqAttr, check_start: bool) {
-        if self.all_found() {
-            return;
-        }
-        if check_start && self.find_key_value(text, format, 0, seq_attr) {
-            return;
-        }
-        let l = format.delim.len();
-        for pos in find_iter(text, &format.delim) {
-            if self.find_key_value(text, format, pos + l, seq_attr) {
-                break;
-            }
-        }
-    }
-
-    /// attempts at finding a key=value attribute at the start of the text
-    fn find_key_value(
-        &mut self,
-        text: &[u8],
-        format: &AttrFormat,
-        offset: usize,
-        seq_attr: SeqAttr,
-    ) -> bool {
-        if let Some((k, _v, pos)) = parse_key_value(text, offset, format) {
-            self.set_attr_pos(k, seq_attr, pos);
-            return self.all_found();
-        }
-        false
-    }
-
-    /// Requests an attribute to be searched in sequence headers.
-    /// Not a "smart" function, attribute names must be added in order of IDs
-    /// (which are just supplied to ensure consistency).
-    pub fn register_attr(&mut self, name: &str, id: usize) {
-        assert_eq!(id, self.data.len());
-        self.data.insert(
-            id,
-            AttrData {
-                name: name.to_string(),
-                // initial values, will be replaced
-                pos: (SeqAttr::Id, AttrPosition::default()),
-                search_id: 0,
-            },
-        );
-    }
-
-    pub fn reset(&mut self) {
-        self.search_id += 1;
-        self.num_found = 0;
-    }
-
-    pub fn all_found(&self) -> bool {
-        self.num_found >= self.data.len()
-    }
-
-    pub fn set_attr_pos(&mut self, name: &[u8], attr: SeqAttr, pos: AttrPosition) {
-        // currently we do a linear search, since we don't assume that many
-        // attributes are requested
-        for d in &mut self.data {
-            if name == d.name.as_bytes() {
-                if !d.set_pos(attr, pos, self.search_id) {
-                    self.num_found += 1;
-                }
-                break;
-            }
-        }
-    }
-
-    pub fn get(&self, attr_id: usize) -> (&str, Option<&(SeqAttr, AttrPosition)>) {
-        let d = self.data.get(attr_id).unwrap();
-        (&d.name, d.get_pos(self.search_id))
-    }
-
-    pub fn has_attrs(&self) -> bool {
-        !self.data.is_empty()
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    // use seq_io::fasta::OwnedRecord;
+
+    use crate::{
+        io::{MaybeModified, OwnedRecord},
+        var::varstring::VarStringSegment,
+    };
+
     use super::*;
 
     #[test]
@@ -437,136 +726,121 @@ mod tests {
         assert_eq!(kv(&b"=v"[..]), None);
     }
 
+    fn compose_head(
+        id: &[u8],
+        desc: Option<&[u8]>,
+        fmt: AttrFormat,
+        mut add_fn: impl FnMut(&mut Attributes),
+    ) -> CliResult<Vec<u8>> {
+        let mut a = Attributes::new(fmt);
+        add_fn(&mut a);
+        let rec = OwnedRecord {
+            id: MaybeModified::new(id.to_vec(), false),
+            desc: MaybeModified::new(desc.map(|d| d.to_vec()), false),
+            seq: Vec::new(),
+            qual: None,
+        };
+        a.parse(&rec);
+        let sym = SymbolTable::new(0);
+        let mut out = Vec::new();
+        a.write_head(&rec, &mut out, &sym)?;
+        Ok(out)
+    }
+
     #[test]
     fn desc_parser() {
-        let mut out_id = vec![];
-        let mut out_desc = vec![];
+        let fmt = AttrFormat::new(b" ", b"=");
+        let repl = VarString::from_parts(&[VarStringSegment::Text(b"val".to_vec())]);
 
-        let id = b"id";
-        let desc = Some(&b"desc a=0 b=1"[..]);
-
-        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
-        a.add_attr("a", 0, None);
-        a.add_attr("b", 1, Some(Action::Edit));
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-            Ok(())
+        let head = compose_head(b"id", Some(&b"desc a=0 b=1"[..]), fmt.clone(), |a| {
+            a.add_attr("a", None).unwrap();
+            a.add_attr("b", Some(AttrWriteAction::Edit(repl.clone())))
+                .unwrap();
         })
         .unwrap();
-        assert_eq!(&out_desc, b"desc a=0 b=val");
+        assert_eq!(&head, b"id desc a=0 b=val");
 
-        let desc = Some(&b"desc a=0 c=1"[..]);
-        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
-        a.add_attr("a", 0, None);
-        a.add_attr("b", 1, Some(Action::Edit));
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-            Ok(())
+        let head = compose_head(b"id", Some(&b"desc a=0 c=1"[..]), fmt.clone(), |a| {
+            a.add_attr("a", None).unwrap();
+            a.add_attr("b", Some(AttrWriteAction::Edit(repl.clone())))
+                .unwrap();
         })
         .unwrap();
-        assert_eq!(&out_desc, b"desc a=0 c=1 b=val");
+        assert_eq!(&head, b"id desc a=0 c=1 b=val");
 
-        let desc = Some(&b"desc a=0 b=1"[..]);
-        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
-        a.add_attr("a", 0, Some(Action::Delete));
-        a.add_attr("b", 1, Some(Action::Edit));
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-            Ok(())
+        let head = compose_head(b"id", Some(&b"desc a=0 b=1"[..]), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Delete)).unwrap();
+            a.add_attr("b", Some(AttrWriteAction::Edit(repl.clone())))
+                .unwrap();
         })
         .unwrap();
-        assert_eq!(&out_desc, b"desc b=val");
+        assert_eq!(&head, b"id desc b=val");
     }
 
     #[test]
     fn delim() {
-        let mut out_id = vec![];
-        let mut out_desc = vec![];
-        let id = b"id;a=0";
-        let desc = Some(&b"desc a:1"[..]);
+        let fmt = AttrFormat::new(b";", b"=");
+        let repl = VarString::from_parts(&[VarStringSegment::Text(b"val".to_vec())]);
 
-        let mut a = Attrs::new(AttrFormat::new(b";", b"="), SeqAttr::Id);
-        a.add_attr("a", 0, Some(Action::Edit));
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-            Ok(())
+        let head = compose_head(b"id;a=0", Some(&b"desc a:1"[..]), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Edit(repl.clone())))
+                .unwrap();
         })
         .unwrap();
-        assert_eq!(&out_id, b"id;a=val");
-        assert_eq!(&out_desc, b"desc a:1");
+        assert_eq!(&head, b"id;a=val desc a:1");
 
-        let mut a = Attrs::new(AttrFormat::new(b" ", b":"), SeqAttr::Id);
-        a.add_attr("a", 0, Some(Action::Edit));
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-            Ok(())
+        let fmt = AttrFormat::new(b" ", b":");
+        let head = compose_head(b"id;a=0", Some(&b"desc a:1"[..]), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Edit(repl.clone())))
+                .unwrap();
         })
         .unwrap();
-        assert_eq!(&out_id, b"id;a=0");
-        assert_eq!(&out_desc, b"desc a:val");
+        assert_eq!(&head, b"id;a=0 desc a:val");
     }
 
     #[test]
     fn missing() {
-        let mut out_id = vec![];
-        let mut out_desc = vec![];
-        let id = b"id";
-        let desc = Some(&b"desc a=0 c=2"[..]);
+        let fmt = AttrFormat::new(b" ", b"=");
+        let repl = VarString::from_parts(&[VarStringSegment::Text(b"val".to_vec())]);
 
-        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
-        a.add_attr("a", 0, Some(Action::Edit));
-        a.add_attr("b", 1, Some(Action::Edit));
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-            Ok(())
+        let head = compose_head(b"id", Some(&b"desc a=0 c=2"[..]), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Edit(repl.clone())))
+                .unwrap();
+            a.add_attr("b", Some(AttrWriteAction::Edit(repl.clone())))
+                .unwrap();
         })
         .unwrap();
-        assert_eq!(&out_desc, b"desc a=val c=2 b=val");
+        assert_eq!(&head, b"id desc a=val c=2 b=val");
 
-        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
-        a.add_attr("a", 0, Some(Action::Delete));
-        a.add_attr("b", 1, Some(Action::Delete));
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, out| {
-            out.extend_from_slice(b"val");
-            Ok(())
+        let head = compose_head(b"id", Some(&b"desc a=0 c=2"[..]), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Delete)).unwrap();
+            a.add_attr("b", Some(AttrWriteAction::Delete)).unwrap();
         })
         .unwrap();
-        assert_eq!(&out_desc, b"desc c=2");
+        assert_eq!(&head, b"id desc c=2");
     }
 
     #[test]
     fn del_multiple() {
-        let mut out_id = vec![];
-        let mut out_desc = vec![];
-        let id = b"id";
+        let fmt = AttrFormat::new(b" ", b"=");
 
-        let mut a = Attrs::new(AttrFormat::new(b" ", b"="), SeqAttr::Desc);
-        a.add_attr("a", 0, Some(Action::Delete));
+        let head = compose_head(b"id", Some(b"desc a=0"), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Delete)).unwrap();
+        })
+        .unwrap();
+        assert_eq!(&head, b"id desc");
 
-        let desc = Some(&b"desc a=0"[..]);
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| Ok(()))
-            .unwrap();
-        assert_eq!(&out_desc, b"desc");
+        let head = compose_head(b"id", Some(b"desc2"), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Delete)).unwrap();
+        })
+        .unwrap();
+        assert_eq!(&head, b"id desc2");
 
-        let desc = Some(&b"desc2"[..]);
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| Ok(()))
-            .unwrap();
-        assert_eq!(&out_desc, b"desc2");
-
-        let desc = Some(&b"a=4"[..]);
-        a.parse(id, desc);
-        a.compose(id, desc, &mut out_id, &mut out_desc, |_, _| Ok(()))
-            .unwrap();
-        assert_eq!(&out_desc, b"");
+        let head = compose_head(b"id", Some(b"a=4"), fmt.clone(), |a| {
+            a.add_attr("a", Some(AttrWriteAction::Delete)).unwrap();
+        })
+        .unwrap();
+        assert_eq!(&head, b"id");
     }
 
     // #[bench]

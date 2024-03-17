@@ -71,16 +71,19 @@ impl FromStr for OutputKind {
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum OutFormat {
     Fasta {
-        attrs: Vec<Attribute>,
+        /// (attribute, replace_existing)
+        attrs: Vec<(Attribute, bool)>,
         // Vec<(attr_name, attr_value)>, default_seqattr_for_attrs
         wrap_width: Option<usize>,
     },
     Fastq {
         format: QualFormat,
-        attrs: Vec<Attribute>,
+        /// (attribute, replace_existing)
+        attrs: Vec<(Attribute, bool)>,
     },
     FaQual {
-        attrs: Vec<Attribute>,
+        /// (attribute, replace_existing)
+        attrs: Vec<(Attribute, bool)>,
         wrap_width: Option<usize>,
         qfile: PathBuf,
     },
@@ -110,7 +113,7 @@ impl OutFormat {
 
     pub fn from_opts(
         format: FormatVariant,
-        attrs: &[Attribute],
+        attrs: &[(Attribute, bool)],
         wrap_fasta: Option<usize>,
         csv_delim: Option<char>,
         csv_fields: &str,
@@ -250,22 +253,17 @@ pub fn from_format<'a>(
         OutFormat::Fasta {
             ref attrs,
             wrap_width,
-        } => {
-            let writer = fasta::FastaWriter::new(wrap_width);
-            Box::new(attr::AttrWriter::new(writer, attrs, builder)?)
-        }
+        } => Box::new(fasta::FastaWriter::new(wrap_width, attrs, builder)?),
         OutFormat::Fastq { format, ref attrs } => {
-            let writer = fastq::FastqWriter::new(format);
-            Box::new(attr::AttrWriter::new(writer, attrs, builder)?)
+            Box::new(fastq::FastqWriter::new(format, attrs, builder)?)
         }
         OutFormat::FaQual {
             ref attrs,
             wrap_width,
             ref qfile,
-        } => {
-            let writer = fa_qual::FaQualWriter::new(wrap_width, qfile)?;
-            Box::new(attr::AttrWriter::new(writer, attrs, builder)?)
-        }
+        } => Box::new(fa_qual::FaQualWriter::new(
+            wrap_width, qfile, attrs, builder,
+        )?),
         OutFormat::Csv { delim, ref fields } => {
             Box::new(csv::CsvWriter::new(fields, delim, builder)?)
         }

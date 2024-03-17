@@ -8,7 +8,7 @@ use fxhash::FxHashMap;
 use crate::error::CliResult;
 use crate::helpers::util::match_fields;
 
-use super::{Record, SeqHeader, SeqReader};
+use super::{MaybeModified, Record, RecordHeader, SeqReader};
 
 // Reader
 
@@ -177,35 +177,31 @@ impl Default for CsvRecord {
 }
 
 impl Record for CsvRecord {
-    fn id_bytes(&self) -> &[u8] {
+    fn id(&self) -> &[u8] {
         self.data.get(self.cols.id_col).unwrap_or(b"")
     }
 
-    fn desc_bytes(&self) -> Option<&[u8]> {
+    fn desc(&self) -> Option<&[u8]> {
         self.cols.desc_col.and_then(|i| self.data.get(i))
     }
 
-    fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
-        (self.id_bytes(), self.desc_bytes())
+    fn id_desc(&self) -> (&[u8], Option<&[u8]>) {
+        (self.id(), self.desc())
     }
 
-    fn full_header(&self) -> SeqHeader {
-        SeqHeader::IdDesc(self.id_bytes(), self.desc_bytes())
+    fn current_header(&self) -> RecordHeader {
+        let (id, desc) = self.id_desc();
+        RecordHeader::IdDesc(
+            MaybeModified::new(id, false),
+            MaybeModified::new(desc, false),
+        )
     }
 
     fn raw_seq(&self) -> &[u8] {
         self.data.get(self.cols.seq_col).unwrap_or(b"")
     }
 
-    fn has_seq_lines(&self) -> bool {
-        false
-    }
-
     fn qual(&self) -> Option<&[u8]> {
         self.cols.qual_col.map(|i| self.data.get(i).unwrap_or(b""))
-    }
-
-    fn write_seq(&self, to: &mut Vec<u8>) {
-        to.extend_from_slice(self.raw_seq())
     }
 }

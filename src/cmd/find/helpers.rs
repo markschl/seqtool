@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::cmd::shared::seqtype::{guess_seqtype, SeqType};
 use crate::error::CliResult;
-use crate::io::SeqAttr;
+use crate::io::RecordAttr;
 
 use super::matcher::{BytesRegexMatcher, ExactMatcher, Matcher, MyersMatcher, RegexMatcher};
 use super::MatchOpts;
@@ -163,7 +163,7 @@ where
 pub(crate) fn get_matcher<'a>(
     pattern: &str,
     algorithm: Algorithm,
-    attr: SeqAttr,
+    attr: RecordAttr,
     ambig: bool,
     o: &MatchOpts,
 ) -> CliResult<Box<dyn Matcher + Send + 'a>> {
@@ -173,7 +173,7 @@ pub(crate) fn get_matcher<'a>(
     Ok(match algorithm {
         Algorithm::Exact => Box::new(ExactMatcher::new(pattern.as_bytes())),
         Algorithm::Regex => {
-            if attr == SeqAttr::Seq {
+            if attr == RecordAttr::Seq {
                 Box::new(BytesRegexMatcher::new(pattern, o.has_groups)?)
             } else {
                 Box::new(RegexMatcher::new(pattern, o.has_groups)?)

@@ -7,10 +7,10 @@ use crate::error::CliResult;
 use crate::io::{
     input::{InputKind, InputOptions},
     output::OutputOptions,
-    QualConverter, Record, SeqAttr,
+    QualConverter, Record, RecordAttr,
 };
 use crate::var::{
-    attr::Attrs,
+    attr::Attributes,
     func::Func,
     symbols::{SymbolTable, VarType},
     VarBuilder, VarInfo, VarProvider, VarProviderInfo,
@@ -146,7 +146,7 @@ impl VarProvider for BuiltinVars {
         &mut self,
         _record: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attrs,
+        _: &mut Attributes,
         _: &mut QualConverter,
     ) -> CliResult<()> {
         self.num += 1;
@@ -154,9 +154,9 @@ impl VarProvider for BuiltinVars {
         for &(var, id) in &self.vars {
             let sym = symbols.get_mut(id).inner_mut();
             match var {
-                Id => sym.set_attr(SeqAttr::Id),
-                Desc => sym.set_attr(SeqAttr::Desc),
-                Seq => sym.set_attr(SeqAttr::Seq),
+                Id => sym.set_attr(RecordAttr::Id),
+                Desc => sym.set_attr(RecordAttr::Desc),
+                Seq => sym.set_attr(RecordAttr::Seq),
                 Num => sym.set_int(self.num as i64),
                 InPath => sym.set_text(self.path_info.path.as_ref().unwrap()),
                 InName => sym.set_text(self.path_info.name.as_ref().unwrap()),

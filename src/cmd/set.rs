@@ -3,7 +3,7 @@ use clap::Parser;
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::io::{RecordEditor, SeqAttr};
+use crate::io::{RecordAttr, RecordEditor};
 use crate::var::varstring::VarString;
 
 #[derive(Parser, Clone, Debug)]
@@ -28,13 +28,13 @@ pub struct SetCommand {
 pub fn run(mut cfg: Config, args: &SetCommand) -> CliResult<()> {
     let mut replacements = vec![];
     if let Some(string) = args.id.as_ref() {
-        replacements.push((string, SeqAttr::Id));
+        replacements.push((string, RecordAttr::Id));
     }
     if let Some(string) = args.desc.as_ref() {
-        replacements.push((string, SeqAttr::Desc));
+        replacements.push((string, RecordAttr::Desc));
     }
     if let Some(string) = args.seq.as_ref() {
-        replacements.push((string, SeqAttr::Seq));
+        replacements.push((string, RecordAttr::Seq));
     }
 
     let mut format_writer = cfg.get_format_writer()?;

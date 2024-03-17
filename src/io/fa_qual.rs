@@ -1,6 +1,6 @@
 use std::cmp::min;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io;
 use std::path::Path;
 
 use seq_io::{
@@ -10,8 +10,10 @@ use seq_io::{
 
 use crate::config::SeqContext;
 use crate::error::CliResult;
+use crate::var::VarBuilder;
 
-use super::{Record, SeqHeader, SeqLineIter, SeqReader, SeqWriter};
+use super::output::FormatWriter;
+use super::{Attribute, Record, RecordHeader, SeqLineIter, SeqReader};
 
 // Reader
 
@@ -135,33 +137,42 @@ pub struct FaQualRecord<'a> {
 }
 
 impl<'a> Record for FaQualRecord<'a> {
-    fn id_bytes(&self) -> &[u8] {
-        self.fa_rec.id_bytes()
+    fn id(&self) -> &[u8] {
+        self.fa_rec.id()
     }
-    fn desc_bytes(&self) -> Option<&[u8]> {
-        self.fa_rec.desc_bytes()
+
+    fn desc(&self) -> Option<&[u8]> {
+        self.fa_rec.desc()
     }
-    fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
-        self.fa_rec.id_desc_bytes()
+
+    fn id_desc(&self) -> (&[u8], Option<&[u8]>) {
+        self.fa_rec.id_desc()
     }
-    fn full_header(&self) -> SeqHeader {
-        self.fa_rec.full_header()
+
+    fn current_header(&self) -> RecordHeader {
+        self.fa_rec.current_header()
     }
-    fn header_delim_pos(&self) -> Option<Option<usize>> {
-        self.fa_rec.header_delim_pos()
-    }
-    fn set_header_delim_pos(&self, delim: Option<usize>) {
-        self.fa_rec.set_header_delim_pos(delim)
-    }
+
     fn raw_seq(&self) -> &[u8] {
         self.fa_rec.raw_seq()
     }
-    fn has_seq_lines(&self) -> bool {
-        self.fa_rec.has_seq_lines()
-    }
+
     fn qual(&self) -> Option<&[u8]> {
         Some(self.qual)
     }
+
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.fa_rec.header_delim_pos()
+    }
+
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.fa_rec.set_header_delim_pos(delim)
+    }
+
+    fn has_seq_lines(&self) -> bool {
+        self.fa_rec.has_seq_lines()
+    }
+
     fn seq_segments(&self) -> SeqLineIter {
         self.fa_rec.seq_segments()
     }
@@ -179,7 +190,12 @@ pub struct FaQualWriter {
 }
 
 impl FaQualWriter {
-    pub fn new<Q>(wrap: Option<usize>, qual_path: Q) -> CliResult<Self>
+    pub fn new<Q>(
+        wrap: Option<usize>,
+        qual_path: Q,
+        attrs: &[(Attribute, bool)],
+        builder: &mut VarBuilder,
+    ) -> CliResult<Self>
     where
         Q: AsRef<Path>,
     {
@@ -195,49 +211,53 @@ impl FaQualWriter {
         })?;
 
         Ok(FaQualWriter {
-            fa_writer: super::fasta::FastaWriter::new(wrap),
+            fa_writer: super::fasta::FastaWriter::new(wrap, attrs, builder)?,
             qual_out: io::BufWriter::new(q_handle),
             wrap: wrap.unwrap_or(std::usize::MAX),
         })
     }
 }
 
-impl SeqWriter for FaQualWriter {
-    fn write<W: io::Write>(
+impl FormatWriter for FaQualWriter {
+    fn write(
         &mut self,
         record: &dyn Record,
+        out: &mut dyn io::Write,
         ctx: &mut SeqContext,
-        out: W,
     ) -> CliResult<()> {
-        // write FASTA record
-        self.fa_writer.write(record, ctx, out)?;
-
-        // write quality scores
-        let qual = record.qual().ok_or("No quality scores found in input.")?;
-
-        // header
-        match record.full_header() {
-            SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut self.qual_out, id, desc)?,
-            SeqHeader::FullHeader(h) => fasta::write_head(&mut self.qual_out, h)?,
-        }
-
-        // write Phred scores
-        for qline in qual.chunks(self.wrap) {
-            if !qline.is_empty() {
-                let phred_qual = ctx.qual_converter.phred_scores(qline).map_err(|e| {
-                    format!(
-                        "Error writing record '{}'. {}",
-                        String::from_utf8_lossy(record.id_bytes()),
-                        e
-                    )
-                })?;
-                let mut q_iter = phred_qual.scores().iter();
-                for q in q_iter.by_ref().take(qline.len() - 1) {
-                    write!(self.qual_out, "{} ", *q)?;
-                }
-                writeln!(self.qual_out, "{}", q_iter.next().unwrap())?;
-            }
-        }
-        Ok(())
+        self.fa_writer.write(record, out, ctx)?;
+        write_qscores(record, &mut self.qual_out, ctx, self.wrap)
     }
+}
+
+fn write_qscores<W: io::Write>(
+    record: &dyn Record,
+    mut out: W,
+    ctx: &mut SeqContext,
+    wrap: usize,
+) -> CliResult<()> {
+    // header
+    out.write_all(b">")?;
+    ctx.attrs.write_head(record, &mut out, &ctx.symbols)?;
+    out.write_all(b"\n")?;
+
+    // Phred scores
+    let qual = record.qual().ok_or("No quality scores found in input.")?;
+    for qline in qual.chunks(wrap) {
+        if !qline.is_empty() {
+            let phred_qual = ctx.qual_converter.phred_scores(qline).map_err(|e| {
+                format!(
+                    "Error writing record '{}'. {}",
+                    String::from_utf8_lossy(record.id()),
+                    e
+                )
+            })?;
+            let mut q_iter = phred_qual.scores().iter();
+            for q in q_iter.by_ref().take(qline.len() - 1) {
+                write!(&mut out, "{} ", *q)?;
+            }
+            writeln!(&mut out, "{}", q_iter.next().unwrap())?;
+        }
+    }
+    Ok(())
 }

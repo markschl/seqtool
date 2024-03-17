@@ -1,6 +1,6 @@
 use crate::io::{QualConverter, Record};
 use crate::var::{
-    attr::Attrs,
+    attr::Attributes,
     func::Func,
     symbols::{SymbolTable, VarType},
     ArgInfo, VarBuilder, VarInfo, VarProvider, VarProviderInfo,
@@ -47,7 +47,7 @@ impl VarProvider for ExprVars {
         &mut self,
         record: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attrs,
+        _: &mut Attributes,
         _: &mut QualConverter,
     ) -> CliResult<()> {
         self.0.eval(symbols, record)

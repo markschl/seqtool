@@ -7,12 +7,50 @@ fn attrs() {
     let t = Tester::new();
     t.cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")
         .cmp(&[".", "--to-tsv", "attr(b)"], ATTR_FA, "3\n")
-        .cmp(&[".", "--to-tsv", "has_attr(b)"], ATTR_FA, "true\n");
+        .cmp(&[".", "--to-tsv", "has_attr(b)"], ATTR_FA, "true\n")
+        .cmp(&[".", "-a", "c={attr(a)}", "-a", "b={attr(a)}"], ">ID a=0 b=1 c=2\nSEQ", ">ID a=0 b=0 c=0\nSEQ\n")
+        .fails(
+            &[".", "--to-tsv", "id", "-a", "a=0"],
+            *FASTA,
+            "output format is not FASTA or FASTQ",
+        )
+        .fails(
+            &[".", "-a", "a=0", "-a", "a=1"],
+            *FASTA,
+            "attribute 'a' is added/edited twice",
+        )
+        .fails(
+            &[".", "-A", "a=0", "-a", "a=1"],
+            *FASTA,
+            "attribute 'a' is supposed to be appended",
+        )
+        .fails(
+            &[".", "-A", "p={attr(p)}"],
+            *FASTA,
+            "attribute 'p' is supposed to be appended",
+        )
+        .fails(
+            &[".", "-a", "a={attr_del(a)}"],
+            *FASTA,
+            "attribute 'a' is supposed to be deleted",
+        )
+        .fails(
+            &[".", "-a", "a={attr_del(p)}_{attr(p)}"],
+            *FASTA,
+            "attribute 'p' is supposed to be deleted",
+        );
+
     #[cfg(feature = "expr")]
     t.cmp(
         &[".", "--to-tsv", "{{Num(attr('p'))+1}}"],
         *FASTA,
         "3\n2\n11\n12\n",
+    )
+    // edit using the earlier value of itself
+    .cmp(
+        &[".", "-a", "b={{attr('b')*3}}"],
+        ATTR_FA,
+        ">seq;a=0 b=9\nATGC\n",
     );
 }
 

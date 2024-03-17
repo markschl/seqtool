@@ -5,9 +5,11 @@ use seq_io::policy::BufPolicy;
 
 use crate::config::SeqContext;
 use crate::error::CliResult;
+use crate::var::VarBuilder;
 
 use super::fastx::FastxHeaderParser;
-use super::{Record, SeqHeader, SeqLineIter, SeqReader, SeqWriter};
+use super::output::{attr::register_attributes, FormatWriter};
+use super::{Attribute, MaybeModified, Record, RecordHeader, SeqLineIter, SeqReader};
 
 // Reader
 
@@ -54,33 +56,49 @@ impl<'a> FastaRecord<'a> {
 }
 
 impl<'a> Record for FastaRecord<'a> {
-    fn id_bytes(&self) -> &[u8] {
+    fn id(&self) -> &[u8] {
         self.header_parser.id_desc(self.rec.head()).0
     }
-    fn desc_bytes(&self) -> Option<&[u8]> {
+
+    fn desc(&self) -> Option<&[u8]> {
         self.header_parser.id_desc(self.rec.head()).1
     }
-    fn id_desc_bytes(&self) -> (&[u8], Option<&[u8]>) {
+
+    fn id_desc(&self) -> (&[u8], Option<&[u8]>) {
         self.header_parser.id_desc(self.rec.head())
     }
-    fn full_header(&self) -> SeqHeader {
-        SeqHeader::FullHeader(self.rec.head())
+
+    fn current_header(&self) -> RecordHeader {
+        if let Some((id, desc)) = self.header_parser.parsed_id_desc(self.rec.head()) {
+            RecordHeader::IdDesc(
+                MaybeModified::new(id, false),
+                MaybeModified::new(desc, false),
+            )
+        } else {
+            RecordHeader::Full(self.rec.head())
+        }
     }
-    fn header_delim_pos(&self) -> Option<Option<usize>> {
-        self.header_parser.delim_pos()
-    }
-    fn set_header_delim_pos(&self, delim: Option<usize>) {
-        self.header_parser.set_delim_pos(Some(delim))
-    }
+
     fn raw_seq(&self) -> &[u8] {
         self.rec.seq()
     }
-    fn has_seq_lines(&self) -> bool {
-        self.rec.num_seq_lines() > 1
-    }
+
     fn qual(&self) -> Option<&[u8]> {
         None
     }
+
+    fn header_delim_pos(&self) -> Option<Option<usize>> {
+        self.header_parser.delim_pos()
+    }
+
+    fn set_header_delim_pos(&self, delim: Option<usize>) {
+        self.header_parser.set_delim_pos(Some(delim))
+    }
+
+    fn has_seq_lines(&self) -> bool {
+        self.rec.num_seq_lines() > 1
+    }
+
     fn seq_segments(&self) -> SeqLineIter {
         SeqLineIter::Fasta(self.rec.seq_lines())
     }
@@ -93,27 +111,40 @@ pub struct FastaWriter {
 }
 
 impl FastaWriter {
-    pub fn new(wrap: Option<usize>) -> Self {
-        Self { wrap }
+    pub fn new(
+        wrap: Option<usize>,
+        attrs: &[(Attribute, bool)],
+        builder: &mut VarBuilder,
+    ) -> CliResult<Self> {
+        register_attributes(attrs, builder)?;
+        Ok(Self { wrap })
     }
 }
 
-impl SeqWriter for FastaWriter {
-    fn write<W: io::Write>(
+impl FormatWriter for FastaWriter {
+    fn write(
         &mut self,
         record: &dyn Record,
-        _: &mut SeqContext,
-        mut out: W,
+        out: &mut dyn io::Write,
+        ctx: &mut SeqContext,
     ) -> CliResult<()> {
-        match record.full_header() {
-            SeqHeader::FullHeader(h) => fasta::write_head(&mut out, h)?,
-            SeqHeader::IdDesc(id, desc) => fasta::write_id_desc(&mut out, id, desc)?,
-        }
-        if let Some(wrap) = self.wrap {
-            fasta::write_wrap_seq_iter(&mut out, record.seq_segments(), wrap)?;
-        } else {
-            fasta::write_seq_iter(&mut out, record.seq_segments())?;
-        }
-        Ok(())
+        write_fasta(record, out, ctx, self.wrap)
     }
+}
+
+fn write_fasta<W: io::Write>(
+    record: &dyn Record,
+    mut out: W,
+    ctx: &mut SeqContext,
+    wrap: Option<usize>,
+) -> CliResult<()> {
+    out.write_all(b">")?;
+    ctx.attrs.write_head(record, &mut out, &ctx.symbols)?;
+    out.write_all(b"\n")?;
+    if let Some(w) = wrap {
+        fasta::write_wrap_seq_iter(&mut out, record.seq_segments(), w)?;
+    } else {
+        fasta::write_seq_iter(&mut out, record.seq_segments())?;
+    }
+    Ok(())
 }

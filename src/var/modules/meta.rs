@@ -13,7 +13,7 @@ use crate::io::{
     FileInfo, FormatVariant, QualConverter, Record,
 };
 use crate::var::{
-    attr::Attrs,
+    attr::Attributes,
     func::{ArgValue, Func},
     symbols::{SymbolTable, VarType},
     VarBuilder, VarInfo, VarProvider, VarProviderInfo,
@@ -234,11 +234,11 @@ impl VarProvider for MetaVars {
         &mut self,
         record: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attrs,
+        _: &mut Attributes,
         _: &mut QualConverter,
     ) -> CliResult<()> {
         // find the next record for all readers
-        let id = record.id_bytes();
+        let id = record.id();
 
         for (rdr, vars) in &mut self.readers {
             // find the next record

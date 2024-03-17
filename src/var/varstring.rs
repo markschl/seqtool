@@ -32,7 +32,7 @@ pub fn register_var_list(
     Ok(())
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VarStringSegment {
     Text(Vec<u8>),
     Var(usize),
@@ -50,7 +50,7 @@ impl VarStringSegment {
 /// This type represents text, which can contain variables and/or expressions.
 /// It implements `Deref<Target=[VarStringPart]>` for easy access to the individual
 /// components.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct VarString {
     parts: Vec<VarStringSegment>,
     // Variable ID if consists of only one variable that may also be numeric,
@@ -60,11 +60,10 @@ pub struct VarString {
 
 impl VarString {
     pub fn from_parts(parts: &[VarStringSegment]) -> Self {
-        debug_assert!(!parts.is_empty());
         Self {
             parts: parts.to_vec(),
-            one_var: match parts[0] {
-                VarStringSegment::Var(id) if parts.len() == 1 => Some(id),
+            one_var: match parts.first() {
+                Some(VarStringSegment::Var(id)) if parts.len() == 1 => Some(*id),
                 _ => None,
             },
         }
@@ -179,19 +178,14 @@ impl VarString {
     pub fn compose<W: io::Write + ?Sized>(
         &self,
         out: &mut W,
-        table: &var::symbols::SymbolTable,
+        symbols: &var::symbols::SymbolTable,
         record: &dyn Record,
-    ) -> CliResult<()> {
+    ) -> io::Result<()> {
         if let Some(id) = self.one_var {
-            table
+            symbols
                 .get(id)
                 .inner()
-                .map(|v| {
-                    v.as_text(record, |s| {
-                        out.write_all(s)?;
-                        Ok(())
-                    })
-                })
+                .map(|v| v.as_text(record, |s| out.write_all(s)))
                 .transpose()?;
         } else {
             for part in &self.parts {
@@ -200,15 +194,10 @@ impl VarString {
                         out.write_all(s)?;
                     }
                     VarStringSegment::Var(id) => {
-                        table
+                        symbols
                             .get(*id)
                             .inner()
-                            .map(|v| {
-                                v.as_text(record, |s| {
-                                    out.write_all(s)?;
-                                    Ok(())
-                                })
-                            })
+                            .map(|v| v.as_text(record, |s| out.write_all(s)))
                             .transpose()?;
                     }
                 }

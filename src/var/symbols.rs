@@ -1,9 +1,8 @@
 use std::{cell::RefCell, fmt, io::Write, str::Utf8Error};
 
 use crate::{
-    error::CliResult,
     helpers::util::{text_to_float, text_to_int},
-    io::{Record, SeqAttr},
+    io::{Record, RecordAttr},
 };
 
 macro_rules! impl_value {
@@ -227,9 +226,9 @@ impl_value!(
 impl SeqAttrValue {
     pub fn with_slice<O>(&self, record: &dyn Record, func: impl FnOnce(&[u8]) -> O) -> O {
         match self.v {
-            SeqAttr::Id => func(record.id_bytes()),
-            SeqAttr::Desc => func(record.desc_bytes().unwrap_or(b"")),
-            SeqAttr::Seq => func(&record.full_seq(&mut self.buffer.borrow_mut())),
+            RecordAttr::Id => func(record.id()),
+            RecordAttr::Desc => func(record.desc().unwrap_or(b"")),
+            RecordAttr::Seq => func(&record.full_seq(&mut self.buffer.borrow_mut())),
         }
     }
 
@@ -243,8 +242,8 @@ impl SeqAttrValue {
 }
 
 impl_value!(
-    SeqAttrValue (SeqAttr) {
-        v: SeqAttr,
+    SeqAttrValue (RecordAttr) {
+        v: RecordAttr,
         buffer: RefCell<Vec<u8>>,
         // cache for float and integer values, so we don't need to re-calculate
         // at every access
@@ -253,7 +252,7 @@ impl_value!(
     }
     [self, record]
     new => {
-        v: SeqAttr::Id,
+        v: RecordAttr::Id,
         buffer: RefCell::new(Vec::with_capacity(100)),
         float: RefCell::new(None),
         int: RefCell::new(None)
@@ -366,11 +365,11 @@ impl Value {
     mut_accessor!(mut_int, Int, i64);
     mut_accessor!(mut_float, Float, f64);
     mut_accessor!(mut_text, Text, Vec<u8>);
-    mut_accessor!(mut_attr, Attr, SeqAttr);
+    mut_accessor!(mut_attr, Attr, RecordAttr);
     impl_set!(set_bool, mut_bool, bool);
     impl_set!(set_int, mut_int, i64);
     impl_set!(set_float, mut_float, f64);
-    impl_set!(set_attr, mut_attr, SeqAttr);
+    impl_set!(set_attr, mut_attr, RecordAttr);
 
     #[inline]
     pub fn set_text(&mut self, value: &[u8]) {
@@ -384,11 +383,11 @@ impl Value {
     accessor!(get_float, f64);
 
     #[inline]
-    pub fn as_text(
+    pub fn as_text<E>(
         &self,
         record: &dyn Record,
-        func: impl FnOnce(&[u8]) -> CliResult<()>,
-    ) -> CliResult<()> {
+        func: impl FnOnce(&[u8]) -> Result<(), E>,
+    ) -> Result<(), E> {
         match self {
             Value::Text(ref v) => v.as_text(record, func),
             Value::Int(ref v) => v.as_text(record, func),

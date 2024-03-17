@@ -12,15 +12,14 @@ use crate::io::{
         compr_writer, from_format, io_writer_from_kind, with_io_writer, FormatWriter, OutputKind,
         OutputOptions, WriteFinish,
     },
-    Compression, QualConverter, QualFormat, Record, SeqAttr,
+    Compression, QualConverter, QualFormat, Record,
 };
-use crate::var::ArgInfo;
 use crate::var::{
-    attr::{AttrFormat, Attrs},
+    attr::{AttrFormat, Attributes},
     func::Func,
     init_vars,
     symbols::{SymbolTable, VarType},
-    VarBuilder, VarOpts, VarProvider,
+    ArgInfo, VarBuilder, VarOpts, VarProvider,
 };
 
 #[derive(Debug)]
@@ -36,8 +35,6 @@ pub struct Config {
     var_map: FxHashMap<String, (usize, (usize, usize))>,
     // used to remember, which variables have been registered to which ID
     registered_vars: FxHashMap<Func, (usize, Option<VarType>, bool)>,
-    // used to remember, which attributes have been registered to which ID
-    registered_attrs: FxHashMap<String, usize>,
     started: Cell<bool>,
 }
 
@@ -104,13 +101,6 @@ impl Config {
             })
             .collect();
 
-        // Where are attributes (key=value) appended?
-        let append_attr = if var_opts.attr_format.delim == b" " {
-            SeqAttr::Desc
-        } else {
-            SeqAttr::Id
-        };
-
         // quality score format
         let qual_format = match input_opts[0].format {
             InFormat::Fastq { format } => format,
@@ -122,7 +112,6 @@ impl Config {
         let ctx = SeqContext::new(
             var_modules,
             args.attr.attr_fmt.clone(),
-            append_attr,
             qual_format,
             (output_opts.compression, output_opts.compression_level),
         );
@@ -133,7 +122,6 @@ impl Config {
             ctx,
             var_map,
             registered_vars: FxHashMap::default(),
-            registered_attrs: FxHashMap::default(),
             started: Cell::new(false),
         })
     }
@@ -155,7 +143,6 @@ impl Config {
                 &mut self.ctx.var_modules,
                 &self.var_map,
                 &mut self.registered_vars,
-                &mut self.registered_attrs,
                 &mut self.ctx.attrs,
             );
             action(&mut builder)
@@ -313,7 +300,7 @@ pub struct SeqContext {
     // These fields are public in order to avoid borrowing issues
     // in some implementations.
     pub symbols: SymbolTable,
-    pub attrs: Attrs,
+    pub attrs: Attributes,
     pub qual_converter: QualConverter,
     // needed by `io_writer_from_path`
     // TODO: this is duplicated data
@@ -324,14 +311,13 @@ impl SeqContext {
     pub fn new(
         var_modules: Vec<Box<dyn VarProvider>>,
         attr_format: AttrFormat,
-        append_attr: SeqAttr,
         qual_format: QualFormat,
         out_compression: (Compression, Option<u8>),
     ) -> Self {
         Self {
             var_modules,
             symbols: SymbolTable::new(0),
-            attrs: Attrs::new(attr_format, append_attr),
+            attrs: Attributes::new(attr_format),
             qual_converter: QualConverter::new(qual_format),
             out_compression,
         }
@@ -399,9 +385,8 @@ impl SeqContext {
     /// (done in Config while reading, or manually with Config::read_alongside)
     #[inline(always)]
     pub fn set_record(&mut self, record: &dyn Record) -> CliResult<()> {
-        if self.attrs.has_attrs() {
-            let (id, desc) = record.id_desc_bytes();
-            self.attrs.parse(id, desc);
+        if self.attrs.has_read_attrs() {
+            self.attrs.parse(record);
         }
         for m in &mut self.var_modules {
             m.set(

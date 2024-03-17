@@ -24,7 +24,7 @@ pub fn run(mut cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
 
         cfg.read_alongside(|i, rec, ctx| {
             if id_check {
-                let rec_id = rec.id_bytes();
+                let rec_id = rec.id();
                 if i == 0 {
                     id.clear();
                     id.extend(rec_id);

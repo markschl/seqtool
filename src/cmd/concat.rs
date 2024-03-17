@@ -50,13 +50,13 @@ pub fn run(mut cfg: Config, args: &ConcatCommand) -> CliResult<()> {
         let max_idx = num_readers - 1;
 
         cfg.read_alongside(|i, rec, ctx| {
-            let rec_id = rec.id_bytes();
+            let rec_id = rec.id();
 
             if i == 0 {
                 // initialize record
                 record.id.clear();
                 record.id.extend(rec_id);
-                if let Some(d) = rec.desc_bytes() {
+                if let Some(d) = rec.desc() {
                     let desc = record.desc.get_or_insert_with(Vec::new);
                     desc.clear();
                     desc.extend(d);

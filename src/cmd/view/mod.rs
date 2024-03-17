@@ -83,7 +83,7 @@ pub fn run(mut cfg: Config, args: &ViewCommand) -> CliResult<()> {
         }
 
         // write seq. ids / desc
-        let (id, desc) = record.id_desc_bytes();
+        let (id, desc) = record.id_desc();
         if id_len == 0 {
             // determine ID width of first ID
             id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3)) as u32;

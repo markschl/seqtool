@@ -8,7 +8,7 @@ use memchr::memmem::find_iter;
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
 use crate::helpers::util::replace_iter;
-use crate::io::{RecordEditor, SeqAttr};
+use crate::io::{RecordAttr, RecordEditor};
 use crate::Config;
 
 #[derive(Parser, Clone, Debug)]
@@ -45,11 +45,11 @@ pub struct ReplaceCommand {
 pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     // what should be replaced?
     let attr = if args.id {
-        SeqAttr::Id
+        RecordAttr::Id
     } else if args.desc {
-        SeqAttr::Desc
+        RecordAttr::Desc
     } else {
-        SeqAttr::Seq
+        RecordAttr::Seq
     };
     let pattern = &args.pattern;
     let replacement = args.replacement.as_bytes();
@@ -139,12 +139,12 @@ cfg_if::cfg_if! {
 
 fn get_replacer(
     pattern: &str,
-    attr: SeqAttr,
+    attr: RecordAttr,
     regex: bool,
     has_backrefs: bool,
 ) -> CliResult<Box<dyn Replacer + Sync>> {
     if regex {
-        if attr == SeqAttr::Seq {
+        if attr == RecordAttr::Seq {
             Ok(Box::new(BytesRegexReplacer::new(pattern, has_backrefs)?))
         } else {
             Ok(Box::new(RegexReplacer::new(pattern, has_backrefs)?))

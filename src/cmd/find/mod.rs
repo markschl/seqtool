@@ -4,7 +4,7 @@ use std::io::{BufWriter, Write};
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::helpers::util::replace_iter;
-use crate::io::{RecordEditor, SeqAttr};
+use crate::io::{RecordAttr, RecordEditor};
 use crate::var::{varstring, VarProvider};
 
 use super::shared::seqtype::SeqType;
@@ -54,11 +54,11 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
     };
     // what should be searched?
     let attr = if args.attr.id {
-        SeqAttr::Id
+        RecordAttr::Id
     } else if args.attr.desc {
-        SeqAttr::Desc
+        RecordAttr::Desc
     } else {
-        SeqAttr::Seq
+        RecordAttr::Seq
     };
     // search "actions"
     let filter = if args.action.filter {

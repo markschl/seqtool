@@ -5,7 +5,7 @@ use crate::error::CliResult;
 use crate::io::Record;
 
 pub trait FormatWriter {
-    fn has_vars(&self) -> bool;
+    // fn has_vars(&self) -> bool;
     fn write(
         &mut self,
         record: &dyn Record,
@@ -15,9 +15,9 @@ pub trait FormatWriter {
 }
 
 impl<W: FormatWriter + ?Sized> FormatWriter for Box<W> {
-    fn has_vars(&self) -> bool {
-        (**self).has_vars()
-    }
+    // fn has_vars(&self) -> bool {
+    //     (**self).has_vars()
+    // }
     fn write(
         &mut self,
         record: &dyn Record,

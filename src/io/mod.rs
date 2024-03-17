@@ -27,7 +27,7 @@ pub trait SeqWriter {
     fn write<W: io::Write>(
         &mut self,
         record: &dyn Record,
-        vars: &mut SeqContext,
+        ctx: &mut SeqContext,
         out: W,
     ) -> CliResult<()>;
 }

@@ -3,7 +3,7 @@ use clap::Parser;
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::io::DefRecord;
+use crate::io::HeaderRecord;
 use crate::var::attr;
 
 #[derive(Parser, Clone, Debug)]
@@ -30,7 +30,7 @@ pub fn run(mut cfg: Config, args: &DelCommand) -> CliResult<()> {
         if let Some(attrs) = del_attrs {
             cfg.build_vars(|b| {
                 for attr in attrs {
-                    b.register_attr(attr, Some(attr::Action::Delete));
+                    b.register_attr(attr, Some(attr::AttrWriteAction::Delete))?;
                 }
                 Ok(())
             })?;
@@ -38,8 +38,8 @@ pub fn run(mut cfg: Config, args: &DelCommand) -> CliResult<()> {
 
         cfg.read(|record, ctx| {
             if del_desc {
-                let id = record.id_bytes();
-                let record = DefRecord::new(&record, id, None);
+                let id = record.id();
+                let record = HeaderRecord::new(&record, id, None);
                 format_writer.write(&record, io_writer, ctx)?;
             } else {
                 format_writer.write(&record, io_writer, ctx)?;
