@@ -325,7 +325,7 @@ pub fn init_vars(
     ));
 
     // other modules
-    modules.push(Box::new(modules::builtins::BuiltinVars::new()));
+    modules.push(Box::new(modules::general::GeneralVars::new()));
     modules.push(Box::new(modules::stats::StatVars::new()));
     modules.push(Box::new(modules::attr::AttrVars::new()));
 
@@ -355,7 +355,7 @@ pub fn get_var_help(
         writeln!(
             &mut out,
             "{}",
-            modules::builtins::BuiltinHelp.format(markdown)
+            modules::general::GeneralHelp.format(markdown)
         )?;
         writeln!(&mut out, "{}", modules::stats::StatHelp.format(markdown))?;
         writeln!(&mut out, "{}", modules::attr::AttrInfo.format(markdown))?;

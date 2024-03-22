@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::str;
 
-use self::BuiltinVar::*;
+use self::GeneralVar::*;
 use crate::error::CliResult;
 use crate::io::{
     input::{InputKind, InputOptions},
@@ -18,9 +18,9 @@ use crate::var::{
 use crate::var_info;
 
 #[derive(Debug)]
-pub struct BuiltinHelp;
+pub struct GeneralHelp;
 
-impl VarProviderInfo for BuiltinHelp {
+impl VarProviderInfo for GeneralHelp {
     fn name(&self) -> &'static str {
         "Data from records and input files"
     }
@@ -60,7 +60,7 @@ impl VarProviderInfo for BuiltinHelp {
 }
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
-enum BuiltinVar {
+enum GeneralVar {
     Id,
     Desc,
     Seq,
@@ -84,15 +84,15 @@ struct PathInfo {
 }
 
 #[derive(Debug)]
-pub struct BuiltinVars {
-    vars: Vec<(BuiltinVar, usize)>,
+pub struct GeneralVars {
+    vars: Vec<(GeneralVar, usize)>,
     num: usize,
     path_info: PathInfo,
 }
 
-impl BuiltinVars {
-    pub fn new() -> BuiltinVars {
-        BuiltinVars {
+impl GeneralVars {
+    pub fn new() -> GeneralVars {
+        GeneralVars {
             vars: vec![],
             num: 0,
             path_info: PathInfo::default(),
@@ -100,9 +100,9 @@ impl BuiltinVars {
     }
 }
 
-impl VarProvider for BuiltinVars {
+impl VarProvider for GeneralVars {
     fn info(&self) -> &dyn VarProviderInfo {
-        &BuiltinHelp
+        &GeneralHelp
     }
 
     fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
