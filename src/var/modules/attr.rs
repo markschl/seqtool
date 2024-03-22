@@ -16,9 +16,6 @@ impl VarProviderInfo for AttrInfo {
     fn name(&self) -> &'static str {
         "Header attributes"
     }
-    fn usage(&self) -> Option<&'static str> {
-        Some("attr(name) or attr('name') or attr(\"name\")")
-    }
 
     fn vars(&self) -> &[VarInfo] {
         &[

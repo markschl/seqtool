@@ -180,10 +180,6 @@ macro_rules! var_info {
 pub trait VarProviderInfo: Debug {
     fn name(&self) -> &'static str;
 
-    fn usage(&self) -> Option<&'static str> {
-        None
-    }
-
     fn desc(&self) -> Option<&'static str> {
         None
     }
@@ -206,13 +202,7 @@ pub trait VarProviderInfo: Debug {
 
     fn _format_text(&self) -> CliResult<String> {
         let mut out = String::with_capacity(10000);
-        if let Some(u) = self.usage() {
-            writeln!(out, "{}. Usage: {}", self.name(), u)?;
-            let w = self.name().len() + 9 + u.len().min(80);
-            writeln!(out, "{1:=<0$}", w, "")?;
-        } else {
-            writeln!(out, "{}\n{2:=<1$}", self.name(), self.name().len(), "")?;
-        }
+        writeln!(out, "{}\n{2:=<1$}", self.name(), self.name().len(), "")?;
         if let Some(desc) = self.desc() {
             for d in textwrap::wrap(desc, 80) {
                 writeln!(out, "{}", d)?;
@@ -260,9 +250,6 @@ pub trait VarProviderInfo: Debug {
     fn _format_md(&self) -> CliResult<String> {
         let mut out = String::with_capacity(10000);
         writeln!(out, "## {}", self.name())?;
-        if let Some(u) = self.usage() {
-            writeln!(out, "\nUsage: *{}*\n", u)?;
-        }
         if let Some(desc) = self.desc() {
             writeln!(out, "{}\n", desc)?;
         }
@@ -299,15 +286,15 @@ impl VarProviderInfo for Box<dyn VarProviderInfo> {
     fn name(&self) -> &'static str {
         (**self).name()
     }
-    fn usage(&self) -> Option<&'static str> {
-        (**self).usage()
-    }
+
     fn desc(&self) -> Option<&'static str> {
         (**self).desc()
     }
+
     fn vars(&self) -> &[VarInfo] {
         (**self).vars()
     }
+
     fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
         (**self).examples()
     }
