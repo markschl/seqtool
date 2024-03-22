@@ -65,6 +65,7 @@ pub trait Record {
             to.extend_from_slice(seq);
         }
     }
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct MaybeModified<T> {
