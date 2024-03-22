@@ -107,7 +107,7 @@ impl VarString {
                 #[cfg(feature = "expr")]
                 Expr(e) | SourceFile(e) => {
                     let source = if let SourceFile(path) = frag {
-                        read_to_string(path.trim())?
+                        read_to_string(path)?
                     } else {
                         e.to_string()
                     };

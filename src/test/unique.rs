@@ -21,7 +21,7 @@ fn simple() {
         .cmp(&["unique", "{id} {desc}"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{{seq}}"], *FASTA, records!(0, 1, 2, 3));
+    Tester::new().cmp(&["unique", "{seq}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn attr() {
         .cmp(&["unique", "-n", "attr(p)"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{{attr('p')+1}}"], *FASTA, records!(0, 1, 2, 3));
+    Tester::new().cmp(&["unique", "{attr('p')+1}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
@@ -60,9 +60,9 @@ fn force_numeric() {
 
     #[cfg(feature = "expr")]
     Tester::new()
-        .fails(&["unique", "-n", "{{id}}"], *FASTA, "Could not convert")
+        .fails(&["unique", "-n", "{id}"], *FASTA, "Could not convert")
         .cmp(
-            &["unique", "-n", "{{ id.substring(3, 4) }}"],
+            &["unique", "-n", "{ id.substring(3, 4) }"],
             *FASTA,
             records!(0, 1, 2, 3),
         );
@@ -73,14 +73,14 @@ fn force_numeric() {
 fn expr() {
     Tester::new()
         .cmp(
-            &["unique", "{{ num + parseInt(attr('p')) }}"],
+            &["unique", "{ num + parseInt(attr('p')) }"],
             *FASTA,
             records!(0, 2, 3),
         )
         .cmp(
             &[
                 "unique",
-                "{{ if (num <= 2) return num; return (num).toString(); }}",
+                "{ if (num <= 2) return num; return (num).toString(); }",
             ],
             *FASTA,
             records!(0, 1, 2, 3),
@@ -88,7 +88,7 @@ fn expr() {
         .cmp(
             &[
                 "unique",
-                "{{ if (num <= 2) return num; return undefined; }}",
+                "{ if (num <= 2) return num; return undefined; }",
             ],
             *FASTA,
             records!(0, 1, 2),
@@ -100,7 +100,7 @@ fn expr() {
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s1 k=-1\nS1\n>s2 k=\nS2\n";
-    let formula = "{{ if (num <= 1) return -parseInt(id.substring(1, 2)); return undefined; }}";
+    let formula = "{ if (num <= 1) return -parseInt(id.substring(1, 2)); return undefined; }";
     Tester::new()
         .cmp(&["unique", formula, "-a", "k={key}"], fa, out)
         .cmp(&["unique", "-n", formula, "-a", "k={key}"], fa, out);

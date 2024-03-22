@@ -62,18 +62,16 @@ impl VarProviderInfo for ExprInfo {
         "Expressions (Javascript)"
     }
 
-    fn usage(&self) -> Option<&'static str> {
-        Some("{{ expression }}")
-    }
-
     fn desc(&self) -> Option<&'static str> {
         Some(
             "Expressions with variables, from simple mathematical operations to \
             to arbitrarily complicated JavaScript code. \
-            Expressions can be specified directly, or refer to a Javascript source \
+            Expressions are usually specified enclosed in { curly brackets }, \
+            except for the 'filter' commands, where they are directly used. \
+            Insteda of JavaScript code, it is possible to refer to a source \
             file using 'file:path.js'. \
             *Returned value*: For simple one-liner expressions, the value is \
-            directly used.  \
+            directly used. \
             More complex scripts with multiple statements (if/else, loops, etc.) \
             explicitly require a 'return' statement to return the value.",
         )

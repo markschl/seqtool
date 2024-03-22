@@ -25,9 +25,6 @@ fn attr() {
     Tester::new()
         .cmp(&["sort", "attr(p)"], *FASTA, records!(1, 2, 3, 0))
         .cmp(&["sort", "{attr(p)}"], *FASTA, records!(1, 2, 3, 0));
-
-    #[cfg(feature = "expr")]
-    Tester::new().cmp(&["sort", "{{attr('p')}}"], *FASTA, records!(1, 2, 3, 0));
 }
 
 #[test]
@@ -39,7 +36,7 @@ fn numeric_attr() {
 
     #[cfg(feature = "expr")]
     Tester::new().cmp(
-        &["sort", "-n", "{{attr('p')+1}}"],
+        &["sort", "-n", "{attr('p')+1}"],
         *FASTA,
         records!(1, 0, 2, 3),
     );
@@ -62,7 +59,7 @@ fn force_numeric() {
 
     #[cfg(feature = "expr")]
     Tester::new().cmp(
-        &["sort", "-n", "{{ id.substring(3, 4) }}"],
+        &["sort", "-n", "{ id.substring(3, 4) }"],
         *FASTA,
         records!(1, 0, 3, 2),
     );
@@ -76,16 +73,16 @@ fn numeric_vars() {
 
     #[cfg(feature = "expr")]
     Tester::new()
-        .cmp(&["sort", "{{ 7 + num }}"], *FASTA, records!(0, 1, 2, 3))
+        .cmp(&["sort", "{ 7 + num }"], *FASTA, records!(0, 1, 2, 3))
         // num as string in range 1-4 -> same as numeric sort
         .cmp(
-            &["sort", "{{ (num).toString() }}"],
+            &["sort", "{ (num).toString() }"],
             *FASTA,
             records!(0, 1, 2, 3),
         )
         // string sorting of: 8, 9, 10, 11 gives 10, 11, 8, 9
         .cmp(
-            &["sort", "{{ (7 + num).toString() }}"],
+            &["sort", "{ (7 + num).toString() }"],
             *FASTA,
             records!(2, 3, 0, 1),
         );
@@ -115,7 +112,7 @@ fn mixed_types() {
         .cmp(
             &[
                 "sort",
-                "{{ if (num <= 2) return num; else return 'text ' + num; }}",
+                "{ if (num <= 2) return num; else return 'text ' + num; }",
             ],
             *FASTA,
             records!(2, 3, 0, 1),
@@ -125,7 +122,7 @@ fn mixed_types() {
             &[
                 "sort",
                 "-r",
-                "{{ if (num <= 2) return num; else return 'text ' + num; }}",
+                "{ if (num <= 2) return num; else return 'text ' + num; }",
             ],
             *FASTA,
             records!(1, 0, 3, 2),
@@ -137,7 +134,7 @@ fn mixed_types() {
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s3 k=-3\nS3\n>s1 k=\nS1\n>s2 k=\nS2\n";
-    let expr = "{{ if (num <= 2) return undefined; return -parseInt(id.substring(1, 2)); }}";
+    let expr = "{ if (num <= 2) return undefined; return -parseInt(id.substring(1, 2)); }";
     Tester::new()
         .cmp(&["sort", expr, "-a", "k={key}"], fa, out)
         .cmp(&["sort", "-n", expr, "-a", "k={key}"], fa, out);

@@ -26,7 +26,7 @@ pub struct FilterCommand {
 
 pub fn run(mut cfg: Config, args: &FilterCommand) -> CliResult<()> {
     let expr = args.expression.trim();
-    if expr.starts_with("{{") && expr.ends_with("}}") {
+    if expr.starts_with('{') && expr.ends_with('}') {
         eprintln!(
             "Warning: found filter expression in the form {{ expression }}. \
             The double brackets are unnecessary and should be removed for the \

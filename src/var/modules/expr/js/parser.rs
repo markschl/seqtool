@@ -86,13 +86,13 @@ impl std::fmt::Display for VarStringParseErr {
         write!(f,
             "Failed to parse the following string with variables/functions or JavaScript code: \
             \n`{}`\n\
-            Make sure that variables/functions are in the form {{variable}} or {{function(arg)}} \
-            and expressions/scripts in the form {{{{ <JavaScript...> }}}} or {{{{ file:path/to/script.js }}}}. \
-            Ensure that every parenthesis '{{' is closed with '}}'. \
-            Check for syntax errors in JavaScript expressions \
-            and don't use regular expressions with the /regex/ notation \
-            (unsupported; use `new RegExp(\"regex\")` instead). \
-            General help: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Language_overview \
+            Make sure to enclose variables/functions or expressions in {{ brackets }}, \
+            e.g. {{ id }} or {{ attr('a') }} or {{ num + 1 }}, or {{ file:path/to/script.js }}. \
+            Ensure that every parenthesis '{{' is closed with '}}' \
+            and check for syntax errors in JavaScript expressions. \
+            Avoid Javascript /regex/ literals (`new RegExp(\"regex\")` instead). \
+            General Javascript help: \
+            https://developer.mozilla.org/en-US/docs/Web/JavaScript/Language_overview \
             ",
             self.0
         )
@@ -197,25 +197,33 @@ fn var_or_func<'a>(input: &mut Located<&'a str>) -> PResult<Fragment<'a>> {
 }
 
 /// Variable/function string parser
+fn expr_fragment<'a>(input: &mut Located<&'a str>) -> PResult<ParsedVarStringSegment<'a, Fragment<'a>>> {
+    alt((
+        // { expr:path.js }
+        preceded("file:", alt((string, take_until(1.., "}"))))
+            .map(|s| ParsedVarStringSegment::SourceFile(s.trim())),
+        // { expression }
+        statements.recognize().map(ParsedVarStringSegment::Expr),
+    ))
+    .parse_next(input)
+}
+
+/// Variable/function string parser
 fn varstring_fragment<'a>(
     stop_at: Option<char>,
 ) -> impl FnMut(&mut Located<&'a str>) -> PResult<ParsedVarStringSegment<'a, Fragment<'a>>> {
     move |input: &mut Located<&'a str>| {
         alt((
-            // {{ file:path.js }}
-            #[cfg(feature = "expr")]
-            delimited(
-                ("{{", multispace0),
-                preceded("file:", take_until(1.., "}}")),
-                "}}",
-            )
-            .map(ParsedVarStringSegment::SourceFile),
-            // {{ expr }}
-            #[cfg(feature = "expr")]
-            delimited("{{", statements.recognize(), "}}").map(ParsedVarStringSegment::Expr),
             // { var } or { func(a, b) }
-            delimited("{", delimited(space0, var_or_func, space0), "}")
-                .map(ParsedVarStringSegment::Var),
+            delimited(
+                ("{", space0), 
+                alt((
+                    var_or_func.map(ParsedVarStringSegment::Var),
+            )),
+            (space0, "}")),
+            // {file:path.js} or { expression }
+            #[cfg(feature = "expr")]
+            delimited("{", expr_fragment, "}"),
             // text
             // TODO: escaping '{' not possible
             take_till(1.., |c| {
@@ -372,13 +380,16 @@ impl<'a> Fragment<'a> {
 pub fn st_func_from_parsed(
     name: &str,
     args: &[Fragment<'_>],
-    allow_unquoted: bool,
+    is_simple: bool,
 ) -> Result<Func, String> {
     let str_args = args
         .iter()
         .map(|v| match v {
-            Fragment::Name(_, _) if !allow_unquoted => {
-                Err("Unquoted arguments are not allowed in this context.")
+            Fragment::Name(_, _) if !is_simple => {
+                Err(
+                    "In expressions, unquoted function arguments are not allowed. \
+                    Please enclose strings in 'single' or \"double\" quotes."
+                )
             }
             Fragment::String(s) | Fragment::Name(s, _) | Fragment::Value(s) => Ok(s.to_string()),
             _ => Err("Seqtool function arguments must be strings or numbers."),
@@ -796,12 +807,12 @@ mod tests {
     #[cfg(feature = "expr")]
     #[test]
     fn varstring() {
-        let vs = "a {{file:path.js }}b,{ func(c,'d','e')},_f,,raw('var'),{{ g/h(i, 'j') }} rest";
+        let vs = "a {file: path with spaces.js }b,{ func(c,'d','e')},_f,,raw('var'),{ g/h(i, 'j') } rest";
         use ParsedVarStringSegment::*;
         // allowing variables without braces
         let res = parse_varstring_list(vs, true);
         let exp = vec![
-            vec![Text("a "), SourceFile("path.js "), Text("b")],
+            vec![Text("a "), SourceFile("path with spaces.js"), Text("b")],
             vec![Var(Func::new(
                 "func",
                 &["c".to_string(), "d".to_string(), "e".to_string()],
@@ -819,7 +830,7 @@ mod tests {
         // enforcing braces
         let res = parse_varstring_list(vs, false);
         let exp = vec![
-            vec![Text("a "), SourceFile("path.js "), Text("b")],
+            vec![Text("a "), SourceFile("path with spaces.js"), Text("b")],
             vec![Var(Func::new(
                 "func",
                 &["c".to_string(), "d".to_string(), "e".to_string()],

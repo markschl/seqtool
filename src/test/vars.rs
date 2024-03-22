@@ -42,13 +42,13 @@ fn attrs() {
 
     #[cfg(feature = "expr")]
     t.cmp(
-        &[".", "--to-tsv", "{{Num(attr('p'))+1}}"],
+        &[".", "--to-tsv", "{Num(attr('p'))+1}"],
         *FASTA,
         "3\n2\n11\n12\n",
     )
     // edit using the earlier value of itself
     .cmp(
-        &[".", "-a", "b={{attr('b')*3}}"],
+        &[".", "-a", "b={attr('b')*3}"],
         ATTR_FA,
         ">seq;a=0 b=9\nATGC\n",
     );
@@ -66,7 +66,7 @@ fn attrs_missing() {
         );
     #[cfg(feature = "expr")]
     t.cmp(
-        &[".", "--to-tsv", "{{opt_attr('a') === undefined}}"],
+        &[".", "--to-tsv", "{opt_attr('a') === undefined}"],
         ATTR_FA,
         "true\n",
     );
@@ -161,7 +161,7 @@ fn meta() {
         t.cmp(&[".", "-m", p, "--to-tsv", "{meta(2)}"], *FASTA, exp);
         #[cfg(feature = "expr")]
         t.cmp(
-            &[".", "-m", p, "--to-tsv", "{{ attr('p') - meta(2) }}"],
+            &[".", "-m", p, "--to-tsv", "{ attr('p') - meta(2) }"],
             *FASTA,
             "0\n0\n0\n0\n",
         );
@@ -420,8 +420,8 @@ fn meta_compressed() {
 // expressions: regexes with variables inside will yield errors
 // test quoted stuff
 // charcount(GC) / seqlen == gc / 100
-// --to-tsv id,{{charcount('GC')/seqlen}}
-// --to-tsv id,{{charcount("GC,")/seqlen}}
+// --to-tsv id,{charcount('GC')/seqlen}
+// --to-tsv id,{charcount("GC,")/seqlen}
 // --to-tsv id,,...
 // MDN: const re = /\w+/;
 // OR

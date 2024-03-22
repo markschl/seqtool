@@ -54,10 +54,11 @@ pub fn replace_register_vars(script: &str, b: &mut VarBuilder) -> CliResult<(Str
                 rest.push_str("...");
             }
             fail!(
-                "Failed to parse expression. \
-                There may be a syntax error or a literal /regex/ notation, which is not supported \
-                (use `new RegExp(\"regex\")` instead). \
-                The remaining code containing the problem: {}",
+                "Failed to parse the expression. \
+                Make sure that the syntax is correct and no unsupported \
+                JavaScript syntax is used (/regex/ literals cannot be used, \
+                use RegExp instead). \
+                The code that could not be parsed: '{}'",
                 rest
             )
         }
