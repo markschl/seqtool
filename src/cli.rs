@@ -361,7 +361,7 @@ pub enum SubCommand {
     /// be written to a header attribute or TSV field.
     /// This may be useful with JavaScript expressions, whose evaluation takes time,
     /// and whose result should be written to the headers, e.g.:
-    /// 'st sort -n '{{ id.substring(3, 5) }}' -a id_num='{key}' input.fasta'
+    /// 'st sort -n '{ id.substring(3, 5) }' -a id_num='{key}' input.fasta'
     #[cfg(any(feature = "all-commands", feature = "sort"))]
     Sort(cmd::sort::cli::SortCommand),
     /// De-replicate records by sequence or any other criterion, returning only
