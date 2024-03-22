@@ -3,7 +3,6 @@ use std::io;
 use std::path::Path;
 use std::str::FromStr;
 
-use crate::config::SeqContext;
 use crate::error::CliResult;
 
 pub use self::qual_format::*;
@@ -21,15 +20,6 @@ mod record;
 
 pub trait SeqReader<O> {
     fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>>;
-}
-
-pub trait SeqWriter {
-    fn write<W: io::Write>(
-        &mut self,
-        record: &dyn Record,
-        ctx: &mut SeqContext,
-        out: W,
-    ) -> CliResult<()>;
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
