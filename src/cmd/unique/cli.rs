@@ -12,7 +12,11 @@ use crate::var::VarProvider;
 pub struct UniqueCommand {
     /// The key used to determine, which records are unique.
     /// The key can be a single variable/function such as 'seq',
-    /// or a composed string such as '{attr(a)}_{attr(b)}'.
+    /// a composed string such as '{attr(a)}_{attr(b)}',
+    /// or a comma-delimited list of multiple variables/functions, whose
+    /// values are all taken into account, e.g. 'seq,attr(a)'. In case of
+    /// identical sequences, records are still de-replicated by the header
+    /// attribute 'a'.
     /// For each key, the *first* encountered record is returned, and all
     /// remaining ones with the same key are discarded.
     pub key: String,

@@ -7,9 +7,11 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::{value::SimpleValue, vec::VecFactory};
+use crate::helpers::vec::VecFactory;
 use crate::io::output::with_general_io_writer;
-use crate::var::varstring::VarString;
+use crate::var::varstring::register_var_list;
+
+use super::shared::{sort_item::Key, tmp_store::Archivable};
 
 pub mod cli;
 pub mod file;
@@ -23,8 +25,6 @@ pub use self::map::*;
 pub use self::mem::*;
 pub use self::vars::*;
 
-use super::shared::tmp_store::Archivable;
-
 /// Factor indicating the memory that is found empirically by memory profiling
 /// and adjusts the calculated memory usage (based on size of items)
 /// to obtain the correct total size, correcting for the extra memory used by
@@ -36,7 +36,6 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let verbose = args.common.general.verbose;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
     let mut record_buf_factory = VecFactory::new();
-    let mut key_buf = SimpleValue::Text(Box::default());
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
     let map_out = args.map_out.as_ref();
 
@@ -44,7 +43,12 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
 
     cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
-        let (var_key, _) = cfg.build_vars(|b| VarString::parse_register(&args.key, b, true))?;
+        let mut varstring_keys = Vec::with_capacity(1);
+        cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, true))?;
+        let mut keys = Key::with_size(varstring_keys.len());
+        let mut text_buf = vec![Vec::new(); varstring_keys.len()];
+        // Depending on the CLI options, different information is needed,
+        // which in turn affects how the de-duplicaion is done
         let mut required_info = cfg
             .with_command_vars::<UniqueVars, _>(|v, _| Ok(v.unwrap().required_info()))
             .unwrap();
@@ -57,17 +61,23 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
 
         cfg.read(|record, ctx| {
             // assemble key
-            let key = ctx.command_vars::<UniqueVars, _>(|key_mod, symbols| {
-                let key = var_key.get_simple(&mut key_buf, symbols, record, force_numeric)?;
+            ctx.command_vars::<UniqueVars, _>(|key_mod, symbols| {
+                keys.compose_from(
+                    &varstring_keys,
+                    &mut text_buf,
+                    symbols,
+                    record,
+                    force_numeric,
+                )?;
                 if let Some(m) = key_mod {
-                    m.set(&key, symbols);
+                    m.set(&keys, symbols);
                 }
-                Ok(key)
+                Ok(())
             })?;
 
             // add formatted record to hash set (if doensn't exist)
             dedup.add(
-                &key,
+                &keys,
                 || record.id(),
                 &mut record_buf_factory,
                 |out| format_writer.write(&record, out, ctx),
@@ -163,7 +173,7 @@ impl Deduplicator {
     // add a key/record and either directly write to output or keep the formatted record for later
     fn add<'a, I, F>(
         &mut self,
-        key: &SimpleValue,
+        key: &Key,
         id_fn: I,
         vec_factory: &mut VecFactory,
         mut write_fn: F,

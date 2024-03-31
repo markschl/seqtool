@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use crate::error::CliResult;
+use crate::helpers::util::write_list_with;
 use crate::io::Record;
 use crate::var::{
     func::Func,
@@ -270,37 +271,36 @@ impl FindVars {
                 // This is different from above by requiring a string type
                 // in all cases instead of integers.
                 let out = val.mut_text();
-                let mut n = 0;
-                for m in matches
-                    .matches_iter(pos.pattern_rank, pos.match_group)
-                    .flatten()
-                {
-                    n += 1;
-                    match pos.var_type {
-                        Start => write!(out, "{}", m.start + 1)?,
-                        End => write!(out, "{}", m.end)?,
-                        NegStart => write!(out, "{}", m.neg_start1(rec.seq_len()))?,
-                        NegEnd => write!(out, "{}", m.neg_end1(rec.seq_len()))?,
-                        Dist => write!(out, "{}", m.dist)?,
-                        Range(ref delim) => write!(out, "{}{}{}", m.start + 1, delim, m.end)?,
+                let not_empty = write_list_with(
+                    matches
+                        .matches_iter(pos.pattern_rank, pos.match_group)
+                        .flatten(),
+                    b",",
+                    out,
+                    |m, o| match pos.var_type {
+                        Start => write!(o, "{}", m.start + 1),
+                        End => write!(o, "{}", m.end),
+                        NegStart => write!(o, "{}", m.neg_start1(rec.seq_len())),
+                        NegEnd => write!(o, "{}", m.neg_end1(rec.seq_len())),
+                        Dist => write!(o, "{}", m.dist),
+                        Range(ref delim) => write!(o, "{}{}{}", m.start + 1, delim, m.end),
                         NegRange(ref delim) => write!(
-                            out,
+                            o,
                             "{}{}{}",
                             m.neg_start1(rec.seq_len()),
                             delim,
                             m.neg_end1(rec.seq_len())
-                        )?,
-                        Match => out.extend_from_slice(&text[m.start..m.end]),
+                        ),
+                        Match => o.write_all(&text[m.start..m.end]),
                         _ => unreachable!(),
-                    }
-                    out.push(b',');
-                }
-                if n > 0 {
-                    // remove last comma
-                    out.pop();
+                    },
+                )
+                .unwrap();
+                if not_empty {
                     continue;
                 }
             }
+
             // important: reset previous value if nothing was found
             out.set_none();
         }

@@ -4,10 +4,10 @@ use std::path::Path;
 
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::{value::SimpleValue, vec::VecFactory};
-use crate::var::varstring::VarString;
+use crate::helpers::vec::VecFactory;
+use crate::var::varstring::register_var_list;
 
-use super::shared::sort_item::Item;
+use super::shared::sort_item::{Item, Key};
 
 pub mod cli;
 pub mod file;
@@ -35,7 +35,6 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
     //     return fail!("The memory limit should be at least 2MiB");
     // }
     let mut record_buf_factory = VecFactory::new();
-    let mut key_buf = SimpleValue::Text(Box::default());
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
     let mut sorter = Sorter::new(args.reverse, max_mem);
 
@@ -43,24 +42,35 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
 
     cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
-        let (var_key, _vtype) =
-            cfg.build_vars(|b| VarString::parse_register(&args.key, b, true))?;
+        let mut varstring_keys = Vec::with_capacity(1);
+        cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, true))?;
+        let mut keys = Key::with_size(varstring_keys.len());
+        let mut text_buf = vec![Vec::new(); varstring_keys.len()];
+
+        // let (var_key, _vtype) =
+        //     cfg.build_vars(|b| VarString::parse_register(&args.key, b, true))?;
 
         cfg.read(|record, ctx| {
             // assemble key
-            let key = ctx.command_vars::<SortVars, _>(|key_mod, symbols| {
-                let key = var_key.get_simple(&mut key_buf, symbols, record, force_numeric)?;
+            ctx.command_vars::<SortVars, _>(|key_mod, symbols| {
+                keys.compose_from(
+                    &varstring_keys,
+                    &mut text_buf,
+                    symbols,
+                    record,
+                    force_numeric,
+                )?;
                 if let Some(m) = key_mod {
-                    m.set(&key, symbols);
+                    m.set(&keys, symbols);
                 }
-                Ok(key)
+                Ok(())
             })?;
             // write formatted record to a buffer
             let record_out =
                 record_buf_factory.get(|out| format_writer.write(&record, out, ctx))?;
             // add both to the object handing the sorting
             sorter.add(
-                Item::new(key.into_owned(), record_out.into_boxed_slice()),
+                Item::new(keys.clone(), record_out.into_boxed_slice()),
                 &tmp_path,
                 args.temp_file_limit,
                 args.quiet,

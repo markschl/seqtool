@@ -1,12 +1,13 @@
 use std::io::{self, Write};
 use std::path::PathBuf;
 
+use crate::cmd::shared::sort_item::Key;
 use crate::cmd::shared::{
     sort_item::Item,
     tmp_store::{TmpHandle, TmpStore},
 };
 use crate::error::CliResult;
-use crate::helpers::{heap_merge::HeapMerge, value::SimpleValue, vec::VecFactory};
+use crate::helpers::{heap_merge::HeapMerge, vec::VecFactory};
 
 use super::{MapFormat, MapWriter, MemDeduplicator, Record, RecordMap, Records};
 
@@ -63,7 +64,7 @@ impl FileDeduplicator {
 
     pub fn add<'a, I, F>(
         &mut self,
-        key: &SimpleValue,
+        key: &Key,
         id_fn: I,
         vec_factory: &mut VecFactory,
         write_fn: F,

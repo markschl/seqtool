@@ -21,7 +21,7 @@ fn simple() {
         .cmp(&["unique", "{id} {desc}"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{seq}"], *FASTA, records!(0, 1, 2, 3));
+    Tester::new().cmp(&["unique", "{seq + 'A'}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
@@ -93,6 +93,30 @@ fn expr() {
 }
 
 #[test]
+fn multi_key() {
+    let parts = &[">s1 1\nA\n", ">s2 1\nA\n", ">s3 2\nA\n", ">s4 1\nB\n"];
+    let fa = parts.join("");
+    macro_rules! sel {
+        ($($i:expr),*) => {
+            &[$($i),*].into_iter().map(|i| &parts[i]).join("")
+        }
+    }
+    Tester::new()
+        .cmp(&["unique", "desc"], &fa, &sel!(0, 2))
+        .cmp(&["unique", "desc,seq"], &fa, &sel!(0, 2, 3))
+        .cmp(&["unique", "id,desc,seq"], &fa, &sel!(0, 1, 2, 3))
+        .cmp(&["unique", "seq"], &fa, &sel!(0, 3))
+        .cmp(
+            &["unique", "desc,seq", "-a", "k={key}"],
+            &fa,
+            ">s1 1 k=1,A\nA\n>s3 2 k=2,A\nA\n>s4 1 k=1,B\nB\n",
+        );
+
+    #[cfg(feature = "expr")]
+    Tester::new().cmp(&["unique", "{desc + 1},{seq.length}"], &fa, &sel!(0, 2));
+}
+
+#[test]
 #[cfg(feature = "expr")]
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
@@ -113,7 +137,7 @@ fn dup_var() {
     Tester::new()
         .cmp(&["unique", "seq", "-a", "n={n_duplicates}"], fa, dup_out)
         .cmp(
-            &["unique", "seq", "-a", "n={n_duplicates}", "-M", "0"],
+            &["unique", "seq", "-a", "n={n_duplicates}", "-M", "0", "-q"],
             fa,
             dup_out,
         )
@@ -124,7 +148,15 @@ fn dup_var() {
         )
         .cmp(&["unique", "seq", "-a", "l={duplicates_list}"], fa, ids_out)
         .cmp(
-            &["unique", "seq", "-a", "l={duplicates_list}", "-M", "0"],
+            &[
+                "unique",
+                "seq",
+                "-a",
+                "l={duplicates_list}",
+                "-M",
+                "0",
+                "-q",
+            ],
             fa,
             ids_out,
         )
@@ -191,7 +223,7 @@ fn large() {
             // (in sorting mode)
             let sort_limit = format!("{}", rec_limit * 82);
             t.cmp(
-                &["unique", "id", "-n", "--max-mem", &sort_limit, "--sort"],
+                &["unique", "id", "-n", "-M", &sort_limit, "-s", "-q"],
                 FileInput(path),
                 &unique_fasta_sorted,
             );
@@ -200,7 +232,7 @@ fn large() {
             // The record key should be ~26 bytes.
             let simple_limit = format!("{}", rec_limit * 26);
             t.pipe(
-                &["unique", "id", "-n", "--max-mem", &simple_limit],
+                &["unique", "id", "-n", "-M", &simple_limit, "-q"],
                 &all_fasta,
                 &["sort", "id", "-n"],
                 &unique_fasta_sorted,

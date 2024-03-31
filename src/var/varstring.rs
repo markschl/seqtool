@@ -1,7 +1,6 @@
-use std::borrow::Cow;
 use std::fs::read_to_string;
 use std::ops::Deref;
-use std::{io, str};
+use std::{io, mem, str};
 
 use bstr::ByteSlice;
 use ordered_float::OrderedFloat;
@@ -172,7 +171,7 @@ impl VarString {
         self.one_var.is_some()
     }
 
-    /// Compose the variable string given a filled symbol talbe
+    /// Compose the variable string given a filled symbol table
     /// Caution: the string is not cleared, any data is appended! clear it by yourself if needed
     #[inline]
     pub fn compose<W: io::Write + ?Sized>(
@@ -240,38 +239,46 @@ impl VarString {
     /// Requires an extra 'text_buf', which allows retaining text allocations
     /// and must always be a `SimpleValue::Text`.
     #[inline]
-    pub fn get_simple<'a>(
+    pub fn into_simple<'a>(
         &self,
-        text_buf: &'a mut SimpleValue,
-        table: &var::symbols::SymbolTable,
+        out: &'a mut SimpleValue,
+        text_buf: &'a mut Vec<u8>,
+        symbols: &var::symbols::SymbolTable,
         record: &dyn Record,
         force_numeric: bool,
-    ) -> CliResult<Cow<'a, SimpleValue>> {
-        if let Some(v) = self.get_one_value(table) {
+    ) -> CliResult<()> {
+        if let Some(v) = self.get_one_value(symbols) {
             if v.is_numeric() {
+                if let SimpleValue::Text(t) = out {
+                    // save the allocation for later use
+                    *text_buf = mem::replace(t, Box::default()).into_vec();
+                }
                 let val = v.get_float(record)?;
-                return Ok(Cow::Owned(SimpleValue::Number(OrderedFloat(val))));
+                *out = SimpleValue::Number(OrderedFloat(val));
+                return Ok(());
             }
         }
-        let text_box = match text_buf {
-            SimpleValue::Text(t) => t,
-            _ => panic!(),
+        // let mut text = std::mem::replace(text_buf, Box::default()).into_vec();
+        let mut text = match out {
+            SimpleValue::Text(t) => std::mem::replace(t, Box::default()).into_vec(),
+            _ => Vec::new(),
         };
-        let mut text = std::mem::replace(text_box, Box::default()).into_vec();
         text.clear();
-        self.compose(&mut text, table, record)?;
-        *text_box = text.into_boxed_slice();
+        self.compose(&mut text, symbols, record)?;
 
-        if !text_box.is_empty() {
+        if !text.is_empty() {
             if !force_numeric {
-                Ok(Cow::Borrowed(&*text_buf))
+                *out = SimpleValue::Text(text.into_boxed_slice());
             } else {
-                let val = text_to_float(&text_box)?;
-                Ok(Cow::Owned(SimpleValue::Number(OrderedFloat(val))))
+                let val = text_to_float(&text)?;
+                *text_buf = mem::replace(&mut text, Vec::new());
+                *out = SimpleValue::Number(OrderedFloat(val));
             }
         } else {
-            Ok(Cow::Owned(SimpleValue::None))
+            *text_buf = mem::replace(&mut text, Vec::new());
+            *out = SimpleValue::None;
         }
+        Ok(())
     }
 }
 

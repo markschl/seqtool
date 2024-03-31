@@ -7,11 +7,11 @@ use indexmap::{IndexMap, IndexSet};
 use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::cmd::shared::{
-    sort_item::Item,
+    sort_item::{Item, Key},
     tmp_store::{TmpHandle, TmpWriter},
 };
 use crate::error::CliResult;
-use crate::helpers::{value::SimpleValue, vec::VecFactory, DefaultBuildHasher as BuildHasher};
+use crate::helpers::{vec::VecFactory, DefaultBuildHasher as BuildHasher};
 
 use super::{FileDeduplicator, MapFormat, MapWriter, Record, RequiredInformation};
 
@@ -68,11 +68,11 @@ impl DuplicateInfo {
 pub enum Records {
     // simple and memory-efficient mode, where only keys are collected and
     // unique records immediately written to output
-    KeySet(RecordSet<SimpleValue>),
+    KeySet(RecordSet<Key>),
     // more elaborate mode, where information on duplicates and/or
     // formatted records are as well collected.
     Records {
-        records: RecordMap<SimpleValue, Record>,
+        records: RecordMap<Key, Record>,
         // if true, collect formatted records and wait with writing until the end
         // (either because variables need to be replaced or because we need to sort by key)
         defer_writing: bool,
@@ -119,7 +119,7 @@ impl Records {
     /// `output` can be `None` if `defer_writing` is true.
     pub fn add<'a, I, F>(
         &mut self,
-        key: &SimpleValue,
+        key: &Key,
         id_fn: I,
         vec_factory: &mut VecFactory,
         mut write_fn: F,
@@ -134,6 +134,7 @@ impl Records {
             Self::KeySet(records) => {
                 if records.insert(key.clone()) {
                     write_fn(&mut output.unwrap())?;
+                    // dbg!(std::mem::size_of_val(key), key.deep_size_of());
                     return Ok(key.deep_size_of());
                 }
             }
@@ -170,6 +171,7 @@ impl Records {
                         duplicate_info,
                     };
                     n += key.deep_size_of() + rec.deep_size_of();
+                    // dbg!(std::mem::size_of_val(&key), std::mem::size_of_val(&rec), n);
                     records.insert(key, rec);
                 }
                 return Ok(n);
@@ -289,7 +291,7 @@ impl MemDeduplicator {
     // add a key/record and either directly write to output or keep the formatted record for later
     pub fn add<'a, I, F>(
         &mut self,
-        key: &SimpleValue,
+        key: &Key,
         id_fn: I,
         vec_factory: &mut VecFactory,
         write_fn: F,

@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::fmt::{self, Debug, Write};
 
 use clap::Parser;
@@ -102,7 +101,8 @@ impl Interval {
 
 struct VarKey {
     key: varstring::VarString,
-    val_buf: SimpleValue,
+    value: SimpleValue,
+    text_buf: Vec<u8>,
     interval: Interval,
     is_discrete: bool,
     force_numeric: bool,
@@ -113,7 +113,8 @@ impl VarKey {
         let (interval, key) = parse_key(s, 1., 0);
         Ok(Self {
             key: varstring::VarString::parse_register(key, builder, true)?.0,
-            val_buf: SimpleValue::Text(Box::default()),
+            value: SimpleValue::None,
+            text_buf: Vec::new(),
             interval: interval.clone().unwrap_or(Interval::new(1., 0)),
             is_discrete: true,
             force_numeric: interval.is_some(),
@@ -126,10 +127,14 @@ impl VarKey {
         record: &dyn Record,
         out: &mut Category,
     ) -> CliResult<()> {
-        let val = self
-            .key
-            .get_simple(&mut self.val_buf, symbols, record, self.force_numeric)?;
-        match val.borrow() {
+        self.key.into_simple(
+            &mut self.value,
+            &mut self.text_buf,
+            symbols,
+            record,
+            self.force_numeric,
+        )?;
+        match &self.value {
             SimpleValue::Number(val) => {
                 if !val.is_nan() {
                     let v = val / self.interval.width;

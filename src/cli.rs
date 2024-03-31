@@ -352,7 +352,7 @@ pub enum SubCommand {
     ///
     /// The sort key can be 'seq', 'id', or any variable/function, expression, or
     /// text containing them (see <KEY> help).
-    /// 
+    ///
     /// Records with identical keys are kept in input order.
     ///
     /// The actual value of the key is available through the 'key' variable. It can

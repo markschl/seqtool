@@ -6,11 +6,9 @@ use std::io;
 
 use memchr::memmem;
 
+use crate::cmd::shared::sort_item::Key;
 use crate::error::CliResult;
-use crate::helpers::{
-    util::{replace_iter, write_list},
-    value::SimpleValue,
-};
+use crate::helpers::util::{replace_iter, write_list};
 use crate::var::{
     func::Func,
     symbols::{SymbolTable, VarType},
@@ -83,19 +81,20 @@ where
                     if code == b'd' {
                         n -= 1;
                     }
-                    write!(o, "{}", n)
+                    write!(o, "{}", n)?;
                 }
                 b'L' | b'l' => match data {
                     DuplicateInfo::Ids(i) => {
-                        write_list(if code == b'L' { i } else { &i[1..] }, b",", o)
+                        write_list(if code == b'L' { i } else { &i[1..] }, b",", o)?;
                     }
                     DuplicateInfo::Count(_) => unreachable!(),
                 },
                 _ => {
                     debug_assert_eq!(&matched[..PLACEHOLDER_PREFIX.len()], PLACEHOLDER_PREFIX);
-                    o.write_all(matched)
+                    o.write_all(matched)?;
                 }
             }
+            Ok(())
         },
     )?;
     Ok(())
@@ -128,14 +127,9 @@ impl UniqueVars {
         }
     }
 
-    pub fn set(&mut self, key: &SimpleValue, symbols: &mut SymbolTable) {
+    pub fn set(&mut self, key: &Key, symbols: &mut SymbolTable) {
         if let Some(var_id) = self.key_id {
-            let v = symbols.get_mut(var_id);
-            match key {
-                SimpleValue::Text(t) => v.inner_mut().set_text(t),
-                SimpleValue::Number(n) => v.inner_mut().set_float(n.0),
-                SimpleValue::None => v.set_none(),
-            }
+            key.into_symbol(symbols.get_mut(var_id));
         }
         // Number of duplicates / duplicates list: set the placeholder
         // just once (will not change)

@@ -105,6 +105,17 @@ fn numeric_vars() {
 }
 
 #[test]
+fn multi_key() {
+    Tester::new().cmp(&["sort", "-rn", "gc,attr(p)"], *FASTA, records!(2, 1, 3, 0));
+    #[cfg(feature = "expr")]
+    Tester::new().cmp(
+        &["sort", "seqlen,ungapped_seqlen,{-attr('p')}"],
+        *FASTA,
+        records!(3, 2, 1, 0),
+    );
+}
+
+#[test]
 #[cfg(feature = "expr")]
 fn mixed_types() {
     Tester::new()
@@ -174,17 +185,17 @@ fn large() {
             let text_limit = format!("{}", rec_limit * 50);
             let num_limit = format!("{}", rec_limit * 48);
             t.cmp(
-                &["sort", "id", "--max-mem", &text_limit],
+                &["sort", "id", "-M", &text_limit, "-q"],
                 FileInput(path),
                 &sorted_fasta,
             );
             t.cmp(
-                &["sort", "-r", "id", "--max-mem", &text_limit],
+                &["sort", "-r", "id", "-M", &text_limit, "-q"],
                 FileInput(path),
                 &rev_sorted_fasta,
             );
             t.cmp(
-                &["sort", "-n", "id", "--max-mem", &num_limit],
+                &["sort", "-n", "id", "-M", &num_limit, "-q"],
                 FileInput(path),
                 &num_sorted_fasta,
             );

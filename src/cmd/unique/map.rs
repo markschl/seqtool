@@ -2,7 +2,8 @@ use std::io;
 
 use clap::ValueEnum;
 
-use crate::helpers::{util::write_list, value::SimpleValue};
+use crate::cmd::shared::sort_item::Key;
+use crate::helpers::util::{write_list, write_list_with};
 
 use super::DuplicateInfo;
 
@@ -34,7 +35,7 @@ impl<W: io::Write> MapWriter<W> {
         Self { inner, format }
     }
 
-    pub fn write(&mut self, key: &SimpleValue, duplicates: &DuplicateInfo) -> io::Result<()> {
+    pub fn write(&mut self, key: &Key, duplicates: &DuplicateInfo) -> io::Result<()> {
         let ids = match duplicates {
             DuplicateInfo::Ids(ids) => ids,
             _ => panic!(),
@@ -56,7 +57,7 @@ impl<W: io::Write> MapWriter<W> {
             }
             MapFormat::Wide | MapFormat::WideKey => {
                 if self.format == MapFormat::WideKey {
-                    key.write(&mut self.inner)?;
+                    write_list_with(key.as_slice(), b"\t", &mut self.inner, |v, o| v.write(o))?;
                     write!(self.inner, "\t")?;
                 }
                 write_list(ids, b"\t", &mut self.inner)?;

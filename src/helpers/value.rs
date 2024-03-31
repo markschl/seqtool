@@ -3,6 +3,8 @@ use std::io;
 use deepsize::{Context, DeepSizeOf};
 use ordered_float::OrderedFloat;
 
+use crate::{cmd::shared::tmp_store::Archivable, var::symbols::OptValue};
+
 /// A simple value type that can be either text, numeric or none.
 /// Can also be serialized using rkyv (only enabled for sort and unique commands).
 // TODO: may belong in cmd::shared, but SimpleValue is also used in VarString::get_simple()
@@ -26,6 +28,14 @@ impl SimpleValue {
             SimpleValue::None => Ok(()),
         }
     }
+
+    pub fn into_symbol(&self, sym: &mut OptValue) {
+        match self {
+            SimpleValue::Text(t) => sym.inner_mut().set_text(t),
+            SimpleValue::Number(n) => sym.inner_mut().set_float(n.0),
+            SimpleValue::None => sym.set_none(),
+        }
+    }
 }
 
 impl DeepSizeOf for SimpleValue {
@@ -36,3 +46,5 @@ impl DeepSizeOf for SimpleValue {
         0
     }
 }
+
+impl<'a> Archivable<'a> for SimpleValue {}
