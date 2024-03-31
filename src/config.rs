@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
-use crate::helpers::DefaultHashMap as HashMap;
+use crate::helpers::{seqtype::SeqType, DefaultHashMap as HashMap};
 use crate::io::{
     input::{self, InFormat, InputKind, InputOptions},
     output::{
@@ -53,7 +53,13 @@ impl Config {
 
         // variable providers
         let mut var_modules = Vec::new();
-        init_vars(&mut var_modules, command_vars, &var_opts, &output_opts)?;
+        init_vars(
+            &mut var_modules,
+            command_vars,
+            &var_opts,
+            input_opts[0].seqtype,
+            &output_opts,
+        )?;
 
         // build variable registry with expected number of arguments
         let mut vars: Vec<((String, usize), (usize, usize))> = var_modules
@@ -128,6 +134,10 @@ impl Config {
 
     pub fn input_opts(&self) -> &[InputOptions] {
         &self.input_opts
+    }
+
+    pub fn get_seqtype(&self) -> Option<SeqType> {
+        self.input_opts[0].seqtype
     }
 
     // pub fn output_opts(&self) -> &OutputOptions {

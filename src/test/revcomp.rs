@@ -2,8 +2,32 @@ use super::*;
 
 #[test]
 fn revcomp() {
-    let fa = ">seq\nAGCT\nYRWS\nKMDV\nHBN\n";
-    Tester::new().cmp(&["revcomp"], fa, ">seq\nNVDBHKMSWYRAGCT\n");
+    Tester::new()
+        // DNA with ambiguities
+        .cmp(
+            &["revcomp"],
+            ">id\nAGCT\nYRWS\nKMDV\nHBN\n",
+            ">id\nNVDBHKMSWYRAGCT\n",
+        )
+        // RNA
+        .cmp(
+            &["revcomp"],
+            ">id\nAGCU\nYRWS\nKMDV\nHBN\n",
+            ">id\nNVDBHKMSWYRAGCU\n",
+        )
+        // mixed / protein
+        .fails(
+            &["revcomp"],
+            ">id\nTU\n",
+            "Only DNA/RNA sequences can be reverse-complemented",
+        )
+        .fails(
+            &["revcomp"],
+            ">id\nX\n",
+            "Only DNA/RNA sequences can be reverse-complemented",
+        )
+        // with explicitly set sequence type, invalid letters are left untouched
+        .cmp(&["revcomp", "--seqtype", "dna"], ">id\nUA\n", ">id\nTU\n");
 }
 
 #[test]

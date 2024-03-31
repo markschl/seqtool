@@ -4,18 +4,12 @@ use rand::{seq::SliceRandom, SeedableRng};
 
 use super::*;
 
-// id	desc	seq
-// seq1	p=2	    TTGGCAGGCCAAGGCCGATGGATCA (0) len=25, GC=0.6
-// seq0	p=1	    CTGGCAGGCC-AGGCCGATGGATCA (1) len=24, GC=0.667
-// seq3	p=10	CAGGCAGGCC-AGGCCGATGGATCA (2) len=24, GC=0.667
-// seq2	p=11	ACGG-AGGCC-AGGCCGATGGATCA (3) len=23, GC=0.652
-
 #[test]
 fn simple() {
     Tester::new()
         .cmp(&["unique", "seq"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(&["unique", "seq"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "{seq}"], *FASTA, records!(0, 1, 2, 3))
+        .cmp(&["unique", "seqhash"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "id"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "desc"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "{id} {desc}"], *FASTA, records!(0, 1, 2, 3));
@@ -114,6 +108,51 @@ fn multi_key() {
 
     #[cfg(feature = "expr")]
     Tester::new().cmp(&["unique", "{desc + 1},{seq.length}"], &fa, &sel!(0, 2));
+}
+
+#[test]
+fn hash() {
+    let fa = ">s1\nAGGCUG\n>s2\nCAGCCU\n";
+    Tester::new()
+        .cmp(&["unique", "seqhash", "--to-tsv", "id"], fa, "s1\ns2\n")
+        .cmp(&["unique", "seqhash_rev", "--to-tsv", "id"], fa, "s1\ns2\n")
+        .cmp(&["unique", "seqhash_both", "--to-tsv", "id"], fa, "s1\n")
+        // 'U' not reverse complemented
+        .cmp(
+            &[
+                "unique",
+                "seqhash_both",
+                "--seqtype",
+                "dna",
+                "--to-tsv",
+                "id",
+            ],
+            fa,
+            "s1\ns2\n",
+        );
+}
+
+#[test]
+fn case() {
+    let fa = ">s1\nAg\n>s2\naG\n>s3\nCt\n";
+    Tester::new()
+        .cmp(
+            &["unique", "seqhash(false)", "--to-tsv", "id"],
+            fa,
+            "s1\ns2\ns3\n",
+        )
+        .cmp(
+            &["unique", "seqhash(true)", "--to-tsv", "id"],
+            fa,
+            "s1\ns3\n",
+        )
+        .cmp(&["unique", "upper_seq", "--to-tsv", "id"], fa, "s1\ns3\n")
+        .cmp(&["unique", "lower_seq", "--to-tsv", "id"], fa, "s1\ns3\n")
+        .cmp(
+            &["unique", "seqhash_both(true)", "--to-tsv", "id"],
+            fa,
+            "s1\n",
+        );
 }
 
 #[test]

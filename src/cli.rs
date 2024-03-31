@@ -3,14 +3,13 @@ use std::process::exit;
 use crate::cmd;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::bytesize::parse_bytesize;
+use crate::helpers::{bytesize::parse_bytesize, seqtype::SeqType};
 use crate::io::{
     input::{InFormat, InputKind, InputOptions},
     output::{OutFormat, OutputKind, OutputOptions},
     Attribute, Compression, FileInfo, FormatVariant, QualFormat,
 };
-use crate::var::attr::AttrFormat;
-use crate::var::{VarOpts, VarProviderInfo};
+use crate::var::{attr::AttrFormat, VarOpts, VarProviderInfo};
 
 use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
 
@@ -177,7 +176,8 @@ impl CommonArgs {
                     opts.header,
                     opts.qual.as_deref(),
                 )?;
-                let opts = InputOptions::new(kind.clone(), format, _info.compression)
+
+                let opts = InputOptions::new(kind.clone(), format, _info.compression, opts.seqtype)
                     .thread_opts(self.advanced.read_thread, self.advanced.read_tbufsize)
                     .reader_opts(self.advanced.buf_cap, self.advanced.max_read_mem);
                 Ok(opts)
@@ -425,6 +425,10 @@ pub enum SubCommand {
     Lower(cmd::lower::LowerCommand),
     /// Reverse complements DNA sequences. If quality scores are present,
     /// their order is just reversed.
+    ///
+    /// The sequence type is automatically detected based on the first record,
+    /// unless the `--seqtype` option is used.
+    /// *Note*: Unknown letters are not reversed, but left unchanged.
     #[cfg(any(feature = "all-commands", feature = "revcomp"))]
     Revcomp(cmd::revcomp::RevcompCommand),
     /// Concatenates sequences/alignments from different files in the order
@@ -495,6 +499,18 @@ pub struct InputArgs {
     /// Compression: <format>.<compression> (.gz, .bz2 or .lz4).
     pub fmt: Option<FileInfo>,
 
+    #[arg(long)]
+    /// FASTA input. Short for '--fmt fasta'.
+    pub fa: bool,
+
+    #[arg(long)]
+    /// FASTQ input. Short for '--fmt fastq'.
+    pub fq: bool,
+
+    #[arg(long)]
+    /// FASTQ input in Illumina 1.3-1.7 format (alias to --fmt fastq-illumina)
+    pub fq_illumina: bool,
+
     #[arg(
         long,
         value_name = "FIELDS",
@@ -514,18 +530,6 @@ pub struct InputArgs {
     /// of --fields, --csv or --tsv
     pub header: bool,
 
-    #[arg(long)]
-    /// FASTA input. Short for '--fmt fasta'.
-    pub fa: bool,
-
-    #[arg(long)]
-    /// FASTQ input. Short for '--fmt fastq'.
-    pub fq: bool,
-
-    #[arg(long)]
-    /// FASTQ input in Illumina 1.3-1.7 format (alias to --fmt fastq-illumina)
-    pub fq_illumina: bool,
-
     #[arg(long, value_name = "FIELDS", value_delimiter = ',')]
     /// CSV input. Short for '--fmt csv --fields <fields>'
     pub csv: Option<Vec<String>>,
@@ -537,6 +541,12 @@ pub struct InputArgs {
     #[arg(long, value_name = "FILE")]
     /// Path to QUAL file with quality scores (Roche 454 style)
     pub qual: Option<String>,
+
+    /// Sequence type; relevant for the `find` and `revcomp` commands,
+    /// as well as the variables/functions `seq_revcomp`, `seqhash_rev` and `seqhash_both`
+    /// (auto-detected by default)
+    #[arg(long, value_enum, value_name = "TYPE")]
+    pub seqtype: Option<SeqType>,
 }
 
 /// Your application's description

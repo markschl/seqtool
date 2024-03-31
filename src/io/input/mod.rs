@@ -7,6 +7,7 @@ use seq_io::policy::BufPolicy;
 use thread_io;
 
 use crate::error::{CliError, CliResult};
+use crate::helpers::seqtype::SeqType;
 
 use super::{
     csv::CsvReader, fa_qual, fasta, fastq, Compression, FormatVariant, QualFormat, Record,
@@ -46,6 +47,7 @@ pub struct InputOptions {
     pub kind: InputKind,
     pub format: InFormat,
     pub compression: Compression,
+    pub seqtype: Option<SeqType>,
     // read in separate thread
     pub threaded: bool,
     pub cap: usize,
@@ -54,11 +56,17 @@ pub struct InputOptions {
 }
 
 impl InputOptions {
-    pub fn new(kind: InputKind, format: InFormat, compression: Compression) -> Self {
+    pub fn new(
+        kind: InputKind,
+        format: InFormat,
+        compression: Compression,
+        seqtype: Option<SeqType>,
+    ) -> Self {
         Self {
             kind,
             format,
             compression,
+            seqtype,
             threaded: false,
             cap: 1 << 16,
             thread_bufsize: None,

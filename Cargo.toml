@@ -14,9 +14,11 @@ build = "build.rs"
 # general
 lazy_static = "1.4"
 ahash = "0.8"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 memchr = "2.7"
 winnow = { version = "0.6", features = ["simd"] }
 vec_map = "0.8"
+deepsize = "0.2"
 itertools = "0.12"
 atoi = "2.0"
 bytecount = "0.6"
@@ -25,7 +27,6 @@ strum_macros = "0.26"
 bstr = { version = "1.9", default-features = false, features = ["std"] }
 ordered-float = { version = "4.2", default-features = false, features = ["std", "rkyv", "rkyv_ck"] }
 cfg-if = "1.0"
-deepsize = "0.2"
 # CLI
 clap = { version = "4.4", features = ["derive", "wrap_help", "env"] }
 textwrap = { version = "0.16", default-features = false }

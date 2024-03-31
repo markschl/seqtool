@@ -12,7 +12,7 @@ use vec_map::VecMap;
 use crate::config::Config;
 use crate::error::CliResult;
 
-use super::shared::seqtype::{guess_seqtype, SeqType};
+use crate::helpers::seqtype::{guess_seqtype, SeqType};
 
 pub mod cli;
 pub mod color;

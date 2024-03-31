@@ -7,7 +7,7 @@ use crate::helpers::util::replace_iter;
 use crate::io::{RecordAttr, RecordEditor};
 use crate::var::{varstring, VarProvider};
 
-use super::shared::seqtype::SeqType;
+use crate::helpers::seqtype::SeqType;
 
 mod cli;
 mod helpers;
@@ -37,7 +37,6 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
     let regex = args.search.regex;
     let max_dist = args.search.dist;
     let sorted = args.search.in_order;
-    let typehint = args.search.seqtype;
     let num_threads = args.search.threads;
     let no_ambig = args.search.no_ambig;
     let algo_override = args.search.algo;
@@ -79,7 +78,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
     let (seqtype, algorithms) = helpers::analyse_patterns(
         &patterns,
         algo_override,
-        typehint,
+        cfg.get_seqtype(),
         no_ambig,
         regex,
         max_dist,

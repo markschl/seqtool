@@ -16,10 +16,10 @@ pub struct SortCommand {
     /// e.g. 'seq,attr(a)'. In this case, the records are first sorted by sequence,
     /// but in case of identical sequences, records are sorted by the header
     /// attribute 'a'.
-    /// 
+    ///
     /// To sort by a FASTA/FASTQ attribute in the form '>id;size=123', specify
     /// 'attr(size)' --numeric --attr-fmt ';key=value'.
-    /// 
+    ///
     /// Regarding formulas returning mixed text/numbers, the sorted records with
     /// text keys will be returned first and the sorted number records after them.
     /// Furthermore, NaN and missing values (null/undefined in JS expressions,

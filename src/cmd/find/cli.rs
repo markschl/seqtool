@@ -1,7 +1,6 @@
 use clap::{value_parser, Args, Parser};
 
 use crate::cli::CommonArgs;
-use crate::cmd::shared::seqtype::SeqType;
 use crate::error::CliResult;
 use crate::helpers::rng::Range;
 
@@ -56,10 +55,6 @@ pub struct SearchArgs {
     /// Report hits in the order of their occurrence instead of sorting by distance (with -d > 0)
     #[arg(long)]
     pub in_order: bool,
-
-    /// Sequence type (auto-detect by default)
-    #[arg(long)]
-    pub seqtype: Option<SeqType>,
 
     /// Number of threads to use
     #[arg(short, long, value_name = "N", default_value_t = 1, value_parser = value_parser!(u32).range(1..))]

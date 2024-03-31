@@ -14,8 +14,10 @@ pub type DefaultBuildHasher = ahash::RandomState; // BuildHasherDefault<ahash::A
 pub mod macros;
 pub mod any;
 pub mod bytesize;
+pub mod complement;
 pub mod heap_merge;
 pub mod rng;
+pub mod seqtype;
 pub mod util;
 pub mod value;
 pub mod var_range;

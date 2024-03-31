@@ -1,8 +1,12 @@
-use self::SeqType::*;
+use crate::io::Record;
+
 use bio::alphabets::{dna, protein, rna};
+use clap::ValueEnum;
 use strum_macros::{Display, EnumString};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display, EnumString)]
+use self::SeqType::*;
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display, EnumString, ValueEnum)]
 pub enum SeqType {
     Dna,
     Rna,
@@ -68,5 +72,29 @@ pub fn guess_protein(text: &[u8]) -> Option<(SeqType, bool, bool)> {
         Some((Protein, false, false))
     } else {
         None
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SeqtypeHelper {
+    seqtype: Option<SeqType>,
+}
+
+impl SeqtypeHelper {
+    pub fn new(typehint: Option<SeqType>) -> Self {
+        Self { seqtype: typehint }
+    }
+
+    pub fn get_or_guess(&mut self, record: &dyn Record) -> Result<SeqType, &'static str> {
+        if let Some(seqtype) = self.seqtype {
+            Ok(seqtype)
+        } else {
+            let mut buf = Vec::new();
+            let seq = record.full_seq(&mut buf);
+            let (seqtype, _, _) = guess_seqtype(&seq, self.seqtype)
+                .ok_or_else(|| "Could not guess sequence type, please provide with `--seqtype`")?;
+            self.seqtype = Some(seqtype);
+            Ok(seqtype)
+        }
     }
 }

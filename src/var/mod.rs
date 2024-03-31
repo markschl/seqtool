@@ -3,7 +3,7 @@ use std::fmt::{self, Debug, Display, Formatter, Write};
 use itertools::Itertools;
 
 use crate::error::CliResult;
-use crate::helpers::any::AsAnyMut;
+use crate::helpers::{any::AsAnyMut, seqtype::SeqType};
 use crate::io::{input::InputOptions, output::OutputOptions, QualConverter, Record};
 
 use self::attr::{AttrFormat, Attributes};
@@ -304,6 +304,7 @@ pub fn init_vars(
     modules: &mut Vec<Box<dyn VarProvider>>,
     custom_mod: Option<Box<dyn VarProvider>>,
     opts: &VarOpts,
+    seqtype_hint: Option<SeqType>,
     out_opts: &OutputOptions,
 ) -> CliResult<()> {
     // the custom module needs to be inserted early
@@ -325,7 +326,7 @@ pub fn init_vars(
     ));
 
     // other modules
-    modules.push(Box::new(modules::general::GeneralVars::new()));
+    modules.push(Box::new(modules::general::GeneralVars::new(seqtype_hint)));
     modules.push(Box::new(modules::stats::StatVars::new()));
     modules.push(Box::new(modules::attr::AttrVars::new()));
 

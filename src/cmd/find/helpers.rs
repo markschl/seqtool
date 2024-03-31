@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use itertools::Itertools;
 
-use crate::cmd::shared::seqtype::{guess_seqtype, SeqType};
 use crate::error::CliResult;
+use crate::helpers::seqtype::{guess_seqtype, SeqType};
 use crate::io::RecordAttr;
 
 use super::matcher::{BytesRegexMatcher, ExactMatcher, Matcher, MyersMatcher, RegexMatcher};
