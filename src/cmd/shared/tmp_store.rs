@@ -9,7 +9,7 @@ use std::{
 use byteorder::{ReadBytesExt, LE};
 use rkyv::{
     ser::{
-        serializers::{AlignedSerializer, BufferScratch, CompositeSerializer},
+        serializers::{AlignedSerializer, AllocScratch, CompositeSerializer},
         Serializer,
     },
     AlignedVec, Archive, Deserialize, Infallible, Serialize,
@@ -20,6 +20,14 @@ use crate::error::{CliError, CliResult};
 
 /// Warning limit for number of temporary files
 const TEMP_FILE_WARN_LIMIT: usize = 50;
+
+pub trait Archivable<'a>:
+    Archive + Serialize<CompositeSerializer<AlignedSerializer<&'a mut AlignedVec>, AllocScratch>>
+{
+}
+
+impl<'a> Archivable<'a> for Vec<u8> {}
+impl<'a> Archivable<'a> for Box<[u8]> {}
 
 #[derive(Debug)]
 pub struct TmpStore {
@@ -64,7 +72,7 @@ pub struct TmpWriter<T> {
     path: PathBuf,
     inner: BufWriter<File>,
     buf: AlignedVec,
-    scratch: AlignedVec,
+    scratch: Option<AllocScratch>,
     n_written: usize,
     _t: PhantomData<T>,
 }
@@ -75,7 +83,7 @@ impl<T> TmpWriter<T> {
             path: path.to_owned(),
             inner: BufWriter::new(File::create(path)?),
             buf: AlignedVec::new(),
-            scratch: AlignedVec::new(),
+            scratch: Some(AllocScratch::default()),
             n_written: 0,
             _t: PhantomData,
         })
@@ -83,22 +91,18 @@ impl<T> TmpWriter<T> {
 
     pub fn write(&mut self, item: &T) -> io::Result<()>
     where
-        T: Archive
-            + for<'a> Serialize<
-                CompositeSerializer<
-                    AlignedSerializer<&'a mut AlignedVec>,
-                    BufferScratch<&'a mut AlignedVec>,
-                >,
-            >,
+        T: for<'a> Archivable<'a>,
     {
         self.buf.clear();
         let mut serializer = CompositeSerializer::new(
             AlignedSerializer::new(&mut self.buf),
-            BufferScratch::new(&mut self.scratch),
+            self.scratch.take().unwrap(),
             Infallible,
         );
         serializer.serialize_value(item).unwrap();
-        let buf = serializer.into_components().0.into_inner();
+        let (serializer, scratch, _) = serializer.into_components();
+        self.scratch = Some(scratch);
+        let buf = serializer.into_inner();
         self.n_written += size_of_val(&buf.len()) + buf.len();
         self.inner.write_all(&buf.len().to_le_bytes())?;
         self.inner.write_all(buf)

@@ -1,8 +1,8 @@
-use std::convert::Infallible;
 use std::fs::File;
 use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::{convert::Infallible, path::Path};
 
 use thread_io;
 
@@ -282,10 +282,28 @@ pub fn io_writer_from_kind(kind: &OutputKind) -> io::Result<Box<dyn WriteFinish>
     })
 }
 
+/// Provides a general I/O writer (not for sequence writing), given a path,
+/// automatically recognizing possible compression from the extension.
+pub fn with_general_io_writer<P, F>(path: P, func: F) -> CliResult<()>
+where
+    P: AsRef<Path>,
+    F: FnOnce(&mut dyn io::Write) -> CliResult<()>,
+{
+    let path = path.as_ref();
+    let kind = OutputKind::from_str(&path.to_string_lossy()).unwrap();
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let compr = Compression::from_str(ext).unwrap_or(Compression::None);
+    let out = io_writer_from_kind(&kind)?;
+    let mut compr_writer = compr_writer(out, compr, None)?;
+    func(&mut compr_writer)?;
+    compr_writer.finish()?;
+    Ok(())
+}
+
 pub fn compr_writer(
     writer: Box<dyn WriteFinish>,
     compression: Compression,
-    #[allow(unused_variables)] level: Option<u8>,
+    level: Option<u8>,
 ) -> io::Result<Box<dyn WriteFinish>> {
     Ok(match compression {
         #[cfg(feature = "gz")]

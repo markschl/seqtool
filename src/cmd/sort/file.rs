@@ -11,7 +11,7 @@ use super::{Item, MemSorter};
 pub struct FileSorter {
     mem_sorter: MemSorter,
     tmp_store: TmpStore,
-    handles: Vec<TmpHandle<Item>>,
+    handles: Vec<TmpHandle<Item<Box<[u8]>>>>,
     n_written: usize,
 }
 
@@ -29,7 +29,7 @@ impl FileSorter {
         })
     }
 
-    pub fn add(&mut self, item: Item, quiet: bool) -> CliResult<bool> {
+    pub fn add(&mut self, item: Item<Box<[u8]>>, quiet: bool) -> CliResult<bool> {
         if !self.mem_sorter.add(item) {
             self.write_to_file(quiet)?;
         }
@@ -70,7 +70,7 @@ impl FileSorter {
             .collect::<Result<Vec<_>, _>>()?;
         // use k-way merging of sorted chunks with a min-heap to obtain
         // the final sorted output
-        let kmerge = HeapMerge::new(readers.iter_mut().collect(), self.mem_sorter.reverse())?;
+        let kmerge = HeapMerge::new(&mut readers, self.mem_sorter.reverse())?;
         for item in kmerge {
             io_writer.write_all(&item?.record)?;
         }

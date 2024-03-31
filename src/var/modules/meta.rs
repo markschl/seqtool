@@ -3,8 +3,8 @@ use std::fmt;
 use std::io;
 use std::str::FromStr;
 
+use crate::helpers::{DefaultHashMap as HashMap, DefaultHashSet as HashSet};
 use csv::{self, ByteRecord, Reader, ReaderBuilder};
-use fxhash::{FxHashMap, FxHashSet};
 use strum_macros::{Display, EnumString};
 
 use crate::error::CliResult;
@@ -292,7 +292,7 @@ pub struct MetaReader {
     path: String,
     rdr: Reader<Box<dyn io::Read + Send>>,
     has_header: bool, // user choice overriding auto-detection
-    header: Option<FxHashMap<String, usize>>,
+    header: Option<HashMap<String, usize>>,
     current_record: ByteRecord,
     // object doing the ID lookup
     finder: IdFinder,
@@ -411,14 +411,14 @@ const DUPLICATE_CHECK_N: usize = 10000;
 pub struct IdFinder {
     in_sync: bool,
     started_in_sync: bool,
-    meta_map: FxHashMap<Vec<u8>, ByteRecord>,
-    initial_seq_ids: FxHashSet<Vec<u8>>,
+    meta_map: HashMap<Vec<u8>, ByteRecord>,
+    initial_seq_ids: HashSet<Vec<u8>>,
     dup_reported: bool,
 }
 
 impl IdFinder {
     pub fn new(in_sync: bool) -> Self {
-        let mut meta_map = FxHashMap::default();
+        let mut meta_map = HashMap::default();
         if !in_sync {
             meta_map.reserve(IDX_INITIAL_CAP);
         }
@@ -426,7 +426,7 @@ impl IdFinder {
             in_sync,
             started_in_sync: in_sync,
             meta_map,
-            initial_seq_ids: FxHashSet::default(),
+            initial_seq_ids: HashSet::default(),
             dup_reported: false,
         }
     }

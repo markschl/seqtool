@@ -8,7 +8,11 @@ fn attrs() {
     t.cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")
         .cmp(&[".", "--to-tsv", "attr(b)"], ATTR_FA, "3\n")
         .cmp(&[".", "--to-tsv", "has_attr(b)"], ATTR_FA, "true\n")
-        .cmp(&[".", "-a", "c={attr(a)}", "-a", "b={attr(a)}"], ">ID a=0 b=1 c=2\nSEQ", ">ID a=0 b=0 c=0\nSEQ\n")
+        .cmp(
+            &[".", "-a", "c={attr(a)}", "-a", "b={attr(a)}"],
+            ">ID a=0 b=1 c=2\nSEQ",
+            ">ID a=0 b=0 c=0\nSEQ\n",
+        )
         .fails(
             &[".", "--to-tsv", "id", "-a", "a=0"],
             *FASTA,

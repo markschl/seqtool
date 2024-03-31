@@ -86,10 +86,7 @@ fn expr() {
             records!(0, 1, 2, 3),
         )
         .cmp(
-            &[
-                "unique",
-                "{ if (num <= 2) return num; return undefined; }",
-            ],
+            &["unique", "{ if (num <= 2) return num; return undefined; }"],
             *FASTA,
             records!(0, 1, 2),
         );
@@ -109,16 +106,42 @@ fn key_var() {
 #[test]
 fn dup_var() {
     let fa = ">s1\nA\n>s2\nA\n>s3\nB\n";
-    let out = ">s1 n=2\nA\n>s3 n=1\nB\n";
-    Tester::new().cmp(&["unique", "seq", "-a", "n={n_duplicates}"], fa, out);
+    let dup_out = ">s1 n=2\nA\n>s3 n=1\nB\n";
+    let dup_out0 = ">s1 n=1\nA\n>s3 n=0\nB\n";
+    let ids_out = ">s1 l=s1,s2\nA\n>s3 l=s3\nB\n";
+    let ids_out0 = ">s1 l=s2\nA\n>s3 l=\nB\n";
+    Tester::new()
+        .cmp(&["unique", "seq", "-a", "n={n_duplicates}"], fa, dup_out)
+        .cmp(
+            &["unique", "seq", "-a", "n={n_duplicates}", "-M", "0"],
+            fa,
+            dup_out,
+        )
+        .cmp(
+            &["unique", "seq", "-a", "n={n_duplicates(false)}"],
+            fa,
+            dup_out0,
+        )
+        .cmp(&["unique", "seq", "-a", "l={duplicates_list}"], fa, ids_out)
+        .cmp(
+            &["unique", "seq", "-a", "l={duplicates_list}", "-M", "0"],
+            fa,
+            ids_out,
+        )
+        .cmp(
+            &["unique", "seq", "-a", "l={duplicates_list(false)}"],
+            fa,
+            ids_out0,
+        );
 }
 
+/// Tests larger input and different memory limits
 #[test]
 fn large() {
     // the expected output is a collection of 100 records
     let n_records = 100;
     let unique_idx_sorted: Vec<_> = (0..n_records).collect();
-    // create some duplicates
+    // create 4 duplicates per item
     let mut all_idx = unique_idx_sorted.clone();
     for _ in 0..4 {
         all_idx.extend_from_slice(&unique_idx_sorted);
@@ -147,7 +170,7 @@ fn large() {
 
     let t = Tester::new();
     t.temp_file("unique", Some(&all_fasta), |path, _| {
-        // without memory limit: output in order of input
+        // below memory limit: output in order of input
         t.cmp(&["unique", "id"], FileInput(path), &unique_fasta_inorder)
             .cmp(
                 &["unique", "id", "-n"],
@@ -160,23 +183,100 @@ fn large() {
                 FileInput(path),
                 &unique_fasta_sorted,
             );
-        // with memory limit: should always be sorted
+        // with memory limit: adding --sort, since otherwise the sort order
+        // is not guaranteed
         // (numeric sort in this case)
-        for rec_limit in [5, 10, 20, 50, 80] {
-            // a record with a 3-digit ID should have 66 bytes
-            // (ID key: 3, formatted record: 9, Vec sizes: 24 + 32)
-            let mem_limit = rec_limit * 68;
-            let mem = format!("{}", mem_limit);
+        for rec_limit in [1, 5, 10, 20, 30, 50, 60, 80, 100, 120] {
+            // A full record with a 2-digit ID should currently use 82 bytes
+            // (in sorting mode)
+            let sort_limit = format!("{}", rec_limit * 82);
             t.cmp(
-                &["unique", "id", "-n", "--max-mem", &mem],
+                &["unique", "id", "-n", "--max-mem", &sort_limit, "--sort"],
                 FileInput(path),
                 &unique_fasta_sorted,
-            )
-            .cmp(
-                &["unique", "id", "-n", "--max-mem", &mem, "--sort"],
-                FileInput(path),
+            );
+            // Unsorted dereplication can only be tested if additionally sorting the output,
+            // since there is no stable output order with a memory limit.
+            // The record key should be ~26 bytes.
+            let simple_limit = format!("{}", rec_limit * 26);
+            t.pipe(
+                &["unique", "id", "-n", "--max-mem", &simple_limit],
+                &all_fasta,
+                &["sort", "id", "-n"],
                 &unique_fasta_sorted,
             );
         }
     });
+}
+
+#[test]
+fn map_out() {
+    use std::io::read_to_string;
+    let fa = ">s1 a=1\nSEQ\n>s2 a=1\nSEQ\n>s3 a=2\nSEQ\n>s4 a=1\nSEQ\n";
+    let unique_fa = ">s1 a=1\nSEQ\n>s3 a=2\nSEQ\n";
+    let long = "s1\ts1\ns2\ts1\ns4\ts1\ns3\ts3\n";
+    let long_star = "s1\t*\ns2\ts1\ns4\ts1\ns3\t*\n";
+    let wide = "s1\ts2\ts4\ns3\n";
+    let wide_comma = "s1\ts1,s2,s4\ns3\ts3\n";
+    let wide_key = "1\ts1\ts2\ts4\n2\ts3\n";
+    let t = Tester::new();
+    t.temp_dir("find_drop", |d| {
+        let out = d.path().join("map.tsv");
+        let out_path = out.to_str().unwrap();
+        let read_file = || read_to_string(File::open(out_path).unwrap()).unwrap();
+        t.cmp(&["unique", "attr(a)", "--map-out", out_path], fa, unique_fa);
+        assert_eq!(&read_file(), long);
+        t.cmp(
+            &[
+                "unique",
+                "attr(a)",
+                "--map-out",
+                out_path,
+                "--map-fmt",
+                "long-star",
+            ],
+            fa,
+            unique_fa,
+        );
+        assert_eq!(&read_file(), long_star);
+        t.cmp(
+            &[
+                "unique",
+                "attr(a)",
+                "--map-out",
+                out_path,
+                "--map-fmt",
+                "wide",
+            ],
+            fa,
+            unique_fa,
+        );
+        assert_eq!(&read_file(), wide);
+        t.cmp(
+            &[
+                "unique",
+                "attr(a)",
+                "--map-out",
+                out_path,
+                "--map-fmt",
+                "wide-comma",
+            ],
+            fa,
+            unique_fa,
+        );
+        assert_eq!(&read_file(), wide_comma);
+        t.cmp(
+            &[
+                "unique",
+                "attr(a)",
+                "--map-out",
+                out_path,
+                "--map-fmt",
+                "wide-key",
+            ],
+            fa,
+            unique_fa,
+        );
+        assert_eq!(&read_file(), wide_key);
+    })
 }

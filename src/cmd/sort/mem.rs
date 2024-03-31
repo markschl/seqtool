@@ -1,6 +1,9 @@
 use std::cmp::{max, min};
 use std::io::{self, Write};
+use std::mem;
 use std::path::PathBuf;
+
+use deepsize::DeepSizeOf;
 
 use crate::cmd::shared::tmp_store::{TmpHandle, TmpWriter};
 use crate::error::CliResult;
@@ -9,7 +12,7 @@ use super::{FileSorter, Item};
 
 #[derive(Debug, Clone)]
 pub struct MemSorter {
-    records: Vec<Item>,
+    records: Vec<Item<Box<[u8]>>>,
     reverse: bool,
     mem: usize,
     max_mem: usize,
@@ -17,19 +20,20 @@ pub struct MemSorter {
 
 impl MemSorter {
     pub fn new(reverse: bool, max_mem: usize) -> Self {
+        // we cannot know the exact length of the input, we just initialize
+        // with capacity that should at least hold some records, while still
+        // not using too much memory
+        let records = Vec::with_capacity(max(1, min(10000, max_mem / 400)));
         Self {
-            // we cannot know the exact length of the input, we just initialize
-            // with capacity that should at least hold some records, while still
-            // not using too much memory
-            records: Vec::with_capacity(max(1, min(10000, max_mem / 400))),
+            mem: records.deep_size_of(),
+            records,
             reverse,
-            mem: 0,
             max_mem,
         }
     }
 
-    pub fn add(&mut self, item: Item) -> bool {
-        self.mem += item.size();
+    pub fn add(&mut self, item: Item<Box<[u8]>>) -> bool {
+        self.mem += item.deep_size_of();
         self.records.push(item);
         self.mem < self.max_mem
     }
@@ -64,14 +68,14 @@ impl MemSorter {
         file_limit: usize,
     ) -> io::Result<FileSorter> {
         let mut other = MemSorter::new(self.reverse, self.max_mem);
-        other.records = self.records.drain(..).collect();
+        other.records = mem::replace(&mut self.records, Vec::new());
         FileSorter::from_mem(other, tmp_dir, file_limit)
     }
 
     pub fn serialize_sorted(
         &mut self,
-        mut writer: TmpWriter<Item>,
-    ) -> io::Result<(usize, TmpHandle<Item>)> {
+        mut writer: TmpWriter<Item<Box<[u8]>>>,
+    ) -> io::Result<(usize, TmpHandle<Item<Box<[u8]>>>)> {
         self.sort();
         for item in &self.records {
             writer.write(item)?;

@@ -253,19 +253,20 @@ impl VarString {
                 return Ok(Cow::Owned(SimpleValue::Number(OrderedFloat(val))));
             }
         }
-        let text = match text_buf {
+        let text_box = match text_buf {
             SimpleValue::Text(t) => t,
             _ => panic!(),
         };
+        let mut text = std::mem::replace(text_box, Box::default()).into_vec();
         text.clear();
-        self.compose(text, table, record)?;
+        self.compose(&mut text, table, record)?;
+        *text_box = text.into_boxed_slice();
 
-        if !text.is_empty() {
+        if !text_box.is_empty() {
             if !force_numeric {
-                text.shrink_to_fit();
                 Ok(Cow::Borrowed(&*text_buf))
             } else {
-                let val = text_to_float(text)?;
+                let val = text_to_float(&text_box)?;
                 Ok(Cow::Owned(SimpleValue::Number(OrderedFloat(val))))
             }
         } else {

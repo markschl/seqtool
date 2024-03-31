@@ -2,12 +2,12 @@ use std::borrow::Borrow;
 use std::fmt::{self, Debug, Write};
 
 use clap::Parser;
-use fxhash::FxHashMap;
 
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::value::SimpleValue;
+use crate::helpers::DefaultHashMap as HashMap;
 use crate::io::Record;
 use crate::var::{symbols::SymbolTable, varstring, VarBuilder};
 
@@ -113,7 +113,7 @@ impl VarKey {
         let (interval, key) = parse_key(s, 1., 0);
         Ok(Self {
             key: varstring::VarString::parse_register(key, builder, true)?.0,
-            val_buf: SimpleValue::Text(Vec::new()),
+            val_buf: SimpleValue::Text(Box::default()),
             interval: interval.clone().unwrap_or(Interval::new(1., 0)),
             is_discrete: true,
             force_numeric: interval.is_some(),
@@ -222,7 +222,7 @@ where
         .collect::<CliResult<_>>()?;
 
     // count the records
-    let mut counts = FxHashMap::default();
+    let mut counts = HashMap::default();
     // reusable key that is only cloned when not present in the hash map
     let mut key = vec![Category::NA; var_keys.len()];
 

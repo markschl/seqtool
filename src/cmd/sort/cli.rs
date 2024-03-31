@@ -24,9 +24,8 @@ pub struct SortCommand {
     /// Interpret the key as a number instead of text.
     /// If not specified, the variable type determines, whether the key
     /// is numeric or not.
-    /// However, header attributes or fields from associated lists with metadata
-    /// may also need to be interpreted as a number, which can be done by
-    /// specifying --numeric.
+    /// Header attributes or fields from associated metadata may also need
+    /// to be interpreted as a number, which can be done by pecifying --numeric.
     #[arg(short, long)]
     pub numeric: bool,
 
@@ -34,7 +33,7 @@ pub struct SortCommand {
     #[arg(short, long)]
     pub reverse: bool,
 
-    /// Maximum amount of memory to use for sorting.
+    /// Maximum amount of memory (approximate) to use for sorting.
     /// Either a plain number (bytes) a number with unit (K, M, G, T)
     /// based on powers of 2.
     #[arg(short = 'M', long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "5G")]

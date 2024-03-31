@@ -6,9 +6,9 @@ use crate::cmd::shared::{
     tmp_store::{TmpHandle, TmpStore},
 };
 use crate::error::CliResult;
-use crate::helpers::{heap_merge::HeapMerge, value::SimpleValue};
+use crate::helpers::{heap_merge::HeapMerge, value::SimpleValue, vec::VecFactory};
 
-use super::MemDeduplicator;
+use super::{MapFormat, MapWriter, MemDeduplicator, Record, RecordMap, Records};
 
 /// Object handling the de-duplication using temporary files.
 /// The final unique records are obtained in the `write_records` method.
@@ -16,31 +16,69 @@ use super::MemDeduplicator;
 pub struct FileDeduplicator {
     mem_dedup: MemDeduplicator,
     tmp_store: TmpStore,
-    handles: Vec<TmpHandle<Item>>,
+    handles: Vec<TmpHandle<Item<Record>>>,
+    has_placeholders: bool,
     n_written: usize,
 }
 
 impl FileDeduplicator {
-    pub fn from_mem(
-        mem_dedup: MemDeduplicator,
+    pub fn from_mut_records(
+        records: &mut Records,
         tmp_dir: PathBuf,
         file_limit: usize,
-    ) -> io::Result<Self> {
+        max_mem: usize,
+        quiet: bool,
+    ) -> CliResult<Self> {
+        let mut tmp_store = TmpStore::new(tmp_dir, "st_unique", file_limit)?;
+        // serialize the first chunk of data (either from KeySet or Records variants)
+        let writer = tmp_store.writer(quiet)?;
+        let (n_written, handle) = records.sort_serialize(writer)?;
+        // then, create a new MemDeduplicator with the Records variant
+        // since from now on, formatted records have to be stored
+        let mut records: Records = records.clone();
+        if matches!(records, Records::KeySet(..)) {
+            records = Records::Records {
+                records: RecordMap::default(),
+                defer_writing: true,
+                has_placeholders: false,
+                sort: false,
+                required_info: None,
+            };
+        }
+        // we also need to extract the 'has_placeholders' flag
+        let has_placeholders = match records {
+            Records::Records {
+                has_placeholders, ..
+            } => has_placeholders,
+            Records::KeySet(..) => unreachable!(),
+        };
         Ok(Self {
-            mem_dedup,
-            handles: Vec::new(),
-            tmp_store: TmpStore::new(tmp_dir, "st_unique_", file_limit)?,
-            n_written: 0,
+            mem_dedup: MemDeduplicator::from_records(records, max_mem),
+            handles: vec![handle],
+            tmp_store,
+            has_placeholders,
+            n_written,
         })
     }
 
-    pub fn insert(
+    pub fn add<'a, I, F>(
         &mut self,
         key: &SimpleValue,
-        record_fn: impl FnMut() -> CliResult<Vec<u8>>,
+        id_fn: I,
+        vec_factory: &mut VecFactory,
+        write_fn: F,
         quiet: bool,
-    ) -> CliResult<bool> {
-        if !self.mem_dedup.insert(key, record_fn)? {
+    ) -> CliResult<bool>
+    where
+        I: Fn() -> &'a [u8],
+        F: FnMut(&mut dyn io::Write) -> CliResult<()>,
+    {
+        if !self
+            .mem_dedup
+            .add(key, id_fn, vec_factory, write_fn, None)?
+        {
+            // Memory limit reached -> write to file and start new in-memory
+            // de-duplication process
             self.write_to_file(quiet)?;
         }
         Ok(true)
@@ -48,7 +86,7 @@ impl FileDeduplicator {
 
     pub fn write_to_file(&mut self, quiet: bool) -> CliResult<()> {
         let writer = self.tmp_store.writer(quiet)?;
-        let (n, handle) = self.mem_dedup.serialize_sorted(writer)?;
+        let (n, handle) = self.mem_dedup.sort_serialize(writer)?;
         self.n_written += n;
         self.handles.push(handle);
         Ok(())
@@ -63,6 +101,7 @@ impl FileDeduplicator {
     pub fn write_records(
         &mut self,
         io_writer: &mut dyn Write,
+        map_out: Option<(&mut dyn Write, MapFormat)>,
         quiet: bool,
         verbose: bool,
     ) -> CliResult<()> {
@@ -87,13 +126,40 @@ impl FileDeduplicator {
 
         // use k-way merging of sorted chunks with a min-heap to obtain
         // the final sorted output
-        let mut prev_item = None;
-        let kmerge = HeapMerge::new(readers.iter_mut().collect(), false)?;
-        for item in kmerge {
-            let item = item?;
-            if prev_item.as_ref() != Some(&item) {
-                io_writer.write_all(&item.record)?;
-                prev_item = Some(item);
+        let mut map_writer = map_out.map(|(out, fmt)| MapWriter::new(out, fmt));
+        let mut current_item: Option<Item<Record>> = None;
+        let kmerge = HeapMerge::new(&mut readers, false)?;
+        for new_item in kmerge {
+            let new_item = new_item?;
+            if let Some(current) = current_item.as_mut() {
+                if current.key == new_item.key {
+                    if let Some(info) = current.record.duplicate_info.as_mut() {
+                        info.add_other(new_item.record.duplicate_info.unwrap());
+                    }
+                    continue;
+                }
+                current
+                    .record
+                    .write_deferred(self.has_placeholders, io_writer)?;
+                if let Some(w) = map_writer.as_mut() {
+                    w.write(
+                        &current.key,
+                        current.record.duplicate_info.as_ref().unwrap(),
+                    )?;
+                }
+            }
+            current_item = Some(new_item);
+        }
+        // last item (same code as in loop above)
+        if let Some(current) = current_item.as_ref() {
+            current
+                .record
+                .write_deferred(self.has_placeholders, io_writer)?;
+            if let Some(w) = map_writer.as_mut() {
+                w.write(
+                    &current.key,
+                    current.record.duplicate_info.as_ref().unwrap(),
+                )?;
             }
         }
         // clean up

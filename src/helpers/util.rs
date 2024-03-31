@@ -1,14 +1,14 @@
 //use std::ops::Deref;
 use std::{convert::AsRef, io};
 
-use fxhash::FxHashMap;
+use crate::helpers::DefaultHashMap as HashMap;
 
 pub fn match_fields<'a, S1, S2>(fields: &'a [S1], other: &'a [S2]) -> Result<Vec<usize>, &'a str>
 where
     S1: AsRef<str>,
     S2: AsRef<str>,
 {
-    let other: FxHashMap<_, _> = other
+    let other: HashMap<_, _> = other
         .iter()
         .enumerate()
         .map(|(i, f)| (f.as_ref(), i))
@@ -23,22 +23,27 @@ where
         .collect()
 }
 
-#[inline]
+/// Helper function for replacing parts of a given text,
+/// and writing the result to an io::Write instance.
+/// Needs an iterator over (start, end) positions.
+/// A custom function for writing has to be supplied,
+/// which is also given the matched text and all remaining text.
+#[inline(always)]
 pub fn replace_iter<R, M, W>(
     text: &[u8],
-    mut write_replacement: R,
     matches: M,
     out: &mut W,
+    mut write_replacement: R,
 ) -> io::Result<()>
 where
-    R: FnMut(&mut W) -> io::Result<()>,
+    R: FnMut(&mut W, &[u8], &[u8]) -> io::Result<()>,
     M: Iterator<Item = (usize, usize)>,
     W: io::Write + ?Sized,
 {
     let mut last_end = 0;
     for (start, end) in matches {
         out.write_all(&text[last_end..start])?;
-        write_replacement(out)?;
+        write_replacement(out, &text[start..end], &text[end..])?;
         last_end = end;
     }
     out.write_all(&text[last_end..])?;
@@ -86,6 +91,25 @@ pub fn text_to_float(text: &[u8]) -> Result<f64, String> {
         })
 }
 
+/// Writes an iterator of of values as delimited list to the output
+pub fn write_list<L, I, W>(list: L, sep: &[u8], out: &mut W) -> io::Result<()>
+where
+    L: IntoIterator<Item = I>,
+    I: AsRef<[u8]>,
+    W: io::Write + ?Sized,
+{
+    let mut first = true;
+    for item in list {
+        if first {
+            first = false;
+        } else {
+            out.write_all(sep)?;
+        }
+        out.write_all(item.as_ref())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;
@@ -97,12 +121,9 @@ mod tests {
         let replaced = b"0x23x6x8";
 
         let mut out = vec![];
-        super::replace_iter(
-            text,
-            |out| out.write_all(b"x"),
-            pos.iter().cloned(),
-            &mut out,
-        )
+        super::replace_iter(text, pos.iter().cloned(), &mut out, |out, _, _| {
+            out.write_all(b"x")
+        })
         .unwrap();
         assert_eq!(&out, replaced);
 

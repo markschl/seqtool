@@ -6,9 +6,10 @@ use std::process::{Command as StdCommand, Stdio};
 use std::str;
 
 use assert_cmd::{assert::Assert, cargo::cargo_bin, Command};
-use fxhash::FxHashMap;
 use itertools::Itertools;
 use predicates::{ord::eq, prelude::*, str::contains};
+
+use crate::helpers::DefaultHashMap as HashMap;
 
 trait Input {
     fn set<'a>(&mut self, a: &'a mut Command) -> &'a mut Command;
@@ -42,13 +43,13 @@ impl Input for MultiFileInput {
 }
 
 struct Tester {
-    env: FxHashMap<String, String>,
+    env: HashMap<String, String>,
 }
 
 impl Tester {
     fn new() -> Tester {
         Tester {
-            env: FxHashMap::default(),
+            env: HashMap::default(),
         }
     }
 

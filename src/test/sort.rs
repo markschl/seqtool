@@ -142,15 +142,18 @@ fn key_var() {
 
 #[test]
 fn large() {
-    // randomly shuffle records (with sequence number in ID),
-    // in order to later sort them by ID
-    let n_records = 100;
-    let mut indices: Vec<_> = (0..n_records).collect();
+    // Randomly shuffle records (with sequence number in ID),
+    // in order to later sort them by ID.
+    // Each ID is repeated twice, so we can test handling of ties at different
+    // memory limits.
+    let n_records = 200;
+    let mut indices: Vec<_> = (0usize..n_records / 2).chain(0..n_records / 2).collect();
     let mut rng = rand_xoshiro::Xoshiro256PlusPlus::seed_from_u64(42);
     indices.shuffle(&mut rng);
     let seqs: Vec<_> = indices
         .into_iter()
-        .map(|i| (i, format!(">{}\nSEQ\n", i)))
+        .enumerate()
+        .map(|(i, idx)| (idx, format!(">{} {}\nSEQ\n", idx, i)))
         .collect();
     let mut text_sorted = seqs.clone();
     text_sorted.sort_by_key(|(i, _)| format!("{}", i));
@@ -165,23 +168,23 @@ fn large() {
 
     let t = Tester::new();
     t.temp_file("sort", Some(&fasta), |path, _| {
-        for rec_limit in [5usize, 10, 20, 50, 100, 10000] {
-            // a record with a 2-digit ID should have 66 bytes
-            // (ID key: 2, formatted record: 8, Vec sizes: 24 + 32)
-            let mem_limit = rec_limit * 66;
-            let mem = format!("{}", mem_limit);
+        for rec_limit in [5usize, 10, 20, 50, 100, 150, 1000] {
+            // a record with a 2-digit ID should currently occupy 50 bytes (text)
+            // or 48 bytes (numeric)
+            let text_limit = format!("{}", rec_limit * 50);
+            let num_limit = format!("{}", rec_limit * 48);
             t.cmp(
-                &["sort", "id", "--max-mem", &mem],
+                &["sort", "id", "--max-mem", &text_limit],
                 FileInput(path),
                 &sorted_fasta,
             );
             t.cmp(
-                &["sort", "-r", "id", "--max-mem", &mem],
+                &["sort", "-r", "id", "--max-mem", &text_limit],
                 FileInput(path),
                 &rev_sorted_fasta,
             );
             t.cmp(
-                &["sort", "-n", "id", "--max-mem", &mem],
+                &["sort", "-n", "id", "--max-mem", &num_limit],
                 FileInput(path),
                 &num_sorted_fasta,
             );

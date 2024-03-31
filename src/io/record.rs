@@ -111,7 +111,6 @@ impl<'a> RecordHeader<'a> {
     }
 }
 
-
 /// Not to be confused with key=value attributes
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, EnumString, Display)]
 pub enum RecordAttr {

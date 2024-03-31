@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::mem::{size_of, size_of_val};
 
 use clap::{value_parser, Parser};
+use deepsize::DeepSizeOf;
 use rand::{distributions::Uniform, prelude::*};
 
 use crate::cli::CommonArgs;
@@ -232,8 +233,8 @@ impl<R: Rng + Clone> RecordsSampler<R> {
         if self.i < self.amount {
             let fmt_rec = self
                 .vec_factory
-                .fill_vec(|out| format_writer.write(&record, out, ctx))?;
-            self.mem += size_of_val(&self.i) + size_of_val(&fmt_rec) + size_of_val(&*fmt_rec);
+                .get(|out| format_writer.write(&record, out, ctx))?;
+            self.mem += size_of_val(&self.i) + fmt_rec.deep_size_of();
             self.reservoir.push((self.i, fmt_rec));
             if self.mem >= self.max_mem {
                 self.i += 1;

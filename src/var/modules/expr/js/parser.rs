@@ -83,7 +83,8 @@ impl VarStringParseErr {
 
 impl std::fmt::Display for VarStringParseErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f,
+        write!(
+            f,
             "Failed to parse the following string with variables/functions or JavaScript code: \
             \n`{}`\n\
             Make sure to enclose variables/functions or expressions in {{ brackets }}, \
@@ -197,7 +198,9 @@ fn var_or_func<'a>(input: &mut Located<&'a str>) -> PResult<Fragment<'a>> {
 }
 
 /// Variable/function string parser
-fn expr_fragment<'a>(input: &mut Located<&'a str>) -> PResult<ParsedVarStringSegment<'a, Fragment<'a>>> {
+fn expr_fragment<'a>(
+    input: &mut Located<&'a str>,
+) -> PResult<ParsedVarStringSegment<'a, Fragment<'a>>> {
     alt((
         // { expr:path.js }
         preceded("file:", alt((string, take_until(1.., "}"))))
@@ -216,11 +219,10 @@ fn varstring_fragment<'a>(
         alt((
             // { var } or { func(a, b) }
             delimited(
-                ("{", space0), 
-                alt((
-                    var_or_func.map(ParsedVarStringSegment::Var),
-            )),
-            (space0, "}")),
+                ("{", space0),
+                alt((var_or_func.map(ParsedVarStringSegment::Var),)),
+                (space0, "}"),
+            ),
             // {file:path.js} or { expression }
             #[cfg(feature = "expr")]
             delimited("{", expr_fragment, "}"),
@@ -385,14 +387,13 @@ pub fn st_func_from_parsed(
     let str_args = args
         .iter()
         .map(|v| match v {
-            Fragment::Name(_, _) if !is_simple => {
-                Err(
-                    "In expressions, unquoted function arguments are not allowed. \
-                    Please enclose strings in 'single' or \"double\" quotes."
-                )
-            }
+            Fragment::Name(_, _) if !is_simple => Err(
+                "In expressions, unquoted function arguments are not allowed. \
+                    Please enclose strings in 'single' or \"double\" quotes.",
+            ),
             Fragment::String(s) | Fragment::Name(s, _) | Fragment::Value(s) => Ok(s.to_string()),
-            _ => Err("Seqtool function arguments must be strings or numbers."),
+            Fragment::Builtin(s) if matches!(*s, "true" | "false") => Ok(s.to_string()),
+            _ => Err("Seqtool function arguments must be strings, numbers or booleans."),
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Invalid function: '{}'. {}", name, e))?;
@@ -735,7 +736,7 @@ mod tests {
         // (in `test_rewrite`, we don't return an error, just ignore the call)
         test_rewrite(
             "func(other(a, b), variable)",
-            Err("Invalid function: 'func'. Seqtool function arguments must be strings or numbers."),
+            Err("Invalid function: 'func'. Seqtool function arguments must be strings, numbers or booleans."),
         );
     }
 

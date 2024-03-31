@@ -1,8 +1,7 @@
 use std::clone::Clone;
 
-use fxhash::FxHashMap;
-
 use crate::error::{CliError, CliResult};
+use crate::helpers::DefaultHashMap as HashMap;
 
 use super::attr::{AttrWriteAction, Attributes};
 use super::func::Func;
@@ -24,17 +23,17 @@ use super::VarProvider;
 pub struct VarBuilder<'a> {
     modules: &'a mut [Box<dyn VarProvider>],
     // varname -> (module_idx, (min_args, max_args))
-    var_map: &'a FxHashMap<String, (usize, (usize, usize))>,
+    var_map: &'a HashMap<String, (usize, (usize, usize))>,
     // func -> (var_id, var_type, allow_nested)
-    registered_vars: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
+    registered_vars: &'a mut HashMap<Func, (usize, Option<VarType>, bool)>,
     attrs: &'a mut Attributes,
 }
 
 impl<'a> VarBuilder<'a> {
     pub fn new(
         modules: &'a mut [Box<dyn VarProvider>],
-        var_map: &'a FxHashMap<String, (usize, (usize, usize))>,
-        registered_vars: &'a mut FxHashMap<Func, (usize, Option<VarType>, bool)>,
+        var_map: &'a HashMap<String, (usize, (usize, usize))>,
+        registered_vars: &'a mut HashMap<Func, (usize, Option<VarType>, bool)>,
         attrs: &'a mut Attributes,
     ) -> Self {
         Self {

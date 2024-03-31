@@ -6,16 +6,11 @@ use std::{cmp::Reverse, collections::BinaryHeap};
 struct Item<T: Ord + Debug> {
     inner: T,
     reverse: bool,
-    source: usize,
 }
 
 impl<T: Ord + Debug> Item<T> {
-    fn new(inner: T, reverse: bool, source: usize) -> Self {
-        Self {
-            inner,
-            reverse,
-            source,
-        }
+    fn new(inner: T, reverse: bool) -> Self {
+        Self { inner, reverse }
     }
 }
 
@@ -43,6 +38,9 @@ impl<T: Ord + Debug> Ord for Item<T> {
     }
 }
 
+/// Merges sorted streams using a binary heap.
+/// In case of ties, items are sorted by the order of the input streams, in which
+/// they occur.
 #[derive(Debug)]
 pub struct HeapMerge<T, I, E>
 where
@@ -50,8 +48,8 @@ where
     I: Iterator<Item = Result<T, E>>,
     E: Debug,
 {
-    streams: Vec<I>,
-    heap: BinaryHeap<Reverse<Item<T>>>,
+    streams: Box<[I]>,
+    heap: BinaryHeap<Reverse<(Item<T>, usize)>>,
     reverse: bool,
 }
 
@@ -61,11 +59,15 @@ where
     I: Iterator<Item = Result<T, E>>,
     E: Debug,
 {
-    pub fn new(mut streams: Vec<I>, reverse: bool) -> Result<Self, E> {
+    pub fn new<S>(streams: S, reverse: bool) -> Result<Self, E>
+    where
+        S: IntoIterator<Item = I>,
+    {
+        let mut streams = streams.into_iter().collect::<Box<[_]>>();
         let mut heap = BinaryHeap::with_capacity(streams.len());
         for (i, stream) in streams.iter_mut().enumerate() {
             if let Some(item) = stream.next() {
-                heap.push(Reverse(Item::new(item?, reverse, i)));
+                heap.push(Reverse((Item::new(item?, reverse), i)));
             }
         }
         Ok(Self {
@@ -86,11 +88,12 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         self.heap.pop().map(|top| {
-            if let Some(next_item) = self.streams[top.0.source].next() {
+            let (top_item, top_i) = top.0;
+            if let Some(next_item) = self.streams[top_i].next() {
                 self.heap
-                    .push(Reverse(Item::new(next_item?, self.reverse, top.0.source)));
+                    .push(Reverse((Item::new(next_item?, self.reverse), top_i)));
             }
-            Ok(top.0.inner)
+            Ok(top_item.inner)
         })
     }
 }

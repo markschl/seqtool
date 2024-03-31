@@ -2,11 +2,11 @@ use std::fs::create_dir_all;
 use std::path::Path;
 
 use clap::Parser;
-use fxhash::FxHashMap;
 
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
+use crate::helpers::DefaultHashMap as HashMap;
 use crate::io::output::{FormatWriter, OutputKind};
 use crate::var::{
     func::Func,
@@ -66,7 +66,7 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
     let (out_key, _) =
         cfg.build_vars(|b| varstring::VarString::parse_register(out_key, b, false))?;
     // file path -> writer
-    let mut outfiles = FxHashMap::default();
+    let mut outfiles = HashMap::default();
     // path buffer
     let mut path = vec![];
     // writer for formatted output

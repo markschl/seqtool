@@ -204,7 +204,8 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                             .matches_iter(0, 0)
                             .flatten()
                             .map(|m| (m.start, m.end));
-                        replace_iter(text, |o| o.write_all(&replacement_text), pos, out).unwrap();
+                        replace_iter(text, pos, out, |o, _, _| o.write_all(&replacement_text))
+                            .unwrap();
                         Ok::<(), CliError>(())
                     })?;
                 }

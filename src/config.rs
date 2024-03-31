@@ -1,11 +1,11 @@
 use std::cell::Cell;
 use std::io;
 
-use fxhash::FxHashMap;
 use itertools::Itertools;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
+use crate::helpers::DefaultHashMap as HashMap;
 use crate::io::{
     input::{self, InFormat, InputKind, InputOptions},
     output::{
@@ -32,9 +32,9 @@ pub struct Config {
     // registry of all variables by name,
     // with: - index of corresponding `VarProvider` module in ctx.var_modules)
     //       - range of expected arguments
-    var_map: FxHashMap<String, (usize, (usize, usize))>,
+    var_map: HashMap<String, (usize, (usize, usize))>,
     // used to remember, which variables have been registered to which ID
-    registered_vars: FxHashMap<Func, (usize, Option<VarType>, bool)>,
+    registered_vars: HashMap<Func, (usize, Option<VarType>, bool)>,
     started: Cell<bool>,
 }
 
@@ -121,7 +121,7 @@ impl Config {
             input_opts,
             ctx,
             var_map,
-            registered_vars: FxHashMap::default(),
+            registered_vars: HashMap::default(),
             started: Cell::new(false),
         })
     }

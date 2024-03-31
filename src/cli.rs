@@ -352,10 +352,8 @@ pub enum SubCommand {
     ///
     /// The sort key can be 'seq', 'id', or any variable/function, expression, or
     /// text containing them (see <KEY> help).
-    ///
-    /// Records are sorted in memory, it is up to the user of this function
-    /// to ensure that the whole input will fit into memory.
-    /// The default sort is by sequence.
+    /// 
+    /// Records with identical keys are kept in input order.
     ///
     /// The actual value of the key is available through the 'key' variable. It can
     /// be written to a header attribute or TSV field.
@@ -371,8 +369,9 @@ pub enum SubCommand {
     /// text containing them (see <KEY> help).
     ///
     /// The order of the records is the same as in the input unless the memory limit
-    /// is exceeded, in which case temporary files are used and the records are
-    /// sorted by the unique key. Specify -s/--sorted to always sort the output.
+    /// is exceeded, in which case temporary files are used and all remaining records
+    /// are sorted by the unique key. Use `-s/--sorted` to always sort the output
+    /// by key.
     #[cfg(any(feature = "all-commands", feature = "unique"))]
     #[clap(about, long_about)]
     Unique(cmd::unique::cli::UniqueCommand),

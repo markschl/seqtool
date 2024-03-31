@@ -1,6 +1,5 @@
-use std::hash::{Hash, Hasher};
-
-use fxhash::{FxHashMap, FxHasher64};
+use crate::helpers::DefaultBuildHasher as BuildHasher;
+use crate::helpers::DefaultHashMap as HashMap;
 
 use crate::error::CliResult;
 use crate::var::VarBuilder;
@@ -16,9 +15,10 @@ pub use self::expr::*;
 pub use self::parser::*;
 
 pub fn replace_register_vars(script: &str, b: &mut VarBuilder) -> CliResult<(String, Vec<Var>)> {
-    let mut vars = FxHashMap::default();
+    let mut vars = HashMap::default();
     match parse_script(script) {
         Ok(ast) => {
+            let hash_builder = BuildHasher::default();
             let new_code = ast.rewrite(|name, args| {
                 if b.has_var(name) {
                     let func = try_opt!(st_func_from_parsed(name, args, false));
@@ -28,9 +28,8 @@ pub fn replace_register_vars(script: &str, b: &mut VarBuilder) -> CliResult<(Str
                             let js_varname = if func.num_args() == 0 {
                                 func.name.clone()
                             } else {
-                                let mut hasher = FxHasher64::default();
-                                func.args.hash(&mut hasher);
-                                format!("{}_{:x}", func.name, hasher.finish())
+                                let hash = hash_builder.hash_one(&func.args);
+                                format!("{}_{:x}", func.name, hash)
                             };
                             vars.insert(var_id, js_varname.clone());
                             js_varname
