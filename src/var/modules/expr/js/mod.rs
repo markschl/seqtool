@@ -1,65 +1,39 @@
-use crate::helpers::DefaultBuildHasher as BuildHasher;
 use crate::helpers::DefaultHashMap as HashMap;
-
-use crate::error::CliResult;
 use crate::var::VarBuilder;
+
+use self::parser::SimpleAst;
 
 use super::{ExprContext, Expression, Var};
 
-#[cfg(feature = "expr")]
 mod expr;
-mod parser;
+pub mod parser;
 
-#[cfg(feature = "expr")]
 pub use self::expr::*;
-pub use self::parser::*;
 
-pub fn replace_register_vars(script: &str, b: &mut VarBuilder) -> CliResult<(String, Vec<Var>)> {
+pub fn replace_register_vars(
+    ast: &SimpleAst,
+    b: &mut VarBuilder,
+) -> Result<(String, Vec<Var>), String> {
     let mut vars = HashMap::default();
-    match parse_script(script) {
-        Ok(ast) => {
-            let hash_builder = BuildHasher::default();
-            let new_code = ast.rewrite(|name, args| {
-                if b.has_var(name) {
-                    let func = try_opt!(st_func_from_parsed(name, args, false));
-                    b.register_nested_var(&func).transpose().map(|res| {
-                        res.map(|(var_id, _, _)| {
-                            // get unique placeholder variable name (function arguments are hashed)
-                            let js_varname = if func.num_args() == 0 {
-                                func.name.clone()
-                            } else {
-                                let hash = hash_builder.hash_one(&func.args);
-                                format!("{}_{:x}", func.name, hash)
-                            };
-                            vars.insert(var_id, js_varname.clone());
-                            js_varname
-                        })
-                    })
+    let new_code = ast.rewrite(|func| {
+        b.register_var(func.name, func.args()).map(|res| {
+            res.map(|(symbol_id, _)| {
+                // get unique placeholder variable name (function arguments are hashed)
+                let js_varname = if func.args().is_empty() {
+                    func.name.to_string()
                 } else {
-                    None
-                }
-            })?;
-            // dbg!(ast, &new_code);
-            Ok((
-                new_code,
-                vars.into_iter()
-                    .map(|(symbol_id, name)| Var { symbol_id, name })
-                    .collect(),
-            ))
-        }
-        Err(mut rest) => {
-            if rest.len() > 100 {
-                rest.truncate(100);
-                rest.push_str("...");
-            }
-            fail!(
-                "Failed to parse the expression. \
-                Make sure that the syntax is correct and no unsupported \
-                JavaScript syntax is used (/regex/ literals cannot be used, \
-                use RegExp instead). \
-                The code that could not be parsed: '{}'",
-                rest
-            )
-        }
-    }
+                    format!("{}_{}", func.name, symbol_id)
+                };
+                vars.insert(symbol_id, js_varname.clone());
+                js_varname
+            })
+        })
+    })?;
+    // dbg!(ast, &new_code);
+    Ok((
+        new_code,
+        vars.into_iter()
+            .map(|(symbol_id, name)| Var { symbol_id, name })
+            .collect(),
+    ))
 }

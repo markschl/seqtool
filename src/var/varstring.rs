@@ -1,19 +1,20 @@
-use std::fs::read_to_string;
 use std::ops::Deref;
 use std::{io, mem, str};
 
 use bstr::ByteSlice;
 use ordered_float::OrderedFloat;
+use var_provider::VarType;
 
-use crate::error::CliResult;
-use crate::helpers::util::{text_to_float, text_to_int};
-use crate::helpers::value::SimpleValue;
+use crate::helpers::{
+    util::{text_to_float, text_to_int},
+    value::SimpleValue,
+};
 use crate::io::Record;
 use crate::var;
 
-use super::modules::expr::{parse_varstring, parse_varstring_list, ParsedVarStringSegment};
-use super::symbols::{Value, VarType};
-use super::Func;
+use super::parser::{parse_varstring, parse_varstring_list, ParsedVarStringSegment};
+use super::symbols::Value;
+use super::VarBuilder;
 
 /// Parses a comma delimited list of variables/functions, whereby the
 /// delimiter is only searched in text inbetween vars/functions.
@@ -21,12 +22,12 @@ use super::Func;
 /// **without** braces around them, falling back to text mode if registration fails.
 pub fn register_var_list(
     text: &str,
-    builder: &mut var::VarBuilder,
+    builder: &mut VarBuilder,
     out: &mut Vec<VarString>,
     raw_var: bool,
-) -> CliResult<()> {
+) -> Result<(), String> {
     for frags in parse_varstring_list(text, raw_var)? {
-        out.push(VarString::from_parsed(&frags, builder)?.0);
+        out.push(VarString::register_parsed(&frags, builder)?.0);
     }
     Ok(())
 }
@@ -58,7 +59,7 @@ pub struct VarString {
 }
 
 impl VarString {
-    pub fn from_parts(parts: &[VarStringSegment]) -> Self {
+    pub fn from_segments(parts: &[VarStringSegment]) -> Self {
         Self {
             parts: parts.to_vec(),
             one_var: match parts.first() {
@@ -70,48 +71,49 @@ impl VarString {
 
     pub fn parse_register(
         text: &str,
-        b: &mut var::VarBuilder,
+        b: &mut VarBuilder,
         raw_var: bool,
-    ) -> CliResult<(Self, Option<VarType>)> {
+    ) -> Result<(Self, Option<VarType>), String> {
         let res = parse_varstring(text, raw_var)?;
-        Self::from_parsed(&res, b)
+        Self::register_parsed(&res, b)
     }
 
-    pub fn from_parsed(
-        fragments: &[ParsedVarStringSegment<Func>],
-        b: &mut var::VarBuilder,
-    ) -> CliResult<(Self, Option<VarType>)> {
-        let mut parts = Vec::with_capacity(fragments.len());
-        let mut vtypes = Vec::with_capacity(fragments.len());
-        for frag in fragments {
-            use ParsedVarStringSegment::*;
+    pub fn register_parsed(
+        segments: &[ParsedVarStringSegment<'_>],
+        builder: &mut VarBuilder,
+    ) -> Result<(Self, Option<VarType>), String> {
+        use ParsedVarStringSegment::*;
+        let mut parts = Vec::with_capacity(segments.len());
+        let mut vtypes = Vec::with_capacity(segments.len());
+        for frag in segments {
             let (part, ty) = match frag {
                 Text(t) => (
                     VarStringSegment::Text(t.as_bytes().to_vec()),
                     Some(VarType::Text),
                 ),
-                VarOrText(f, text) => b
-                    .register_var(f)?
-                    .map(|(var_id, ty, _)| (VarStringSegment::Var(var_id), ty))
-                    .unwrap_or_else(|| {
-                        (
-                            VarStringSegment::Text(text.as_bytes().to_vec()),
-                            Some(VarType::Text),
-                        )
-                    }),
-                Var(f) => b
-                    .register_var(f)?
-                    .map(|(var_id, ty, _)| (VarStringSegment::Var(var_id), ty))
-                    .ok_or_else(|| format!("Unknown variable/function: {}", f.name))?,
+                VarOrText { func, text } => {
+                    let func = func.to_quoted(|name| builder.has_var(name));
+                    builder
+                        .register_var(func.name, func.args())?
+                        .map(|(symbol_id, var_type)| (VarStringSegment::Var(symbol_id), var_type))
+                        .unwrap_or_else(|| {
+                            (
+                                VarStringSegment::Text(text.as_bytes().to_vec()),
+                                Some(VarType::Text),
+                            )
+                        })
+                }
+                Var(func) => {
+                    let func = func.to_quoted(|name| builder.has_var(name));
+                    builder
+                        .register_var(func.name, func.args())?
+                        .map(|(symbol_id, var_type)| (VarStringSegment::Var(symbol_id), var_type))
+                        .ok_or_else(|| format!("Unknown variable/function: {}", func.name))?
+                }
                 #[cfg(feature = "expr")]
-                Expr(e) | SourceFile(e) => {
-                    let source = if let SourceFile(path) = frag {
-                        read_to_string(path)?
-                    } else {
-                        e.to_string()
-                    };
-                    let (id, ty, _) = b.register_var(&Func::expr(&source))?.unwrap();
-                    (VarStringSegment::Var(id), ty)
+                Expr(e) => {
+                    let (symbol_id, var_type) = builder.register_expr(e)?;
+                    (VarStringSegment::Var(symbol_id), var_type)
                 }
             };
             parts.push(part);
@@ -122,7 +124,7 @@ impl VarString {
         } else {
             Some(VarType::Text)
         };
-        Ok((Self::from_parts(&parts), vtype))
+        Ok((Self::from_segments(&parts), vtype))
     }
 
     /// Splits the VarString at the first occurrence of a given separator.
@@ -144,7 +146,7 @@ impl VarString {
                     } else {
                         unreachable!();
                     }
-                    return Some((Self::from_parts(&start), Self::from_parts(&end)));
+                    return Some((Self::from_segments(&start), Self::from_segments(&end)));
                 }
             }
         }
@@ -219,16 +221,12 @@ impl VarString {
         table: &var::symbols::SymbolTable,
         record: &dyn Record,
         text_buf: &mut Vec<u8>,
-    ) -> CliResult<Option<i64>> {
+    ) -> Result<Option<i64>, String> {
         if let Some(id) = self.one_var {
-            return table
-                .get(id)
-                .inner()
-                .map(|v| v.get_int(record).map_err(|e| e.into()))
-                .transpose();
+            return table.get(id).inner().map(|v| v.get_int(record)).transpose();
         }
         text_buf.clear();
-        self.compose(text_buf, table, record)?;
+        self.compose(text_buf, table, record).unwrap();
         if text_buf.is_empty() {
             return Ok(None);
         }
@@ -239,19 +237,19 @@ impl VarString {
     /// Requires an extra 'text_buf', which allows retaining text allocations
     /// and must always be a `SimpleValue::Text`.
     #[inline]
-    pub fn into_simple<'a>(
+    pub fn simple_value<'a>(
         &self,
         out: &'a mut SimpleValue,
         text_buf: &'a mut Vec<u8>,
         symbols: &var::symbols::SymbolTable,
         record: &dyn Record,
         force_numeric: bool,
-    ) -> CliResult<()> {
+    ) -> Result<(), String> {
         if let Some(v) = self.get_one_value(symbols) {
             if v.is_numeric() {
                 if let SimpleValue::Text(t) = out {
                     // save the allocation for later use
-                    *text_buf = mem::replace(t, Box::default()).into_vec();
+                    *text_buf = mem::take(t).into_vec();
                 }
                 let val = v.get_float(record)?;
                 *out = SimpleValue::Number(OrderedFloat(val));
@@ -260,22 +258,22 @@ impl VarString {
         }
         // let mut text = std::mem::replace(text_buf, Box::default()).into_vec();
         let mut text = match out {
-            SimpleValue::Text(t) => std::mem::replace(t, Box::default()).into_vec(),
+            SimpleValue::Text(t) => mem::take(t).into_vec(),
             _ => Vec::new(),
         };
         text.clear();
-        self.compose(&mut text, symbols, record)?;
+        self.compose(&mut text, symbols, record).unwrap();
 
         if !text.is_empty() {
             if !force_numeric {
                 *out = SimpleValue::Text(text.into_boxed_slice());
             } else {
                 let val = text_to_float(&text)?;
-                *text_buf = mem::replace(&mut text, Vec::new());
+                *text_buf = mem::take(&mut text);
                 *out = SimpleValue::Number(OrderedFloat(val));
             }
         } else {
-            *text_buf = mem::replace(&mut text, Vec::new());
+            *text_buf = mem::take(&mut text);
             *out = SimpleValue::None;
         }
         Ok(())

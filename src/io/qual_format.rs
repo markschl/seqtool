@@ -1,5 +1,5 @@
 /// See also https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2847217/pdf/gkp1137.pdf
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::fmt::Debug;
 use std::str::FromStr;
 
@@ -256,7 +256,7 @@ fn solexa_to_phred(q: u8) -> u8 {
 #[inline]
 fn phred_to_solexa(q: u8) -> u8 {
     let s = ((10. * (10f64.powf(f64::from(q) / 10.) - 1.).log10()).round() + 64.) as u8;
-    min(126, max(59, s))
+    s.clamp(59, 126)
 }
 
 /// Estimated probability of error from Solexa ASCII

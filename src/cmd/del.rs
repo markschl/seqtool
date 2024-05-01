@@ -32,7 +32,7 @@ pub fn run(mut cfg: Config, args: &DelCommand) -> CliResult<()> {
                 for attr in attrs {
                     b.register_attr(attr, Some(attr::AttrWriteAction::Delete))?;
                 }
-                Ok(())
+                Ok::<_, String>(())
             })?;
         }
 

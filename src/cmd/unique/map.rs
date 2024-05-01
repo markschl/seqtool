@@ -52,7 +52,7 @@ impl<W: io::Write> MapWriter<W> {
                     } else {
                         self.inner.write_all(&ids[0])?;
                     }
-                    write!(self.inner, "\n")?;
+                    writeln!(self.inner)?;
                 }
             }
             MapFormat::Wide | MapFormat::WideKey => {
@@ -61,13 +61,13 @@ impl<W: io::Write> MapWriter<W> {
                     write!(self.inner, "\t")?;
                 }
                 write_list(ids, b"\t", &mut self.inner)?;
-                write!(self.inner, "\n")?;
+                writeln!(self.inner)?;
             }
             MapFormat::WideComma => {
                 self.inner.write_all(&ids[0])?;
                 write!(self.inner, "\t")?;
                 write_list(ids, b",", &mut self.inner)?;
-                write!(self.inner, "\n")?;
+                writeln!(self.inner)?;
             }
         }
         Ok(())

@@ -121,7 +121,7 @@ fn sample_n<R: Rng + Clone>(
 // copied without modification from rand crate
 #[inline]
 fn gen_index<R: Rng + ?Sized>(rng: &mut R, ubound: usize) -> usize {
-    if ubound <= (core::u32::MAX as usize) {
+    if ubound <= (u32::MAX as usize) {
         rng.gen_range(0..ubound as u32) as usize
     } else {
         rng.gen_range(0..ubound)

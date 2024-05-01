@@ -1,13 +1,11 @@
 use std::ffi::OsStr;
 use std::hash::Hasher;
 use std::path::Path;
-use std::str;
 
-use xxhash_rust::xxh3::xxh3_64 as hash_one;
-use xxhash_rust::xxh3::Xxh3 as SeqHasher;
+use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use variable_enum_macro::variable_enum;
+use xxhash_rust::xxh3::{xxh3_64 as hash_one, Xxh3 as Seqhasher};
 
-use self::GeneralVar::*;
-use crate::error::CliResult;
 use crate::helpers::{
     complement::reverse_complement,
     seqtype::{SeqType, SeqtypeHelper},
@@ -17,106 +15,79 @@ use crate::io::{
     output::OutputOptions,
     QualConverter, Record, RecordAttr,
 };
-use crate::var::{
-    attr::Attributes,
-    func::Func,
-    symbols::{SymbolTable, VarType},
-    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
-};
-use crate::var_info;
+use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 
-#[derive(Debug)]
-pub struct GeneralHelp;
+use super::VarProvider;
 
-impl VarProviderInfo for GeneralHelp {
-    fn name(&self) -> &'static str {
-        "Data from records and input files"
+variable_enum! {
+    /// # Data from records and input files
+    ///
+    ///
+    ///
+    /// # Examples
+    ///
+    /// Adding the sequence number to the ID
+    ///
+    /// `st set -i {id}_{seq_num}`
+    ///
+    /// Counting the number of records per file in the input
+    ///
+    /// `st count -k filename *.fasta`
+    ///
+    /// Removing records with duplicate sequences from the input
+    ///
+    /// `st unique seq input.fasta`
+    ///
+    /// Removing duplicate records in a case-insensitive manner, recognizing both
+    /// forward and reverse orientations
+    ///
+    /// `st unique Seqhash_both(false) input.fasta`
+    GeneralVar {
+        /// Record ID (in FASTA/FASTQ: everything before first space)
+        Id(Text),
+        /// Record description (everything after first space)
+        Desc(Text),
+        /// Record sequence
+        Seq(Text),
+        /// Record sequence in uppercase letters
+        UpperSeq(Text),
+        /// Record sequence in lowercase letters
+        LowerSeq(Text),
+        /// Calculates a hash value from the sequence using the XXH3 algorithm. A hash
+        /// is a integer number representing the sequence. In very rare cases, different
+        /// sequences may lead to the same hash value, but for instance using 'Seqhash'
+        /// as key for the 'unique' command (de-replication) speeds up the process and
+        /// requires less memory, at a very small risk of wrongly recognizing two
+        /// different sequences as duplicates. The numbers can be negative.
+        Seqhash(Number) { ignorecase: bool = false },
+        /// The hash value of the reverse-complemented sequence
+        SeqhashRev(Number) { ignorecase: bool = false },
+        /// The sum of the hashes from the forward and reverse sequences.
+        /// The result is always the same irrespective of the sequence orientation,
+        /// which is useful when de-replicating sequences with potentially different
+        /// orientations.
+        SeqhashBoth(Number) { ignorecase: bool = false },
+        /// Sequence number (n-th sequence in the input), starting from 1.
+        /// If multiple sequence files are supplied, numbering is simply continued.
+        /// Note that the output order can vary with multithreaded processing.
+        SeqNum(Number),
+        /// Sequence index, starting from 0 (continued across all sequence files).
+        /// Note that the output order can vary with multithreaded processing.
+        SeqIdx(Number),
+        /// Path to the current input file (or '-' if reading from STDIN)
+        Path(Text),
+        /// Name of the current input file with extension (or '-')
+        Filename(Text),
+        /// Name of the current input file without extension (or '-')
+        Filestem(Text),
+        /// Extension of the current input file (or '')
+        Extension(Text),
+        /// Name of the base directory of the current file (or '')
+        Dirname(Text),
+        /// Default file extension for the configured output format
+        /// (e.g. 'fasta' or 'fastq')
+        DefaultExt(Text),
     }
-
-    fn vars(&self) -> &[VarInfo] {
-        &[
-            var_info!(id => "Record ID (in FASTA/FASTQ: everything before first space)"),
-            var_info!(desc => "Record description (everything after first space)"),
-            var_info!(seq => "Record sequence"),
-            var_info!(upper_seq => "The sequence in uppercase letters"),
-            var_info!(lower_seq => "The sequence in lowercase letters"),
-            var_info!(
-                seqhash([ignorecase]) =>
-                    "Calculates a hash value from the sequence using the XXH3 algorithm. \
-                    A hash is a integer number representing the sequence. \
-                    In very rare cases, different sequences may lead to the same hash value, \
-                    but for instance using 'seqhash' as key for the 'unique' command \
-                    (de-replication) speeds up the process and requires less memory, \
-                    at a very small risk of wrongly recognizing two different sequences \
-                    as duplicates. The numbers can be negative."
-            ),
-            var_info!(
-                seqhash_rev([ignorecase]) =>
-                    "The hash value of the reverse-complemented sequence"
-            ),
-            var_info!(
-                seqhash_both([ignorecase]) =>
-                    "The sum of the hashes from the forward and reverse sequences. \
-                    The result is always the same irrespective of the sequence orientation, \
-                    which is useful when de-replicating sequences with potentially different \
-                    orientations."
-            ),
-            var_info!(
-                num =>
-                    "Sequence number, starting with 1. Note that the output order can vary with \
-                    multithreaded processing."
-            ),
-            var_info!(path => "Path to the current input file (or '-' if reading from STDIN)"),
-            var_info!(filename => "Name of the current input file with extension (or '-')"),
-            var_info!(filestem => "Name of the current input file without extension (or '-')"),
-            var_info!(dirname => "Name of the base directory of the current file (or '')"),
-            var_info!(default_ext =>
-                "Default file extension for the configured output format \
-                (e.g. 'fasta' or 'fastq')"
-            ),
-        ]
-    }
-
-    fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "Adding the sequence number to the ID ",
-                "st set -i {id}_{num}",
-            ),
-            (
-                "Counting the number of records per file in the input",
-                "st count -k filename *.fasta",
-            ),
-            (
-                "Removing records with duplicate sequences from the input",
-                "st unique seq input.fasta",
-            ),
-            (
-                "Removing duplicate records in a case-insensitive manner, recognizing both \
-                forward and reverse orientations.",
-                "st unique seqhash_both(false) input.fasta",
-            ),
-        ])
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum GeneralVar {
-    Id,
-    Desc,
-    Seq,
-    UpperSeq,
-    LowerSeq,
-    SeqHash { ignorecase: bool },
-    SeqHashRev { ignorecase: bool },
-    SeqHashBoth { ignorecase: bool },
-    Num,
-    InPath,
-    InName,
-    InStem,
-    DefaultExt,
-    Ext,
-    Dir,
 }
 
 #[derive(Debug, Default)]
@@ -131,8 +102,8 @@ struct PathInfo {
 
 #[derive(Debug)]
 pub struct GeneralVars {
-    vars: Vec<(GeneralVar, usize)>,
-    num: usize,
+    vars: VarStore<GeneralVar>,
+    idx: usize,
     path_info: PathInfo,
     seq_cache: Vec<u8>,
     seqtype_helper: SeqtypeHelper,
@@ -141,8 +112,8 @@ pub struct GeneralVars {
 impl GeneralVars {
     pub fn new(seqtype_hint: Option<SeqType>) -> GeneralVars {
         GeneralVars {
-            vars: vec![],
-            num: 0,
+            vars: VarStore::default(),
+            idx: 0,
             path_info: PathInfo::default(),
             seq_cache: vec![],
             seqtype_helper: SeqtypeHelper::new(seqtype_hint),
@@ -151,72 +122,44 @@ impl GeneralVars {
 }
 
 impl VarProvider for GeneralVars {
-    fn info(&self) -> &dyn VarProviderInfo {
-        &GeneralHelp
+    fn info(&self) -> &dyn DynVarProviderInfo {
+        &dyn_var_provider!(GeneralVar)
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
-        let (vt, var) = match func.name.as_str() {
-            "id" => (VarType::Attr, Id),
-            "desc" => (VarType::Attr, Desc),
-            "seq" => (VarType::Attr, Seq),
-            "upper_seq" => (VarType::Text, UpperSeq),
-            "lower_seq" => (VarType::Text, LowerSeq),
-            "seqhash" => {
-                let ignorecase = func.opt_arg_as::<bool>(0).transpose()?.unwrap_or(false);
-                (VarType::Int, SeqHash { ignorecase })
+    fn register(
+        &mut self,
+        name: &str,
+        args: &[Arg],
+        builder: &mut VarBuilder,
+    ) -> Result<Option<(usize, Option<VarType>)>, String> {
+        Ok(GeneralVar::from_func(name, args)?.map(|(var, out_type)| {
+            use GeneralVar::*;
+            match var {
+                Filename => self.path_info.path = Some(vec![]),
+                Filestem => self.path_info.stem = Some(vec![]),
+                Extension => self.path_info.ext = Some(vec![]),
+                Dirname => self.path_info.dir = Some(vec![]),
+                _ => {}
             }
-            "seqhash_rev" => {
-                let ignorecase = func.opt_arg_as::<bool>(0).transpose()?.unwrap_or(false);
-                (VarType::Int, SeqHashRev { ignorecase })
-            }
-            "seqhash_both" => {
-                let ignorecase = func.opt_arg_as::<bool>(0).transpose()?.unwrap_or(false);
-                (VarType::Int, SeqHashBoth { ignorecase })
-            }
-            "num" => (VarType::Int, Num),
-            "path" => {
-                self.path_info.path = Some(vec![]);
-                (VarType::Text, InPath)
-            }
-            "filename" => {
-                self.path_info.name = Some(vec![]);
-                (VarType::Text, InName)
-            }
-            "filestem" => {
-                self.path_info.stem = Some(vec![]);
-                (VarType::Text, InStem)
-            }
-            "extension" => {
-                self.path_info.ext = Some(vec![]);
-                (VarType::Text, Ext)
-            }
-            "dirname" => {
-                self.path_info.dir = Some(vec![]);
-                (VarType::Text, Dir)
-            }
-            "default_ext" => (VarType::Text, DefaultExt),
-            _ => unreachable!(), // shouldn't happen
-        };
-        self.vars.push((var, b.symbol_id()));
-        Ok(Some(vt))
+            let symbol_id: usize = builder.store_register(var, &mut self.vars);
+            (symbol_id, out_type)
+        }))
     }
 
     fn has_vars(&self) -> bool {
         !self.vars.is_empty()
     }
 
-    fn set(
+    fn set_record(
         &mut self,
         record: &dyn Record,
         symbols: &mut SymbolTable,
         _: &mut Attributes,
         _: &mut QualConverter,
-    ) -> CliResult<()> {
-        self.num += 1;
-
-        for (var, id) in &mut self.vars {
+    ) -> Result<(), String> {
+        for (id, var) in self.vars.iter() {
             let sym = symbols.get_mut(*id).inner_mut();
+            use GeneralVar::*;
             match var {
                 Id => sym.set_attr(RecordAttr::Id),
                 Desc => sym.set_attr(RecordAttr::Desc),
@@ -231,38 +174,44 @@ impl VarProvider for GeneralVars {
                     }
                     sym.set_text(&self.seq_cache);
                 }
-                SeqHash { ignorecase } => {
+                Seqhash { ignorecase } => {
                     let hash = seqhash(record, &mut self.seq_cache, *ignorecase);
                     sym.set_int(hash as i64);
                 }
-                SeqHashRev { ignorecase } => {
+                SeqhashRev { ignorecase } => {
                     let ty = self.seqtype_helper.get_or_guess(record)?;
                     let hash = seqhash_rev(record, &mut self.seq_cache, ty, *ignorecase)?;
                     sym.set_int(hash as i64);
                 }
-                SeqHashBoth { ignorecase } => {
+                SeqhashBoth { ignorecase } => {
                     let ty = self.seqtype_helper.get_or_guess(record)?;
                     let hash = seqhash_both(record, &mut self.seq_cache, ty, *ignorecase)?;
                     sym.set_int(hash as i64);
                 }
-                Num => sym.set_int(self.num as i64),
-                InPath => sym.set_text(self.path_info.path.as_ref().unwrap()),
-                InName => sym.set_text(self.path_info.name.as_ref().unwrap()),
-                InStem => sym.set_text(self.path_info.stem.as_ref().unwrap()),
-                Ext => sym.set_text(self.path_info.ext.as_ref().unwrap()),
-                Dir => sym.set_text(self.path_info.dir.as_ref().unwrap()),
+                SeqNum => sym.set_int((self.idx + 1) as i64),
+                SeqIdx => sym.set_int(self.idx as i64),
+                Path => sym.set_text(self.path_info.path.as_ref().unwrap()),
+                Filename => sym.set_text(self.path_info.name.as_ref().unwrap()),
+                Filestem => sym.set_text(self.path_info.stem.as_ref().unwrap()),
+                Extension => sym.set_text(self.path_info.ext.as_ref().unwrap()),
+                Dirname => sym.set_text(self.path_info.dir.as_ref().unwrap()),
                 DefaultExt => sym.set_text(&self.path_info.out_ext),
             }
         }
+        self.idx += 1;
         Ok(())
     }
 
-    fn init(&mut self, out_opts: &OutputOptions) -> CliResult<()> {
-        self.path_info.out_ext = out_opts.format.default_ext().as_bytes().to_owned();
+    fn init_output(&mut self, out_opts: &OutputOptions) -> Result<(), String> {
+        out_opts
+            .format
+            .default_ext()
+            .as_bytes()
+            .clone_into(&mut self.path_info.out_ext);
         Ok(())
     }
 
-    fn new_input(&mut self, in_opts: &InputOptions) -> CliResult<()> {
+    fn init_input(&mut self, in_opts: &InputOptions) -> Result<(), String> {
         if let Some(ref mut path) = self.path_info.path {
             write_os_str(in_opts, path, |p| Some(p.as_os_str()))
         }
@@ -280,7 +229,7 @@ impl VarProvider for GeneralVars {
 }
 
 fn seqhash(record: &dyn Record, seq_buf: &mut Vec<u8>, ignorecase: bool) -> u64 {
-    let mut hasher = SeqHasher::default();
+    let mut hasher = Seqhasher::default();
     for seq in record.seq_segments() {
         let seq = if ignorecase {
             seq_buf.clear();
@@ -300,12 +249,12 @@ fn seqhash_rev(
     seq_buf: &mut Vec<u8>,
     seqtype: SeqType,
     ignorecase: bool,
-) -> CliResult<u64> {
+) -> Result<u64, String> {
     reverse_complement(record.seq_segments().rev(), seq_buf, seqtype)?;
     if ignorecase {
         seq_buf.make_ascii_uppercase();
     }
-    Ok(hash_one(&seq_buf))
+    Ok(hash_one(seq_buf))
 }
 
 fn seqhash_both(
@@ -313,7 +262,7 @@ fn seqhash_both(
     seq_buf: &mut Vec<u8>,
     seqtype: SeqType,
     ignorecase: bool,
-) -> CliResult<u64> {
+) -> Result<u64, String> {
     let hash1 = seqhash(record, seq_buf, ignorecase);
     let hash2 = seqhash_rev(record, seq_buf, seqtype, ignorecase)?;
     Ok(hash1.wrapping_add(hash2))

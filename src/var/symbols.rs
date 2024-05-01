@@ -457,6 +457,7 @@ impl fmt::Display for OptValue {
 /// Simple symbol table for storing values of different types,
 /// serving as the intermediate value store for all variables
 /// and expressions.
+// TODO: nicer API: set_int(Some(x)) or set_int(None), set_float(...), etc. (but quite wordy...)
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable(Vec<OptValue>);
 
@@ -486,13 +487,4 @@ impl SymbolTable {
     pub fn get_mut(&mut self, id: usize) -> &mut OptValue {
         self.0.get_mut(id).unwrap()
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum VarType {
-    Text,
-    Int,
-    Float,
-    Bool,
-    Attr,
 }

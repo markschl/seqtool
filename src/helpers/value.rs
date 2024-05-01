@@ -29,7 +29,7 @@ impl SimpleValue {
         }
     }
 
-    pub fn into_symbol(&self, sym: &mut OptValue) {
+    pub fn write_to_symbol(&self, sym: &mut OptValue) {
         match self {
             SimpleValue::Text(t) => sym.inner_mut().set_text(t),
             SimpleValue::Number(n) => sym.inner_mut().set_float(n.0),

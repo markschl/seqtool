@@ -7,11 +7,13 @@ use crate::helpers::heap_merge::HeapMerge;
 
 use super::{Item, MemSorter};
 
+pub type SortHandle = TmpHandle<Item<Box<[u8]>>>;
+
 #[derive(Debug)]
 pub struct FileSorter {
     mem_sorter: MemSorter,
     tmp_store: TmpStore,
-    handles: Vec<TmpHandle<Item<Box<[u8]>>>>,
+    handles: Vec<SortHandle>,
     n_written: usize,
 }
 

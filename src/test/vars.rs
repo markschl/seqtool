@@ -3,6 +3,17 @@ use super::*;
 static ATTR_FA: &str = ">seq;a=0 b=3\nATGC\n";
 
 #[test]
+fn general() {
+    let fa = ">seq1\nSEq\n>seq2\nsEq\n>seq3\nSEQ\n";
+    let t = Tester::new();
+    t.cmp(
+        &[".", "--to-tsv", "id,seq_num,seq_idx,upper_seq,lower_seq"],
+        fa,
+        "seq1\t1\t0\tSEQ\tseq\nseq2\t2\t1\tSEQ\tseq\nseq3\t3\t2\tSEQ\tseq\n",
+    );
+}
+
+#[test]
 fn attrs() {
     let t = Tester::new();
     t.cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")
@@ -46,7 +57,7 @@ fn attrs() {
 
     #[cfg(feature = "expr")]
     t.cmp(
-        &[".", "--to-tsv", "{Num(attr('p'))+1}"],
+        &[".", "--to-tsv", "{num(attr('p'))+1}"],
         *FASTA,
         "3\n2\n11\n12\n",
     )
@@ -192,7 +203,7 @@ fn meta_delim() {
 }
 
 static META_HEADER: &str = "
-id\tnum
+id\tnumber
 seq1\t2
 seq0\t1
 seq3\t10
@@ -208,7 +219,7 @@ fn meta_header() {
         // activate auto-header
         let out = "2\t2\n1\t1\n10\t10\n11\t11\n";
         t.cmp(
-            &[".", "-m", p, "--to-tsv", "{meta(2)},{meta(num)}"],
+            &[".", "-m", p, "--to-tsv", "{meta(2)},{meta(number)}"],
             *FASTA,
             out,
         );
@@ -295,14 +306,14 @@ fn meta_multi_file() {
         t.temp_file("meta", Some(META_HEADER), |f2, _| {
             t.temp_file("meta", Some(META_MISSING), |f3, _| {
                 // three files
-                let fields = "meta(1, 2),meta(2, 2),opt_meta(3, 2)";
+                let fields = "meta(2, 1),meta(2, 2),opt_meta(2, 3)";
                 let out = "2\t2\t2\n1\t1\t\n10\t10\t10\n11\t11\t11\n";
                 t.cmp(
                     &[".", "-m", f1, "-m", f2, "-m", f3, "--to-tsv", fields],
                     *FASTA,
                     out,
                 );
-                let fields = "meta(1, 2),meta(2, 2),meta(3, 2)";
+                let fields = "meta(2, 1),meta(2, 2),meta(2, 3)";
                 let msg = "not found in metadata";
                 t.fails(
                     &[".", "-m", f1, "-m", f2, "-m", f3, "--to-tsv", fields],
@@ -313,14 +324,7 @@ fn meta_multi_file() {
                 let msg = "Invalid metadata file no. requested: 0";
                 t.fails(&[".", "-m", f1, "--to-tsv", "has_meta(0)"], *FASTA, msg);
                 let msg = "Metadata file no. 2 was requested";
-                t.fails(&[".", "-m", f1, "--to-tsv", "meta(2, 1)"], *FASTA, msg);
-                // file number not supplied
-                let msg = "Please specify the file number as first argument";
-                t.fails(
-                    &[".", "-m", f1, "-m", f2, "--to-tsv", "meta(1)"],
-                    *FASTA,
-                    msg,
-                );
+                t.fails(&[".", "-m", f1, "--to-tsv", "meta(1, 2)"], *FASTA, msg);
             });
         });
     });

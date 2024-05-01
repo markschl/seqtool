@@ -7,7 +7,6 @@ use rquickjs::{
 };
 // use rquickjs::{embed, loader::Bundle};
 
-use crate::error::{CliError, CliResult};
 use crate::io::Record;
 use crate::var::symbols::{OptValue, SymbolTable, Value};
 
@@ -17,22 +16,24 @@ fn to_js_value<'a>(
     value: Option<&Value>,
     record: &dyn Record,
     ctx: Ctx<'a>,
-) -> CliResult<rquickjs::Value<'a>> {
-    let out = if let Some(v) = value {
+) -> Result<rquickjs::Value<'a>, String> {
+    let res = if let Some(v) = value {
         match v {
-            Value::Bool(v) => v.get().into_js(&ctx)?,
-            Value::Int(v) => v.get().into_js(&ctx)?,
-            Value::Float(v) => v.get().into_js(&ctx)?,
-            Value::Text(v) => v.as_str(record, |s| s.into_js(&ctx))??,
-            Value::Attr(v) => v.with_str(record, |v| v.into_js(&ctx))??,
+            Value::Bool(v) => v.get().into_js(&ctx),
+            Value::Int(v) => v.get().into_js(&ctx),
+            Value::Float(v) => v.get().into_js(&ctx),
+            Value::Text(v) => v.as_str(record, |s| s.into_js(&ctx))?,
+            Value::Attr(v) => v
+                .with_str(record, |v| v.into_js(&ctx))
+                .map_err(|e| e.to_string())?,
         }
     } else {
-        ().into_js(&ctx)?
+        ().into_js(&ctx)
     };
-    Ok(out)
+    res.map_err(|e| e.to_string())
 }
 
-fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> CliResult<bool> {
+fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> Result<bool, String> {
     let ty = v.type_of();
     let mut is_bool = false;
     match ty {
@@ -101,7 +102,7 @@ impl Default for Context {
 }
 
 impl ExprContext for Context {
-    fn init(&mut self, init_code: Option<&str>) -> CliResult<()> {
+    fn init(&mut self, init_code: Option<&str>) -> Result<(), String> {
         // println!("init: {:?}", init_code);
         self.context.with(|ctx: Ctx<'_>| {
             ctx.eval(JS_INCLUDE.as_bytes())
@@ -110,7 +111,7 @@ impl ExprContext for Context {
                 ctx.eval(code.as_bytes())
                     .map_err(|e| obtain_exception(e, ctx.clone()))?;
             }
-            Ok::<_, CliError>(())
+            Ok::<_, String>(())
         })?;
         Ok(())
     }
@@ -119,7 +120,7 @@ impl ExprContext for Context {
     //     self.vars.clear();
     // }
 
-    fn register(&mut self, var: &Var) -> CliResult<()> {
+    fn register(&mut self, var: &Var) -> Result<(), String> {
         if !self.vars.iter().any(|(v, _)| *v == var.symbol_id) {
             self.context.with(|ctx| {
                 let atom = Persistent::save(&ctx, Atom::from_str(ctx.clone(), &var.name).unwrap());
@@ -129,11 +130,11 @@ impl ExprContext for Context {
         Ok(())
     }
 
-    fn fill(
+    fn next_record(
         &mut self,
         symbols: &SymbolTable,
         record: &dyn Record,
-    ) -> Result<(), (usize, CliError)> {
+    ) -> Result<(), (usize, String)> {
         // copy values from symbol table to context
         // eprintln!("fill {:?}", symbols);
         self.context.with(|ctx| {
@@ -150,11 +151,11 @@ impl ExprContext for Context {
 }
 
 #[derive(Debug, Default)]
-pub struct Expr {
+pub struct JsExpr {
     func: Option<Persistent<Function<'static>>>,
 }
 
-impl Expression for Expr {
+impl Expression for JsExpr {
     type Context = Context;
 
     fn register(
@@ -162,7 +163,7 @@ impl Expression for Expr {
         expr_id: usize,
         expr: &str,
         engine: &mut Self::Context,
-    ) -> CliResult<()> {
+    ) -> Result<(), String> {
         // println!("register js {}", expr);
         let fn_name = format!("____eval_{}", expr_id);
         let func = engine.context.with(|ctx| {
@@ -185,7 +186,7 @@ impl Expression for Expr {
         Ok(())
     }
 
-    fn eval(&mut self, out: &mut OptValue, engine: &mut Self::Context) -> CliResult<()> {
+    fn eval(&mut self, out: &mut OptValue, engine: &mut Self::Context) -> Result<(), String> {
         // println!("eval js");
         engine.context.with(|ctx| {
             let _func = self.func.clone().unwrap().restore(&ctx.clone()).unwrap();
@@ -194,14 +195,8 @@ impl Expression for Expr {
                 .map_err(|e| obtain_exception(e, ctx.clone()).to_string())?;
             // println!("res {:?}", res);
             write_value(&res, out)?;
-            Ok::<_, CliError>(())
+            Ok::<_, String>(())
         })
-    }
-}
-
-impl From<rquickjs::Error> for CliError {
-    fn from(err: rquickjs::Error) -> CliError {
-        CliError::Other(format!("{}", err))
     }
 }
 

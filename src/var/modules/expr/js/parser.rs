@@ -1,539 +1,26 @@
 //! Simple JavaScript source parser for recognizing variables/functions
 //! and replacing them with placeholder variables.
 //! It *should* not fail with any valid JavaScript (otherwise there is a bug),
-//! except for code containing literal /regexp/ notation, which is not supported,
-//! since it is difficult to correctly parse without any knowledge
-//! of the context.
-//!
-//! The module also offers functions for parsing 'seqtool'-like variables/functions
-//! (same as JS parser) and 'variable strings'.
-//! Therefore, some functions of this module are still used without the "expr" feature.
+//! except for some cases described in the `PseudoAst` documentation,
+//! such as literal /regexp/ notation.
 
-use std::ops::Range;
+use std::fmt;
+use std::fs::read_to_string;
 
-use winnow::ascii::{multispace0, multispace1, space0};
-use winnow::combinator::{
-    alt, cond, delimited, eof, opt, peek, preceded, repeat, separated, terminated,
-};
-use winnow::stream::{AsChar, Compare, FindSlice, Stream, StreamIsPartial};
-use winnow::token::{any, one_of, take_till, take_until, take_while};
+use phf::{phf_set, Set};
+use winnow::ascii::{multispace0, multispace1};
+use winnow::combinator::{alt, delimited, opt, preceded, repeat};
+use winnow::stream::Location;
+use winnow::token::{one_of, take_till, take_until};
 use winnow::{Located, PResult, Parser};
 
-use crate::error::{CliError, CliResult};
-use crate::var::func::Func;
+use crate::var::parser::{
+    name, some_value, string, string_fragment, var_or_func, Arg, LocatedStream, StrStream, VarFunc,
+    VarStringParseErr,
+};
 
-/// Variable string parts, which form a whole variable string if ordered in a sequence.
-/// The `F` parameter indicates the 'function' type. Either a `Fragment` (obtained from a first parsing step,
-/// where the focus is only on valid syntax), or a `Func` type (obtained in a second step, further validating
-/// the function name/args).
-/// The function/expression syntax may still be invalid. Variable/function registration will only be done
-/// when constructing a `VarString` with `VarString::from_parsed()`.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ParsedVarStringSegment<'a, F> {
-    #[cfg(feature = "expr")]
-    Expr(&'a str),
-    #[cfg(feature = "expr")]
-    SourceFile(&'a str),
-    Var(F),
-    VarOrText(F, &'a str),
-    Text(&'a str),
-}
-
-impl<'a> TryFrom<ParsedVarStringSegment<'a, Fragment<'a>>> for ParsedVarStringSegment<'a, Func> {
-    type Error = String;
-
-    fn try_from(segment: ParsedVarStringSegment<'a, Fragment<'a>>) -> Result<Self, String> {
-        Ok(match segment {
-            #[cfg(feature = "expr")]
-            ParsedVarStringSegment::Expr(s) => ParsedVarStringSegment::Expr(s),
-            #[cfg(feature = "expr")]
-            ParsedVarStringSegment::SourceFile(s) => ParsedVarStringSegment::SourceFile(s),
-            ParsedVarStringSegment::Var(f) => {
-                // var_or_func already made sure that the fragment is a var/function
-                let (name, args, _rng) = f.get_func().unwrap();
-                ParsedVarStringSegment::Var(st_func_from_parsed(name, args, true)?)
-            }
-            ParsedVarStringSegment::VarOrText(f, t) => {
-                let (name, args, _rng) = f.get_func().unwrap();
-                if let Ok(f) = st_func_from_parsed(name, args, true) {
-                    ParsedVarStringSegment::VarOrText(f, t)
-                } else {
-                    ParsedVarStringSegment::Text(t)
-                }
-            }
-            ParsedVarStringSegment::Text(s) => ParsedVarStringSegment::Text(s),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VarStringParseErr(String);
-
-impl VarStringParseErr {
-    #[inline(never)]
-    pub fn new(rest: &str) -> Self {
-        let mut rest = rest.to_string();
-        if rest.len() > 100 {
-            rest.truncate(100);
-            rest.push_str("...");
-        }
-        Self(rest)
-    }
-}
-
-impl std::fmt::Display for VarStringParseErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "Failed to parse the following string with variables/functions or JavaScript code: \
-            \n`{}`\n\
-            Make sure to enclose variables/functions or expressions in {{ brackets }}, \
-            e.g. {{ id }} or {{ attr('a') }} or {{ num + 1 }}, or {{ file:path/to/script.js }}. \
-            Ensure that every parenthesis '{{' is closed with '}}' \
-            and check for syntax errors in JavaScript expressions. \
-            Avoid Javascript /regex/ literals (`new RegExp(\"regex\")` instead). \
-            General Javascript help: \
-            https://developer.mozilla.org/en-US/docs/Web/JavaScript/Language_overview \
-            ",
-            self.0
-        )
-    }
-}
-
-impl From<VarStringParseErr> for CliError {
-    fn from(e: VarStringParseErr) -> Self {
-        CliError::Other(e.to_string())
-    }
-}
-
-pub fn parse_varstring(text: &str, raw_var: bool) -> CliResult<Vec<ParsedVarStringSegment<Func>>> {
-    let mut input = Located::new(text);
-    let frags = varstring(raw_var, None).parse_next(&mut input).unwrap();
-    if input.len() > 0 {
-        return Err(VarStringParseErr::new(&input).into());
-    }
-    let frags = frags
-        .into_iter()
-        .map(|f| f.try_into())
-        .collect::<Result<_, _>>()?;
-    Ok(frags)
-}
-
-pub fn parse_varstring_list(
-    text: &str,
-    raw_var: bool,
-) -> CliResult<Vec<Vec<ParsedVarStringSegment<Func>>>> {
-    let mut input = Located::new(text);
-    let frags = varstring_list(raw_var).parse_next(&mut input).unwrap();
-    if input.len() > 0 {
-        return Err(VarStringParseErr::new(&input).into());
-    }
-    let frags = frags
-        .into_iter()
-        .map(|f| {
-            f.into_iter()
-                .map(|f| f.try_into())
-                .collect::<Result<_, _>>()
-        })
-        .collect::<Result<_, _>>()?;
-    Ok(frags)
-}
-
-fn varstring<'a>(
-    raw_var: bool,
-    stop_at: Option<char>,
-) -> impl FnMut(&mut Located<&'a str>) -> PResult<Vec<ParsedVarStringSegment<'a, Fragment<'a>>>> {
-    move |input: &mut Located<&'a str>| {
-        if !raw_var {
-            _varstring(stop_at).parse_next(input)
-        } else {
-            let res = alt((
-                terminated(
-                    delimited(multispace0, var_or_func, multispace0)
-                        .with_recognized()
-                        .map(|(f, r)| vec![ParsedVarStringSegment::VarOrText(f, r)]),
-                    // ensure that the next char is either a separator (stop_at) or EOF
-                    peek(alt((
-                        // TODO: quite complicated, '\0' never used
-                        //       and verify() makes sure that the parser fails if stop_at is None
-                        cond(stop_at.is_some(), stop_at.unwrap_or('\0'))
-                            .verify(|o| o.is_some())
-                            .recognize(),
-                        eof,
-                    ))),
-                ),
-                _varstring(stop_at),
-            ))
-            .parse_next(input)?;
-            Ok(res)
-        }
-    }
-}
-
-fn varstring_list<'a>(
-    raw_var: bool,
-) -> impl FnMut(&mut Located<&'a str>) -> PResult<Vec<Vec<ParsedVarStringSegment<'a, Fragment<'a>>>>>
-{
-    move |input: &mut Located<&'a str>| {
-        separated(1.., varstring(raw_var, Some(',')), ',').parse_next(input)
-    }
-}
-
-fn _varstring<'a>(
-    stop_at: Option<char>,
-) -> impl FnMut(&mut Located<&'a str>) -> PResult<Vec<ParsedVarStringSegment<'a, Fragment<'a>>>> {
-    move |input: &mut Located<&'a str>| repeat(.., varstring_fragment(stop_at)).parse_next(input)
-}
-
-/// Succeeds only if variable (generally identifier) or function-like syntax encountered
-#[inline(never)]
-fn var_or_func<'a>(input: &mut Located<&'a str>) -> PResult<Fragment<'a>> {
-    item.verify_map(|opt_frag| {
-        opt_frag.and_then(|f| match f {
-            Fragment::Func(..) | Fragment::Name(..) => Some(f),
-            _ => None,
-        })
-    })
-    .parse_next(input)
-}
-
-/// Variable/function string parser
-fn expr_fragment<'a>(
-    input: &mut Located<&'a str>,
-) -> PResult<ParsedVarStringSegment<'a, Fragment<'a>>> {
-    alt((
-        // { expr:path.js }
-        preceded("file:", alt((string, take_until(1.., "}"))))
-            .map(|s| ParsedVarStringSegment::SourceFile(s.trim())),
-        // { expression }
-        statements.recognize().map(ParsedVarStringSegment::Expr),
-    ))
-    .parse_next(input)
-}
-
-/// Variable/function string parser
-fn varstring_fragment<'a>(
-    stop_at: Option<char>,
-) -> impl FnMut(&mut Located<&'a str>) -> PResult<ParsedVarStringSegment<'a, Fragment<'a>>> {
-    move |input: &mut Located<&'a str>| {
-        alt((
-            // { var } or { func(a, b) }
-            delimited(
-                ("{", space0),
-                alt((var_or_func.map(ParsedVarStringSegment::Var),)),
-                (space0, "}"),
-            ),
-            // {file:path.js} or { expression }
-            #[cfg(feature = "expr")]
-            delimited("{", expr_fragment, "}"),
-            // text
-            // TODO: escaping '{' not possible
-            take_till(1.., |c| {
-                c == '{' || stop_at.map(|s| c == s).unwrap_or(false)
-            })
-            .map(ParsedVarStringSegment::Text),
-        ))
-        .parse_next(input)
-    }
-}
-
-/// Simplified "AST" representation of a script, which is tailored
-/// towards approximately (but correctly) parsing the JavaScript syntax in order
-/// to be able to recognize internal seqtool variables/functions, which
-/// are used in the script.
-///
-/// The tree does not represent any relationships formed by operators,
-/// definitions and assignments. Statements within the same block are
-/// represented as as a sequence of elements (Fragment).
-/// The parser currently cannot recognize:
-/// - JavaScript RegExp literals
-///   (difficult or impossible? to parse without deeper knowledge of the context),
-/// - Unicode escape sequences \u... or \u{...} in variable/function names
-/// - Certain exotic Unicode characters that are not char::is_alphabetic()
-///
-/// The parser also cannot distinghish between function calls and function definitions,
-/// variable usage and variable assignments, etc. So, there should not be any
-/// variable or function definitions with the same name as seqtool variables/functions,
-/// this will lead to confusion.
-/// TODO: maybe try to recognize cases such as 'var id...' or 'function meta(...)' in the future and warn about those
-#[derive(Debug, Clone)]
-pub struct PseudoAst<'a> {
-    script: &'a str,
-    frags: Vec<Fragment<'a>>,
-}
-
-impl<'a> PseudoAst<'a> {
-    /// Extracts functions/variables from the script, calling `reg_fn` on every of those.
-    /// `reg_fn` should return the name of the placeholder variable, which is then
-    /// defined by 'seqtool' (functions are all replaced by static variables).
-    /// Returns the rewritten script.
-    /// `reg_fn` may return `None` if the variable/function is unknown
-    /// (meaning that it is likely a JavaScript function) or Some(Err("..."))
-    /// if the arguments are invalid.
-    pub fn rewrite<F, E>(&self, mut reg_fn: F) -> Result<String, E>
-    where
-        F: FnMut(&str, &[Fragment]) -> Option<Result<String, E>>,
-        E: From<String>,
-    {
-        let mut vars = Vec::new();
-        _obtain_vars(&self.frags, &mut vars, 0)?;
-        // sort by order of occurrence
-        vars.sort_by_key(|v| v.0.start);
-        // rewrite the script sequentially
-        let mut out = String::with_capacity(self.script.len());
-        let mut prev_end = 0;
-        for (rng, name, args) in vars {
-            if let Some(res) = reg_fn(name, args) {
-                let replacement = res?;
-                debug_assert!(rng.start >= prev_end);
-                out.push_str(&self.script[prev_end..rng.start]);
-                out.push_str(&replacement);
-                prev_end = rng.end;
-            }
-        }
-        out.push_str(&self.script[prev_end..]);
-        Ok(out)
-    }
-}
-
-fn _obtain_vars<'a>(
-    node: &'a [Fragment<'a>],
-    out: &mut Vec<(Range<usize>, &'a str, &'a [Fragment<'a>])>,
-    offset: usize,
-) -> Result<(), String> {
-    for frag in node {
-        if let Some((name, args, rng)) = frag.get_func() {
-            let rng = Range {
-                start: rng.start + offset,
-                end: rng.end + offset,
-            };
-            out.push((rng, name, args));
-        }
-        if let Fragment::Func(_, nested, _) | Fragment::Nested(nested) = frag {
-            _obtain_vars(nested, out, offset)?;
-        }
-        // Fragment::Regex(r, rng) => {
-        //     let mut loc = Located::new(*r);
-        //     if let Ok(frags) = _parse_script(&mut loc) {
-        //         if loc.is_empty() {
-        //             _get_vars(&frags, out, rng.start);
-        //         }
-        //     }
-        // }
-    }
-    Ok(())
-}
-
-/// Parses a script into a simplified AST, optimized for small binary size rather
-/// than speed or complex syntax recognition.
-/// Does *not* recognize /regex notation/, since it is difficult to parse.
-/// Returns Err(rest) if only part of the script was parsed.
-pub fn parse_script(script: &str) -> Result<PseudoAst<'_>, String> {
-    // parse the script
-    let mut input = Located::new(script);
-    let frags = _parse_script(&mut input).unwrap();
-    if input.len() > 0 {
-        return Err(input.to_string());
-    }
-    // dbg!(&frags);
-    Ok(PseudoAst { script, frags })
-}
-
-fn _parse_script<'a>(input: &mut Located<&'a str>) -> PResult<Vec<Fragment<'a>>> {
-    statements.parse_next(input)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Fragment<'a> {
-    // variable/function/class names
-    Name(&'a str, Range<usize>),
-    // any kind of operator
-    Operator(char),
-    // function calls or definitions, object construction
-    Func(&'a str, Vec<Fragment<'a>>, Range<usize>),
-    // reserved/builtin keyword
-    Builtin(&'a str),
-    // numeric literal,
-    Value(&'a str),
-    // string literal or part of a string
-    String(&'a str),
-    // list of statements in a block scope, list of function arguments,
-    // array elements, etc.
-    Nested(Vec<Fragment<'a>>),
-    // Regex(&'a str, Range<usize>),
-}
-
-impl<'a> Fragment<'a> {
-    fn get_func(&'a self) -> Option<(&'a str, &'a [Fragment<'a>], Range<usize>)> {
-        match self {
-            Fragment::Name(name, rng) => Some((name, [].as_slice(), rng.clone())),
-            Fragment::Func(name, args, rng) => {
-                if *name == "." {
-                    // '.' stands for member access (see member_access)
-                    return None;
-                }
-                Some((name, args.as_slice(), rng.clone()))
-            }
-            _ => None,
-        }
-    }
-}
-
-pub fn st_func_from_parsed(
-    name: &str,
-    args: &[Fragment<'_>],
-    is_simple: bool,
-) -> Result<Func, String> {
-    let str_args = args
-        .iter()
-        .map(|v| match v {
-            Fragment::Name(_, _) if !is_simple => Err(
-                "In expressions, unquoted function arguments are not allowed. \
-                    Please enclose strings in 'single' or \"double\" quotes.",
-            ),
-            Fragment::String(s) | Fragment::Name(s, _) | Fragment::Value(s) => Ok(s.to_string()),
-            Fragment::Builtin(s) if matches!(*s, "true" | "false") => Ok(s.to_string()),
-            _ => Err("Seqtool function arguments must be strings, numbers or booleans."),
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("Invalid function: '{}'. {}", name, e))?;
-    Ok(Func::new(name, &str_args))
-}
-
-trait StrStream<'a>:
-    Stream<Slice = &'a str, Token = char>
-    + StreamIsPartial
-    + Compare<&'a str>
-    + Compare<char>
-    + FindSlice<&'a str>
-    + FindSlice<char>
-{
-}
-
-impl<'a> StrStream<'a> for &'a str {}
-impl<'a> StrStream<'a> for Located<&'a str> {}
-
-/// "statement" (sequence of 'item' terminated by semicolon or comma;
-/// even though these are not generally interchangeable
-fn stmt<'a>(input: &mut Located<&'a str>) -> PResult<Option<Fragment<'a>>> {
-    item_terminated(&[';', ',']).parse_next(input)
-}
-
-/// List of "statements" (without ignored parts)
-#[inline(never)]
-fn statements<'a>(input: &mut Located<&'a str>) -> PResult<Vec<Fragment<'a>>> {
-    repeat(.., stmt)
-        .fold(Vec::new, |mut acc: Vec<_>, frag| {
-            if let Some(f) = frag {
-                acc.push(f)
-            }
-            acc
-        })
-        .parse_next(input)
-}
-
-fn item_terminated<'a>(
-    delim: &[char],
-) -> impl FnMut(&mut Located<&'a str>) -> PResult<Option<Fragment<'a>>> + '_ {
-    move |input: &mut Located<&'a str>| {
-        let o = input.eof_offset();
-        let e = opt_item.parse_next(input)?;
-        if input.eof_offset() == o {
-            // make sure output is not empty
-            one_of(delim).void().parse_next(input)?;
-        } else {
-            opt(one_of(delim)).void().parse_next(input)?;
-        }
-        Ok(e)
-    }
-}
-
-fn opt_item<'a>(input: &mut Located<&'a str>) -> PResult<Option<Fragment<'a>>> {
-    alt((item, multispace0.map(|_| None))).parse_next(input)
-}
-
-/// Javascript "items" (keywords, variables, operators, blocks, function calls, arrays, etc)
-#[inline(never)]
-fn item<'a>(input: &mut Located<&'a str>) -> PResult<Option<Fragment<'a>>> {
-    alt((
-        alt((multispace1, comment, inline_comment)).map(|_| None),
-        alt((
-            block.map(Fragment::Nested),
-            index_list.map(Fragment::Nested),
-            parens_list.map(Fragment::Nested),
-            operator.map(Fragment::Operator),
-            string.map(Fragment::String),
-            template_string.map(Fragment::Nested),
-            func.with_span()
-                .map(|((name, args), s)| Fragment::Func(name, args, s)),
-            name.with_span().map(|(v, s)| {
-                if BUILTINS.iter().any(|b| b == &v) {
-                    Fragment::Builtin(v)
-                } else {
-                    Fragment::Name(v, s)
-                }
-            }),
-            // regex.with_span().map(|(r, s)| Fragment::Regex(r, s)),
-            member_access
-                .with_span()
-                .map(|(m, rng)| Fragment::Func(".", vec![m], rng)),
-            some_value.map(Fragment::Value),
-        ))
-        .map(Some),
-    ))
-    .parse_next(input)
-}
-
-// block scopes (function body, class definition, etc.), object notation
-fn block<'a>(input: &mut Located<&'a str>) -> PResult<Vec<Fragment<'a>>> {
-    delimited('{', statements, '}').parse_next(input)
-}
-
-// arrays: [a, b, c], array indexing, etc.
-// For simplicity, we allow semicolons as well, even though they are invalid in JS
-fn index_list<'a>(input: &mut Located<&'a str>) -> PResult<Vec<Fragment<'a>>> {
-    delimited('[', statements, ']').parse_next(input)
-}
-
-// parens in math expressions, function arguments, etc.
-fn parens_list<'a>(input: &mut Located<&'a str>) -> PResult<Vec<Fragment<'a>>> {
-    delimited('(', statements, ')').parse_next(input)
-}
-
-// .member or .member_fn()
-fn member_access<'a>(input: &mut Located<&'a str>) -> PResult<Fragment<'a>> {
-    (
-        ".",
-        alt((
-            func.with_span()
-                .map(|((name, args), s)| Fragment::Func(name, args, s)),
-            name.with_span().map(|(v, s)| Fragment::Name(v, s)),
-        )),
-    )
-        .map(|(_, member)| member)
-        .parse_next(input)
-}
-
-// func_name(a, b) or if/for/while, etc.
-#[inline(never)]
-fn func<'a>(input: &mut Located<&'a str>) -> PResult<(&'a str, Vec<Fragment<'a>>)> {
-    (name, parens_list).parse_next(input)
-}
-
-/// Matches valid variable names, as well as function/class names,
-/// except for \u escape sequences
-/// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#identifiers
-#[inline(never)]
-fn name<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
-    (
-        take_while(1, |c: char| c.is_alphabetic() || c == '_' || c == '$'), // must not start with number
-        take_while(0.., |c: char| c.is_alphanumeric() || c == '_' || c == '$'),
-    )
-        .recognize()
-        .parse_next(input)
-}
-
-static BUILTINS: &[&str] = &[
+/// list of JavaScript keywords that cannot be variable names
+static BUILTINS: Set<&'static str> = phf_set! {
     "null",
     "undefined",
     "true",
@@ -587,7 +74,330 @@ static BUILTINS: &[&str] = &[
     "var",
     "let",
     "const",
-];
+};
+
+impl std::fmt::Display for VarStringParseErr {
+    #[cold]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Failed to parse the following string with variables/functions or JavaScript code: \
+            \n`{}`\n\
+            Make sure to correctly close all parentheses and {{ brackets }} \
+            indicating a variable/function or JavaScript expression. \
+            e.g. {{ id }} or {{ attr('a') }} or {{ seq_num + 1 }}, or {{ file:path/to/script.js }}. \
+            Avoid Javascript /regex/ literals (use `new RegExp(\"regex\")` instead). \
+            General Javascript help: \
+            https://developer.mozilla.org/en-US/docs/Web/JavaScript/Language_overview \
+            ",
+            self.0
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expression<'a> {
+    Expr(SimpleAst<'a>),
+    SourceFile(String),
+}
+
+impl<'a> fmt::Display for Expression<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expression::Expr(expr) => write!(f, "{}", expr.script),
+            Expression::SourceFile(path) => write!(f, "file:{}", path),
+        }
+    }
+}
+
+impl<'a> Expression<'a> {
+    pub fn parse(script: &'a str) -> Result<Self, VarStringParseErr> {
+        let mut located = Located::new(script);
+        let expr = expression
+            .parse_next(&mut located)
+            .map_err(|_| VarStringParseErr(located.to_string()))?;
+        if located.len() > 0 {
+            return Err(VarStringParseErr(located.to_string()));
+        }
+        Ok(expr)
+    }
+
+    pub fn with_tree<F, O>(&self, mut func: F) -> Result<O, String>
+    where
+        F: FnMut(&SimpleAst) -> O,
+    {
+        match self {
+            Expression::Expr(t) => Ok(func(t)),
+            Expression::SourceFile(path) => {
+                let script =
+                    read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+                let ast = SimpleAst::from_script(&script).map_err(|e| e.to_string())?;
+                Ok(func(&ast))
+            }
+        }
+    }
+}
+
+/// Simplified "AST" representation of a script, which is tailored
+/// towards approximately (but correctly) parsing the JavaScript syntax
+///
+/// The tree does not represent any relationships formed by operators,
+/// definitions and assignments. Statements within the same block are
+/// represented as as a sequence of elements (Fragment).
+/// The parser currently cannot recognize:
+/// - JavaScript RegExp literals
+///   (difficult or impossible? to parse without deeper knowledge of the context),
+/// - Unicode escape sequences \u... or \u{...} in variable/function names
+/// - Certain exotic Unicode characters that are not char::is_alphabetic()
+///
+/// The parser also cannot distinghish between function calls and function definitions,
+/// variable usage and variable assignments, etc. So, there should not be any
+/// variable or function definitions with the same name as seqtool variables/functions,
+/// this will lead to confusion.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SimpleAst<'a> {
+    pub script: &'a str,
+    pub tree: Fragment<'a>,
+}
+
+impl<'a> SimpleAst<'a> {
+    /// Parses a script into a simplified AST, optimized for simplicity rather
+    /// than speed or complex syntax recognition.
+    /// Does *not* recognize /regex notation/, since it is difficult to parse.
+    /// Returns Err(rest) if only part of the script was parsed.
+    pub fn from_script(script: &'a str) -> Result<Self, VarStringParseErr> {
+        let mut input = script;
+        let ast = expr
+            .parse_next(&mut input)
+            .map_err(|_| VarStringParseErr(input.to_string()))?;
+        dbg!(input, &ast);
+        if !input.is_empty() {
+            return Err(VarStringParseErr(input.to_string()));
+        }
+        Ok(ast)
+    }
+
+    /// Extracts functions/variables from the script, calling `reg_fn` on every of those.
+    /// `reg_fn` should return the name of the placeholder variable, which is then
+    /// defined by 'seqtool' (functions are all replaced by static variables).
+    /// Returns the rewritten script.
+    /// `reg_fn` may return `None` if the variable/function is unknown
+    /// (meaning that it is likely a JavaScript function) or Some(Err("..."))
+    /// if the arguments are invalid.
+    pub fn rewrite<F>(&self, mut register_fn: F) -> Result<String, String>
+    where
+        F: FnMut(&VarFunc) -> Result<Option<String>, String>,
+    {
+        let mut vars = Vec::new();
+        _collect_functions(&self.tree, &mut register_fn, &mut vars)?;
+        // sort by order of occurrence
+        vars.sort_by_key(|(v, _)| v.range.start);
+        // rewrite the script sequentially
+        let mut out = String::with_capacity(self.script.len());
+        let mut prev_end = 0;
+        // TODO: cannot use `replace_iter` because the replacements would not be accessible
+        for (func, replacement) in vars {
+            debug_assert!(func.range.start >= prev_end);
+            out.push_str(&self.script[prev_end..func.range.start]);
+            out.push_str(&replacement);
+            prev_end = func.range.end;
+        }
+        out.push_str(&self.script[prev_end..]);
+        Ok(out)
+    }
+}
+
+/// Collects all variables/functions from the pseudo AST into a vector of
+/// (range, name, argument) tuples
+fn _collect_functions<'a, F>(
+    node: &Fragment<'a>,
+    reg_fn: &mut F,
+    out: &mut Vec<(VarFunc<'a>, String)>,
+) -> Result<(), String>
+where
+    F: FnMut(&VarFunc) -> Result<Option<String>, String>,
+{
+    match node {
+        Fragment::Func(func) => {
+            if let Some(replacement) = reg_fn(func)? {
+                out.push((func.clone(), replacement));
+            } else {
+                for arg in func.args.as_deref().unwrap_or(&[]) {
+                    if let Arg::Func(func) = arg {
+                        _collect_functions(&Fragment::Func(func.clone()), reg_fn, out)?;
+                    }
+                }
+            }
+        }
+        // All remaining function-like constructs and nested blocks that are
+        // clearly not 'seqtool-like' functions
+        Fragment::FuncLike { args: nested, .. } | Fragment::Nested(nested) => {
+            for item in nested {
+                _collect_functions(item, reg_fn, out)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Variable/function string parser
+pub fn expression<'a, S: StrStream<'a>>(input: &mut S) -> PResult<Expression<'a>> {
+    alt((
+        // { file:path/to/script.js }
+        preceded(
+            "file:",
+            alt((
+                string.map(|s| s.to_string()),
+                take_until(1.., "}").map(|s: &str| s.to_string()),
+            )),
+        )
+        .map(|s| Expression::SourceFile(s.trim().to_string())),
+        // { expression }
+        expr.map(Expression::Expr),
+    ))
+    .parse_next(input)
+}
+
+/// Parses a script into a simplified AST, optimized for small binary size rather
+/// than speed or complex syntax recognition.
+/// Does *not* recognize /regex notation/, since it is difficult to parse.
+/// Returns Err(rest) if only part of the script was parsed.
+pub fn expr<'a, S: StrStream<'a>>(input: &mut S) -> PResult<SimpleAst<'a>> {
+    let mut located = Located::new(input.clone());
+    let (mut frags, script) = statements.with_recognized().parse_next(&mut located)?;
+    input.next_slice(located.location());
+    let tree = if frags.len() == 1 {
+        frags.pop().unwrap()
+    } else {
+        Fragment::Nested(frags)
+    };
+    Ok(SimpleAst { script, tree })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Fragment<'a> {
+    /// reserved/builtin keyword or variable/function/class name
+    Identifier(&'a str),
+    /// any kind of operator
+    Operator(char),
+    /// Functions/identifiers that match the 'seqtool-style' variable/functions
+    /// syntax
+    /// (we don't know this for sure until we try to register them)
+    Func(VarFunc<'a>),
+    // Other function calls or definitions, object construction
+    // or member access (we use '.' as function name there)
+    FuncLike {
+        name: &'a str,
+        args: Vec<Fragment<'a>>,
+    },
+    // numeric and string literals,
+    Literal(&'a str),
+    // list of statements in a block scope, template string parts,
+    // array elements, etc.
+    Nested(Vec<Fragment<'a>>),
+}
+
+/// "statement" (sequence of 'item' terminated by semicolon or comma;
+/// even though these are not generally interchangeable
+fn stmt<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>> {
+    item_terminated(&[';', ',']).parse_next(input)
+}
+
+/// List of "statements" (without ignored parts)
+#[inline(never)]
+fn statements<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+    repeat(.., stmt)
+        .fold(Vec::new, |mut acc: Vec<_>, frag| {
+            if let Some(f) = frag {
+                acc.push(f)
+            }
+            acc
+        })
+        .parse_next(input)
+}
+
+fn item_terminated<'a, S: LocatedStream<'a>>(
+    delim: &[char],
+) -> impl FnMut(&mut S) -> PResult<Option<Fragment<'a>>> + '_ {
+    move |input: &mut S| {
+        let o = input.eof_offset();
+        let e = opt_item.parse_next(input)?;
+        if input.eof_offset() == o {
+            // make sure output is not empty
+            one_of(delim).void().parse_next(input)?;
+        } else {
+            opt(one_of(delim)).void().parse_next(input)?;
+        }
+        Ok(e)
+    }
+}
+
+fn opt_item<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>> {
+    alt((item, multispace0.map(|_| None))).parse_next(input)
+}
+
+/// Javascript "items" (keywords, variables, operators, blocks, function calls, arrays, etc)
+#[inline(never)]
+fn item<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>> {
+    use Fragment::*;
+    alt((
+        alt((multispace1, comment, inline_comment)).map(|_| None),
+        alt((
+            block.map(Nested),
+            index_list.map(Nested),
+            parens_list.map(Nested),
+            operator.map(Operator),
+            string.recognize().map(Literal),
+            template_string.map(Nested),
+            var_or_func.verify(|f| !BUILTINS.contains(f.name)).map(Func),
+            func.map(|(name, args)| FuncLike { name, args }),
+            name.map(Identifier),
+            // regex.with_span().map(|(r, s)| Regex(r, s)),
+            member_access,
+            some_value.map(Literal),
+        ))
+        .map(Some),
+    ))
+    .parse_next(input)
+}
+
+// block scopes (function body, class definition, etc.), object notation
+fn block<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+    delimited('{', statements, '}').parse_next(input)
+}
+
+// arrays: [a, b, c], array indexing, etc.
+// For simplicity, we allow semicolons as well, even though they are invalid in JS
+fn index_list<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+    delimited('[', statements, ']').parse_next(input)
+}
+
+// parens in math expressions, function arguments, etc.
+fn parens_list<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+    delimited('(', statements, ')').parse_next(input)
+}
+
+// .member or .member_fn()
+fn member_access<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Fragment<'a>> {
+    preceded(
+        ".",
+        alt((
+            func.map(|(name, args)| Fragment::FuncLike {
+                name: ".",
+                args: vec![Fragment::FuncLike { name, args }],
+            }),
+            name.map(Fragment::Identifier),
+        )),
+    )
+    .parse_next(input)
+}
+
+// func_name(a, b) or if/for/while, etc.
+#[inline(never)]
+fn func<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<(&'a str, Vec<Fragment<'a>>)> {
+    (name, parens_list).parse_next(input)
+}
 
 /// Operators and operator-like characters (including => arrow function definition).
 /// We only match single characters, thus operators such as '!=' and '>>>' will just
@@ -596,16 +406,6 @@ fn operator<'a, S: StrStream<'a>>(input: &mut S) -> PResult<char> {
     one_of([
         '=', '!', '?', ':', '&', '|', '<', '>', '+', '-', '*', '/', '%', '^', '~',
     ])
-    .parse_next(input)
-}
-
-/// Numeric values or non-quoted strings (allowed by seqtool to some extent).
-/// To be precise: values that don't qualify as "names", e.g. start
-/// with number or contain '-' or '.'.
-fn some_value<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
-    take_while(1.., |c: char| {
-        c.is_alphanum() || c == '_' || c == '-' || c == '.'
-    })
     .parse_next(input)
 }
 
@@ -623,50 +423,18 @@ fn inline_comment<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
         .parse_next(input)
 }
 
-// 'string' or "string" (with quote escapes)
-fn string<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
-    alt((quoted('"'), quoted('\''))).parse_next(input)
-}
-
-fn quoted<'a, S: StrStream<'a>>(quote: char) -> impl FnMut(&mut S) -> PResult<&'a str> {
-    move |input: &mut S| {
-        delimited(
-            quote,
-            repeat::<_, _, (), _, _>(.., string_fragment(&[quote])).recognize(),
-            quote,
-        )
-        .parse_next(input)
-    }
-}
-
-fn string_fragment<'a, S: StrStream<'a>>(
-    stop: &[char],
-) -> impl FnMut(&mut S) -> PResult<&'a str> + '_ {
-    move |input: &mut S| {
-        alt((
-            // regular non-escaped string
-            take_till(1.., (stop, '\\')).void(),
-            // any type of character escape
-            // most important: the string should not end with an escape char, so we have to consume the next character
-            ('\\', any).void(),
-        ))
-        .recognize()
-        .parse_next(input)
-    }
-}
-
 // `template string with ${vars}, or \${escaped}`
 // note: these are *not* valid as seqtool string arguments, and may contain
 // of several 'nested' parts
-fn template_string<'a>(input: &mut Located<&'a str>) -> PResult<Vec<Fragment<'a>>> {
+fn template_string<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
     delimited('`', repeat(.., template_fragment), '`').parse_next(input)
 }
 
-fn template_fragment<'a>(input: &mut Located<&'a str>) -> PResult<Fragment<'a>> {
+fn template_fragment<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Fragment<'a>> {
     alt((
         preceded('$', block).map(Fragment::Nested),
-        "$".map(Fragment::String),
-        string_fragment(&['`', '$']).map(Fragment::String),
+        "$".map(Fragment::Literal),
+        string_fragment(&['`', '$']).map(Fragment::Literal),
     ))
     .parse_next(input)
 }
@@ -687,17 +455,18 @@ mod tests {
     use super::*;
 
     fn test_rewrite(script: &str, expected: Result<&str, &str>) {
-        let res = parse_script(script).and_then(|ast| {
-            ast.rewrite(|name, args| {
-                let rep = match name {
-                    "variable" => "var_repl".to_string(),
-                    "func" => "func_repl".to_string(),
-                    _ => return None,
-                };
-                try_opt!(st_func_from_parsed(name, args, true));
-                Some(Ok::<_, String>(rep))
-            })
-        });
+        let res = SimpleAst::from_script(script)
+            .map_err(|e| e.to_string())
+            .and_then(|ast| {
+                ast.rewrite(|func| {
+                    let rep = match func.name {
+                        "variable" => "var_repl".to_string(),
+                        "func" => "func_repl".to_string(),
+                        _ => return Ok(None),
+                    };
+                    Ok(Some(rep))
+                })
+            });
         match res {
             Ok(out) => {
                 assert!(expected.is_ok());
@@ -705,7 +474,8 @@ mod tests {
             }
             Err(e) => {
                 assert!(expected.is_err());
-                assert_eq!(expected.unwrap_err(), e);
+                // dbg!(expected, format!("`{}`", e));
+                assert!(e.contains(&format!("`{}`", expected.unwrap_err())));
             }
         }
     }
@@ -732,12 +502,8 @@ mod tests {
             "variable + func('a') + func() / variable;",
             Ok("var_repl + func_repl + func_repl / var_repl;"),
         );
-        // seqtool function arguments must not be nested further
-        // (in `test_rewrite`, we don't return an error, just ignore the call)
-        test_rewrite(
-            "func(other(a, b), variable)",
-            Err("Invalid function: 'func'. Seqtool function arguments must be strings, numbers or booleans."),
-        );
+        // nested arguments are allowed
+        test_rewrite("func(other(a, b), variable)", Ok("func_repl"));
     }
 
     #[test]
@@ -808,38 +574,98 @@ mod tests {
     #[cfg(feature = "expr")]
     #[test]
     fn varstring() {
-        let vs = "a {file: path with spaces.js }b,{ func(c,'d','e')},_f,,raw('var'),{ g/h(i, 'j') } rest";
-        use ParsedVarStringSegment::*;
-        // allowing variables without braces
+        use crate::var::parser::Arg;
+        use crate::var::parser::{parse_varstring_list, ParsedVarStringSegment::*};
+        // TODO: test/fix string quote escapes
+        let vs = r"a {file: path with spaces.js }b,{ func(c,'d','e')},_f,,num(g(a)),raw('var'),{ num(g)/h(i, 'j')+f(['ab']) } rest";
+        // parse allowing variables/functions without { braces } in the comma-delimited list
         let res = parse_varstring_list(vs, true);
+        // JS expression within the variable string
+        let num_ast = SimpleAst {
+            script: " num(g)/h(i, 'j')+f(['ab']) ",
+            tree: Fragment::Nested(vec![
+                Fragment::Func(VarFunc::new(
+                    "num",
+                    Some(vec![Arg::Func(VarFunc::new("g", None, 5..6))]),
+                    1..7,
+                )),
+                Fragment::Operator('/'),
+                Fragment::Func(VarFunc::new(
+                    "h",
+                    Some(vec![
+                        Arg::Func(VarFunc::new("i", None, 10..11)),
+                        Arg::Str("j".into()),
+                    ]),
+                    8..17,
+                )),
+                Fragment::Operator('+'),
+                Fragment::FuncLike {
+                    name: "f",
+                    args: vec![Fragment::Nested(vec![Fragment::Literal("'ab'".into())])],
+                },
+            ]),
+        };
         let exp = vec![
-            vec![Text("a "), SourceFile("path with spaces.js"), Text("b")],
-            vec![Var(Func::new(
+            vec![
+                Text("a "),
+                Expr(Expression::SourceFile("path with spaces.js".to_string())),
+                Text("b"),
+            ],
+            vec![Var(VarFunc::new(
                 "func",
-                &["c".to_string(), "d".to_string(), "e".to_string()],
+                Some(vec![
+                    Arg::Func(VarFunc::new("c", None, 39..40)),
+                    "d".into(),
+                    "e".into(),
+                ]),
+                34..49,
             ))],
-            vec![VarOrText(Func::new("_f", &[]), "_f")],
+            vec![VarOrText {
+                func: VarFunc::new("_f", None, 51..53),
+                text: "_f",
+            }],
             vec![],
-            vec![VarOrText(
-                Func::new("raw", &["var".to_string()]),
-                "raw('var')",
-            )],
-            vec![Expr(" g/h(i, 'j') "), Text(" rest")],
+            vec![VarOrText {
+                func: VarFunc::new(
+                    "num",
+                    Some(vec![Arg::Func(VarFunc::new(
+                        "g",
+                        Some(vec![Arg::Func(VarFunc::new("a", None, 61..62))]),
+                        59..63,
+                    ))]),
+                    55..64,
+                ),
+                text: "num(g(a))",
+            }],
+            vec![VarOrText {
+                func: VarFunc::new("raw", Some(vec!["var".into()]), 65..75),
+                text: "raw('var')",
+            }],
+            vec![Expr(Expression::Expr(num_ast.clone())), Text(" rest")],
         ];
-        // TODO: using unwrap() because comparing with Ok gives strange interaction with rkyv type
         assert_eq!(res.unwrap(), exp);
-        // enforcing braces
+        // enforcing { braces } around every item
         let res = parse_varstring_list(vs, false);
         let exp = vec![
-            vec![Text("a "), SourceFile("path with spaces.js"), Text("b")],
-            vec![Var(Func::new(
+            vec![
+                Text("a "),
+                Expr(Expression::SourceFile("path with spaces.js".to_string())),
+                Text("b"),
+            ],
+            vec![Var(VarFunc::new(
                 "func",
-                &["c".to_string(), "d".to_string(), "e".to_string()],
+                Some(vec![
+                    Arg::Func(VarFunc::new("c", None, 39..40)),
+                    "d".into(),
+                    "e".into(),
+                ]),
+                34..49,
             ))],
             vec![Text("_f")],
             vec![],
+            vec![Text("num(g(a))")],
             vec![Text("raw('var')")],
-            vec![Expr(" g/h(i, 'j') "), Text(" rest")],
+            vec![Expr(Expression::Expr(num_ast.clone())), Text(" rest")],
         ];
         assert_eq!(res.unwrap(), exp);
     }

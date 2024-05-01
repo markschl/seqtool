@@ -1,4 +1,3 @@
-
 /// A "factory" of vectors that determines the best initial capacity in a quite
 /// simple (not very sophisticated) way.
 /// These vectors are intended to be used as buffers, to which many rounds of writing

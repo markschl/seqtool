@@ -1,4 +1,3 @@
-use std::cmp::{max, min};
 use std::env::var;
 use std::io::{self, Write as _};
 use std::str;
@@ -86,7 +85,7 @@ pub fn run(mut cfg: Config, args: &ViewCommand) -> CliResult<()> {
         let (id, desc) = record.id_desc();
         if id_len == 0 {
             // determine ID width of first ID
-            id_len = min(100, max(10, std::str::from_utf8(id)?.chars().count() + 3)) as u32;
+            id_len = (std::str::from_utf8(id)?.chars().count() + 3).clamp(10, 100) as u32;
         }
         write_id(
             id,

@@ -2,10 +2,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use super::{MapFormat, UniqueVars};
+use super::MapFormat;
 use crate::cli::CommonArgs;
 use crate::helpers::bytesize::parse_bytesize;
-use crate::var::VarProvider;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
@@ -65,8 +64,4 @@ pub struct UniqueCommand {
 
     #[command(flatten)]
     pub common: CommonArgs,
-}
-
-pub fn get_varprovider(_args: &UniqueCommand) -> Option<Box<dyn VarProvider>> {
-    Some(Box::<UniqueVars>::default())
 }

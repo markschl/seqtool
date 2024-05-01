@@ -1,14 +1,13 @@
-use std::cmp::{max, min};
 use std::io::{self, Write};
 use std::mem;
 use std::path::PathBuf;
 
 use deepsize::DeepSizeOf;
 
-use crate::cmd::shared::tmp_store::{TmpHandle, TmpWriter};
+use crate::cmd::shared::tmp_store::TmpWriter;
 use crate::error::CliResult;
 
-use super::{FileSorter, Item};
+use super::{FileSorter, Item, SortHandle};
 
 #[derive(Debug, Clone)]
 pub struct MemSorter {
@@ -23,7 +22,7 @@ impl MemSorter {
         // we cannot know the exact length of the input, we just initialize
         // with capacity that should at least hold some records, while still
         // not using too much memory
-        let records = Vec::with_capacity(max(1, min(10000, max_mem / 400)));
+        let records = Vec::with_capacity((max_mem / 400).clamp(1, 10000));
         Self {
             mem: records.deep_size_of(),
             records,
@@ -68,14 +67,14 @@ impl MemSorter {
         file_limit: usize,
     ) -> io::Result<FileSorter> {
         let mut other = MemSorter::new(self.reverse, self.max_mem);
-        other.records = mem::replace(&mut self.records, Vec::new());
+        other.records = mem::take(&mut self.records);
         FileSorter::from_mem(other, tmp_dir, file_limit)
     }
 
     pub fn serialize_sorted(
         &mut self,
         mut writer: TmpWriter<Item<Box<[u8]>>>,
-    ) -> io::Result<(usize, TmpHandle<Item<Box<[u8]>>>)> {
+    ) -> io::Result<(usize, SortHandle)> {
         self.sort();
         for item in &self.records {
             writer.write(item)?;

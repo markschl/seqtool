@@ -3,25 +3,37 @@ use std::path::Path;
 
 use clap::Parser;
 
+use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use variable_enum_macro::variable_enum;
+
 use crate::cli::CommonArgs;
 use crate::config::Config;
-use crate::error::CliResult;
 use crate::helpers::DefaultHashMap as HashMap;
 use crate::io::output::{FormatWriter, OutputKind};
-use crate::var::{
-    func::Func,
-    symbols::{self, VarType},
-    varstring, VarBuilder, VarInfo, VarProvider, VarProviderInfo,
-};
-use crate::var_info;
+use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuilder};
+use crate::CliResult;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct SplitCommand {
     /// Split into chunks of <N> sequences and writes each chunk to a separate
     /// file with a numbered suffix.
+    ///
     /// The output path can be changed using -o/--output. The default is:
     /// '{filestem}_{chunk}.{default_ext}' (e.g. input_name_1.fasta).
+    ///
+    /// Examples:
+    ///
+    /// Distribute sequences into different files by an attribute 'category'
+    /// found in the sequence headers, producing files such as:
+    /// outdir/category_A.fasta, outdir/category_B.fasta, etc.
+    ///
+    /// `st split input.fasta -o "outdir/{attr(category)}.fasta"`
+    ///
+    /// Group the input sequences by the recognized primer, which is recognized
+    /// using the 'find' command
+    ///
+    /// `st find -f file:primers.fa input.fq -a primer='{pattern_name}' | st split -o "{attr(primer)}.fq"`
     #[arg(short, long, value_name = "N")]
     num_seqs: Option<usize>,
 
@@ -31,14 +43,6 @@ pub struct SplitCommand {
 
     #[command(flatten)]
     pub common: CommonArgs,
-}
-
-pub fn get_varprovider(args: &SplitCommand) -> Option<Box<dyn VarProvider>> {
-    if let Some(n) = args.num_seqs {
-        Some(Box::new(ChunkNum::new(n)))
-    } else {
-        None
-    }
 }
 
 pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
@@ -63,6 +67,11 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
         return fail!("The split command requires either '-n' or '-o'.");
     };
 
+    // register variable provider
+    if let Some(n) = args.num_seqs {
+        cfg.set_custom_varmodule(Box::new(SplitVars::new(n)))?;
+    }
+
     let (out_key, _) =
         cfg.build_vars(|b| varstring::VarString::parse_register(out_key, b, false))?;
     // file path -> writer
@@ -74,9 +83,11 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
     let mut format_writer = cfg.get_format_writer()?;
 
     cfg.read(|record, ctx| {
-        // update chunk number variable
+        // update chunk ndyn_var_provider!umber variable
         if num_seqs.is_some() {
-            ctx.command_vars::<ChunkNum, _>(|m, sym| m.unwrap().increment(sym))?;
+            ctx.custom_vars(|opt_mod: Option<&mut SplitVars>, sym| {
+                opt_mod.map(|m| m.increment(sym)).transpose()
+            })?;
         }
 
         // compose key
@@ -118,45 +129,44 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
     Ok(())
 }
 
-#[derive(Debug)]
-pub struct ChunkVarInfo;
-
-impl VarProviderInfo for ChunkVarInfo {
-    fn name(&self) -> &'static str {
-        "Split command variables"
-    }
-
-    fn vars(&self) -> &[VarInfo] {
-        &[var_info!(
-                chunk =>
-                "Chunk number starting with 1. With the -n argument, it will \
-                increment by one each time the size limit <N> is reached. \
-                Otherwise, it will always be 1."
-        )]
+variable_enum! {
+    /// # Variables available in the split command
+    ///
+    /// # Examples
+    ///
+    /// Split input into chunks of 1000 sequences, which will be named
+    /// outdir/file_1.fq, outdir/file_2.fq, etc.
+    ///
+    /// `st split -n 1000 -po 'outdir/out_{chunk}.fq' input.fastq`
+    SplitVar {
+        /// Chunk number starting with 1. With the -n argument, it will
+        /// increment by one each time the size limit <N> is reached.
+        /// Otherwise, it will always be 1.
+        Chunk(Number),
     }
 }
 
 #[derive(Debug)]
-struct ChunkNum {
-    id: Option<usize>,
+struct SplitVars {
+    symbol_id: Option<usize>,
     limit: usize,
     seq_num: usize,
     chunk_num: usize,
 }
 
-impl ChunkNum {
+impl SplitVars {
     // limit == 0 means no limit at all, chunk_num remains 1
-    fn new(limit: usize) -> ChunkNum {
-        ChunkNum {
-            id: None,
+    fn new(limit: usize) -> SplitVars {
+        SplitVars {
+            symbol_id: None,
             limit,
             seq_num: 0,
             chunk_num: 0,
         }
     }
 
-    fn increment(&mut self, symbols: &mut symbols::SymbolTable) -> CliResult<()> {
-        if let Some(var_id) = self.id {
+    fn increment(&mut self, symbols: &mut symbols::SymbolTable) -> Result<(), String> {
+        if let Some(var_id) = self.symbol_id {
             self.seq_num += 1;
             if self.chunk_num == 0 || self.seq_num > self.limit {
                 self.seq_num = 1;
@@ -171,18 +181,25 @@ impl ChunkNum {
     }
 }
 
-impl VarProvider for ChunkNum {
-    fn info(&self) -> &dyn VarProviderInfo {
-        &ChunkVarInfo
+impl VarProvider for SplitVars {
+    fn info(&self) -> &dyn DynVarProviderInfo {
+        &dyn_var_provider!(SplitVar)
     }
 
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
-        assert_eq!(var.name, "chunk");
-        self.id = Some(b.symbol_id());
-        Ok(Some(VarType::Int))
+    fn register(
+        &mut self,
+        name: &str,
+        args: &[Arg],
+        builder: &mut VarBuilder,
+    ) -> Result<Option<(usize, Option<VarType>)>, String> {
+        Ok(SplitVar::from_func(name, args)?.map(|(var, out_type)| {
+            let SplitVar::Chunk = var;
+            let symbol_id = self.symbol_id.get_or_insert_with(|| builder.increment());
+            (*symbol_id, out_type)
+        }))
     }
 
     fn has_vars(&self) -> bool {
-        true
+        self.symbol_id.is_some()
     }
 }

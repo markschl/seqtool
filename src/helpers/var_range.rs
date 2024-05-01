@@ -19,7 +19,7 @@ pub enum RngBound {
 }
 
 impl RngBound {
-    pub fn from_varstring(vs: VarString) -> CliResult<Option<RngBound>> {
+    pub fn from_varstring(vs: VarString) -> Result<Option<RngBound>, String> {
         if let Some(text) = vs.get_text() {
             if text.is_empty() {
                 return Ok(None);
@@ -63,7 +63,7 @@ impl VarRange {
     /// {range_var}, whose value should be a valid range.
     /// In theory, more complicated compositions are possible, but they will
     /// rarely result in useful/valid ranges.
-    pub fn from_varstring(vs: VarString) -> CliResult<VarRange> {
+    pub fn from_varstring(vs: VarString) -> Result<VarRange, String> {
         if vs.len() == 1 && vs.is_one_var() {
             return Ok(VarRange::Full(vs, Vec::with_capacity(20)));
         }
@@ -121,7 +121,7 @@ pub struct VarRanges {
 }
 
 impl VarRanges {
-    pub fn from_str(s: &str, var_builder: &mut VarBuilder) -> CliResult<VarRanges> {
+    pub fn from_str(s: &str, var_builder: &mut VarBuilder) -> Result<VarRanges, String> {
         // first, we collect all comma-delimited parts, registering any variables
         let mut parts = vec![];
         register_var_list(s.trim(), var_builder, &mut parts, true)?;
@@ -129,7 +129,7 @@ impl VarRanges {
         let mut ranges: Vec<VarRange> = parts
             .into_iter()
             .map(VarRange::from_varstring)
-            .collect::<CliResult<_>>()?;
+            .collect::<Result<_, _>>()?;
         // single-variable strings may hold a range list (not only a single range)
         let mut ty = VarRangesType::Split(ranges.clone());
         if ranges.len() == 1 {

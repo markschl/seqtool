@@ -1,9 +1,10 @@
 use clap::Parser;
 
+use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
+use crate::helpers::complement::reverse_complement;
 use crate::io::SeqQualRecord;
-use crate::{cli::CommonArgs, helpers::complement::reverse_complement};
 
 use crate::helpers::seqtype::{SeqType, SeqtypeHelper};
 
@@ -35,7 +36,7 @@ pub fn run(mut cfg: Config, args: &RevcompCommand) -> CliResult<()> {
         cfg.read_parallel_init(
             num_threads - 1,
             || Ok(SeqtypeHelper::new(typehint)),
-            || Default::default(),
+            Default::default,
             |record, out: &mut Box<RevCompRecord>, st_helper| {
                 if out.seqtype.is_none() {
                     out.seqtype = Some(st_helper.get_or_guess(record)?);

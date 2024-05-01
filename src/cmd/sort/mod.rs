@@ -38,6 +38,8 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
     let mut sorter = Sorter::new(args.reverse, max_mem);
 
+    cfg.set_custom_varmodule(Box::<SortVars>::default())?;
+
     let mut format_writer = cfg.get_format_writer()?;
 
     cfg.with_io_writer(|io_writer, mut cfg| {
@@ -52,7 +54,7 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
 
         cfg.read(|record, ctx| {
             // assemble key
-            ctx.command_vars::<SortVars, _>(|key_mod, symbols| {
+            ctx.custom_vars::<SortVars, _, String>(|key_mod, symbols| {
                 keys.compose_from(
                     &varstring_keys,
                     &mut text_buf,

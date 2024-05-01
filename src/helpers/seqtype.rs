@@ -75,7 +75,7 @@ pub fn guess_protein(text: &[u8]) -> Option<(SeqType, bool, bool)> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SeqtypeHelper {
     seqtype: Option<SeqType>,
 }
@@ -92,7 +92,7 @@ impl SeqtypeHelper {
             let mut buf = Vec::new();
             let seq = record.full_seq(&mut buf);
             let (seqtype, _, _) = guess_seqtype(&seq, self.seqtype)
-                .ok_or_else(|| "Could not guess sequence type, please provide with `--seqtype`")?;
+                .ok_or("Could not guess sequence type, please provide with `--seqtype`")?;
             self.seqtype = Some(seqtype);
             Ok(seqtype)
         }

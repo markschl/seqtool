@@ -213,7 +213,7 @@ impl FaQualWriter {
         Ok(FaQualWriter {
             fa_writer: super::fasta::FastaWriter::new(wrap, attrs, builder)?,
             qual_out: io::BufWriter::new(q_handle),
-            wrap: wrap.unwrap_or(std::usize::MAX),
+            wrap: wrap.unwrap_or(usize::MAX),
         })
     }
 }

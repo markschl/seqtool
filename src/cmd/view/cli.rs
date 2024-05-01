@@ -3,7 +3,8 @@ use std::env;
 use clap::{value_parser, Args, Parser};
 use vec_map::VecMap;
 
-use crate::{cli::CommonArgs, error::CliResult};
+use crate::cli::CommonArgs;
+use crate::error::CliResult;
 
 use super::{Color, PaletteType, QualPaletteType, SeqPaletteType, SimplePal};
 

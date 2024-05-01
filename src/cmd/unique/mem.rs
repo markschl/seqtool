@@ -1,4 +1,3 @@
-use std::cmp::{max, min};
 use std::io;
 use std::path::PathBuf;
 
@@ -271,7 +270,7 @@ impl MemDeduplicator {
         // Capacity: we cannot know the exact length of the input, we just initialize
         // with capacity that should at least hold some records, while still
         // not using too much memory
-        let cap = max(1, min(10000, max_mem / 400));
+        let cap = (max_mem / 400).clamp(1, 10000);
         let records = Records::new(has_placeholders, sort, required_info, cap);
         Self {
             records,

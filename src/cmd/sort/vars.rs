@@ -1,25 +1,25 @@
 //! This module contains a `VarProvider` for a 'key' variable, which is
 //! used by the 'sort' and 'unique' commands.
 
+use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use variable_enum_macro::variable_enum;
+
 use crate::cmd::shared::sort_item::Key;
-use crate::error::CliResult;
-use crate::var::{
-    func::Func,
-    symbols::{SymbolTable, VarType},
-    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
-};
-use crate::var_info;
+use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder};
 
-#[derive(Debug)]
-pub struct SortVarInfo;
-
-impl VarProviderInfo for SortVarInfo {
-    fn name(&self) -> &'static str {
-        "Sort command variables"
-    }
-
-    fn vars(&self) -> &[VarInfo] {
-        &[var_info!(key => "The value of the key used for sorting")]
+variable_enum! {
+    /// # Sort command variables
+    ///
+    /// # Examples
+    ///
+    /// Sort sequences by their length and store the length in the sequence
+    /// header in the sequence header, producing headers like this one:
+    /// '>id1 seqlen=210'
+    ///
+    /// `st sort seqlen -a seqlen='{key}' input.fasta > output.fasta`
+    SortVar {
+        /// The value of the key used for sorting
+        Key(?),
     }
 }
 
@@ -31,24 +31,27 @@ pub struct SortVars {
 impl SortVars {
     pub fn set(&mut self, key: &Key, symbols: &mut SymbolTable) {
         if let Some(var_id) = self.key_id {
-            key.into_symbol(symbols.get_mut(var_id));
+            key.write_to_symbol(symbols.get_mut(var_id));
         }
     }
 }
 
 impl VarProvider for SortVars {
-    fn info(&self) -> &dyn VarProviderInfo {
-        &SortVarInfo
+    fn info(&self) -> &dyn DynVarProviderInfo {
+        &dyn_var_provider!(SortVar)
     }
 
-    fn allow_nested(&self) -> bool {
-        false
-    }
-
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
-        assert_eq!(var.name, "key");
-        self.key_id = Some(b.symbol_id());
-        Ok(None)
+    fn register(
+        &mut self,
+        name: &str,
+        args: &[Arg],
+        builder: &mut VarBuilder,
+    ) -> Result<Option<(usize, Option<VarType>)>, String> {
+        Ok(SortVar::from_func(name, args)?.map(|(var, out_type)| {
+            let SortVar::Key = var;
+            let symbol_id = self.key_id.get_or_insert_with(|| builder.increment());
+            (*symbol_id, out_type)
+        }))
     }
 
     fn has_vars(&self) -> bool {

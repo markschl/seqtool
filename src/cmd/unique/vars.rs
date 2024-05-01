@@ -6,43 +6,45 @@ use std::io;
 
 use memchr::memmem;
 
+use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use variable_enum_macro::variable_enum;
+
 use crate::cmd::shared::sort_item::Key;
-use crate::error::CliResult;
-use crate::helpers::util::{replace_iter, write_list};
-use crate::var::{
-    func::Func,
-    symbols::{SymbolTable, VarType},
-    VarBuilder, VarInfo, VarProvider, VarProviderInfo,
-};
-use crate::var_info;
+use crate::helpers::util::{replace_iter_custom, write_list};
+use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 
 use super::DuplicateInfo;
 
-#[derive(Debug)]
-pub struct UniqueVarInfo;
-
-impl VarProviderInfo for UniqueVarInfo {
-    fn name(&self) -> &'static str {
-        "Unique command variables"
-    }
-
-    fn vars(&self) -> &[VarInfo] {
-        &[
-            var_info!(key => "The value of the unique key"),
-            var_info!(n_duplicates([include_self]) =>
-                "The `n_duplicates` variable retuns the total number of duplicate records \
-                sharing the same unique key. It can also be used as a function `n_duplicates(true)` \
-                or `n_duplicates(false)` to either include or exclude the returned unique record \
-                from the count."
-            ),
-            var_info!(duplicates_list([include_self]) =>
-                "Returns a comma-delimited list of record IDs that share the same unique key. \
-                Make sure that the record IDs don't have commas in them. The ID of the returned \
-                unique record is included by default \
-                (`duplicate_list` is short for `duplicate_list(true)`), \
-                but can be excluded with `duplicate_list(false)`."
-            ),
-        ]
+variable_enum! {
+    /// # Unique command variables
+    ///
+    /// # Examples
+    ///
+    /// De-replicate sequences using the sequence hash (faster than using
+    /// the sequence 'seq' itself), and also storing the number of duplicates
+    /// (including the unique sequence itself) in the sequence header like this:
+    /// '>id1 n=2'
+    ///
+    /// `st unique seqhash -a n={n_duplicates} input.fasta > uniques.fasta`
+    ///
+    /// Store the complete list of duplicate IDs in the sequence header, but this
+    /// time without the unique sequence ID, producing something like this:
+    /// '>id1 duplicates=id4,id6,id8'
+    ///
+    /// `st unique seqhash -a duplicates={duplicate_list} input.fasta > uniques.fasta`
+    UniqueVar {
+        /// The value of the unique key
+        Key(?),
+        /// The `n_duplicates` variable retuns the total number of duplicate records
+        /// sharing the same unique key. It can also be used as a function `n_duplicates(false)`
+        /// to exclude the returned unique record from the count.
+        /// `n_duplicates` is short for `n_duplicates(true)`.
+        NDuplicates(Number) { include_self: bool = true },
+        /// Returns a comma-delimited list of record IDs that share the same unique key.
+        /// Make sure that the record IDs don't have commas in them. The ID of the returned
+        /// unique record is included by default (`duplicate_list` is short for `duplicate_list(true)`)
+        /// but can be excluded with `duplicate_list(false)`.
+        DuplicatesList(Text) { include_self: bool = true },
     }
 }
 
@@ -61,7 +63,7 @@ pub fn fill_placeholders<W>(
 where
     W: io::Write + ?Sized,
 {
-    replace_iter(
+    replace_iter_custom(
         formatted_record,
         memmem::find_iter(formatted_record, PLACEHOLDER_PREFIX).map(|start| {
             (
@@ -108,74 +110,86 @@ pub enum RequiredInformation {
 
 #[derive(Debug, Default)]
 pub struct UniqueVars {
-    // unique key (var ID)
+    // initial vector of vars (until initialization)
+    vars: VarStore<UniqueVar>,
+    // this will become Some(symbol ID) after the first record
     key_id: Option<usize>,
-    // number of duplicates: (var ID, include self)
-    size_id: Option<(usize, bool)>,
-    // list of duplicate IDs: (var id, include self)
-    id_list: Option<(usize, bool)>,
+    // becomes true after first record
+    initialized: bool,
+    // needed, since this information will be lost after initialization
+    has_vars: bool,
 }
 
 impl UniqueVars {
     pub fn required_info(&self) -> Option<RequiredInformation> {
-        if self.id_list.is_some() {
+        if self
+            .vars
+            .iter()
+            .any(|(_, v)| matches!(v, UniqueVar::DuplicatesList { .. }))
+        {
             Some(RequiredInformation::Ids)
-        } else if self.size_id.is_some() {
+        } else if self
+            .vars
+            .iter()
+            .any(|(_, v)| matches!(v, UniqueVar::NDuplicates { .. }))
+        {
             Some(RequiredInformation::Count)
         } else {
             None
         }
     }
 
+    fn init(&mut self, symbols: &mut SymbolTable) {
+        for (symbol_id, var) in self.vars.iter() {
+            use UniqueVar::*;
+            match var {
+                Key => self.key_id = Some(*symbol_id),
+                // Number of duplicates / duplicates list: set the placeholder
+                // just once (will not change)
+                NDuplicates { include_self } => {
+                    let out = symbols.get_mut(*symbol_id).inner_mut().mut_text();
+                    out.extend_from_slice(PLACEHOLDER_PREFIX);
+                    out.push(if *include_self { b'D' } else { b'd' });
+                }
+                DuplicatesList { include_self } => {
+                    let out = symbols.get_mut(*symbol_id).inner_mut().mut_text();
+                    out.extend_from_slice(PLACEHOLDER_PREFIX);
+                    out.push(if *include_self { b'L' } else { b'l' });
+                }
+            }
+        }
+    }
+
     pub fn set(&mut self, key: &Key, symbols: &mut SymbolTable) {
-        if let Some(var_id) = self.key_id {
-            key.into_symbol(symbols.get_mut(var_id));
+        if !self.initialized {
+            self.init(symbols);
+            self.initialized = true;
         }
-        // Number of duplicates / duplicates list: set the placeholder
-        // just once (will not change)
-        if let Some((var_id, include_self)) = self.size_id.take() {
-            let out = symbols.get_mut(var_id).inner_mut().mut_text();
-            out.extend_from_slice(PLACEHOLDER_PREFIX);
-            out.push(if include_self { b'D' } else { b'd' });
-        }
-        if let Some((var_id, include_self)) = self.id_list.take() {
-            let out = symbols.get_mut(var_id).inner_mut().mut_text();
-            out.extend_from_slice(PLACEHOLDER_PREFIX);
-            out.push(if include_self { b'L' } else { b'l' });
+        if let Some(symbol_id) = self.key_id {
+            key.write_to_symbol(symbols.get_mut(symbol_id));
         }
     }
 }
 
 impl VarProvider for UniqueVars {
-    fn info(&self) -> &dyn VarProviderInfo {
-        &UniqueVarInfo
+    fn info(&self) -> &dyn DynVarProviderInfo {
+        &dyn_var_provider!(UniqueVar)
     }
 
-    fn allow_nested(&self) -> bool {
-        false
-    }
-
-    fn register(&mut self, var: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
-        let id = b.symbol_id();
-        let ty = match var.name.as_str() {
-            "key" => {
-                self.key_id = Some(id);
-                None
-            }
-            "n_duplicates" => {
-                self.size_id = Some((id, var.opt_arg_as(0).transpose()?.unwrap_or(true)));
-                Some(VarType::Int)
-            }
-            "duplicates_list" => {
-                self.id_list = Some((id, var.opt_arg_as(0).transpose()?.unwrap_or(true)));
-                Some(VarType::Text)
-            }
-            _ => unreachable!(),
-        };
-        Ok(ty)
+    fn register(
+        &mut self,
+        name: &str,
+        args: &[Arg],
+        builder: &mut VarBuilder,
+    ) -> Result<Option<(usize, Option<VarType>)>, String> {
+        Ok(UniqueVar::from_func(name, args)?.map(|(var, out_type)| {
+            self.has_vars = true;
+            let symbol_id = builder.store_register(var, &mut self.vars);
+            (symbol_id, out_type)
+        }))
     }
 
     fn has_vars(&self) -> bool {
-        self.key_id.is_some() || self.size_id.is_some() || self.id_list.is_some()
+        self.has_vars
     }
 }

@@ -1,0 +1,11 @@
+[package]
+name = "var_provider"
+version = "0.4.0-beta"
+edition = "2021"
+
+[dependencies]
+itertools = "0.12"
+strum = "0.26"
+strum_macros = "0.26"
+termcolor = "1.4"
+textwrap = "0.16"

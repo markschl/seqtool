@@ -1,13 +1,11 @@
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::BufWriter;
 
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::helpers::util::replace_iter;
+use crate::helpers::{seqtype::SeqType, util::replace_iter};
 use crate::io::{RecordAttr, RecordEditor};
-use crate::var::{varstring, VarProvider};
-
-use crate::helpers::seqtype::SeqType;
+use crate::var::{modules::VarProvider, varstring};
 
 mod cli;
 mod helpers;
@@ -85,29 +83,32 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
         verbose,
     )?;
 
+    // add variable provider
+    cfg.set_custom_varmodule(Box::new(FindVars::new(args.patterns.len())))?;
+
     let mut format_writer = cfg.get_format_writer()?;
 
     // Parse possible replacement strings.
     // These can contain variables/expressions.
     let replacement = replacement
         .map(|text| {
-            cfg.with_command_vars::<FindVars, _>(|v, _| {
-                let match_vars = v.unwrap();
+            cfg.with_command_vars(|v, _| {
+                let match_vars: &mut FindVars = v.unwrap();
                 // For pattern replacement, all hits for group 0 (the full hit) must
                 // be known.
                 // TODO: API is somehow awkward
                 match_vars.register_all(0);
-                Ok(())
+                Ok::<_, String>(())
             })?;
             let (s, _) = cfg.build_vars(|b| varstring::VarString::parse_register(text, b, true))?;
-            Ok::<_, CliError>(s)
+            Ok::<_, String>(s)
         })
         .transpose()?;
 
     // Validate and determine requirements to build the configuration.
     // note: Config::with_command_vars() is called a second time here to avoid borrowing issues
-    let (match_cfg, opts) = cfg.with_command_vars::<FindVars, _>(|match_vars, _| {
-        let match_vars = match_vars.unwrap();
+    let (match_cfg, opts) = cfg.with_command_vars(|match_vars, _| {
+        let match_vars: &FindVars = match_vars.unwrap();
         if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
             return fail!(
                 "Find command does nothing. Use -f/-e for filtering, --repl for replacing or \
@@ -135,7 +136,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
             seqtype,
         };
 
-        Ok((match_cfg, opts))
+        Ok::<_, String>((match_cfg, opts))
     })?;
 
     // More things needed during the search
@@ -184,12 +185,12 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                 // handle results in main thread, write output
 
                 // update variables (if any) with search results obtained in the 'work' closure
-                ctx.command_vars::<FindVars, _>(|match_vars, symbols| {
+                ctx.custom_vars(|match_vars: Option<&mut FindVars>, symbols| {
                     if let Some(_match_vars) = match_vars {
                         let text = editor.get(attr, &record, true);
                         _match_vars.set_with(record, matches, symbols, text)?;
                     }
-                    Ok(())
+                    Ok::<_, String>(())
                 })?;
 
                 // fill in replacements (if necessary)
@@ -203,8 +204,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                             .matches_iter(0, 0)
                             .flatten()
                             .map(|m| (m.start, m.end));
-                        replace_iter(text, pos, out, |o, _, _| o.write_all(&replacement_text))
-                            .unwrap();
+                        replace_iter(text, &replacement_text, pos, out).unwrap();
                         Ok::<(), CliError>(())
                     })?;
                 }

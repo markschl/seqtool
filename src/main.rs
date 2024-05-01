@@ -32,8 +32,8 @@ mod var;
 mod test;
 
 fn main() {
-    let mut cli = Cli::new();
-    match cli.run() {
+    let res = Cli::new().and_then(|mut cli| cli.run());
+    match res {
         // normal exit
         Ok(()) => {}
         Err(CliError::Io(e)) => {

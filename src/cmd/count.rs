@@ -5,8 +5,7 @@ use clap::Parser;
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::value::SimpleValue;
-use crate::helpers::DefaultHashMap as HashMap;
+use crate::helpers::{value::SimpleValue, DefaultHashMap as HashMap};
 use crate::io::Record;
 use crate::var::{symbols::SymbolTable, varstring, VarBuilder};
 
@@ -109,7 +108,7 @@ struct VarKey {
 }
 
 impl VarKey {
-    fn from_str(s: &str, builder: &mut VarBuilder) -> CliResult<Self> {
+    fn from_str(s: &str, builder: &mut VarBuilder) -> Result<Self, String> {
         let (interval, key) = parse_key(s, 1., 0);
         Ok(Self {
             key: varstring::VarString::parse_register(key, builder, true)?.0,
@@ -127,7 +126,7 @@ impl VarKey {
         record: &dyn Record,
         out: &mut Category,
     ) -> CliResult<()> {
-        self.key.into_simple(
+        self.key.simple_value(
             &mut self.value,
             &mut self.text_buf,
             symbols,
@@ -224,7 +223,7 @@ where
     let mut var_keys: Vec<_> = keys
         .iter()
         .map(|k| cfg.build_vars(|b| VarKey::from_str(k.as_ref(), b)))
-        .collect::<CliResult<_>>()?;
+        .collect::<Result<_, String>>()?;
 
     // count the records
     let mut counts = HashMap::default();

@@ -411,7 +411,7 @@ where
             |rec, &mut (ref mut d, ref mut delim), s| {
                 let rec = fasta::FastaRecord::new(rec);
                 work(&rec as &dyn Record, d, s);
-                *delim = rec.header_delim_pos(); // cache the delimiter position
+                *delim = rec.header_delim_pos(); // cache the delimiter position (if known)
             },
             |rec, &mut (ref mut d, delim), s| {
                 let rec = fasta::FastaRecord::new(rec);
@@ -430,12 +430,12 @@ where
             |rec, &mut (ref mut d, ref mut delim), s| {
                 let rec = fastq::FastqRecord::new(rec);
                 work(&rec as &dyn Record, d, s);
-                *delim = rec.header_delim_pos(); // cache the delimiter position
+                *delim = rec.header_delim_pos(); // apply delimiter position (if known)
             },
             |rec, &mut (ref mut d, delim), s| {
                 let rec = fastq::FastqRecord::new(rec);
                 if let Some(_d) = delim {
-                    rec.set_header_delim_pos(_d);
+                    rec.set_header_delim_pos(_d); // apply delimiter position (if known)
                 }
                 transform_result!(func(&rec, d, s))
             },

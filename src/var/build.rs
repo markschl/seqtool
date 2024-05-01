@@ -1,12 +1,12 @@
 use std::clone::Clone;
+use std::fmt::Debug;
+use std::ops::{Deref, DerefMut};
 
-use crate::error::{CliError, CliResult};
-use crate::helpers::DefaultHashMap as HashMap;
+use var_provider::VarType;
 
 use super::attr::{AttrWriteAction, Attributes};
-use super::func::Func;
-use super::symbols::VarType;
-use super::VarProvider;
+use super::modules::{expr::js::parser::Expression, VarProvider};
+use super::parser::Arg;
 
 /// Object used for registering variables/functions to different `VarProvider` modules.
 /// It does so by 'asking' each of the providers (in order of occurrence),
@@ -22,28 +22,35 @@ use super::VarProvider;
 #[derive(Debug)]
 pub struct VarBuilder<'a> {
     modules: &'a mut [Box<dyn VarProvider>],
-    // varname -> (module_idx, (min_args, max_args))
-    var_map: &'a HashMap<String, (usize, (usize, usize))>,
-    // func -> (var_id, var_type, allow_nested)
-    registered_vars: &'a mut HashMap<Func, (usize, Option<VarType>, bool)>,
     attrs: &'a mut Attributes,
+    num_symbols: &'a mut usize,
 }
 
 impl<'a> VarBuilder<'a> {
     pub fn new(
         modules: &'a mut [Box<dyn VarProvider>],
-        var_map: &'a HashMap<String, (usize, (usize, usize))>,
-        registered_vars: &'a mut HashMap<Func, (usize, Option<VarType>, bool)>,
         attrs: &'a mut Attributes,
+        num_symbols: &'a mut usize,
     ) -> Self {
         Self {
             modules,
-            var_map,
-            registered_vars,
             attrs,
+            num_symbols,
         }
     }
 
+    /// Attempts at registering a header attribute with the given action
+    /// (read, edit, append, delete).
+    ///
+    /// Returns an attribute ID, which can be used to later access the current value
+    /// of the attribute using `Attributes::get_value()` within the
+    /// `VarProvider::set_record()` method.
+    ///
+    /// Returns an error if incompatibility with earlier attributes was found
+    /// (contradicting actions).
+    ///
+    /// Returns `None` only with `AttrWriteAction::Append`, since this action
+    /// means that header attributes are not parsed at all, only written.
     pub fn register_attr(
         &mut self,
         name: &str,
@@ -53,121 +60,118 @@ impl<'a> VarBuilder<'a> {
     }
 
     /// Attempts at registering a variable/function
-    /// Returns `Some((var_id, var_type, allow_nested))` if successful
+    /// Returns `Ok(Some((var_id, output type)))` if found and valid,
+    /// returns an error if the arguments are invalid.
     pub fn register_var(
         &mut self,
-        var: &Func,
-    ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
-        self._register_var(var, false)
-    }
-
-    /// Register a variable/function from within another `VarProvider`
-    pub fn register_nested_var(
-        &mut self,
-        var: &Func,
-    ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
-        self._register_var(var, true)
-    }
-
-    pub fn _register_var(
-        &mut self,
-        func: &Func,
-        nested: bool,
-    ) -> CliResult<Option<(usize, Option<VarType>, bool)>> {
-        if let Some((id, var_type, allow_nested)) = self.registered_vars.get(func) {
-            // eprintln!("var present {:?} {} {:?}", func, id, var_type);
-            if nested && !allow_nested {
-                return Err(NestedVarError(func.name.to_string()).into());
-            }
-            return Ok(Some((*id, var_type.clone(), true)));
-        }
-        if let Some(mod_idx) = self.lookup_var(func).transpose()? {
-            let (dep_mod, other_mod) = self.modules.split_at_mut(mod_idx);
-            let var_mod = other_mod.first_mut().unwrap();
-            // dbg!("=============");
-            // dbg!(var_mod.info());
-            // dbg!("=============");
-            // for m in &*dep_mod {
-            //     dbg!(m.info());
-            // }
+        name: &str,
+        args: &[Arg],
+    ) -> Result<Option<(usize, Option<VarType>)>, String> {
+        // Try registering the variable to the *last* module in the list
+        if let Some((last_mod, other)) = self.modules.split_last_mut() {
+            // Create another builder, which holds all modules *preceding* the
+            // last module in the list.
+            // In `VarProvider::set_record()`, these modules will be invoked first,
+            // so all modules later in the list will have access to variables of the
+            // earlier modules (but not later modules).
             let mut nested_builder = VarBuilder {
-                modules: dep_mod,
-                var_map: self.var_map,
-                registered_vars: self.registered_vars,
+                modules: other,
                 attrs: self.attrs,
+                num_symbols: self.num_symbols,
             };
-            let vtype = var_mod.register(func, &mut nested_builder)?;
-            let allow_nested = var_mod.allow_nested();
-            if nested && !allow_nested {
-                return Err(NestedVarError(func.name.to_string()).into());
+            // this is a recursive call (until there are no more modules to process)
+            let out = last_mod.register(name, args, &mut nested_builder)?;
+            if out.is_some() {
+                return Ok(out);
             }
-            let var_id = self.registered_vars.len();
-            self.registered_vars
-                .insert(func.clone(), (var_id, vtype.clone(), allow_nested));
-            // eprintln!(
-            //     "successful {:?}  =>  {} / {:?} in  {:?}",
-            //     func, var_id, vtype, var_mod
-            // );
-            return Ok(Some((var_id, vtype, false)));
+            // if the variable was not found, try the next module by recursively
+            // calling the current function
+            return nested_builder.register_var(name, args);
         }
         Ok(None)
     }
 
-    pub fn has_var(&self, varname: &str) -> bool {
-        self.var_map
-            .get(varname)
-            .map(|(i, _)| *i < self.modules.len())
-            .unwrap_or(false)
+    /// Returns whether the given variable name exists in any of the modules
+    pub fn has_var(&self, name: &str) -> bool {
+        self.modules
+            .iter()
+            .flat_map(|m| m.info().vars().iter().map(|v| v.name))
+            .any(|n| n == name)
     }
 
-    // returns the module index of the given function/variable if known
-    fn lookup_var(&'a self, func: &Func) -> Option<Result<usize, String>> {
-        self.var_map
-            .get(&func.name)
-            .and_then(|(i, (min_args, max_args))| {
-                // dbg!(&func, i, min_args, max_args, self.modules.len());
-                if *i < self.modules.len() {
-                    // validate function args
-                    let num_args = func.args.len();
-                    let what = if num_args < *min_args {
-                        "Not enough"
-                    } else if num_args > *max_args {
-                        "Too many"
-                    } else {
-                        return Some(Ok(*i));
-                    };
-                    Some(Err(format!(
-                        "{} arguments provided to function '{}', expected {} but found {}.",
-                        what,
-                        func.name,
-                        if min_args != max_args {
-                            format!("{}-{}", min_args, max_args)
-                        } else {
-                            min_args.to_string()
-                        },
-                        num_args
-                    )))
-                } else {
-                    None
-                }
-            })
+    /// Returns a new symbol ID, which can be assigned to some variable.
+    /// The calling variable provider is responsible for storing it and then
+    /// assigning a value to the given slot in the symbol table in
+    /// `VarProvider::set_record()`.
+    pub fn increment(&mut self) -> usize {
+        let id = *self.num_symbols;
+        *self.num_symbols += 1;
+        id
     }
 
-    /// Current variable ID, which `VarProvider`s may store for later accessing values from the symbol
-    /// table.
-    pub fn symbol_id(&self) -> usize {
-        self.registered_vars.len()
+    /// A function called by individual `VarProvider` modules that internally
+    /// use a `VarStore` to finalize the variable registration.
+    /// A new symbol ID is assigned to the variable, which is added to the
+    /// variable store.
+    pub fn store_register<V>(&mut self, var: V, out: &mut VarStore<V>) -> usize
+    where
+        V: PartialEq + Clone,
+    {
+        if let Some(id) = out.lookup(&var) {
+            return id;
+        }
+        let id = self.increment();
+        out.add(id, var);
+        id
+    }
+
+    /// Registers a JS expression, assuming that an expression engine
+    /// is present in the list of variable providers.
+    /// Panics otherwise.
+    #[inline]
+    pub fn register_expr(&mut self, expr: &Expression) -> Result<(usize, Option<VarType>), String> {
+        Ok(self
+            .register_var("_____expr", &[Arg::Expr(expr.clone())])?
+            .unwrap())
     }
 }
 
-pub struct NestedVarError(String);
+/// Very simple wrapper around a vector of (symbol ID, variable) pairs.
+/// This is used by most variable providers internally to store and look up
+/// variables using simple linear search.
+#[derive(Debug)]
+pub struct VarStore<V: PartialEq> {
+    vars: Vec<(usize, V)>,
+}
 
-impl From<NestedVarError> for CliError {
-    fn from(e: NestedVarError) -> Self {
-        CliError::Other(format!(
-            "The variable/function '{}' can unfortunately not be used as \
-            within an {{ expression }}.",
-            e.0
-        ))
+impl<V: PartialEq> Default for VarStore<V> {
+    fn default() -> Self {
+        Self { vars: Vec::new() }
+    }
+}
+
+impl<V: PartialEq> VarStore<V> {
+    fn add(&mut self, id: usize, var: V) {
+        self.vars.push((id, var));
+    }
+
+    fn lookup(&self, var: &V) -> Option<usize> {
+        self.vars
+            .iter()
+            .find_map(|(id, v)| if v == var { Some(*id) } else { None })
+    }
+}
+
+impl<V: PartialEq> Deref for VarStore<V> {
+    type Target = Vec<(usize, V)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.vars
+    }
+}
+
+impl<V: PartialEq> DerefMut for VarStore<V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.vars
     }
 }

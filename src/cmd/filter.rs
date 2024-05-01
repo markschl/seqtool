@@ -6,7 +6,7 @@ use clap::Parser;
 use crate::cli::CommonArgs;
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::var::{func::Func, symbols::Value};
+use crate::var::{modules::expr::js::parser::Expression, symbols::Value};
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
@@ -29,7 +29,7 @@ pub fn run(mut cfg: Config, args: &FilterCommand) -> CliResult<()> {
     if expr.starts_with('{') && expr.ends_with('}') {
         eprintln!(
             "Warning: found filter expression in the form {{ expression }}. \
-            The double brackets are unnecessary and should be removed for the \
+            The surrounding brackets are unnecessary and should be removed for the \
             expression to work properly."
         )
     }
@@ -37,19 +37,19 @@ pub fn run(mut cfg: Config, args: &FilterCommand) -> CliResult<()> {
 
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
-        let func = Func::expr(expr);
-        let (expr_id, _, _) = cfg.build_vars(|b| b.register_var(&func))?.unwrap();
+        let parsed_expr = Expression::parse(expr)?;
+        let (symbol_id, _) = cfg.build_vars(move |b| b.register_expr(&parsed_expr))?;
         let mut dropped_file = dropped_file
             .map(|f| Ok::<_, CliError>(BufWriter::new(File::create(f)?)))
             .transpose()?;
         cfg.read(|record, ctx| {
-            let v = ctx.symbols.get(expr_id);
+            let v = ctx.symbols.get(symbol_id);
             let result = match v.inner() {
                 Some(Value::Bool(b)) => *b.get(),
                 _ => {
                     return fail!(
                         "Filter expression did not return a boolean (true/false), \
-                    found '{}' instead",
+                        found '{}' instead",
                         v
                     )
                 }

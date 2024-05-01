@@ -1,6 +1,6 @@
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
+use std::collections::BinaryHeap;
 use std::fmt::Debug;
-use std::{cmp::Reverse, collections::BinaryHeap};
 
 #[derive(Debug)]
 struct Item<T: Ord + Debug> {

@@ -61,7 +61,7 @@ fn drop_file() {
                 "filter",
                 "seq != 'SEQ'",
                 "-a",
-                "i={num}",
+                "i={seq_num}",
                 "--dropped",
                 out_path,
             ],

@@ -330,7 +330,7 @@ impl Parser {
     /// Returns the corresponding attribute slot ("ID"), which is the index of the data
     /// in the array and is used to obtain the attribute value.
     /// Returns `None` if `write_action` is `Some(AttrWriteAction::Append)`,
-    /// (means only reading, no writing).
+    /// (means only writing, no parsing of the existing attribute(s)).
     /// The attribute may already exist, in which case the ID of the existing slot is returned.
     /// Multiple incompatible actions for the same attribute name will cause an error.
     /// - 'delete' conflicts with any other action to prevent inconsistent use
@@ -750,7 +750,7 @@ mod tests {
     #[test]
     fn desc_parser() {
         let fmt = AttrFormat::new(b" ", b"=");
-        let repl = VarString::from_parts(&[VarStringSegment::Text(b"val".to_vec())]);
+        let repl = VarString::from_segments(&[VarStringSegment::Text(b"val".to_vec())]);
 
         let head = compose_head(b"id", Some(&b"desc a=0 b=1"[..]), fmt.clone(), |a| {
             a.add_attr("a", None).unwrap();
@@ -780,7 +780,7 @@ mod tests {
     #[test]
     fn delim() {
         let fmt = AttrFormat::new(b";", b"=");
-        let repl = VarString::from_parts(&[VarStringSegment::Text(b"val".to_vec())]);
+        let repl = VarString::from_segments(&[VarStringSegment::Text(b"val".to_vec())]);
 
         let head = compose_head(b"id;a=0", Some(&b"desc a:1"[..]), fmt.clone(), |a| {
             a.add_attr("a", Some(AttrWriteAction::Edit(repl.clone())))
@@ -801,7 +801,7 @@ mod tests {
     #[test]
     fn missing() {
         let fmt = AttrFormat::new(b" ", b"=");
-        let repl = VarString::from_parts(&[VarStringSegment::Text(b"val".to_vec())]);
+        let repl = VarString::from_segments(&[VarStringSegment::Text(b"val".to_vec())]);
 
         let head = compose_head(b"id", Some(&b"desc a=0 c=2"[..]), fmt.clone(), |a| {
             a.add_attr("a", Some(AttrWriteAction::Edit(repl.clone())))

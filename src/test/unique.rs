@@ -67,20 +67,23 @@ fn force_numeric() {
 fn expr() {
     Tester::new()
         .cmp(
-            &["unique", "{ num + parseInt(attr('p')) }"],
+            &["unique", "{ seq_num + parseInt(attr('p')) }"],
             *FASTA,
             records!(0, 2, 3),
         )
         .cmp(
             &[
                 "unique",
-                "{ if (num <= 2) return num; return (num).toString(); }",
+                "{ if (seq_num <= 2) return seq_num; return (seq_num).toString(); }",
             ],
             *FASTA,
             records!(0, 1, 2, 3),
         )
         .cmp(
-            &["unique", "{ if (num <= 2) return num; return undefined; }"],
+            &[
+                "unique",
+                "{ if (seq_num <= 2) return seq_num; return undefined; }",
+            ],
             *FASTA,
             records!(0, 1, 2),
         );
@@ -96,10 +99,10 @@ fn multi_key() {
         }
     }
     Tester::new()
-        .cmp(&["unique", "desc"], &fa, &sel!(0, 2))
-        .cmp(&["unique", "desc,seq"], &fa, &sel!(0, 2, 3))
-        .cmp(&["unique", "id,desc,seq"], &fa, &sel!(0, 1, 2, 3))
-        .cmp(&["unique", "seq"], &fa, &sel!(0, 3))
+        .cmp(&["unique", "desc"], &fa, sel!(0, 2))
+        .cmp(&["unique", "desc,seq"], &fa, sel!(0, 2, 3))
+        .cmp(&["unique", "id,desc,seq"], &fa, sel!(0, 1, 2, 3))
+        .cmp(&["unique", "seq"], &fa, sel!(0, 3))
         .cmp(
             &["unique", "desc,seq", "-a", "k={key}"],
             &fa,
@@ -107,7 +110,7 @@ fn multi_key() {
         );
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{desc + 1},{seq.length}"], &fa, &sel!(0, 2));
+    Tester::new().cmp(&["unique", "{desc + 1},{seq.length}"], &fa, sel!(0, 2));
 }
 
 #[test]
@@ -160,7 +163,7 @@ fn case() {
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s1 k=-1\nS1\n>s2 k=\nS2\n";
-    let formula = "{ if (num <= 1) return -parseInt(id.substring(1, 2)); return undefined; }";
+    let formula = "{ if (seq_num <= 1) return -parseInt(id.substring(1, 2)); return undefined; }";
     Tester::new()
         .cmp(&["unique", formula, "-a", "k={key}"], fa, out)
         .cmp(&["unique", "-n", formula, "-a", "k={key}"], fa, out);

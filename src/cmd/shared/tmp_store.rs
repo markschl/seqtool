@@ -1,10 +1,8 @@
-use std::{
-    fs::{remove_file, File},
-    io::{self, BufReader, BufWriter, Read, Write},
-    marker::PhantomData,
-    mem::size_of_val,
-    path::{Path, PathBuf},
-};
+use std::fs::{remove_file, File};
+use std::io::{self, BufReader, BufWriter, Read, Write};
+use std::marker::PhantomData;
+use std::mem::size_of_val;
+use std::path::{Path, PathBuf};
 
 use byteorder::{ReadBytesExt, LE};
 use rkyv::{

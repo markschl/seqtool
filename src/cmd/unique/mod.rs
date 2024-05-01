@@ -39,6 +39,8 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
     let map_out = args.map_out.as_ref();
 
+    cfg.set_custom_varmodule(Box::<UniqueVars>::default())?;
+
     let mut format_writer = cfg.get_format_writer()?;
 
     cfg.with_io_writer(|io_writer, mut cfg| {
@@ -50,7 +52,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
         // Depending on the CLI options, different information is needed,
         // which in turn affects how the de-duplicaion is done
         let mut required_info = cfg
-            .with_command_vars::<UniqueVars, _>(|v, _| Ok(v.unwrap().required_info()))
+            .with_command_vars::<UniqueVars, _, String>(|v, _| Ok(v.unwrap().required_info()))
             .unwrap();
         let has_placeholders = required_info.is_some();
         if args.map_out.is_some() {
@@ -61,7 +63,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
 
         cfg.read(|record, ctx| {
             // assemble key
-            ctx.command_vars::<UniqueVars, _>(|key_mod, symbols| {
+            ctx.custom_vars::<UniqueVars, _, String>(|key_mod, symbols| {
                 keys.compose_from(
                     &varstring_keys,
                     &mut text_buf,

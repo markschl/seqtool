@@ -1,5 +1,13 @@
 use std::process::exit;
 
+use clap::builder::{
+    styling::{AnsiColor, Color, Style},
+    Styles,
+};
+use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
+
+use var_provider::{dyn_var_provider, DynVarProviderInfo};
+
 use crate::cmd;
 use crate::config::Config;
 use crate::error::CliResult;
@@ -9,9 +17,7 @@ use crate::io::{
     output::{OutFormat, OutputKind, OutputOptions},
     Attribute, Compression, FileInfo, FormatVariant, QualFormat,
 };
-use crate::var::{attr::AttrFormat, VarOpts, VarProviderInfo};
-
-use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
+use crate::var::{attr::AttrFormat, VarOpts};
 
 /// This type only serves as a workaround to allow displaying
 /// custom help page that explains all variables (--help-vars)
@@ -38,43 +44,36 @@ struct VarHelpCli {
 pub struct Cli(ClapCli);
 
 impl Cli {
-    pub fn new() -> Self {
+    pub fn new() -> CliResult<Self> {
         // first, try to look for --help-vars using the extra Clap parser
         // in order to work around the fact that clap exits with a
         // 'missing argument error' for command with positional args.
         // TODO: any better way to do this?
         if let Ok(m) = VarHelpCli::try_parse() {
             if m.help_vars || m.help_vars_md {
-                let custom_help: Option<Box<dyn VarProviderInfo>> = match m.command.as_str() {
+                let custom_help: Option<Box<dyn DynVarProviderInfo>> = match m.command.as_str() {
                     #[cfg(any(feature = "all-commands", feature = "sort"))]
-                    "sort" => Some(Box::new(cmd::sort::SortVarInfo)),
+                    "sort" => Some(Box::new(dyn_var_provider!(cmd::sort::SortVar))),
                     #[cfg(any(feature = "all-commands", feature = "unique"))]
-                    "unique" => Some(Box::new(cmd::unique::UniqueVarInfo)),
+                    "unique" => Some(Box::new(dyn_var_provider!(cmd::unique::UniqueVar))),
                     #[cfg(any(feature = "all-commands", feature = "split"))]
-                    "split" => Some(Box::new(cmd::split::ChunkVarInfo)),
+                    "split" => Some(Box::new(dyn_var_provider!(cmd::split::SplitVar))),
                     #[cfg(any(feature = "all-commands", feature = "find"))]
-                    "find" => Some(Box::new(cmd::find::FindVarHelp)),
+                    "find" => Some(Box::new(dyn_var_provider!(cmd::find::FindVar))),
                     _ => None,
                 };
-                eprintln!(
-                    "{}",
-                    crate::var::get_var_help(custom_help, m.help_vars_md, m.help_cmd_vars).unwrap()
-                );
+                crate::var::print_var_help(custom_help, m.help_vars_md, m.help_cmd_vars)?;
                 exit(2);
             }
         }
-        Self(ClapCli::parse())
+        Ok(Self(ClapCli::parse()))
     }
 
     pub fn run(&mut self) -> CliResult<()> {
         use SubCommand::*;
         macro_rules! run {
             ($cmdmod:ident, $opts:expr) => {
-                run!($cmdmod, $opts, None)
-            };
-
-            ($cmdmod:ident, $opts:expr, $var_mod:expr) => {
-                cmd::$cmdmod::run(Config::with_vars(&$opts.common, $var_mod)?, $opts)
+                cmd::$cmdmod::run(Config::new(&$opts.common)?, $opts)
             };
         }
         match self.0.command {
@@ -95,20 +94,20 @@ impl Cli {
             #[cfg(any(feature = "all-commands", feature = "sample"))]
             Sample(ref opts) => run!(sample, opts),
             #[cfg(any(feature = "all-commands", feature = "sort"))]
-            Sort(ref opts) => run!(sort, opts, cmd::sort::get_varprovider(opts)),
+            Sort(ref opts) => run!(sort, opts),
             #[cfg(any(feature = "all-commands", feature = "unique"))]
-            Unique(ref opts) => run!(unique, opts, cmd::unique::get_varprovider(opts)),
+            Unique(ref opts) => run!(unique, opts),
             #[cfg(any(
                 all(feature = "expr", feature = "all-commands"),
                 all(feature = "expr", feature = "filter")
             ))]
             Filter(ref opts) => run!(filter, opts),
             #[cfg(any(feature = "all-commands", feature = "split"))]
-            Split(ref opts) => run!(split, opts, cmd::split::get_varprovider(opts)),
+            Split(ref opts) => run!(split, opts),
             #[cfg(any(feature = "all-commands", feature = "interleave"))]
             Interleave(ref opts) => run!(interleave, opts),
             #[cfg(any(feature = "all-commands", feature = "find"))]
-            Find(ref opts) => run!(find, opts, cmd::find::get_varprovider(opts)),
+            Find(ref opts) => run!(find, opts),
             #[cfg(any(feature = "all-commands", feature = "replace"))]
             Replace(ref opts) => run!(replace, opts),
             #[cfg(any(feature = "all-commands", feature = "set"))]
@@ -162,11 +161,11 @@ impl CommonArgs {
                 } else if let Some(f) = opts.csv.as_ref() {
                     _info = FileInfo::new(FormatVariant::Csv, compr);
                     delim = Some(',');
-                    fields = f.clone();
+                    fields.clone_from(f);
                 } else if let Some(f) = opts.tsv.as_ref() {
                     _info = FileInfo::new(FormatVariant::Tsv, compr);
                     delim = Some('\t');
-                    fields = f.clone();
+                    fields.clone_from(f);
                 }
 
                 let format = InFormat::from_opts(
@@ -276,15 +275,14 @@ impl CommonArgs {
             has_header: self.meta.meta_header,
             meta_id_col: self.meta.meta_idcol.checked_sub(1).unwrap(),
             meta_dup_ids: self.meta.dup_ids,
-            attr_format: self.attr.attr_fmt.clone(),
             expr_init: self.expr.js_init.clone(),
-            var_help: self.general.help_vars,
         })
     }
 }
 
 #[derive(Parser, Clone, Debug)]
 #[command(author, version, about)]
+#[command(styles=get_styles())]
 pub struct ClapCli {
     #[command(subcommand)]
     pub command: SubCommand,
@@ -643,7 +641,7 @@ pub struct AttrArgs {
 #[clap(next_help_heading = "Associated metadata (all commands)")]
 pub struct MetaArgs {
     /// Delimited text file path (or '-' for STDIN) containing associated metadata,
-    /// accessed using the `meta(field)` function, or `meta(file-num, field)` in case
+    /// accessed using the `meta(field)` function, or `meta(field, file-num)` in case
     /// of multiple metadata files (supplied like this: -m file1 -m file2 ...).
     #[arg(short, long, value_name = "FILE", action = ArgAction::Append)]
     pub meta: Vec<String>,
@@ -716,4 +714,38 @@ pub struct AdvancedArgs {
     /// The default is 4 MiB or the optimal size depending on the compression format.
     #[arg(long, value_name = "N", value_parser = parse_bytesize, hide = true)]
     pub write_tbufsize: Option<usize>,
+}
+
+pub fn get_styles() -> Styles {
+    Styles::styled()
+        .usage(
+            Style::new()
+                .bold()
+                .underline()
+                .fg_color(Some(Color::Ansi(AnsiColor::Yellow))),
+        )
+        .header(
+            Style::new()
+                .bold()
+                .underline()
+                .fg_color(Some(Color::Ansi(AnsiColor::Yellow))),
+        )
+        .literal(Style::new().fg_color(Some(Color::Ansi(AnsiColor::Cyan))))
+        .invalid(
+            Style::new()
+                .bold()
+                .fg_color(Some(Color::Ansi(AnsiColor::Red))),
+        )
+        .error(
+            Style::new()
+                .bold()
+                .fg_color(Some(Color::Ansi(AnsiColor::Red))),
+        )
+        .valid(
+            Style::new()
+                .bold()
+                .underline()
+                .fg_color(Some(Color::Ansi(AnsiColor::Cyan))),
+        )
+        .placeholder(Style::new().fg_color(Some(Color::Ansi(AnsiColor::White))))
 }

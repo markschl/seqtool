@@ -88,7 +88,7 @@ impl Matches {
                 *best_dist = matches
                     .first()
                     .and_then(|m| m.as_ref().map(|m| m.dist))
-                    .unwrap_or(std::u16::MAX);
+                    .unwrap_or(u16::MAX);
                 *idx = i;
             }
             // sort -> best matches first
@@ -175,7 +175,7 @@ impl SearchConfig {
     }
 
     pub fn register_all(&mut self, group: usize) {
-        self.search_limit = std::usize::MAX;
+        self.search_limit = usize::MAX;
         self.add_group(group);
     }
 

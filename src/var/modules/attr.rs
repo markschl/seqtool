@@ -1,87 +1,76 @@
-use crate::error::CliResult;
+use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use variable_enum_macro::variable_enum;
+
 use crate::io::{QualConverter, Record};
-use crate::var::VarInfo;
 use crate::var::{
     attr::{self, Attributes},
-    func::Func,
-    symbols::{SymbolTable, VarType},
-    VarBuilder, VarProvider, VarProviderInfo,
+    parser::Arg,
+    symbols::SymbolTable,
+    VarBuilder, VarStore,
 };
-use crate::var_info;
 
-#[derive(Debug)]
-pub struct AttrInfo;
+use super::VarProvider;
 
-impl VarProviderInfo for AttrInfo {
-    fn name(&self) -> &'static str {
-        "Header attributes"
-    }
-
-    fn vars(&self) -> &[VarInfo] {
-        &[
-            var_info!(
-                attr ( name ) =>
-                "Obtain an attribute of given name (must be present in all sequences)"
-            ),
-            var_info!(
-                opt_attr ( name ) =>
-                "Obtain an attribute value, or an empty string if missing. In \
-                Javascript expressions, missing attributes equal to `undefined`."
-            ),
-            var_info!(
-                attr_del ( name ) =>
-                "Obtain an attribute (must be present), simultaneously removing \
-                it from the header."
-            ),
-            var_info!(
-                opt_attr_del ( name ) =>
-                "Obtain an attribute (may be missing), simultaneously removing \
-                it from the header."
-            ),
-            var_info!(
-                has_attr ( name ) =>
-                "Returns `true` if the given attribute is present, otherwise \
-                returns `false`. Especially useful with the `filter` command; \
-                equivalent to the expression `opt_attr(name) != undefined`."
-            ),
-        ]
-    }
-
-    fn desc(&self) -> Option<&'static str> {
-        Some("Attributes stored in FASTA/FASTQ headers in the form key=value")
-    }
-    fn examples(&self) -> Option<&'static [(&'static str, &'static str)]> {
-        Some(&[
-            (
-                "Summarizing over an attribute in the FASTA header `>id size=3`",
-                "st count -k attr(size) seqs.fa",
-            ),
-            (
-                "Adding the sequence length to the header as attribute",
-                "st . -a seqlen={seqlen} seqs.fa",
-            ),
-        ])
+variable_enum! {
+    /// # Header attributes
+    ///
+    /// Attributes stored in FASTA/FASTQ headers.
+    /// The expected pattern is ' key=value', but other patterns can be
+    /// specified with `--attr-format`.
+    ///
+    /// # Examples
+    ///
+    /// Summarizing over an attribute in the FASTA header `>id size=3`
+    ///
+    /// `st count -k 'attr(size)' seqs.fa`
+    /// 
+    /// Summarizing over a 'size' attribute that may be missing/empty in some
+    /// headers
+    ///
+    /// `st count -k 'opt_attr(size)' seqs.fa`
+    /// 
+    /// Summarize over a 'size' attribute directly appended to the sequence ID
+    /// like this: '>id;size=3 description
+    ///
+    /// `st count -k 'opt_attr(size)' --attr-fmt ';key=value' seqs.fa`
+    /// 
+    AttrVar {
+        /// Obtain an attribute of given name (must be present in all sequences)
+        Attr(Text) { name: String },
+        /// Obtain an attribute value, or an empty string if missing. In
+        /// Javascript expressions, missing attributes equal to `undefined`.
+        OptAttr(Text) { name: String },
+        /// Obtain an attribute (must be present), simultaneously removing
+        /// it from the header.
+        AttrDel(Text) { name: String },
+        /// Obtain an attribute (may be missing), simultaneously removing
+        /// it from the header.
+        OptAttrDel(Text) { name: String },
+        /// Returns `true` if the given attribute is present, otherwise
+        /// returns `false`. Especially useful with the `filter` command;
+        /// equivalent to the expression `opt_attr(name) != undefined`.
+        HasAttr(Boolean) { name: String },
     }
 }
 
-#[derive(Debug)]
+/// A registered variable type
+#[derive(Debug, Clone, PartialEq)]
+struct RegAttrVar {
+    attr_id: usize,
+    name: String,
+    return_type: AttrVarType,
+    allow_missing: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum AttrVarType {
     Value,
     Exists,
 }
 
-#[derive(Debug)]
-struct Var {
-    name: String,
-    return_type: AttrVarType,
-    attr_id: usize,
-    id: usize,
-    allow_missing: bool,
-}
-
 #[derive(Debug, Default)]
 pub struct AttrVars {
-    vars: Vec<Var>,
+    vars: VarStore<RegAttrVar>,
 }
 
 impl AttrVars {
@@ -91,57 +80,64 @@ impl AttrVars {
 }
 
 impl VarProvider for AttrVars {
-    fn info(&self) -> &dyn VarProviderInfo {
-        &AttrInfo
+    fn info(&self) -> &dyn DynVarProviderInfo {
+        &dyn_var_provider!(AttrVar)
     }
 
-    fn register(&mut self, func: &Func, b: &mut VarBuilder) -> CliResult<Option<VarType>> {
-        let (paction, rtype, vtype, allow_missing) = match func.name.as_str() {
-            "attr" => (None, AttrVarType::Value, VarType::Text, false),
-            "has_attr" => (None, AttrVarType::Exists, VarType::Bool, true),
-            "opt_attr" => (None, AttrVarType::Value, VarType::Text, true),
-            "attr_del" => (
-                Some(attr::AttrWriteAction::Delete),
-                AttrVarType::Value,
-                VarType::Text,
-                false,
-            ),
-            "opt_attr_del" => (
-                Some(attr::AttrWriteAction::Delete),
-                AttrVarType::Value,
-                VarType::Text,
-                true,
-            ),
-            _ => unreachable!(), // shouldn't happen
-        };
-        let name = func.arg_as::<String>(0)?;
-        if name.is_empty() {
-            return fail!("Attribute names cannot be empty.");
+    fn register(
+        &mut self,
+        name: &str,
+        args: &[Arg],
+        builder: &mut VarBuilder,
+    ) -> Result<Option<(usize, Option<VarType>)>, String> {
+        if let Some((var, out_type)) = AttrVar::from_func(name, args)? {
+            use AttrVar::*;
+            let (name, paction, rtype, allow_missing) = match var {
+                Attr { name } => (name, None, AttrVarType::Value, false),
+                OptAttr { name } => (name, None, AttrVarType::Value, true),
+                AttrDel { name } => (
+                    name,
+                    Some(attr::AttrWriteAction::Delete),
+                    AttrVarType::Value,
+                    false,
+                ),
+                OptAttrDel { name } => (
+                    name,
+                    Some(attr::AttrWriteAction::Delete),
+                    AttrVarType::Value,
+                    true,
+                ),
+                HasAttr { name } => (name, None, AttrVarType::Exists, true),
+            };
+            if name.is_empty() {
+                return fail!("Attribute names cannot be empty.");
+            }
+            let attr_id = builder.register_attr(&name, paction)?.unwrap();
+            let reg_var = RegAttrVar {
+                name: name.to_string(),
+                return_type: rtype,
+                attr_id,
+                allow_missing,
+            };
+            let symbol_id = builder.store_register(reg_var, &mut self.vars);
+            return Ok(Some((symbol_id, out_type)));
         }
-        let attr_id = b.register_attr(&name, paction)?.unwrap();
-        self.vars.push(Var {
-            name: name.to_string(),
-            return_type: rtype,
-            attr_id,
-            id: b.symbol_id(),
-            allow_missing,
-        });
-        Ok(Some(vtype))
+        Ok(None)
     }
 
     fn has_vars(&self) -> bool {
         !self.vars.is_empty()
     }
 
-    fn set(
+    fn set_record(
         &mut self,
         rec: &dyn Record,
         symbols: &mut SymbolTable,
         attrs: &mut Attributes,
         _: &mut QualConverter,
-    ) -> CliResult<()> {
-        for var in &self.vars {
-            let sym = symbols.get_mut(var.id);
+    ) -> Result<(), String> {
+        for (symbol_id, var) in self.vars.iter() {
+            let sym = symbols.get_mut(*symbol_id);
             match var.return_type {
                 AttrVarType::Value => {
                     if let Some(val) = attrs.get_value(var.attr_id, rec.id(), rec.desc()) {
@@ -150,8 +146,8 @@ impl VarProvider for AttrVars {
                         if !var.allow_missing {
                             return fail!(format!(
                                 "Attribute '{}' not found in record '{}'. \
-                                Use 'opt_attr()' if attributes may be missing in some records. \
-                                Set the correct attribute format with --attr-format.",
+                                Use 'opt_attr()' if attributes are missing in some records. \
+                                Use --attr-format to adjust the attribute key/value format.",
                                 var.name,
                                 String::from_utf8_lossy(rec.id())
                             ));

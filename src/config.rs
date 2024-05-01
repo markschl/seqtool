@@ -1,11 +1,10 @@
+use std::any::TypeId;
 use std::cell::Cell;
 use std::io;
 
-use itertools::Itertools;
-
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
-use crate::helpers::{seqtype::SeqType, DefaultHashMap as HashMap};
+use crate::helpers::seqtype::SeqType;
 use crate::io::{
     input::{self, InFormat, InputKind, InputOptions},
     output::{
@@ -16,96 +15,31 @@ use crate::io::{
 };
 use crate::var::{
     attr::{AttrFormat, Attributes},
-    func::Func,
-    init_vars,
-    symbols::{SymbolTable, VarType},
-    ArgInfo, VarBuilder, VarOpts, VarProvider,
+    build::VarBuilder,
+    modules::VarProvider,
+    symbols::SymbolTable,
+    VarOpts,
 };
 
 #[derive(Debug)]
 pub struct Config {
     input_opts: Vec<InputOptions>,
     output_opts: OutputOptions,
+    var_opts: VarOpts,
     // context provided along with individual sequence records,
     // contains the symbol table
     ctx: SeqContext,
-    // registry of all variables by name,
-    // with: - index of corresponding `VarProvider` module in ctx.var_modules)
-    //       - range of expected arguments
-    var_map: HashMap<String, (usize, (usize, usize))>,
-    // used to remember, which variables have been registered to which ID
-    registered_vars: HashMap<Func, (usize, Option<VarType>, bool)>,
+    // number of registered variables
+    n_vars: usize,
+    // used to remember, whether the parsing already started
     started: Cell<bool>,
 }
 
 impl Config {
     pub fn new(args: &CommonArgs) -> CliResult<Self> {
-        Self::with_vars(args, None)
-    }
-
-    pub fn with_vars(
-        args: &CommonArgs,
-        command_vars: Option<Box<dyn VarProvider>>,
-    ) -> CliResult<Self> {
         let input_opts = args.get_input_opts()?;
         let output_opts = args.get_output_opts(Some(&input_opts[0].format))?;
         let var_opts: VarOpts = args.get_var_opts()?;
-
-        // variable providers
-        let mut var_modules = Vec::new();
-        init_vars(
-            &mut var_modules,
-            command_vars,
-            &var_opts,
-            input_opts[0].seqtype,
-            &output_opts,
-        )?;
-
-        // build variable registry with expected number of arguments
-        let mut vars: Vec<((String, usize), (usize, usize))> = var_modules
-            .iter()
-            .enumerate()
-            .flat_map(|(i, v)| {
-                v.info().vars().iter().flat_map(move |vars| {
-                    let key = (vars.name.to_string(), i);
-                    vars.args.iter().map(move |args| {
-                        (
-                            key.clone(),
-                            (
-                                args.iter()
-                                    .filter(|a| matches!(a, ArgInfo::Required(_)))
-                                    .count(),
-                                args.len(),
-                            ),
-                        )
-                    })
-                })
-            })
-            .collect();
-        vars.sort_by_key(|(k, _)| k.clone());
-        let mut arg_num = Vec::new();
-        let var_map = vars
-            .into_iter()
-            .group_by(|(k, _)| k.clone())
-            .into_iter()
-            .map(|((varname, provider_i), group)| {
-                arg_num.clear();
-                for (_, (min_args, max_args)) in group {
-                    arg_num.push(min_args);
-                    arg_num.push(max_args);
-                }
-                (
-                    varname,
-                    (
-                        provider_i,
-                        (
-                            *arg_num.iter().min().unwrap(),
-                            *arg_num.iter().max().unwrap(),
-                        ),
-                    ),
-                )
-            })
-            .collect();
 
         // quality score format
         let qual_format = match input_opts[0].format {
@@ -115,19 +49,19 @@ impl Config {
         };
 
         // context used while reading
-        let ctx = SeqContext::new(
-            var_modules,
+        let mut ctx = SeqContext::new(
             args.attr.attr_fmt.clone(),
             qual_format,
             (output_opts.compression, output_opts.compression_level),
         );
+        ctx.init_vars(&var_opts, input_opts[0].seqtype, &output_opts)?;
 
         Ok(Self {
             output_opts,
             input_opts,
+            var_opts,
             ctx,
-            var_map,
-            registered_vars: HashMap::default(),
+            n_vars: 0,
             started: Cell::new(false),
         })
     }
@@ -144,34 +78,38 @@ impl Config {
     //     &self.output_opts
     // }
 
-    pub fn build_vars<F, O>(&mut self, mut action: F) -> CliResult<O>
+    pub fn set_custom_varmodule(&mut self, provider: Box<dyn VarProvider>) -> CliResult<()> {
+        self.ctx
+            .set_custom_varmodule(provider, &self.var_opts, &self.output_opts)
+    }
+
+    pub fn build_vars<F, O, E>(&mut self, mut action: F) -> Result<O, E>
     where
-        F: FnMut(&mut VarBuilder) -> CliResult<O>,
+        F: FnMut(&mut VarBuilder) -> Result<O, E>,
     {
         let rv = {
             let mut builder = VarBuilder::new(
                 &mut self.ctx.var_modules,
-                &self.var_map,
-                &mut self.registered_vars,
                 &mut self.ctx.attrs,
+                &mut self.n_vars,
             );
             action(&mut builder)
         };
         // done, grow the symbol table
-        self.ctx.symbols.resize(self.registered_vars.len());
+        self.ctx.symbols.resize(self.n_vars);
         rv
     }
 
     /// Provides access to the custom `VarProvider` of the given type in a closure,
     /// if it is found. Panics otherwise.
-    pub fn with_command_vars<M, O>(
+    pub fn with_command_vars<M, O, E>(
         &mut self,
-        func: impl FnOnce(Option<&mut M>, &mut SymbolTable) -> CliResult<O>,
-    ) -> CliResult<O>
+        func: impl FnOnce(Option<&mut M>, &mut SymbolTable) -> Result<O, E>,
+    ) -> Result<O, E>
     where
         M: VarProvider + 'static,
     {
-        self.ctx.command_vars(func)
+        self.ctx.custom_vars(func)
     }
 
     /// Returns a `FormatWriter` for the configured output format
@@ -202,7 +140,7 @@ impl Config {
     {
         self.init_reader()?;
         input::with_io_readers(&self.input_opts, |o, rdr| {
-            self.ctx.new_input(o)?;
+            self.ctx.init_input(o)?;
             input::run_reader(rdr, &o.format, o.cap, o.max_mem, &mut |rec| {
                 self.ctx.set_record(&rec)?;
                 func(rec, &mut self.ctx)
@@ -225,10 +163,12 @@ impl Config {
         input::read_alongside(&self.input_opts, |i, rec| func(i, rec, &mut self.ctx))
     }
 
+    /// Does some final preparation tasks regarding variables/functions before
+    /// running the parser
     #[inline(never)]
     fn init_reader(&mut self) -> CliResult<()> {
-        // remove unused variable modules
-        self.ctx.filter_var_modules();
+        // remove unused modules
+        self.ctx.filter_var_providers();
         // ensure that STDIN cannot be read twice
         // (would result in empty input on second attempt)
         if self.started.get() && self.has_stdin() {
@@ -256,7 +196,7 @@ impl Config {
     {
         self.init_reader()?;
         input::with_io_readers(&self.input_opts, |in_opts, rdr| {
-            self.ctx.new_input(in_opts)?;
+            self.ctx.init_input(in_opts)?;
             input::read_parallel(
                 in_opts,
                 rdr,
@@ -306,7 +246,10 @@ impl Config {
 /// symbol table with values for all necessary variables.
 #[derive(Debug)]
 pub struct SeqContext {
+    // variable provider modules
     var_modules: Vec<Box<dyn VarProvider>>,
+    // command-specific variable provider: (index in array, type ID)
+    custom_module: Option<(usize, TypeId)>,
     // These fields are public in order to avoid borrowing issues
     // in some implementations.
     pub symbols: SymbolTable,
@@ -319,13 +262,13 @@ pub struct SeqContext {
 
 impl SeqContext {
     pub fn new(
-        var_modules: Vec<Box<dyn VarProvider>>,
         attr_format: AttrFormat,
         qual_format: QualFormat,
         out_compression: (Compression, Option<u8>),
     ) -> Self {
         Self {
-            var_modules,
+            var_modules: Vec::new(),
+            custom_module: None,
             symbols: SymbolTable::new(0),
             attrs: Attributes::new(attr_format),
             qual_converter: QualConverter::new(qual_format),
@@ -333,29 +276,110 @@ impl SeqContext {
         }
     }
 
-    #[inline]
-    fn filter_var_modules(&mut self) {
-        // remove unused modules
+    fn init_vars(
+        &mut self,
+        opts: &VarOpts,
+        seqtype_hint: Option<SeqType>,
+        out_opts: &OutputOptions,
+    ) -> CliResult<()> {
+        use crate::var::modules::*;
+        // metadata lists
+        self.var_modules.push(Box::new(
+            meta::MetaVars::new(
+                &opts.metadata_sources,
+                opts.meta_delim_override,
+                opts.meta_dup_ids,
+            )?
+            .set_id_col(opts.meta_id_col)
+            .set_has_header(opts.has_header),
+        ));
+
+        // other modules
+        self.var_modules
+            .push(Box::new(general::GeneralVars::new(seqtype_hint)));
+        self.var_modules.push(Box::new(stats::StatVars::new()));
+        self.var_modules.push(Box::new(attr::AttrVars::new()));
+
+        #[cfg(feature = "expr")]
+        self.var_modules
+            .push(Box::new(expr::ExprVars::new(opts.expr_init.as_deref())?));
+
+        self.var_modules.push(Box::new(cnv::CnvVars::new()));
+
+        // make modules aware of output options
+        for m in &mut self.var_modules {
+            m.init_output(out_opts)?;
+        }
+        Ok(())
+    }
+
+    /// Adds another custom variable provider module. It can be later accessed
+    /// using `custom_vars()`. Calling this again with another module does not
+    /// invalidate the previous one, but `custom_vars` will then return only the
+    /// last-added module.
+    ///
+    /// In order to allow using variables from that module in expressions,
+    /// we append another expression evaluation and a conversion module.
+    fn set_custom_varmodule(
+        &mut self,
+        module: Box<dyn VarProvider>,
+        opts: &VarOpts,
+        out_opts: &OutputOptions,
+    ) -> CliResult<()> {
+        debug_assert!(self.custom_module.is_none());
+        use crate::var::modules::*;
+        let n = self.var_modules.len();
+        self.var_modules.push(module);
+        self.custom_module = Some((n, (self.var_modules.last().unwrap()).get_type_id()));
+        // add another module for evaluating expressions in order to be able to
+        // use variables from the newly added module in JS expressions
+        #[cfg(feature = "expr")]
+        self.var_modules
+            .push(Box::new(expr::ExprVars::new(opts.expr_init.as_deref())?));
+        // we also want to be able to post-process these variables, so we also add a
+        // conversion module
+        self.var_modules.push(Box::new(cnv::CnvVars::new()));
+        // finally, also run 'init' for the newly added modules
+        for m in self.var_modules.iter_mut().skip(n) {
+            m.init_output(out_opts)?;
+        }
+        Ok(())
+    }
+
+    /// Removes all variable providers that don't have any variables registered
+    fn filter_var_providers(&mut self) {
         self.var_modules = self
             .var_modules
             .drain(..)
             .filter(|m| m.has_vars())
             .collect();
+        // update the index of the custom module (if it is still there)
+        if let Some((_, ty_id)) = self.custom_module {
+            self.custom_module = self
+                .var_modules
+                .iter()
+                .position(|m| m.get_type_id() == ty_id)
+                .map(|i| (i, ty_id));
+        }
+        // dbg!("filtered", &self.var_modules);
     }
 
     /// Provides access to the custom `VarProvider` of the given type in a closure,
     /// if it is found. Panics otherwise.
-    pub fn command_vars<M, O>(
+    pub fn custom_vars<M, O, E>(
         &mut self,
-        func: impl FnOnce(Option<&mut M>, &mut SymbolTable) -> CliResult<O>,
-    ) -> CliResult<O>
+        func: impl FnOnce(Option<&mut M>, &mut SymbolTable) -> Result<O, E>,
+    ) -> Result<O, E>
     where
         M: VarProvider + 'static,
     {
-        let m = self
-            .var_modules
-            .first_mut()
-            .and_then(|m| m.as_mut().as_any_mut().downcast_mut::<M>());
+        let m = self.custom_module.map(|(i, _)| {
+            self.var_modules[i]
+                .as_mut()
+                .as_any_mut()
+                .downcast_mut::<M>()
+                .unwrap()
+        });
         func(m, &mut self.symbols)
     }
 
@@ -384,9 +408,9 @@ impl SeqContext {
 
     /// Initialize context with a new input
     /// (done in Config while reading)
-    pub fn new_input(&mut self, in_opts: &InputOptions) -> CliResult<()> {
+    pub fn init_input(&mut self, in_opts: &InputOptions) -> CliResult<()> {
         for m in &mut self.var_modules {
-            m.new_input(in_opts)?;
+            m.init_input(in_opts)?;
         }
         Ok(())
     }
@@ -399,7 +423,7 @@ impl SeqContext {
             self.attrs.parse(record);
         }
         for m in &mut self.var_modules {
-            m.set(
+            m.set_record(
                 record,
                 &mut self.symbols,
                 &mut self.attrs,
