@@ -458,7 +458,7 @@ fn quoted<'a, S: StrStream<'a>>(quote: char) -> impl FnMut(&mut S) -> PResult<Co
                         if s.is_empty() {
                             *s = fragment;
                         } else {
-                            out = Cow::Owned(fragment.to_string());
+                            out = Cow::Owned(s.to_string());
                         }
                     }
                     if let Cow::Owned(s) = &mut out {
