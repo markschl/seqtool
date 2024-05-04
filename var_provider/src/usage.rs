@@ -17,8 +17,12 @@ pub(crate) fn usage_list(info: &FuncUsage) -> Vec<String> {
         out.push(info.name.to_string());
     }
     if n_args > n_required {
-        for i in n_required.clamp(1, n_args)..n_args+1 {
-            out.push(format!("{}({})", info.name, info.args[..i].iter().map(|u| u.name).join(", ")));
+        for i in n_required.clamp(1, n_args)..n_args + 1 {
+            out.push(format!(
+                "{}({})",
+                info.name,
+                info.args[..i].iter().map(|u| u.name).join(", ")
+            ));
         }
     }
     out

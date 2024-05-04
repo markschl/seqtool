@@ -65,47 +65,6 @@ where
     Ok(())
 }
 
-// pub unsafe fn replace_iter_unchecked<M>(text: &[u8], replacement: &[u8], out: &mut Vec<u8>, matches: M)
-// where
-//     M: Iterator<Item = (usize, usize)>,
-// {
-//     let mut last_end = 0;
-//     for (start, end) in matches {
-//         out.extend_from_slice(unsafe { get_unchecked(text, last_end, start) });
-//         out.extend_from_slice(replacement);
-//         last_end = end;
-//     }
-//     out.extend_from_slice(unsafe { get_unchecked(text, last_end, text.len()) });
-// }
-//
-// #[inline]
-// unsafe fn get_unchecked(text: &[u8], start: usize, end: usize) -> &[u8] {
-//     let ptr = text.as_ptr().offset(start as isize);
-//     std::slice::from_raw_parts(ptr, end - start)
-// }
-
-pub fn text_to_int(text: &[u8]) -> Result<i64, String> {
-    atoi::atoi(text).ok_or_else(|| {
-        format!(
-            "Could not convert '{}' to decimal number.",
-            String::from_utf8_lossy(text)
-        )
-    })
-}
-
-pub fn text_to_float(text: &[u8]) -> Result<f64, String> {
-    // TODO: any more efficient way?
-    std::str::from_utf8(text)
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .ok_or_else(|| {
-            format!(
-                "Could not convert '{}' to integer.",
-                String::from_utf8_lossy(text)
-            )
-        })
-}
-
 /// Writes an iterator of of text slices as delimited list to the output.
 /// Returns true if the list is not empty
 pub fn write_list<L, I, W>(list: L, sep: &[u8], out: &mut W) -> io::Result<bool>

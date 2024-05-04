@@ -32,7 +32,6 @@ pub use self::vars::*;
 static MEM_OVERHEAD: f32 = 1.2;
 
 pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
-    let force_numeric = args.numeric;
     let verbose = args.common.general.verbose;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
     let mut record_buf_factory = VecFactory::new();
@@ -64,13 +63,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
         cfg.read(|record, ctx| {
             // assemble key
             ctx.custom_vars::<UniqueVars, _, String>(|key_mod, symbols| {
-                keys.compose_from(
-                    &varstring_keys,
-                    &mut text_buf,
-                    symbols,
-                    record,
-                    force_numeric,
-                )?;
+                keys.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
                 if let Some(m) = key_mod {
                     m.set(&keys, symbols);
                 }

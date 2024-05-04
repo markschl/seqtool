@@ -23,11 +23,11 @@ winnow = { version = "0.6", features = ["simd"] }
 vec_map = "0.8"
 deepsize = "0.2"
 itertools = "0.12"
-atoi = "2.0"
 bytecount = "0.6"
 strum = "0.26"
 strum_macros = "0.26"
 bstr = { version = "1.9", default-features = false, features = ["std"] }
+lexical = { version = "6.1.1", default-features = false, features = ["parse-floats", "parse-integers", "parse", "write-floats"] }
 ordered-float = { version = "4.2", default-features = false, features = ["std", "rkyv", "rkyv_ck"] }
 cfg-if = "1.0"
 # CLI

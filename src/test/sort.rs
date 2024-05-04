@@ -29,14 +29,23 @@ fn attr() {
 
 #[test]
 fn numeric_attr() {
-    Tester::new()
-        .cmp(&["sort", "-n", "attr(p)"], *FASTA, records!(1, 0, 2, 3))
-        .cmp(&["sort", "-n", "{attr(p)}"], *FASTA, records!(1, 0, 2, 3))
-        .cmp(&["sort", "-rn", "attr(p)"], *FASTA, records!(3, 2, 0, 1));
+    let t = Tester::new();
+    t.cmp(&["sort", "num(attr(p))"], *FASTA, records!(1, 0, 2, 3))
+        .cmp(&["sort", "{num(attr(p))}"], *FASTA, records!(1, 0, 2, 3))
+        .cmp(
+            &["sort", "-r", "num(attr(p))"],
+            *FASTA,
+            records!(3, 2, 0, 1),
+        )
+        .cmp(
+            &["sort", "-r", "{num(attr('p'))}"],
+            *FASTA,
+            records!(3, 2, 0, 1),
+        );
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(
-        &["sort", "-n", "{attr('p')+1}"],
+    t.cmp(
+        &["sort", "{num(attr('p')+1)}"],
         *FASTA,
         records!(1, 0, 2, 3),
     );
@@ -44,22 +53,21 @@ fn numeric_attr() {
 
 #[test]
 fn force_numeric() {
-    Tester::new()
-        .fails(&["sort", "-n", "id"], *FASTA, "Could not convert")
+    let t = Tester::new();
+    t.fails(&["sort", "num(id)"], *FASTA, "Could not convert")
         .fails(
-            &["sort", "-n", "{id}{attr(p)}"],
+            &["sort", "{num(id + attr('p'))}"],
             *FASTA,
             "Could not convert",
-        )
-        .cmp(
-            &["sort", "-n", "{attr(p)}{attr(p)}"],
-            *FASTA,
-            records!(1, 0, 2, 3),
         );
-
     #[cfg(feature = "expr")]
-    Tester::new().cmp(
-        &["sort", "-n", "{ id.substring(3, 4) }"],
+    t.cmp(
+        &["sort", "{num(attr('p') + attr('p'))}"],
+        *FASTA,
+        records!(1, 0, 2, 3),
+    )
+    .cmp(
+        &["sort", "{ num(id.substring(3, 4)) }"],
         *FASTA,
         records!(1, 0, 3, 2),
     );
@@ -67,13 +75,12 @@ fn force_numeric() {
 
 #[test]
 fn numeric_vars() {
-    Tester::new()
-        .cmp(&["sort", "seq_num"], *FASTA, records!(0, 1, 2, 3))
+    let t = Tester::new();
+    t.cmp(&["sort", "seq_num"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["sort", "-r", "seq_num"], *FASTA, records!(3, 2, 1, 0));
 
     #[cfg(feature = "expr")]
-    Tester::new()
-        .cmp(&["sort", "{ 7 + seq_num }"], *FASTA, records!(0, 1, 2, 3))
+    t.cmp(&["sort", "{ 7 + seq_num }"], *FASTA, records!(0, 1, 2, 3))
         // seq_num as string in range 1-4 -> same as numeric sort
         .cmp(
             &["sort", "{ (seq_num).toString() }"],
@@ -87,8 +94,7 @@ fn numeric_vars() {
             records!(2, 3, 0, 1),
         );
 
-    Tester::new()
-        .cmp(&["sort", "ungapped_seqlen"], *FASTA, records!(3, 1, 2, 0))
+    t.cmp(&["sort", "ungapped_seqlen"], *FASTA, records!(3, 1, 2, 0))
         .cmp(
             &["sort", "-r", "ungapped_seqlen"],
             *FASTA,
@@ -97,18 +103,23 @@ fn numeric_vars() {
         .cmp(&["sort", "gc"], *FASTA, records!(0, 3, 1, 2))
         // -n argument has no effect (already numeric)
         .cmp(
-            &["sort", "-rn", "ungapped_seqlen"],
+            &["sort", "-r", "num(ungapped_seqlen)"],
             *FASTA,
             records!(0, 1, 2, 3),
         )
-        .cmp(&["sort", "-n", "gc"], *FASTA, records!(0, 3, 1, 2));
+        .cmp(&["sort", "num(gc)"], *FASTA, records!(0, 3, 1, 2));
 }
 
 #[test]
 fn multi_key() {
-    Tester::new().cmp(&["sort", "-rn", "gc,attr(p)"], *FASTA, records!(2, 1, 3, 0));
+    let t = Tester::new();
+    t.cmp(
+        &["sort", "-r", "num(gc),num(attr('p'))"],
+        *FASTA,
+        records!(2, 1, 3, 0),
+    );
     #[cfg(feature = "expr")]
-    Tester::new().cmp(
+    t.cmp(
         &["sort", "seqlen,ungapped_seqlen,{-attr('p')}"],
         *FASTA,
         records!(3, 2, 1, 0),
@@ -146,9 +157,7 @@ fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s3 k=-3\nS3\n>s1 k=\nS1\n>s2 k=\nS2\n";
     let expr = "{ if (seq_num <= 2) return undefined; return -parseInt(id.substring(1, 2)); }";
-    Tester::new()
-        .cmp(&["sort", expr, "-a", "k={key}"], fa, out)
-        .cmp(&["sort", "-n", expr, "-a", "k={key}"], fa, out);
+    Tester::new().cmp(&["sort", expr, "-a", "k={key}"], fa, out);
 }
 
 #[test]
@@ -195,7 +204,7 @@ fn large() {
                 &rev_sorted_fasta,
             );
             t.cmp(
-                &["sort", "-n", "id", "-M", &num_limit, "-q"],
+                &["sort", "num(id)", "-M", &num_limit, "-q"],
                 FileInput(path),
                 &num_sorted_fasta,
             );

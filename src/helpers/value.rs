@@ -1,13 +1,21 @@
 use std::io;
+use std::mem;
 
 use deepsize::{Context, DeepSizeOf};
-use ordered_float::OrderedFloat;
 
+use crate::io::Record;
+use crate::var::symbols::Value;
 use crate::{cmd::shared::tmp_store::Archivable, var::symbols::OptValue};
 
-/// A simple value type that can be either text, numeric or none.
+use super::number::{Float, Interval};
+
+/// A simple value type that can be either text, numeric, boolean, interval or undefined/none.
 /// Can also be serialized using rkyv (only enabled for sort and unique commands).
-// TODO: may belong in cmd::shared, but SimpleValue is also used in VarString::get_simple()
+///
+/// This type is simpler than the Value type in the symbol table, which often have
+/// additional information stored/allocated.
+/// Another difference: SimpleValue does not have an integer type, any number will
+/// thus behave the same (as float). This is important when sorting/hashing.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 #[cfg_attr(
     any(feature = "all-commands", feature = "sort", feature = "unique"),
@@ -16,25 +24,71 @@ use crate::{cmd::shared::tmp_store::Archivable, var::symbols::OptValue};
 )]
 pub enum SimpleValue {
     Text(Box<[u8]>),
-    Number(OrderedFloat<f64>),
+    Number(Float),
+    Boolean(bool),
+    Interval(Interval),
     None,
 }
 
 impl SimpleValue {
-    pub fn write(&self, writer: &mut impl io::Write) -> io::Result<()> {
+    #[inline]
+    pub fn write<W: io::Write + ?Sized>(&self, writer: &mut W, none_value: &str) -> io::Result<()> {
+        use SimpleValue::*;
         match self {
-            SimpleValue::Text(v) => writer.write_all(v),
-            SimpleValue::Number(v) => write!(writer, "{}", v),
-            SimpleValue::None => Ok(()),
+            Text(v) => writer.write_all(v),
+            Number(v) => write!(writer, "{}", v),
+            Boolean(v) => write!(writer, "{}", v),
+            Interval(i) => write!(writer, "{}", i),
+            None => write!(writer, "{}", none_value),
         }
     }
 
-    pub fn write_to_symbol(&self, sym: &mut OptValue) {
+    #[inline]
+    pub fn to_symbol(&self, sym: &mut OptValue) {
+        use SimpleValue::*;
         match self {
-            SimpleValue::Text(t) => sym.inner_mut().set_text(t),
-            SimpleValue::Number(n) => sym.inner_mut().set_float(n.0),
-            SimpleValue::None => sym.set_none(),
+            Text(t) => sym.inner_mut().set_text(t),
+            Number(n) => sym.inner_mut().set_float(n.inner()),
+            Boolean(b) => sym.inner_mut().set_bool(*b),
+            Interval(i) => sym.inner_mut().set_interval(*i),
+            None => sym.set_none(),
         }
+    }
+
+    #[inline]
+    pub fn replace_from_symbol<'a>(
+        &mut self,
+        sym: &OptValue,
+        rec: &dyn Record,
+        text_buf: &'a mut Vec<u8>,
+    ) {
+        if let SimpleValue::Text(t) = self {
+            // If present, take the text buffer from SimpleValue.
+            // If `text_buf` is already non-empty (allocated), this allocation
+            // will be lost. But it is assumed that the allocation is always
+            // either referenced by SimpleValue::Text() or by `text_buf`, never
+            // both.
+            *text_buf = mem::take(t).into_vec();
+        }
+        *self = if let Some(v) = sym.inner() {
+            match v {
+                Value::Text(_) | Value::Attr(_) => {
+                    v.as_text(rec, |t| {
+                        text_buf.clear();
+                        text_buf.extend_from_slice(t);
+                        Ok::<(), ()>(())
+                    })
+                    .unwrap();
+                    SimpleValue::Text(mem::take(text_buf).into_boxed_slice())
+                }
+                Value::Int(v) => SimpleValue::Number(Float::new(*v.get() as f64)),
+                Value::Float(v) => SimpleValue::Number(Float::new(*v.get())),
+                Value::Interval(v) => SimpleValue::Interval(*v.get()),
+                Value::Bool(v) => SimpleValue::Boolean(*v.get()),
+            }
+        } else {
+            SimpleValue::None
+        };
     }
 }
 

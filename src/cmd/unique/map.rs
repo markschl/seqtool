@@ -57,7 +57,9 @@ impl<W: io::Write> MapWriter<W> {
             }
             MapFormat::Wide | MapFormat::WideKey => {
                 if self.format == MapFormat::WideKey {
-                    write_list_with(key.as_slice(), b"\t", &mut self.inner, |v, o| v.write(o))?;
+                    write_list_with(key.as_slice(), b"\t", &mut self.inner, |v, o| {
+                        v.write(o, "")
+                    })?;
                     write!(self.inner, "\t")?;
                 }
                 write_list(ids, b"\t", &mut self.inner)?;

@@ -14,6 +14,40 @@ fn general() {
 }
 
 #[test]
+fn numeric() {
+    let t = Tester::new();
+    t.cmp(&["count", "-k", "num('1.2')"], *FASTA, "1.2\t4\n")
+        .cmp(
+            &["count", "-k", "bin(1.1, .1)"],
+            *FASTA,
+            "(1.1, 1.20000]\t4\n",
+        );
+
+    #[cfg(feature = "expr")]
+    t.cmp(&["count", "-k", "{ num(2 + 1) }"], *FASTA, "3\t4\n")
+        .cmp(
+            &["count", "-k", "{ num(attr('p') + 1) }"],
+            *FASTA,
+            "11\t1\n21\t1\n101\t1\n111\t1\n",
+        )
+        .cmp(
+            &["count", "-k", "{ bin(attr('p') > 2 ? 2 : attr('p')) }"],
+            *FASTA,
+            "(1, 2]\t1\n(2, 3]\t3\n",
+        )
+        .fails(
+            &["count", "-k", "{ num('abc') + 1 }"],
+            *FASTA,
+            "Could not convert 'abc'",
+        )
+        .fails(
+            &["count", "-k", "{ num('abc' + 1) }"],
+            *FASTA,
+            "Could not convert 'abc1'",
+        );
+}
+
+#[test]
 fn attrs() {
     let t = Tester::new();
     t.cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")

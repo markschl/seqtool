@@ -16,6 +16,7 @@ pub mod any;
 pub mod bytesize;
 pub mod complement;
 pub mod heap_merge;
+pub mod number;
 pub mod rng;
 pub mod seqtype;
 pub mod util;

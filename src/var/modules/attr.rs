@@ -23,17 +23,17 @@ variable_enum! {
     /// Summarizing over an attribute in the FASTA header `>id size=3`
     ///
     /// `st count -k 'attr(size)' seqs.fa`
-    /// 
+    ///
     /// Summarizing over a 'size' attribute that may be missing/empty in some
     /// headers
     ///
     /// `st count -k 'opt_attr(size)' seqs.fa`
-    /// 
+    ///
     /// Summarize over a 'size' attribute directly appended to the sequence ID
     /// like this: '>id;size=3 description
     ///
     /// `st count -k 'opt_attr(size)' --attr-fmt ';key=value' seqs.fa`
-    /// 
+    ///
     AttrVar {
         /// Obtain an attribute of given name (must be present in all sequences)
         Attr(Text) { name: String },

@@ -2,15 +2,60 @@ use std::fmt;
 use std::str;
 
 use rquickjs::{
-    context::intrinsic::*, Atom, Context as RContext, Ctx, Error, Exception, Function, IntoJs,
-    Persistent, Runtime, Type,
+    class::Trace, context::intrinsic::*, function::Opt, Atom, Class, Coerced, Context as RContext,
+    Ctx, Error, Exception, Function, IntoJs, Persistent, Runtime, Type,
 };
 // use rquickjs::{embed, loader::Bundle};
 
+use crate::helpers::number::Interval;
 use crate::io::Record;
 use crate::var::symbols::{OptValue, SymbolTable, Value};
 
 use super::{ExprContext, Expression, Var};
+
+#[derive(Trace, Default)]
+#[rquickjs::class(rename = "Interval")]
+pub struct JsInterval {
+    #[qjs(get, set)]
+    pub start: f64,
+
+    #[qjs(get, set)]
+    pub end: f64,
+}
+
+#[rquickjs::methods]
+impl JsInterval {
+    #[qjs(constructor)]
+    pub fn new(start: f64, end: f64) -> Self {
+        JsInterval { start, end }
+    }
+}
+
+#[rquickjs::function]
+pub fn bin(x: Coerced<f64>, interval: Opt<Coerced<f64>>) -> rquickjs::Result<JsInterval> {
+    let out = crate::helpers::number::bin(x.0, interval.map(|i| i.0).unwrap_or(1.));
+    Ok(JsInterval::new(out.0.inner(), out.1.inner()))
+}
+
+// // TODO: 'num' and 'int' functions are implemented in JS, not sure how to do it in Rust (call parseFloat and parseInt from here?)
+// #[rquickjs::function]
+// pub fn num(x: rquickjs::Value<'_>) -> rquickjs::Result<f64> {
+//     unimplemented!()
+// }
+
+include!("_js_include.rs");
+// static INCLUDE: Bundle = embed!{
+//     "globals": "../js/include.js",
+// };
+
+fn register_globals(ctx: &Ctx) {
+    // classes/functions in Rust
+    ctx.globals().set("bin", js_bin).unwrap();
+    Class::<JsInterval>::register(&ctx).unwrap();
+    Class::<JsInterval>::define(&ctx.globals()).unwrap();
+    // "standard library written in JS"
+    let _: () = ctx.eval(JS_INCLUDE.as_bytes()).unwrap();
+}
 
 fn to_js_value<'a>(
     value: Option<&Value>,
@@ -22,6 +67,11 @@ fn to_js_value<'a>(
             Value::Bool(v) => v.get().into_js(&ctx),
             Value::Int(v) => v.get().into_js(&ctx),
             Value::Float(v) => v.get().into_js(&ctx),
+            Value::Interval(v) => {
+                let int = v.get();
+                let cls = Class::instance(ctx.clone(), JsInterval::new(*int.0, *int.1)).unwrap();
+                Ok(cls.into_value())
+            }
             Value::Text(v) => v.as_str(record, |s| s.into_js(&ctx))?,
             Value::Attr(v) => v
                 .with_str(record, |v| v.into_js(&ctx))
@@ -33,14 +83,17 @@ fn to_js_value<'a>(
     res.map_err(|e| e.to_string())
 }
 
-fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> Result<bool, String> {
+fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> Result<(), String> {
+    #[inline(never)]
+    fn write_err(ty: &Type) -> String {
+        format!(
+            "Expression returned a type that cannot be interpreted: {}",
+            ty
+        )
+    }
     let ty = v.type_of();
-    let mut is_bool = false;
     match ty {
-        Type::Bool => {
-            out.inner_mut().set_bool(v.as_bool().unwrap());
-            is_bool = true;
-        }
+        Type::Bool => out.inner_mut().set_bool(v.as_bool().unwrap()),
         Type::Int | Type::BigInt => out.inner_mut().set_int(v.as_int().unwrap() as i64),
         Type::Float => out.inner_mut().set_float(v.as_float().unwrap()),
         Type::String => out.inner_mut().set_text(
@@ -51,20 +104,19 @@ fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> Result<bool, String> 
                 .as_bytes(),
         ),
         Type::Undefined | Type::Null => out.set_none(),
-        _ => {
-            return fail!(
-                "Expression returned a type that cannot be interpreted: {}",
-                ty
-            );
+        Type::Object => {
+            if let Ok(obj) = Class::<JsInterval>::from_value(v.clone()) {
+                let int = obj.borrow();
+                out.inner_mut()
+                    .set_interval(Interval::new(int.start, int.end));
+            } else {
+                return Err(write_err(&ty));
+            }
         }
+        _ => return Err(write_err(&ty)),
     }
-    Ok(is_bool)
+    Ok(())
 }
-
-include!("_js_include.rs");
-// static INCLUDE: Bundle = embed!{
-//     "globals": "../js/include.js",
-// };
 
 #[derive(Clone)]
 pub struct Context {
@@ -105,8 +157,9 @@ impl ExprContext for Context {
     fn init(&mut self, init_code: Option<&str>) -> Result<(), String> {
         // println!("init: {:?}", init_code);
         self.context.with(|ctx: Ctx<'_>| {
-            ctx.eval(JS_INCLUDE.as_bytes())
-                .map_err(|e| obtain_exception(e, ctx.clone()))?;
+            // global functions/classes
+            register_globals(&ctx);
+            // initialization code
             if let Some(code) = init_code {
                 ctx.eval(code.as_bytes())
                     .map_err(|e| obtain_exception(e, ctx.clone()))?;
@@ -217,5 +270,5 @@ fn obtain_exception(e: Error, ctx: Ctx<'_>) -> String {
     } else {
         e.to_string()
     };
-    format!("Javascript error: {}", msg)
+    format!("JavaScript error: {}", msg)
 }

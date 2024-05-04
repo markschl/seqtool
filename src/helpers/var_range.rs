@@ -8,6 +8,7 @@ use crate::var::{
     VarBuilder,
 };
 
+use super::number::parse_int;
 use super::rng::Range;
 
 /// Represents a range bound integer stored either directly or in a `VarString`
@@ -24,8 +25,8 @@ impl RngBound {
             if text.is_empty() {
                 return Ok(None);
             }
-            if let Some(bound) = atoi::atoi(text) {
-                return Ok(Some(RngBound::Number(bound)));
+            if let Ok(bound) = parse_int(text) {
+                return Ok(Some(RngBound::Number(bound as isize)));
             }
         }
         Ok(Some(RngBound::Expr(vs)))

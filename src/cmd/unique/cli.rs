@@ -13,19 +13,14 @@ pub struct UniqueCommand {
     /// The key can be a single variable/function such as 'seq',
     /// a composed string such as '{attr(a)}_{attr(b)}',
     /// or a comma-delimited list of multiple variables/functions, whose
-    /// values are all taken into account, e.g. 'seq,attr(a)'. In case of
+    /// values are all taken into account, e.g. 'seq,num(attr(a))'. In case of
     /// identical sequences, records are still de-replicated by the header
     /// attribute 'a'.
+    /// The 'num()' function turns text values into numbers, which can
+    /// speed up the de-replication.
     /// For each key, the *first* encountered record is returned, and all
     /// remaining ones with the same key are discarded.
     pub key: String,
-
-    /// Interpret the key as a number instead of text.
-    /// De-replicating by a numeric header attribute or a field from associated
-    /// metadata may be faster.
-    /// Variables/functions such as `seqhash`, `gc`, `exp_err`, etc. are always numeric.
-    #[arg(short, long)]
-    pub numeric: bool,
 
     /// Sort the output by key.
     /// Without this option, the records are in input order if the memory limit

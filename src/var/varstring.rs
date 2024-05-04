@@ -2,18 +2,13 @@ use std::ops::Deref;
 use std::{io, mem, str};
 
 use bstr::ByteSlice;
-use ordered_float::OrderedFloat;
 use var_provider::VarType;
 
-use crate::helpers::{
-    util::{text_to_float, text_to_int},
-    value::SimpleValue,
-};
+use crate::helpers::{number::parse_int, value::SimpleValue};
 use crate::io::Record;
 use crate::var;
 
 use super::parser::{parse_varstring, parse_varstring_list, ParsedVarStringSegment};
-use super::symbols::Value;
 use super::VarBuilder;
 
 /// Parses a comma delimited list of variables/functions, whereby the
@@ -207,13 +202,6 @@ impl VarString {
         Ok(())
     }
 
-    /// Returns a value if the VarString contains only a single variable
-    /// without any preceding/following text
-    #[inline]
-    pub fn get_one_value<'a>(&self, table: &'a var::symbols::SymbolTable) -> Option<&'a Value> {
-        self.one_var.and_then(|id| table.get(id).inner())
-    }
-
     /// Obtains the integer value
     #[inline]
     pub fn get_int(
@@ -230,12 +218,12 @@ impl VarString {
         if text_buf.is_empty() {
             return Ok(None);
         }
-        Ok(Some(text_to_int(text_buf)?))
+        Ok(Some(parse_int(text_buf)?))
     }
 
     /// Returns a SimpleValue (text/numeric/none).
     /// Requires an extra 'text_buf', which allows retaining text allocations
-    /// and must always be a `SimpleValue::Text`.
+    /// in case values switch between the different types.
     #[inline]
     pub fn simple_value<'a>(
         &self,
@@ -243,38 +231,23 @@ impl VarString {
         text_buf: &'a mut Vec<u8>,
         symbols: &var::symbols::SymbolTable,
         record: &dyn Record,
-        force_numeric: bool,
     ) -> Result<(), String> {
-        if let Some(v) = self.get_one_value(symbols) {
-            if v.is_numeric() {
-                if let SimpleValue::Text(t) = out {
-                    // save the allocation for later use
-                    *text_buf = mem::take(t).into_vec();
-                }
-                let val = v.get_float(record)?;
-                *out = SimpleValue::Number(OrderedFloat(val));
-                return Ok(());
-            }
-        }
-        // let mut text = std::mem::replace(text_buf, Box::default()).into_vec();
-        let mut text = match out {
-            SimpleValue::Text(t) => mem::take(t).into_vec(),
-            _ => Vec::new(),
-        };
-        text.clear();
-        self.compose(&mut text, symbols, record).unwrap();
-
-        if !text.is_empty() {
-            if !force_numeric {
-                *out = SimpleValue::Text(text.into_boxed_slice());
-            } else {
-                let val = text_to_float(&text)?;
-                *text_buf = mem::take(&mut text);
-                *out = SimpleValue::Number(OrderedFloat(val));
-            }
+        if let Some(symbol_id) = self.one_var {
+            out.replace_from_symbol(symbols.get(symbol_id), record, text_buf);
         } else {
-            *text_buf = mem::take(&mut text);
-            *out = SimpleValue::None;
+            // try obtaining already allocated text from the value
+            // like it is done in `replace_from_symbol` (see comment there)
+            if let SimpleValue::Text(t) = out {
+                *text_buf = mem::take(t).into_vec();
+            }
+            text_buf.clear();
+            self.compose(text_buf, symbols, record).unwrap();
+            if !text_buf.is_empty() {
+                *out = SimpleValue::Text(mem::take(text_buf).into_boxed_slice());
+            } else {
+                // empty text is interpreted as None
+                *out = SimpleValue::None;
+            }
         }
         Ok(())
     }

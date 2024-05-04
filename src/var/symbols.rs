@@ -1,9 +1,7 @@
 use std::{cell::RefCell, fmt, io::Write, str::Utf8Error};
 
-use crate::{
-    helpers::util::{text_to_float, text_to_int},
-    io::{Record, RecordAttr},
-};
+use crate::helpers::number::{parse_float, parse_int, Float, Interval};
+use crate::io::{Record, RecordAttr};
 
 macro_rules! impl_value {
     ($t:ident ($inner_t:ty) {
@@ -20,6 +18,7 @@ macro_rules! impl_value {
         bool => $bool:block,
         int => $int:block,
         float => $float:block,
+        interval => $interval:block,
         $text_fn:ident => $text:block
     ) => {
         #[derive(Debug, Clone)]
@@ -65,6 +64,11 @@ macro_rules! impl_value {
             }
 
             #[inline]
+            pub fn get_interval(&$self, $record: &dyn Record) -> Result<Interval, String> {
+                $interval
+            }
+
+            #[inline]
             pub fn as_text<O>(&$self, $record: &dyn Record, $text_fn: impl FnOnce(&[u8]) -> O) -> O {
                 $text
             }
@@ -83,14 +87,13 @@ macro_rules! impl_value {
 impl_value!(
     BoolValue (bool) { v: bool, }
     [self, _record]
-    new => {
-        v: false,
-    },
+    new => { v: false, },
     get => { &self.v },
     get_mut => { &mut self.v },
     bool => { Ok(self.v) },
     int => { Ok(self.v as i64) },
     float => { Ok(self.v as i64 as f64) },
+    interval => { Err(to_interval_err("boolean", self.v)) },
     text_fn => {
         text_fn(
             if self.v {
@@ -119,12 +122,12 @@ impl_value!(
     bool => {
         match self.v {
             0 => Ok(false),
-            1 => Ok(true),
-            _ => Err(format!("Cannot convert {} to boolean", self.v)),
+            _ => Ok(true),
         }
     },
     int => { Ok(self.v) },
     float => { Ok(self.v as f64) },
+    interval => { Err(to_interval_err("integer number", self.v)) },
     text_fn => {
         let mut inner = self.text.borrow_mut();
         if inner.is_empty() {
@@ -136,12 +139,12 @@ impl_value!(
 
 impl_value!(
     FloatValue (f64) {
-        v: f64,
+        v: Float,
         text: RefCell<Vec<u8>>
     }
     [self, _record]
     new => {
-        v: 0.,
+        v: Float::new(0.),
         text: RefCell::new(Vec::with_capacity(20))
     },
     get => { &self.v },
@@ -150,22 +153,21 @@ impl_value!(
         &mut self.v
     },
     bool => {
-        if self.v == 0. {
+        if self.v.inner() == 0. || self.v.is_nan() {
             Ok(false)
-        } else if self.v == 1. {
-            Ok(true)
         } else {
-            Err(format!("Cannot convert {} to boolean", self.v))
+            Ok(true)
         }
     },
     int => {
         if self.v.fract() == 0. {
-            Ok(self.v as i64)
+            Ok(self.v.inner() as i64)
         } else {
             fail!(format!("Decimal number {} cannot be converted to integer", self.v))
         }
     },
-    float => { Ok(self.v) },
+    float => { Ok(self.v.inner()) },
+    interval => { Err(to_interval_err("decimal number", self.v)) },
     text_fn => {
         let mut inner = self.text.borrow_mut();
         if inner.is_empty() {
@@ -176,10 +178,53 @@ impl_value!(
 );
 
 impl_value!(
+    FloatInterval (Interval) {
+        v: Interval,
+        text: RefCell<Vec<u8>>
+    }
+    [self, _record]
+    new => {
+        v: Interval::new(0., 0.),
+        text: RefCell::new(Vec::with_capacity(20))
+    },
+    get => { &self.v },
+    get_mut => {
+        self.text.borrow_mut().clear();
+        &mut self.v
+    },
+    bool => {
+        Err(from_interval_err(self.v, "a boolean (true/false)"))
+    },
+    int => {
+        Err(from_interval_err(self.v, "an integer number"))
+    },
+    float => {
+        Err(from_interval_err(self.v, "a decimal number"))
+    },
+    interval => { Ok(self.v) },
+    text_fn => {
+        let mut inner = self.text.borrow_mut();
+        if inner.is_empty() {
+            write!(inner, "{}", self.v).unwrap();
+        }
+        text_fn(&inner)
+     }
+);
+
+fn from_interval_err(val: Interval, what: &str) -> String {
+    format!("Cannot convert the interval {} to {}", val, what)
+}
+
+fn to_interval_err<V: fmt::Display>(what: &str, value: V) -> String {
+    format!("Cannot convert the {} '{}' to an interval", what, value)
+}
+
+impl_value!(
     TextValue (Vec<u8>) {
         v: Vec<u8>,
         // cache for float and integer values, so we don't need to re-calculate
         // at every access
+        // we don't do this for booleans as it is simpler there
         float: RefCell<Option<f64>>,
         int: RefCell<Option<i64>>
     }
@@ -196,28 +241,20 @@ impl_value!(
         self.v.clear();
         &mut self.v
     },
-    bool => {
-        match self.v.as_slice() {
-            b"true" => Ok(true),
-            b"false" => Ok(false),
-            _ => Err(format!(
-                "Could not convert '{}' to boolean (true/false).",
-                String::from_utf8_lossy(&self.v)
-            )),
-        }
-     },
+    bool => { parse_bool(&self.v) },
     int => {
         match self.int.borrow_mut().as_ref() {
             Some(i) => Ok(*i),
-            None => text_to_int(&self.v)
+            None => parse_int(&self.v)
         }
      },
     float => {
         match self.float.borrow_mut().as_ref() {
             Some(f) => Ok(*f),
-            None => text_to_float(&self.v)
+            None => parse_float(&self.v)
         }
     },
+    interval => { unimplemented!() },
     text_fn => {
         text_fn(&self.v)
     }
@@ -225,10 +262,11 @@ impl_value!(
 
 impl SeqAttrValue {
     pub fn with_slice<O>(&self, record: &dyn Record, func: impl FnOnce(&[u8]) -> O) -> O {
+        use RecordAttr::*;
         match self.v {
-            RecordAttr::Id => func(record.id()),
-            RecordAttr::Desc => func(record.desc().unwrap_or(b"")),
-            RecordAttr::Seq => func(&record.full_seq(&mut self.buffer.borrow_mut())),
+            Id => func(record.id()),
+            Desc => func(record.desc().unwrap_or(b"")),
+            Seq => func(&record.full_seq(&mut self.buffer.borrow_mut())),
         }
     }
 
@@ -263,45 +301,45 @@ impl_value!(
         self.float.take();
         &mut self.v
     },
-    bool => {
-        self.with_slice(record, |s| {
-            match s {
-                b"true" => Ok(true),
-                b"false" => Ok(false),
-                _ => Err(format!(
-                    "Could not convert '{}' to boolean (true/false).",
-                    String::from_utf8_lossy(s)))
-            }
-        })
-    },
+    bool => { self.with_slice(record, parse_bool) },
     int => {
         match self.int.borrow_mut().as_ref() {
             Some(i) => Ok(*i),
-            None => self.with_slice(record, |s| {
-                atoi::atoi(s)
-                    .ok_or_else(|| format!(
-                        "Could not convert '{}' to integer.",
-                        String::from_utf8_lossy(s)))
-            })
+            None => self.with_slice(record, parse_int)
         }
      },
     float => {
         match self.float.borrow_mut().as_ref() {
             Some(f) => Ok(*f),
-            None => self.with_slice(record, |s| {
-                std::str::from_utf8(s)
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .ok_or_else(|| format!(
-                        "Could not convert '{}' to decimal number.",
-                        String::from_utf8_lossy(s)))
-            })
+            None => self.with_slice(record, parse_float)
         }
+    },
+    interval => {
+        // avoid warning about record not being used
+        let _ = record;
+        unimplemented!()
     },
     text_fn => {
         self.with_slice(record, text_fn)
     }
 );
+
+fn parse_bool(s: &[u8]) -> Result<bool, String> {
+    match s {
+        b"true" => Ok(true),
+        b"false" => Ok(false),
+        _ => {
+            if let Ok(f) = parse_float(s) {
+                Ok(f != 0.)
+            } else {
+                Err(format!(
+                    "Could not convert '{}' to boolean (true/false).",
+                    String::from_utf8_lossy(s)
+                ))
+            }
+        }
+    }
+}
 
 /// Variable value enum, optimized for keeping a constant type.
 /// TextValue/IntValue/FloatValue therefore can be set to None
@@ -312,6 +350,7 @@ pub enum Value {
     Text(TextValue),
     Int(IntValue),
     Float(FloatValue),
+    Interval(FloatInterval),
     Bool(BoolValue),
     Attr(SeqAttrValue),
 }
@@ -345,12 +384,14 @@ macro_rules! accessor {
     ($fn_name:ident, $t:ty) => {
         #[inline]
         pub fn $fn_name(&self, record: &dyn Record) -> Result<$t, String> {
+            use Value::*;
             match self {
-                Value::Text(ref v) => v.$fn_name(record),
-                Value::Int(ref v) => v.$fn_name(record),
-                Value::Float(ref v) => v.$fn_name(record),
-                Value::Bool(ref v) => v.$fn_name(record),
-                Value::Attr(ref v) => v.$fn_name(record),
+                Text(ref v) => v.$fn_name(record),
+                Int(ref v) => v.$fn_name(record),
+                Float(ref v) => v.$fn_name(record),
+                Interval(ref v) => v.$fn_name(record),
+                Bool(ref v) => v.$fn_name(record),
+                Attr(ref v) => v.$fn_name(record),
             }
         }
     };
@@ -364,11 +405,13 @@ impl Value {
     mut_accessor!(mut_bool, Bool, bool);
     mut_accessor!(mut_int, Int, i64);
     mut_accessor!(mut_float, Float, f64);
+    mut_accessor!(mut_interval, Interval, Interval);
     mut_accessor!(mut_text, Text, Vec<u8>);
     mut_accessor!(mut_attr, Attr, RecordAttr);
     impl_set!(set_bool, mut_bool, bool);
     impl_set!(set_int, mut_int, i64);
     impl_set!(set_float, mut_float, f64);
+    impl_set!(set_interval, mut_interval, Interval);
     impl_set!(set_attr, mut_attr, RecordAttr);
 
     #[inline]
@@ -381,6 +424,7 @@ impl Value {
     // accessor!(get_bool, bool);
     accessor!(get_int, i64);
     accessor!(get_float, f64);
+    accessor!(get_interval, Interval);
 
     #[inline]
     pub fn as_text<E>(
@@ -388,12 +432,14 @@ impl Value {
         record: &dyn Record,
         func: impl FnOnce(&[u8]) -> Result<(), E>,
     ) -> Result<(), E> {
+        use Value::*;
         match self {
-            Value::Text(ref v) => v.as_text(record, func),
-            Value::Int(ref v) => v.as_text(record, func),
-            Value::Float(ref v) => v.as_text(record, func),
-            Value::Bool(ref v) => v.as_text(record, func),
-            Value::Attr(ref v) => v.as_text(record, func),
+            Text(ref v) => v.as_text(record, func),
+            Int(ref v) => v.as_text(record, func),
+            Float(ref v) => v.as_text(record, func),
+            Interval(ref v) => v.as_text(record, func),
+            Bool(ref v) => v.as_text(record, func),
+            Attr(ref v) => v.as_text(record, func),
         }
     }
 }
@@ -406,12 +452,14 @@ impl Default for Value {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Value::*;
         match self {
-            Value::Text(v) => write!(f, "{}", String::from_utf8_lossy(&v.v))?,
-            Value::Int(v) => write!(f, "{}", v.v)?,
-            Value::Float(v) => write!(f, "{}", v.v)?,
-            Value::Bool(v) => write!(f, "{}", v.v)?,
-            Value::Attr(a) => write!(f, "{}", a.v)?,
+            Text(v) => write!(f, "{}", String::from_utf8_lossy(&v.v))?,
+            Int(v) => write!(f, "{}", v.v)?,
+            Float(v) => write!(f, "{}", v.v)?,
+            Interval(v) => write!(f, "{}", v.v)?,
+            Bool(v) => write!(f, "{}", v.v)?,
+            Attr(a) => write!(f, "{}", a.v)?,
         }
         Ok(())
     }
@@ -458,6 +506,7 @@ impl fmt::Display for OptValue {
 /// serving as the intermediate value store for all variables
 /// and expressions.
 // TODO: nicer API: set_int(Some(x)) or set_int(None), set_float(...), etc. (but quite wordy...)
+// TODO: null / undefined are only interpreted as text, which is not consistent with JS
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable(Vec<OptValue>);
 

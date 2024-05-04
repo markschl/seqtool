@@ -15,8 +15,8 @@ pub struct SortCommand {
     /// but in case of identical sequences, records are sorted by the header
     /// attribute 'a'.
     ///
-    /// To sort by a FASTA/FASTQ attribute in the form '>id;size=123', specify
-    /// 'attr(size)' --numeric --attr-fmt ';key=value'.
+    /// To sort by a numeric FASTA attribute in the form '>id;size=123':
+    /// `st sort 'num(attr(size))' --attr-fmt ';key=value' input.fasta`.
     ///
     /// Regarding formulas returning mixed text/numbers, the sorted records with
     /// text keys will be returned first and the sorted number records after them.
@@ -24,14 +24,6 @@ pub struct SortCommand {
     /// missing `opt_attr()` values or missing entries in associated metadata)
     /// will appear last.
     pub key: String,
-
-    /// Interpret the key as a number instead of text.
-    /// If not specified, the variable type determines, whether the key
-    /// is numeric or not.
-    /// Header attributes or fields from associated metadata may also need
-    /// to be interpreted as a number, which can be done by pecifying --numeric.
-    #[arg(short, long)]
-    pub numeric: bool,
 
     /// Sort in reverse order
     #[arg(short, long)]

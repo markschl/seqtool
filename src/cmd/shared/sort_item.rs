@@ -58,12 +58,11 @@ impl Key {
         key_buf: &mut [Vec<u8>],
         symbols: &SymbolTable,
         record: &dyn Record,
-        force_numeric: bool,
     ) -> Result<(), String> {
         match self {
             Key::Single(v) => {
                 debug_assert!(varstrings.len() == 1 && key_buf.len() == 1);
-                varstrings[0].simple_value(v, &mut key_buf[0], symbols, record, force_numeric)?
+                varstrings[0].simple_value(v, &mut key_buf[0], symbols, record)?
             }
             // Key::Two(v) => {
             //     debug_assert!(varstrings.len() == 2 && key_buf.len() == 2);
@@ -84,7 +83,7 @@ impl Key {
                     .zip(key_buf.iter_mut())
                     .zip(values.iter_mut())
                 {
-                    vs.simple_value(val, key_buf, symbols, record, force_numeric)?;
+                    vs.simple_value(val, key_buf, symbols, record)?;
                 }
             }
         }
@@ -93,14 +92,14 @@ impl Key {
 
     pub fn write_to_symbol(&self, sym: &mut OptValue) {
         match self {
-            Key::Single(v) => v.write_to_symbol(sym),
+            Key::Single(v) => v.to_symbol(sym),
             // Key::Two(v) => {
             //     let text = sym.inner_mut().mut_text();
             //     write_list_with(v, b",", text, |v, o| v.write(o)).unwrap();
             // }
             Key::Multiple(values) => {
                 let text = sym.inner_mut().mut_text();
-                write_list_with(values.iter(), b",", text, |v, o| v.write(o)).unwrap();
+                write_list_with(values.iter(), b",", text, |v, o| v.write(o, "")).unwrap();
             }
         }
     }

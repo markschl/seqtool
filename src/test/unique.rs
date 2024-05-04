@@ -6,8 +6,8 @@ use super::*;
 
 #[test]
 fn simple() {
-    Tester::new()
-        .cmp(&["unique", "seq"], *FASTA, records!(0, 1, 2, 3))
+    let t = Tester::new();
+    t.cmp(&["unique", "seq"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "{seq}"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "seqhash"], *FASTA, records!(0, 1, 2, 3))
         .cmp(&["unique", "id"], *FASTA, records!(0, 1, 2, 3))
@@ -15,48 +15,47 @@ fn simple() {
         .cmp(&["unique", "{id} {desc}"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{seq + 'A'}"], *FASTA, records!(0, 1, 2, 3));
+    t.cmp(&["unique", "{seq + 'A'}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
 fn attr() {
-    Tester::new()
-        .cmp(&["unique", "attr(p)"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(&["unique", "-n", "attr(p)"], *FASTA, records!(0, 1, 2, 3));
+    let t = Tester::new();
+    t.cmp(&["unique", "attr(p)"], *FASTA, records!(0, 1, 2, 3))
+        .cmp(&["unique", "num(attr(p))"], *FASTA, records!(0, 1, 2, 3));
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{attr('p')+1}"], *FASTA, records!(0, 1, 2, 3));
+    t.cmp(&["unique", "{attr('p')+1}"], *FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
 fn stats() {
     Tester::new()
         .cmp(&["unique", "seqlen"], *FASTA, records!(0))
-        .cmp(&["unique", "-n", "seqlen"], *FASTA, records!(0))
+        .cmp(&["unique", "num(seqlen)"], *FASTA, records!(0))
         .cmp(&["unique", "ungapped_seqlen"], *FASTA, records!(0, 1, 3))
         .cmp(&["unique", "gc"], *FASTA, records!(0, 1, 3));
 }
 
 #[test]
 fn force_numeric() {
-    Tester::new()
-        .fails(&["unique", "-n", "id"], *FASTA, "Could not convert")
+    let t = Tester::new();
+    t.fails(&["unique", "num(id)"], *FASTA, "Could not convert")
         .fails(
-            &["unique", "-n", "{id}{attr(p)}"],
+            &["unique", "{num(id + attr('p'))}"],
             *FASTA,
             "Could not convert",
         )
         .cmp(
-            &["unique", "-n", "{attr(p)}{attr(p)}"],
+            &["unique", "{num(attr('p') + attr('p'))}"],
             *FASTA,
             records!(0, 1, 2, 3),
         );
 
     #[cfg(feature = "expr")]
-    Tester::new()
-        .fails(&["unique", "-n", "{id}"], *FASTA, "Could not convert")
+    t.fails(&["unique", "{num(id)}"], *FASTA, "Could not convert")
         .cmp(
-            &["unique", "-n", "{ id.substring(3, 4) }"],
+            &["unique", "{ num(id.substring(3, 4)) }"],
             *FASTA,
             records!(0, 1, 2, 3),
         );
@@ -98,8 +97,8 @@ fn multi_key() {
             &[$($i),*].into_iter().map(|i| &parts[i]).join("")
         }
     }
-    Tester::new()
-        .cmp(&["unique", "desc"], &fa, sel!(0, 2))
+    let t = Tester::new();
+    t.cmp(&["unique", "desc"], &fa, sel!(0, 2))
         .cmp(&["unique", "desc,seq"], &fa, sel!(0, 2, 3))
         .cmp(&["unique", "id,desc,seq"], &fa, sel!(0, 1, 2, 3))
         .cmp(&["unique", "seq"], &fa, sel!(0, 3))
@@ -110,7 +109,7 @@ fn multi_key() {
         );
 
     #[cfg(feature = "expr")]
-    Tester::new().cmp(&["unique", "{desc + 1},{seq.length}"], &fa, sel!(0, 2));
+    t.cmp(&["unique", "{desc + 1},{seq.length}"], &fa, sel!(0, 2));
 }
 
 #[test]
@@ -164,9 +163,7 @@ fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = ">s1 k=-1\nS1\n>s2 k=\nS2\n";
     let formula = "{ if (seq_num <= 1) return -parseInt(id.substring(1, 2)); return undefined; }";
-    Tester::new()
-        .cmp(&["unique", formula, "-a", "k={key}"], fa, out)
-        .cmp(&["unique", "-n", formula, "-a", "k={key}"], fa, out);
+    Tester::new().cmp(&["unique", formula, "-a", "k={key}"], fa, out);
 }
 
 #[test]
@@ -247,13 +244,13 @@ fn large() {
         // below memory limit: output in order of input
         t.cmp(&["unique", "id"], FileInput(path), &unique_fasta_inorder)
             .cmp(
-                &["unique", "id", "-n"],
+                &["unique", "num(id)"],
                 FileInput(path),
                 &unique_fasta_inorder,
             )
             // ...unless --sort is supplied
             .cmp(
-                &["unique", "id", "--sort", "-n"],
+                &["unique", "num(id)", "--sort"],
                 FileInput(path),
                 &unique_fasta_sorted,
             );
@@ -265,7 +262,7 @@ fn large() {
             // (in sorting mode)
             let sort_limit = format!("{}", rec_limit * 82);
             t.cmp(
-                &["unique", "id", "-n", "-M", &sort_limit, "-s", "-q"],
+                &["unique", "num(id)", "-M", &sort_limit, "-s", "-q"],
                 FileInput(path),
                 &unique_fasta_sorted,
             );
@@ -274,9 +271,9 @@ fn large() {
             // The record key should be ~26 bytes.
             let simple_limit = format!("{}", rec_limit * 26);
             t.pipe(
-                &["unique", "id", "-n", "-M", &simple_limit, "-q"],
+                &["unique", "num(id)", "-M", &simple_limit, "-q"],
                 &all_fasta,
-                &["sort", "id", "-n"],
+                &["sort", "num(id)"],
                 &unique_fasta_sorted,
             );
         }

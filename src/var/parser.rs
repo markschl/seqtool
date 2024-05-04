@@ -57,27 +57,39 @@ impl<'a> VarFunc<'a> {
     /// If the user supplies a known seqtool variable name, but actually means it
     /// to be an unquoted string, there will be a type error warning about this
     /// problem.
-    pub fn to_quoted<F>(&'a self, mut lookup_fn: F) -> Cow<'a, VarFunc<'a>>
+    ///
+    /// Current rules:
+    /// (1) the text is not identical with a known variable or function,
+    /// (2) no more complicated expressions such as {attr(x) + 1}."
+    pub fn to_quoted<F>(&self, mut lookup_fn: F) -> VarFunc<'a>
     where
         F: FnMut(&str) -> bool,
     {
+        self._to_quoted(&mut lookup_fn)
+    }
+
+    pub fn _to_quoted(&self, lookup_fn: &mut impl FnMut(&str) -> bool) -> VarFunc<'a> {
         if self.args.is_none() {
-            return Cow::Borrowed(self);
+            return self.clone();
         }
         let mut out = self.clone();
         let args = out.args.as_mut().unwrap();
-        // TODO: in theory we could only convert to owned if unquoted strings are present, but this is very complicated
         for arg in args {
             if let Arg::Func(func) = arg {
                 // The unquoted string must *not* be a valid variable and
                 // variables ending with '()' (= function call)
                 // cannot be interpreted as an unquoted string
-                if !lookup_fn(func.name) && func.args.is_none() {
-                    *arg = Arg::Str(func.name.into());
+                if func.args.is_none() {
+                    if !lookup_fn(func.name) {
+                        *arg = Arg::Str(func.name.into());
+                    }
+                } else {
+                    // we also try quoting nested args
+                    *arg = Arg::Func(func._to_quoted(lookup_fn));
                 }
             }
         }
-        Cow::Owned(out)
+        out
     }
 }
 
@@ -107,10 +119,10 @@ pub enum Arg<'a> {
     /// All kinds of standard string or numeric/boolan arguments, which may be further
     /// converted to their respective types by the responsible variable providers.
     Str(Cow<'a, str>),
-    /// - Seqtool-style functions can be supplied as arguments to certain
-    ///   other functions (e.g. `Num(...)`).
-    /// - identifiers (with no arguments) may actually be interpreted as
-    ///   unquoted strings
+    /// Seqtool-style functions can be supplied as arguments to certain
+    /// other functions (e.g. `Num(...)`).
+    // /// - identifiers (with no arguments) may actually be interpreted as
+    // ///   unquoted strings
     Func(VarFunc<'a>),
     /// Parsed JS expressions can be supplied as arguments to specialized
     /// "functions", which are only used internally: _____expr(paresed_expression)
@@ -138,7 +150,7 @@ impl<'a> From<&'a str> for Arg<'a> {
 }
 
 macro_rules! impl_from_arg {
-    ($ty:ty) => {
+    ($ty:ty, $what:expr) => {
         impl<'a> FromArg<&'a Arg<'a>> for $ty {
             fn from_arg(
                 func_name: &str,
@@ -148,10 +160,17 @@ macro_rules! impl_from_arg {
                 match value {
                     Arg::Str(s) => <$ty>::from_arg(func_name, arg_name, s.as_ref()),
                     Arg::Func(f) => Err(format!(
-                        "Cannot convert the variable/function '{}' to {}",
-                        f.name,
-                        stringify!($ty)
-                    )),
+                        "Invalid value supplied to the function '{}': '{}' (argument '{}'). Expected a {}, but found a {}.{}",
+                        func_name,
+                        value,
+                        arg_name,
+                        $what,
+                        if f.args.is_some() { "function" } else { "variable" },
+                        if f.args.is_some() { "".to_string() } else { format!(
+                            " In case it was intended to be a string, try enclosing in single \
+                            or double quotes instead ('{}' or \"{}\"). \
+                            Unquoted strings are allowed in simple cases, but not here.", value, value
+                        )})),
                     _ => unreachable!(), // should only ever occur internally
                 }
             }
@@ -159,10 +178,10 @@ macro_rules! impl_from_arg {
     };
 }
 
-impl_from_arg!(usize);
-impl_from_arg!(f64);
-impl_from_arg!(bool);
-impl_from_arg!(String);
+impl_from_arg!(usize, "number");
+impl_from_arg!(f64, "number");
+impl_from_arg!(bool, "boolean (true/false)");
+impl_from_arg!(String, "string");
 
 impl<'a> FromArg<&'a Arg<'a>> for Arg<'a> {
     fn from_arg(_: &str, _: &str, value: &'a Arg<'a>) -> Result<Self, String> {
@@ -199,7 +218,9 @@ impl<'a> FromArg<&'a Arg<'a>> for Expression<'a> {
 /// will only be done when constructing a `VarString` with `VarString::from_parsed()`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedVarStringSegment<'a> {
+    /// seqtool-style variable/function
     Var(VarFunc<'a>),
+    /// either a function or string (validity of function will be checked later)
     VarOrText {
         func: VarFunc<'a>,
         text: &'a str,

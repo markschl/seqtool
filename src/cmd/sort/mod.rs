@@ -27,7 +27,6 @@ pub use self::vars::*;
 static MEM_OVERHEAD: f32 = 1.1;
 
 pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
-    let force_numeric = args.numeric;
     let verbose = args.common.general.verbose;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
     // TODO: not activated, since we use a low limit for testing
@@ -49,19 +48,10 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
         let mut keys = Key::with_size(varstring_keys.len());
         let mut text_buf = vec![Vec::new(); varstring_keys.len()];
 
-        // let (var_key, _vtype) =
-        //     cfg.build_vars(|b| VarString::parse_register(&args.key, b, true))?;
-
         cfg.read(|record, ctx| {
             // assemble key
             ctx.custom_vars::<SortVars, _, String>(|key_mod, symbols| {
-                keys.compose_from(
-                    &varstring_keys,
-                    &mut text_buf,
-                    symbols,
-                    record,
-                    force_numeric,
-                )?;
+                keys.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
                 if let Some(m) = key_mod {
                     m.set(&keys, symbols);
                 }
