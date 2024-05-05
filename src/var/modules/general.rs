@@ -135,7 +135,8 @@ impl VarProvider for GeneralVars {
         Ok(GeneralVar::from_func(name, args)?.map(|(var, out_type)| {
             use GeneralVar::*;
             match var {
-                Filename => self.path_info.path = Some(vec![]),
+                Path => self.path_info.path = Some(vec![]),
+                Filename => self.path_info.name = Some(vec![]),
                 Filestem => self.path_info.stem = Some(vec![]),
                 Extension => self.path_info.ext = Some(vec![]),
                 Dirname => self.path_info.dir = Some(vec![]),
