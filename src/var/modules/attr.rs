@@ -20,20 +20,32 @@ variable_enum! {
     ///
     /// # Examples
     ///
-    /// Summarizing over an attribute in the FASTA header `>id size=3`
+    /// Count the number of sequences for each unique value of an 'abund' attribute
+    /// in the FASTA headers (.e.g. `>id abund=3`), which could be the number of
+    /// duplicates obtained by the *unique* command (see `st unique --help-vars`)
     ///
-    /// `st count -k 'attr(size)' seqs.fa`
+    /// `st count -k 'attr(abund)' seqs.fa`
     ///
-    /// Summarizing over a 'size' attribute that may be missing/empty in some
+    /// 1	12019
+    /// 2	2983
+    /// 3	568
+    /// (...)
+    ///
+    ///
+    /// Summarize over a 'abund' attribute directly appended to the sequence ID
+    /// like this `>id;abund=3`
+    ///
+    /// `st count -k 'attr(abund)' --attr-fmt ';key=value' seqs.fa`
+    ///
+    ///
+    /// Summarize over an attribute 'a', which may be missing/empty in some
     /// headers
     ///
-    /// `st count -k 'opt_attr(size)' seqs.fa`
+    /// `st count -k 'opt_attr(a)' seqs.fa`
     ///
-    /// Summarize over a 'size' attribute directly appended to the sequence ID
-    /// like this: '>id;size=3 description
-    ///
-    /// `st count -k 'opt_attr(size)' --attr-fmt ';key=value' seqs.fa`
-    ///
+    /// value1	6042
+    /// value2	1012
+    /// N/A	9566
     AttrVar {
         /// Obtain an attribute of given name (must be present in all sequences)
         Attr(Text) { name: String },

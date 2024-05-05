@@ -19,20 +19,24 @@ use crate::CliResult;
 use super::VarProvider;
 
 variable_enum! {
-    /// # Associated metadata from delimited text files
+    /// # Access metadata from delimited text files
     ///
-    /// The functions `meta`, `opt_meta` and `has_meta` allow accessing
-    /// associated metadata in plain delimited text files (optionally compressed,
-    /// auto-recognized). These files must contain a column with the sequence ID
+    /// The following functions allow accessing associated metadata from
+    /// plain delimited text files (optionally compressed, extension auto-recognized).
+    ///
+    /// Metadata files must always contain a column with the sequence ID
     /// (default: 1st column; change with `--meta-idcol`).
     ///
-    /// The column delimiter is guessed if possible (override with `--meta-delim`):
+    /// The column delimiter is guessed from the extension or can be specified
+    /// with `--meta-delim`.
     /// `.csv` is interpreted as comma(,)-delimited, `.tsv`/`.txt` or other (unknown)
     /// extensions are assumed to be tab-delimited.
+    ///
     /// The first line is implicitly assumed to contain
     /// column names if a non-numeric field name is requested, e.g. `meta(fieldname)`.
     /// Use `--meta-header` to explicitly enable header lines even if column names
     /// are all numeric.
+    ///
     /// Multiple metadata files can be supplied (`-m file1 -m file2 -m file3 ...`) and
     /// are addressed via `file-num` (see function descriptions).
     /// For maximum performance, provide metadata records in the same order as
@@ -42,27 +46,41 @@ variable_enum! {
     /// duplicate IDs (which is rather unusual). See the help page (`-h/--help`)
     /// for more information.
     ///
+    ///
     /// # Examples
     ///
-    /// Add taxonomic lineages stored in a GZIP-compressed TSV file (column no. 2)
-    /// to the FASTA headers, as description after the first space.
-    /// The resulting headers look like this: `>id1 k__Fungi;p__Basidiomycota;c__...`
+    /// Add taxonomic lineages to the FASTA headers (after a space).
+    /// The taxonomy is stored in a GZIP-compressed TSV file (column no. 2)
+    /// to the FASTA headers
     ///
     /// `st set -m taxonomy.tsv.gz -d '{meta(2)}' input.fa > output.fa`
     ///
-    /// Integrate metadata from an Excel-generated CSV file
-    /// (with semicolon delimiter and column names) into sequence records
-    /// in form of a header attribute (`-a/--attr`); resulting output:
-    /// >id1 info=somevalue
+    /// >id1 k__Fungi,p__Ascomycota,c__Sordariomycetes,(...),s__Trichoderma_atroviride
+    /// SEQUENCE
+    /// >id2 k__Fungi,p__Ascomycota,c__Eurotiomycetes,(...),s__Penicillium_aurantiocandidum
+    /// SEQUENCE
+    /// (...)
     ///
-    /// `st pass -m metadata.csv --meta-sep ';' -a 'info={meta(column-name)}' input.fa > output.fa`
     ///
-    /// Extract sequences with coordinates stored in a BED file
+    /// Add metadata from an Excel-generated CSV file (semicolon delimiter)
+    /// to sequence headers as attributes (`-a/--attr`)
+    ///
+    /// `st pass -m metadata.csv --meta-sep ';' -a 'info={meta("column name")}' input.fa > output.fa`
+    ///
+    /// >id1 info=some_value
+    /// SEQUENCE
+    /// >id2 info=other_value
+    /// SEQUENCE
+    /// (...)
+    ///
+    ///
+    /// Extract subsequences given a set of coordinates stored in a BED file
     /// (equivalent to `bedtools getfasta`)
     ///
     /// `st trim -m coordinates.bed -0 {meta(2)}..{meta(3)} input.fa > output.fa`
     ///
-    /// Filter sequences by ID, keeping only those present in the given text file
+    ///
+    /// Filter sequences by ID, retaining only those present in the given text file
     ///
     /// `st filter -m selected_ids.txt 'has_meta()' input.fa > output.fa`
     MetaVar {

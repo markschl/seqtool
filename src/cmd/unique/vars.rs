@@ -1,6 +1,3 @@
-//! This module contains a `VarProvider` for a 'key' variable, which is
-//! used by the 'sort' and 'unique' commands.
-
 use std::cmp::min;
 use std::io;
 
@@ -16,22 +13,32 @@ use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBui
 use super::DuplicateInfo;
 
 variable_enum! {
-    /// # Unique command variables
+    /// # Variables/functions provided by the 'unique' command
     ///
     /// # Examples
     ///
     /// De-replicate sequences using the sequence hash (faster than using
-    /// the sequence 'seq' itself), and also storing the number of duplicates
-    /// (including the unique sequence itself) in the sequence header like this:
-    /// '>id1 n=2'
+    /// the sequence `seq` itself), and also storing the number of duplicates
+    /// (including the unique sequence itself) in the sequence header
     ///
-    /// `st unique seqhash -a n={n_duplicates} input.fasta > uniques.fasta`
+    /// `st unique seqhash -a abund={n_duplicates} input.fasta > uniques.fasta`
     ///
-    /// Store the complete list of duplicate IDs in the sequence header, but this
-    /// time without the unique sequence ID, producing something like this:
-    /// '>id1 duplicates=id4,id6,id8'
+    /// >id1 abund=3
+    /// TCTTTAATAACCTGATTAG
+    /// >id3 abund=1
+    /// GGAGGATCCGAGCG
+    /// (...)
+    ///
+    ///
+    /// Store the complete list of duplicate IDs in the sequence header
     ///
     /// `st unique seqhash -a duplicates={duplicate_list} input.fasta > uniques.fasta`
+    ///
+    /// >id1 duplicates=id1,id2,id4
+    /// TCTTTAATAACCTGATTAG
+    /// >id3 duplicates=id3
+    /// GGAGGATCCGAGCG
+    /// (...)
     UniqueVar {
         /// The value of the unique key
         Key(?),

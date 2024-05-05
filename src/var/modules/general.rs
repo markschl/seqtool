@@ -20,28 +20,43 @@ use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder
 use super::VarProvider;
 
 variable_enum! {
-    /// # Data from records and input files
-    ///
+    /// # General properties of sequence records and input files
     ///
     ///
     /// # Examples
     ///
-    /// Adding the sequence number to the ID
+    /// Add the sequence number to the ID
     ///
     /// `st set -i {id}_{seq_num}`
     ///
-    /// Counting the number of records per file in the input
+    /// >A_1
+    /// SEQUENCE
+    /// >B_2
+    /// SEQUENCE
+    /// >C_3
+    /// SEQUENCE
+    /// (...)
     ///
-    /// `st count -k filename *.fasta`
     ///
-    /// Removing records with duplicate sequences from the input
+    /// Count the number of records per file in the input
+    ///
+    /// `st count -k path *.fasta`
+    ///
+    /// file1.fasta	1224818
+    /// file2.fasta	573
+    /// file3.fasta	99186
+    /// (...)
+    ///
+    ///
+    /// Remove records with duplicate sequences from the input
     ///
     /// `st unique seq input.fasta`
     ///
-    /// Removing duplicate records in a case-insensitive manner, recognizing both
-    /// forward and reverse orientations
     ///
-    /// `st unique Seqhash_both(false) input.fasta`
+    /// Remove duplicate records irrespective of the sequence orientation and
+    /// whether letters are uppercase or lowercase
+    ///
+    /// `st unique seqhash_both(false) input.fasta`
     GeneralVar {
         /// Record ID (in FASTA/FASTQ: everything before first space)
         Id(Text),
@@ -55,17 +70,18 @@ variable_enum! {
         LowerSeq(Text),
         /// Calculates a hash value from the sequence using the XXH3 algorithm. A hash
         /// is a integer number representing the sequence. In very rare cases, different
-        /// sequences may lead to the same hash value, but for instance using 'Seqhash'
-        /// as key for the 'unique' command (de-replication) speeds up the process and
-        /// requires less memory, at a very small risk of wrongly recognizing two
-        /// different sequences as duplicates. The numbers can be negative.
+        /// sequences may lead to the same hash value, but using 'seqhash' instead of 'seq'
+        /// speeds up de-replication ('unique' command) and requires less memory,
+        /// at a very small risk of wrongly recognizing two
+        /// different sequences as duplicates. The returned numbers can be positive or negative.
         Seqhash(Number) { ignorecase: bool = false },
         /// The hash value of the reverse-complemented sequence
         SeqhashRev(Number) { ignorecase: bool = false },
         /// The sum of the hashes from the forward and reverse sequences.
         /// The result is always the same irrespective of the sequence orientation,
         /// which is useful when de-replicating sequences with potentially different
-        /// orientations.
+        /// orientations. [side note: to be precise it is a *wrapping addition*
+        /// to prevent integer overflow]
         SeqhashBoth(Number) { ignorecase: bool = false },
         /// Sequence number (n-th sequence in the input), starting from 1.
         /// If multiple sequence files are supplied, numbering is simply continued.
@@ -78,7 +94,7 @@ variable_enum! {
         Path(Text),
         /// Name of the current input file with extension (or '-')
         Filename(Text),
-        /// Name of the current input file without extension (or '-')
+        /// Name of the current input file *without* extension (or '-')
         Filestem(Text),
         /// Extension of the current input file (or '')
         Extension(Text),
@@ -251,7 +267,7 @@ fn seqhash_rev(
     seqtype: SeqType,
     ignorecase: bool,
 ) -> Result<u64, String> {
-    reverse_complement(record.seq_segments().rev(), seq_buf, seqtype)?;
+    reverse_complement(record.seq_segments(), seq_buf, seqtype)?;
     if ignorecase {
         seq_buf.make_ascii_uppercase();
     }

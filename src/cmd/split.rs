@@ -17,23 +17,8 @@ use crate::CliResult;
 #[clap(next_help_heading = "Command options")]
 pub struct SplitCommand {
     /// Split into chunks of <N> sequences and writes each chunk to a separate
-    /// file with a numbered suffix.
-    ///
-    /// The output path can be changed using -o/--output. The default is:
-    /// '{filestem}_{chunk}.{default_ext}' (e.g. input_name_1.fasta).
-    ///
-    /// Examples:
-    ///
-    /// Distribute sequences into different files by an attribute 'category'
-    /// found in the sequence headers, producing files such as:
-    /// outdir/category_A.fasta, outdir/category_B.fasta, etc.
-    ///
-    /// `st split input.fasta -o "outdir/{attr(category)}.fasta"`
-    ///
-    /// Group the input sequences by the recognized primer, which is recognized
-    /// using the 'find' command
-    ///
-    /// `st find -f file:primers.fa input.fq -a primer='{pattern_name}' | st split -o "{attr(primer)}.fq"`
+    /// file with a numbered suffix. The output path is: '{filestem}_{chunk}.{default_ext}',
+    /// e.g. 'input_name_1.fasta'. Change with `-o/--output`.
     #[arg(short, long, value_name = "N")]
     num_seqs: Option<usize>,
 
@@ -138,10 +123,16 @@ variable_enum! {
     /// outdir/file_1.fq, outdir/file_2.fq, etc.
     ///
     /// `st split -n 1000 -po 'outdir/out_{chunk}.fq' input.fastq`
+    ///
+    /// Output files (`ls outdir/out_*.fq`):
+    /// outdir/out_1.fq
+    /// outdir/out_2.fq
+    /// (...)
     SplitVar {
-        /// Chunk number starting with 1. With the -n argument, it will
-        /// increment by one each time the size limit <N> is reached.
-        /// Otherwise, it will always be 1.
+        /// If `-n/--num-seqs` was specified, the 'chunk' variable contains
+        /// the number of the current sequence batch, starting with 1.
+        /// *Note* that the 'chunk' variable is *only* available with `-n/--num-seqs`,
+        /// otherwise there will be a message: "Unknown variable/function: chunk"
         Chunk(Number),
     }
 }

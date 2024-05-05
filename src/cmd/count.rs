@@ -13,34 +13,11 @@ use crate::var::varstring::VarString;
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "Command options")]
 pub struct CountCommand {
-    /// Count all records in the input (total or categorized).
-    ///
-    /// Records in all the provided input (including multiple files) are counted
-    /// collectively.
-    /// In addition, records can be summarized over one or more categories
-    /// specified with `-k/--key`. The reported counts are always sorted by the
-    /// numeric or text category.
-    ///
-    /// Example printing record counts per input file:
-    ///
-    /// `st count -k path input.fasta input2.fasta input3.fasta`
-    ///
-    /// Example printing the sequence length distribution:
-    ///
-    /// `st count -k seqlen input.fasta`
-    ///
-    /// In case of a header attribute `attr(<name>)` or a value from
-    /// an associated list `meta(<column>)`, these are always interpreted
-    /// as text by default, unless the 'num(...)' function is used,
-    /// which makes sure that the categories are correctly sorted:
-    ///
-    /// `st count -k 'num(attr(name))' input.fasta`
-    ///
-    /// Note that continuous numbers may lead to too many categories, in which
-    /// case 'bin(..)' should be used to group the numbers into intervals.
-    /// Example summarizing the GC content in 5% intervals:
-    ///
-    /// `st count -k 'bin(gc, 5) input.fasta`
+    /// Count sequences for each unique value of the given category.
+    /// Can be a single variable/function such as 'filename', 'desc' or 'attr(name)',
+    /// or a composed key such as '{filename}_{meta(species)}'.
+    /// The `-k/--key` argument can be specified multiple times, in which case
+    /// there will be multiple category columns, one per key.
     #[arg(short, long)]
     key: Vec<String>,
 

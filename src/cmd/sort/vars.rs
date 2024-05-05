@@ -1,6 +1,3 @@
-//! This module contains a `VarProvider` for a 'key' variable, which is
-//! used by the 'sort' and 'unique' commands.
-
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
@@ -8,15 +5,36 @@ use crate::cmd::shared::sort_item::Key;
 use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder};
 
 variable_enum! {
-    /// # Sort command variables
+    /// # Variables provided by the 'sort' command
     ///
     /// # Examples
     ///
     /// Sort sequences by their length and store the length in the sequence
-    /// header in the sequence header, producing headers like this one:
-    /// '>id1 seqlen=210'
+    /// header
     ///
-    /// `st sort seqlen -a seqlen='{key}' input.fasta > output.fasta`
+    /// `st sort seqlen input.fasta > output.fasta`
+    ///
+    /// >id10 seqlen=3
+    /// SEQ
+    /// >id3 seqlen=5
+    /// SEQUE
+    /// >id1 seqlen=8
+    /// SEQUENCE
+    ///
+    ///
+    /// Sort sequences by (1) a 'primer' attribute in the header, which may have
+    /// been obtained using the 'find' command (see `st find --help-vars`), and
+    /// (2) their length. Again, we write the key to the output
+    /// header
+    ///
+    /// `st sort seqlen -a key='{key}' input.fasta > output.fasta`
+    ///
+    /// >id3 primer=p1 key=p1,5
+    /// SEQUE
+    /// >id1 primer=p1 key=p1,8
+    /// SEQUENCE
+    /// >id2 primer=p2 key=p2,3
+    /// SEQ
     SortVar {
         /// The value of the key used for sorting
         Key(?),

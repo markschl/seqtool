@@ -295,25 +295,70 @@ pub enum SubCommand {
     #[cfg(any(feature = "all-commands", feature = "pass"))]
     #[command(visible_aliases=&["."])]
     Pass(cmd::pass::PassCommand),
-    /// Colored sequence view
-    ///
     /// View biological sequences, colored by base / amino acid, or by sequence quality.
     /// The output is automatically forwarded to the 'less' pager on UNIX.
     #[cfg(any(feature = "all-commands", feature = "view"))]
     View(cmd::view::ViewCommand),
-    /// Count sequences (total or by sequence properties)
+    /// Count all records in the input (total or categorized by variables/functions)
+    /// See `st count --help` for more information.
     ///
-    /// This command counts the number of sequences in total or per category.
-    /// Results are printed to STDOUT.
-    /// Advanced grouping of sequences is possible by supplying or more key strings
-    /// containing variables (-k/--key).
+    /// Records in all the provided input (including multiple files) are counted
+    /// collectively.
+    ///
+    /// In addition, records can be summarized over one or more categories
+    /// specified with `-k/--key`. The reported counts are always sorted by the
+    /// numeric or text category.
+    ///
+    ///
+    /// Examples:
+    ///
+    ///
+    /// Print record counts per input file:
+    ///
+    /// `st count -k path input.fasta input2.fasta input3.fasta`
+    ///
+    /// input.fasta	1224818
+    /// input2.fasta	573
+    /// input3.fasta	99186
+    ///
+    ///
+    /// Print the sequence length distribution:
+    ///
+    /// `st count -k seqlen input.fasta`
+    ///
+    /// 102	1
+    /// 105	2
+    /// 106	3
+    /// (...)
+    ///
+    ///
+    /// In case of a header attribute `attr(<name>)` or a value from
+    /// an associated list `meta(<column>)`, these are always interpreted
+    /// as text by default, unless the `num(...)` function is used,
+    /// which makes sure that the categories are correctly sorted:
+    ///
+    /// `st count -k 'num(attr(name))' input.fasta`
+    ///
+    /// Note that continuous numbers may lead to too many categories, in which
+    /// case 'bin(..)' should be used to group the numbers into intervals.
+    /// Example summarizing the GC content in 5% intervals:
+    ///
+    /// `st count -k 'bin(gc_percent, 5) input.fasta`
+    ///
+    /// (10, 15]	2
+    /// (15, 20]	9
+    /// (20, 25]	357
+    /// (25, 30]	1397
+    /// (30, 35]	3438
+    /// (35, 40]	2080
+    /// (40, 45]	1212
+    /// (45, 50]	1424
+    /// (50, 55]	81
     #[cfg(any(feature = "all-commands", feature = "count"))]
     Count(cmd::count::CountCommand),
-    /// Per-sequence statistics as tab-delimited list
-    ///
-    /// Returns per sequence statistics as tab delimited list. All variables
+    /// Returns per sequence statistics as tab delimited list. All sequence statistics variables
     /// (seqlen, exp_err, charcount(...), etc.) can be used (see `st stat --help-vars`).
-    /// The command is equivalent to `st pass --to-tsv 'id,var1,var2,...' input`
+    /// The 'stat' command is equivalent to `st pass --to-tsv 'id,var1,var2,...' input`
     #[cfg(any(feature = "all-commands", feature = "stat"))]
     Stat(cmd::stat::StatCommand),
     /// Return the first N sequences
@@ -326,6 +371,7 @@ pub enum SubCommand {
     #[cfg(any(feature = "all-commands", feature = "tail"))]
     Tail(cmd::tail::TailCommand),
     /// Return a range of sequence records from the input
+    /// (see also `st slice --help`)
     ///
     /// The range is specified as start..end, whereby start and end
     /// are the sequence numbers (starting from 1). Open ranges are
@@ -339,14 +385,13 @@ pub enum SubCommand {
     /// This command does not extract subsequences (see trim command for that).
     #[cfg(any(feature = "all-commands", feature = "slice"))]
     Slice(cmd::slice::SliceCommand),
-    /// Get a random subset of sequences
-    ///
-    /// Either a fixed number (-n/--num-seqs) or an approximate fraction of the
-    /// input (-p/--prob) can be sampled (see help for these options).
+    /// Get a random subset of sequences; either a fixed number
+    /// or an approximate fraction of the input.
     /// The records are returned in input order.
     #[cfg(any(feature = "all-commands", feature = "sample"))]
     Sample(cmd::sample::SampleCommand),
-    /// Sort records by sequence or any other criterion.
+    /// Sort records by sequence or any other criterion
+    /// (see also `st sort --help` and `st sort --help-vars`).
     ///
     /// The sort key can be 'seq', 'id', or any variable/function, expression, or
     /// text containing them (see <KEY> help).
@@ -358,10 +403,25 @@ pub enum SubCommand {
     /// This may be useful with JavaScript expressions, whose evaluation takes time,
     /// and whose result should be written to the headers, e.g.:
     /// 'st sort -n '{ id.substring(3, 5) }' -a id_num='{key}' input.fasta'
+    ///
+    /// # Example
+    ///
+    /// Sort sequences by their length and store the length in the sequence
+    /// header:
+    ///
+    /// `st sort seqlen input.fasta`
+    ///
+    /// >id10
+    /// SEQ
+    /// >id3
+    /// SEQUE
+    /// >id1
+    /// SEQUENCE
     #[cfg(any(feature = "all-commands", feature = "sort"))]
     Sort(cmd::sort::cli::SortCommand),
     /// De-replicate records by sequence or any other criterion, returning only
-    /// unique records.
+    /// unique records
+    /// (see also `st unique --help` and `st unique --help-vars`).
     ///
     /// The unique key can be 'seq' or any variable/function, expression, or
     /// text containing them (see <KEY> help).
@@ -380,15 +440,30 @@ pub enum SubCommand {
     ))]
     Filter(cmd::filter::FilterCommand),
     /// Distribute sequences into multiple files based on variable/function(s)
-    /// or advanced expressions.
+    /// or advanced expressions specified in the output path (`-o/--output`).
+    /// See `--help` and `--help-vars` for more information.
     ///
-    /// In contrast to other commands, the output (-o) argument can
-    /// contain variables in order to determine the file path for each sequence.
+    /// In contrast to other commands, the output argument (`-o`) of the
+    /// 'split' command can contain variables/functions to determine the
+    /// file path for each sequence.
+    ///
+    /// Examples:
+    ///
+    /// Distribute sequences into different files by an attribute 'category'
+    /// found in the sequence headers, producing files such as:
+    /// outdir/category_A.fasta, outdir/category_B.fasta, etc.
+    ///
+    /// `st split input.fasta -o "outdir/{attr(category)}.fasta"`
+    ///
+    /// Group the input sequences by the recognized primer, which is recognized
+    /// using the 'find' command
+    ///
+    /// `st find -f file:primers.fa input.fq -a primer='{pattern_name}' |
+    ///     st split -o "{attr(primer)}.fq"`
     #[cfg(any(feature = "all-commands", feature = "split"))]
     Split(cmd::split::SplitCommand),
     /// Interleave records of all files in the input.
-    ///
-    /// The records will returned in the same order as in the input files.
+    /// The records are returned in the same order as in the input files.
     #[cfg(any(feature = "all-commands", feature = "interleave"))]
     Interleave(cmd::interleave::InterleaveCommand),
     /// Search for one or more patterns in sequences or headers for
@@ -405,10 +480,10 @@ pub enum SubCommand {
     #[cfg(any(feature = "all-commands", feature = "del"))]
     Del(cmd::del::DelCommand),
     /// Trim sequences on the left and/or right (single range)
-    /// or extract and concatenate several subsequences.
+    /// or extract and concatenate several ranges.
     #[cfg(any(feature = "all-commands", feature = "trim"))]
     Trim(cmd::trim::TrimCommand),
-    /// Soft or hard mask sequence ranges
+    /// Soft or hard mask sequence ranges (see also `st mask --help`)
     ///
     /// Masks the sequence within a given range or comma delimited list of ranges
     /// by converting to lowercase (soft mask) or replacing with a character (hard
@@ -422,7 +497,7 @@ pub enum SubCommand {
     #[cfg(any(feature = "all-commands", feature = "lower"))]
     Lower(cmd::lower::LowerCommand),
     /// Reverse complements DNA sequences. If quality scores are present,
-    /// their order is just reversed.
+    /// their order is just reversed (see also `st revcomp --help`)
     ///
     /// The sequence type is automatically detected based on the first record,
     /// unless the `--seqtype` option is used.
@@ -430,9 +505,7 @@ pub enum SubCommand {
     #[cfg(any(feature = "all-commands", feature = "revcomp"))]
     Revcomp(cmd::revcomp::RevcompCommand),
     /// Concatenates sequences/alignments from different files in the order
-    /// in which they are provided.
-    ///
-    /// Fails if the sequence IDs don't match.
+    /// in which they are provided. Fails if the sequence IDs don't match.
     #[cfg(any(feature = "all-commands", feature = "concat"))]
     Concat(cmd::concat::ConcatCommand),
 }

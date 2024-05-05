@@ -53,7 +53,11 @@ fn attrs() {
     t.cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n")
         .cmp(&[".", "--to-tsv", "attr(b)"], ATTR_FA, "3\n")
         .cmp(&[".", "--to-tsv", "has_attr(b)"], ATTR_FA, "true\n")
-        .cmp(&[".", "--to-tsv", r"{has_attr('x\'y')}"], ">id x'y=0\nSEQ\n", "true\n")
+        .cmp(
+            &[".", "--to-tsv", r"{has_attr('x\'y')}"],
+            ">id x'y=0\nSEQ\n",
+            "true\n",
+        )
         .cmp(
             &[".", "-a", "c={attr(a)}", "-a", "b={attr(a)}"],
             ">ID a=0 b=1 c=2\nSEQ",

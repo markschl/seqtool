@@ -1,5 +1,7 @@
 use super::seqtype::SeqType;
 
+/// Reverse complements a set of sequence chunks belonging to the same sequence
+/// writes the contiguous reverse-complement to output
 pub fn reverse_complement<'a, S>(
     seq_iter: S,
     out: &mut Vec<u8>,

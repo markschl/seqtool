@@ -16,7 +16,7 @@ pub(crate) fn usage_list(info: &FuncUsage) -> Vec<String> {
     if n_required == 0 {
         out.push(info.name.to_string());
     }
-    if n_args > n_required {
+    if n_args > 0 {
         for i in n_required.clamp(1, n_args)..n_args + 1 {
             out.push(format!(
                 "{}({})",
@@ -25,6 +25,7 @@ pub(crate) fn usage_list(info: &FuncUsage) -> Vec<String> {
             ));
         }
     }
+    // dbg!(info, n_args, n_required, &out);
     out
 }
 
@@ -45,4 +46,11 @@ pub struct ArgUsage {
     // the default value is always specified as &str in the usage string (for the help page), even
     // though from_func() will parse it further
     pub default_value: Option<&'static str>,
+}
+
+#[derive(Debug)]
+pub struct UsageExample {
+    pub description: &'static str,
+    pub command: &'static str,
+    pub output: Option<&'static str>,
 }

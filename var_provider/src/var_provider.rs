@@ -8,7 +8,7 @@ use itertools::Itertools;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 use crate::usage::FuncUsage;
-use crate::usage_list;
+use crate::{usage_list, UsageExample};
 
 /// This trait provides additional information on the given variable provider
 /// in order to generate a help page. It is implemented for all variable enums
@@ -17,7 +17,7 @@ pub trait VarProviderInfo: fmt::Debug {
     const TITLE: &'static str;
     const DESC: &'static str;
     const VARS: &'static [FuncUsage];
-    const EXAMPLES: &'static [(&'static str, &'static str)];
+    const EXAMPLES: &'static [UsageExample];
 
     fn print_help(markdown: bool) -> io::Result<()> {
         if markdown {
@@ -35,6 +35,8 @@ pub trait VarProviderInfo: fmt::Debug {
         title_col.set_fg(Some(Color::Green));
         let mut usage_col = ColorSpec::new();
         usage_col.set_fg(Some(Color::Cyan));
+        let mut cmd_output_col = ColorSpec::new();
+        cmd_output_col.set_fg(Some(Color::Red));
         let mut type_col = ColorSpec::new();
         type_col.set_fg(Some(Color::Red));
         let mut std_col = ColorSpec::new();
@@ -100,15 +102,20 @@ pub trait VarProviderInfo: fmt::Debug {
                 ex.push('s');
             }
             writeln!(out, "{}", ex)?;
+            writeln!(out)?;
             writeln!(out, "{1:-<0$}", ex.len(), "")?;
-            for &(desc, example) in examples {
-                let mut desc = desc.to_string();
+            for example in examples {
+                let mut desc = example.description.to_string();
                 desc.push(':');
                 for d in textwrap::wrap(&desc, text_width) {
                     writeln!(out, "{}", d)?;
                 }
                 out.set_color(&usage_col)?;
-                writeln!(out, "> {}", example)?;
+                writeln!(out, "> {}", example.command)?;
+                if let Some(output) = example.output {
+                    out.set_color(&cmd_output_col)?;
+                    writeln!(out, "{}", output)?;
+                }
                 out.set_color(&std_col)?;
                 writeln!(out)?;
             }
@@ -150,9 +157,12 @@ pub trait VarProviderInfo: fmt::Debug {
                 ex.push('s');
             }
             writeln!(out, "### {}", ex)?;
-            for &(desc, example) in examples {
-                writeln!(out, "{}:", desc)?;
-                writeln!(out, "```sh\n{}\n```", example)?;
+            for example in examples {
+                writeln!(out, "{}:", example.description)?;
+                writeln!(out, "```sh\n{}\n```", example.command)?;
+                if let Some(output) = example.output {
+                    writeln!(out, "```\n{}\n```", output)?;
+                }
             }
         }
         Ok(())
@@ -164,7 +174,7 @@ pub trait DynVarProviderInfo {
     fn title(&self) -> &'static str;
     fn desc(&self) -> &'static str;
     fn vars(&self) -> &'static [FuncUsage];
-    fn examples(&self) -> &'static [(&'static str, &'static str)];
+    fn examples(&self) -> &'static [UsageExample];
     fn print_help(&self, markdown: bool) -> io::Result<()>;
 }
 
@@ -185,7 +195,7 @@ impl<T: VarProviderInfo> DynVarProviderInfo for VarProviderInfoWrapper<T> {
         T::VARS
     }
 
-    fn examples(&self) -> &'static [(&'static str, &'static str)] {
+    fn examples(&self) -> &'static [UsageExample] {
         T::EXAMPLES
     }
 

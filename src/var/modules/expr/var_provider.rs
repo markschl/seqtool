@@ -15,42 +15,53 @@ variable_enum! {
     /// # Expressions (JavaScript)
     ///
     /// Expressions with variables, from simple mathematical operations to
-    /// arbitrarily complicated JavaScript code.
+    /// arbitrarily complex JavaScript code.
     ///
-    /// Expressions are usually specified enclosed in { curly brackets }, except
-    /// for the 'filter' commands, where they are directly used.
+    /// Expressions are always enclosed in { curly brackets }. These brackets
+    /// are optional for simple variables/functions in some cases,
+    /// but mandatory for expressions.
+    /// In addition, the 'filter' command takes an expression (without { brackets }).
+    ///
     ///
     /// Instead of JavaScript code, it is possible to refer to a source file
     /// using 'file:path.js'.
     ///
+    ///
     /// *Returned value*: For simple one-liner expressions, the value is
     /// directly used.
     /// More complex scripts with multiple statements (if/else, loops, etc.)
-    /// explicitly require a 'return' statement to return the value.
+    /// explicitly require a `return` statement to return the value.
+    ///
     ///
     /// # Examples
     ///
-    /// Set the GC content as attribute in the header (e.g. >id gc=0.568),
-    /// however calculate a proportion instead of percentage
+    /// Calculate the number of ambiguous bases in a set of DNA sequences and
+    /// add the result as an attribute (ambig=...) to the header
     ///
-    /// `st pass -a gc='{ gc/100 }' seqs.fasta`
+    /// `st pass -a ambig='{seqlen - charcount("ACGT")}' seqs.fasta`
     ///
-    /// The GC content calculation can also be done differently
+    /// >id1 ambig=3
+    /// TCNTTAWTAACCTGATTAN
+    /// >id2 ambig=0
+    /// GGAGGATCCGAGCG
+    /// (...)
     ///
-    /// `st pass -a gc='{ charcount("GC")/seqlen }' seqs.fasta`
     ///
-    /// Keep only sequences with <1% ambiguous bases (>=99% non-ambiguous)
-    /// and with at least 100bp
+    /// Discard sequences with >1% ambiguous bases or sequences shorter than 100bp
     ///
     /// `st filter 'charcount("ACGT") / seqlen >= 0.01 && seqlen >= 100' seqs.fasta`
     ///
-    /// Distribute sequences into different files where the name is
-    /// obtained using a more complex rule. Note the 'return' statments,
-    /// which are necessary here, since it is not a simple expression.
+    ///
+    /// Distribute sequences into different files by a slightly complicated condition.
+    /// Note the 'return' statments are are necessary here, since this is not a simple expression.
     /// With even longer code, consider using an extra script and supplying
-    /// -o "outdir/{ file:code.js }.fasta" instead
+    /// -o "outdir/{file:code.js}.fasta" instead
     ///
     /// `st split -po "outdir/{ if (id.startsWith('some_prefix_')) { return 'file_1' } return 'file_2' }.fasta" input.fasta`
+    ///
+    /// There should be two files now (`ls file_*.fasta`):
+    /// file_1.fasta
+    /// file_2.fasta
     ExprVar<'a> {
         #[hidden]
         ____Expr(?) { expr: Expression<'a> },

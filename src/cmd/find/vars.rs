@@ -13,14 +13,48 @@ use crate::var::{
 };
 
 variable_enum! {
-    /// # Variables/functions to obtain pattern matches
+    /// # Variables/functions recognized by the 'find' command
+    ///
+    /// The find command provides many variables/functions to obtain information about
+    /// the pattern matches. These are either written to header attributes
+    /// (`-a/--attr`) or CSV/TSV fields (e.g. `--to-tsv ...`). See also examples section below.
     ///
     /// # Examples
     ///
-    /// Find a primer sequence with up to 2 mismatches and return all
-    /// matching sequences
+    /// Find a primer sequence with up to 2 mismatches (`-d/--dist``) and write
+    /// the match range and the mismatches ('dist') to the header as attributes.
+    /// The result will be empty (=undefined) if there are > 2 mismatches
     ///
-    /// `st find --filter CTTGGTCATTTAGAGGAAGTAA -a 'match_range' reads.fastq`
+    /// `st find -d 2 CTTGGTCATTTAGAGGAAGTAA -a rng={match_range} -a dist={match_dist} reads.fasta`
+    ///
+    /// >id1 rng=2-21 dist=1
+    /// SEQUENCE
+    /// >id2 rng=1-20 dist=0
+    /// SEQUENCE
+    /// >id3 rng= dist=
+    /// SEQUENCE
+    /// (...)
+    ///
+    ///
+    /// Find a primer sequence and if found, remove it using the 'trim' command,
+    /// while non-matching sequences are written to 'no_primer.fasta'
+    ///
+    /// `st find -f -d 2 CTTGGTCATTTAGAGGAAGTAA --dropped no_primer.fasta -a end={match_end} reads.fasta |
+    ///    st trim -e '{attr(match_end)}..' > primer_trimmed.fasta`
+    ///
+    ///
+    /// Search for several primers with up to 2 mismatches and write the name and mismatches
+    /// of the best-matching primer to the header
+    ///
+    /// `st find -d 2 file:primers.fasta -a primer={pattern_name} -a dist={match_dist} reads.fasta`
+    ///
+    /// >id1 primer=primer_1 dist=1
+    /// SEQUENCE
+    /// >id1 primer=primer_2 dist=0
+    /// SEQUENCE
+    /// >id1 primer= dist=
+    /// SEQUENCE
+    /// (...)
     FindVar {
         /// The text matched by the pattern. With approximate matching
         /// (`-d/--dist` argument), this is the best hit

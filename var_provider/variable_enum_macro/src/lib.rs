@@ -1,5 +1,6 @@
 extern crate proc_macro;
 
+use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
@@ -115,7 +116,19 @@ pub fn variable_enum(input: TokenStream) -> TokenStream {
     let varmod = parse_macro_input!(input as VarMod);
     let desc = &varmod.description;
     let (title, desc, examples) = parse_mod_desc(desc);
-    let examples = examples.into_iter().map(|(d, e)| vec![d, e]);
+    let examples = examples.into_iter().map(|(d, e, o)| {
+        let o = match o {
+            Some(o) => quote!( Some(#o) ),
+            None => quote!(None),
+        };
+        quote! {
+            var_provider::UsageExample {
+                description: #d,
+                command: #e,
+                output: #o,
+            }
+        }
+    });
     let enum_name = &varmod.name;
     let enum_def = generate_enum(&varmod);
     let usage_impl = generate_usage(&varmod);
@@ -132,7 +145,7 @@ pub fn variable_enum(input: TokenStream) -> TokenStream {
             const TITLE: &'static str = #title;
             const DESC: &'static str = #desc;
             const VARS: &'static [var_provider::FuncUsage] = #usage_impl;
-            const EXAMPLES: &'static [(&'static str, &'static str)] = &[ #( ( #(#examples),* ) ),* ];
+            const EXAMPLES: &'static [var_provider::UsageExample] = &[ #( #examples ),* ];
         }
     };
 
@@ -183,7 +196,7 @@ fn generate_usage(varmod: &VarMod) -> proc_macro2::TokenStream {
             })
         });
         let name = snake_case(&var.name.to_string());
-        let desc = &var.description;
+        let desc = join_desc_lines(var.description.lines());
         let hidden = &var.hide_from_usage;
         let ty = match var.output_type.as_ref() {
             Some(ty) => quote! { Some(var_provider::VarType::#ty) },
@@ -260,12 +273,7 @@ fn generate_from(varmod: &VarMod) -> proc_macro2::TokenStream {
         if let Some(args) = var.args.as_ref() {
             for arg in args {
                 if !arg_types.iter().any(|t| t == &arg.ty) {
-                    // // modify lifetime: TODO: why does static work??????
-                    let ty = arg.ty.clone();
-                    // if let Type::Reference(r) = &mut ty {
-                    //     r.lifetime = Some(Lifetime::new("'static", Span::call_site()));
-                    // }
-                    arg_types.push(ty);
+                    arg_types.push(arg.ty.clone());
                 }
             }
         }
@@ -291,14 +299,13 @@ fn extract_docstring(attrs: &[Attribute]) -> Option<String> {
         if let Meta::NameValue(meta) = &attr.meta {
             if let Expr::Lit(l) = &meta.value {
                 if let Lit::Str(doc) = &l.lit {
-                    let text = doc.value();
-                    let text = text.trim_start();
-                    if !text.trim().is_empty() {
-                        out.push_str(text);
-                        out.push(' ');
+                    let line = doc.value();
+                    out.push_str(if !line.starts_with(" ") {
+                        &line
                     } else {
-                        out.push('\n');
-                    }
+                        &line[1..]
+                    });
+                    out.push('\n');
                 }
             }
         }
@@ -310,30 +317,54 @@ fn extract_docstring(attrs: &[Attribute]) -> Option<String> {
     }
 }
 
-fn parse_mod_desc(description: &str) -> (String, String, Vec<(String, String)>) {
-    let lines: Vec<_> = description.lines().collect();
+fn parse_mod_desc(description: &str) -> (String, String, Vec<(String, String, Option<String>)>) {
+    // title/description
+    let mut lines = description.lines();
+    let title = lines.next().expect("Empty description");
+    let title = title.trim();
     assert!(
-        lines[0].starts_with("# "),
+        title.starts_with("# "),
         "Module description must start with '# <Title>'"
     );
-    let example_start = lines
-        .iter()
-        .position(|l| l.starts_with("# Examples"))
-        .expect("# Examples section missing");
+    let parts = lines.group_by(|l| l.trim_start().starts_with("# Examples"));
+    let mut parts = parts.into_iter().map(|(_, g)| g);
+    let description = join_desc_lines(parts.next().unwrap());
+    // examples
+    let rest = parts
+        .skip(1)
+        .next()
+        .expect("No '# Examples' section found")
+        .skip(1)
+        .into_iter()
+        .map(|l| if l.trim().is_empty() { "" } else { l })
+        .join("\n");
     let mut examples = Vec::new();
-    for chunk in lines[example_start + 1..].chunks(2) {
-        let example = chunk[1].trim();
-        assert!(example.starts_with('`') && example.ends_with('`'));
-        examples.push((
-            chunk[0].to_string(),
-            example[1..example.len() - 1].to_string(),
-        ));
+    for chunk in rest.split("\n\n\n") {
+        let mut parts = chunk.split("\n\n");
+        let desc = join_desc_lines(parts.next().expect("No example description").lines());
+        let cmd = parts
+            .next()
+            .expect("No example command, should be separated from description by one blank line");
+        let cmd = cmd.trim();
+        assert!(
+            cmd.starts_with('`') && cmd.ends_with('`'),
+            "Example command should be enclosed in `quotes`"
+        );
+        let cmd = cmd[1..cmd.len() - 1].to_string();
+        let out = parts.next().map(|s| s.to_string());
+        examples.push((desc, cmd, out));
     }
-    (
-        lines[0][2..].trim().to_string(),
-        lines[1..example_start].concat(),
-        examples,
-    )
+    (title[1..].trim().to_string(), description, examples)
+}
+
+fn join_desc_lines<'a, L: IntoIterator<Item = &'a str>>(lines: L) -> String {
+    lines
+        .into_iter()
+        .group_by(|l| l.is_empty())
+        .into_iter()
+        .map(|(_, chunk)| chunk.into_iter().map(|l| l.trim()).join(" "))
+        .filter(|chunk| !chunk.is_empty())
+        .join("\n")
 }
 
 fn snake_case(name: &str) -> String {

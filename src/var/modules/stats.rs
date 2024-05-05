@@ -11,11 +11,17 @@ use super::VarProvider;
 variable_enum! {
     /// # Sequence statistics
     ///
+    ///
     /// # Examples
     ///
-    /// Get absolute GC content (not relative to sequence length)
+    /// List the GC content (in %) for every sequence
     ///
-    /// `st stat gc input.fa`
+    /// `st stat gc_percent input.fa`
+    ///
+    /// seq1	33.3333
+    /// seq2	47.2652
+    /// seq3	47.3684
+    ///
     ///
     /// Remove DNA sequences with at least 1% ambiguous bases
     ///
@@ -25,9 +31,12 @@ variable_enum! {
         Seqlen(Number),
         /// Ungapped sequence length (without gap characters `-`)
         UngappedSeqlen(Number),
-        /// GC content as percentage of total bases. Lowercase (=masked) letters or characters
+        /// GC content as fraction (0-1) of total bases. Lowercase (=masked) letters or characters
         /// other than ACGTU are not taken into account.
         Gc(Number),
+        /// GC content as percentage of total bases. Lowercase (=masked) letters or characters
+        /// other than ACGTU are not taken into account.
+        GcPercent(Number),
         /// Count the occurrences of one or more single characters, which are supplied as a string
         Charcount(Number) { characters: String },
         /// Total number of errors expected in the sequence, calculated from the quality scores
@@ -81,7 +90,8 @@ impl VarProvider for StatVars {
             use StatVar::*;
             match stat {
                 Seqlen => sym.set_int(rec.seq_len() as i64),
-                Gc => sym.set_float(get_gc(rec.seq_segments()) * 100.),
+                Gc => sym.set_float(get_gc(rec.seq_segments())),
+                GcPercent => sym.set_float(get_gc(rec.seq_segments()) * 100.),
                 UngappedSeqlen => sym.set_int(get_ungapped_len(rec, b'-') as i64),
                 Charcount { characters, .. } => {
                     let n = if characters.len() == 1 {

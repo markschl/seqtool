@@ -13,18 +13,34 @@ use crate::var::{
 use super::VarProvider;
 
 variable_enum! {
-    /// # Data conversion and processing
+    /// # Data conversion and transformation
     ///
     /// # Examples
     ///
-    /// Summarizing by a numeric header attribute in the form '>id n=3'
+    /// Summarize by a numeric header attribute in the form '>id n=3'
     ///
-    /// `st count -k 'num(attr(n))' seqs.fa`
+    /// `st count -k 'num(attr("n"))' seqs.fa`
     ///
-    /// Summarizing the distribution of the GC content in a set of DNA sequences
+    /// 1	1882
+    /// 2	901
+    /// 3	94
+    /// (...)
+    ///
+    ///
+    /// Summarize the distribution of the GC content in a set of DNA sequences
     /// in 5% intervals
     ///
-    /// `st count -k 'bin(gc, 5)' seqs.fa`
+    /// `st count -k 'bin(gc_percent, 5)' seqs.fa`
+    ///
+    /// (15, 20]	73
+    /// (20, 25]	3443
+    /// (25, 30]	14138
+    /// (30, 35]	34829
+    /// (35, 40]	20354
+    /// (40, 45]	12142
+    /// (45, 50]	14019
+    /// (50, 55]	968
+    /// (55, 60]	8
     CnvVar<'a> {
         /// Converts any expression or value to a decimal number. Missing
         /// (undefined/null) values are left as-is.
