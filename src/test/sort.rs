@@ -52,16 +52,16 @@ fn numeric_attr() {
 }
 
 #[test]
-fn force_numeric() {
+fn numeric() {
     let t = Tester::new();
-    t.fails(&["sort", "num(id)"], *FASTA, "Could not convert")
-        .fails(
-            &["sort", "{num(id + attr('p'))}"],
-            *FASTA,
-            "Could not convert",
-        );
+    t.fails(&["sort", "num(id)"], *FASTA, "Could not convert");
     #[cfg(feature = "expr")]
-    t.cmp(
+    t.fails(
+        &["sort", "{num(id + attr('p'))}"],
+        *FASTA,
+        "Could not convert",
+    )
+    .cmp(
         &["sort", "{num(attr('p') + attr('p'))}"],
         *FASTA,
         records!(1, 0, 2, 3),

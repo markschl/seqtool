@@ -24,8 +24,6 @@ use winnow::{Located, PResult, Parser};
 
 use crate::CliError;
 
-use super::modules::expr::js::parser::{expression, Expression};
-
 /// Function or simple variable, which was found to match the seqtool-style
 /// variable/function syntax by the parser.
 /// This is the type returned by the parser, all data is borrowed from the
@@ -129,7 +127,7 @@ pub enum Arg<'a> {
     /// is used to shuttle the already parsed expression to the variable provider
     /// responsible for the expression evaluation.
     #[cfg(feature = "expr")]
-    Expr(Expression<'a>),
+    Expr(super::modules::expr::js::parser::Expression<'a>),
 }
 
 impl fmt::Display for Arg<'_> {
@@ -202,7 +200,7 @@ impl<'a> FromArg<&'a Arg<'a>> for VarFunc<'a> {
 }
 
 #[cfg(feature = "expr")]
-impl<'a> FromArg<&'a Arg<'a>> for Expression<'a> {
+impl<'a> FromArg<&'a Arg<'a>> for super::modules::expr::js::parser::Expression<'a> {
     fn from_arg(_: &str, _: &str, value: &'a Arg<'a>) -> Result<Self, String> {
         match value {
             // TODO: clone necessary
@@ -227,7 +225,7 @@ pub enum ParsedVarStringSegment<'a> {
     },
     Text(&'a str),
     #[cfg(feature = "expr")]
-    Expr(Expression<'a>),
+    Expr(super::modules::expr::js::parser::Expression<'a>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -365,8 +363,9 @@ fn varstring_fragment<'a, S: LocatedStream<'a>>(
                 (space0, "}"),
             ),
             // {file:path.js} or { expression }
-            // #[cfg(feature = "expr")]
-            delimited("{", expression, "}").map(ParsedVarStringSegment::Expr),
+            #[cfg(feature = "expr")]
+            delimited("{", super::modules::expr::js::parser::expression, "}")
+                .map(ParsedVarStringSegment::Expr),
             // text
             // TODO: escaping '{' not possible
             take_till(1.., |c| {

@@ -4,8 +4,7 @@ use std::mem;
 use deepsize::{Context, DeepSizeOf};
 
 use crate::io::Record;
-use crate::var::symbols::Value;
-use crate::{cmd::shared::tmp_store::Archivable, var::symbols::OptValue};
+use crate::var::symbols::{OptValue, Value};
 
 use super::number::{Float, Interval};
 
@@ -100,5 +99,3 @@ impl DeepSizeOf for SimpleValue {
         0
     }
 }
-
-impl<'a> Archivable<'a> for SimpleValue {}

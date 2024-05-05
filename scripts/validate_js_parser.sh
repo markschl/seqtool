@@ -26,4 +26,4 @@ for f in $js/pass/*.js $js/pass-explicit/*.js $js/early/*.js; do
         printf "$out"
     fi
 done
-rm _input.fa
+rm -R _input.fa $js

@@ -38,27 +38,26 @@ fn stats() {
 }
 
 #[test]
-fn force_numeric() {
+fn numeric() {
     let t = Tester::new();
-    t.fails(&["unique", "num(id)"], *FASTA, "Could not convert")
-        .fails(
-            &["unique", "{num(id + attr('p'))}"],
-            *FASTA,
-            "Could not convert",
-        )
-        .cmp(
-            &["unique", "{num(attr('p') + attr('p'))}"],
-            *FASTA,
-            records!(0, 1, 2, 3),
-        );
-
+    t.fails(&["unique", "num(id)"], *FASTA, "Could not convert");
     #[cfg(feature = "expr")]
-    t.fails(&["unique", "{num(id)}"], *FASTA, "Could not convert")
-        .cmp(
-            &["unique", "{ num(id.substring(3, 4)) }"],
-            *FASTA,
-            records!(0, 1, 2, 3),
-        );
+    t.fails(
+        &["unique", "{num(id + attr('p'))}"],
+        *FASTA,
+        "Could not convert",
+    )
+    .cmp(
+        &["unique", "{num(attr('p') + attr('p'))}"],
+        *FASTA,
+        records!(0, 1, 2, 3),
+    )
+    .fails(&["unique", "{num(id)}"], *FASTA, "Could not convert")
+    .cmp(
+        &["unique", "{ num(id.substring(3, 4)) }"],
+        *FASTA,
+        records!(0, 1, 2, 3),
+    );
 }
 
 #[test]
@@ -270,6 +269,7 @@ fn large() {
             // since there is no stable output order with a memory limit.
             // The record key should be ~26 bytes.
             let simple_limit = format!("{}", rec_limit * 26);
+            #[cfg(any(feature = "all-commands", feature = "sort"))]
             t.pipe(
                 &["unique", "num(id)", "-M", &simple_limit, "-q"],
                 &all_fasta,

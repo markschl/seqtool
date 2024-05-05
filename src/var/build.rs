@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use var_provider::VarType;
 
 use super::attr::{AttrWriteAction, Attributes};
-use super::modules::{expr::js::parser::Expression, VarProvider};
+use super::modules::VarProvider;
 use super::parser::Arg;
 
 /// Object used for registering variables/functions to different `VarProvider` modules.
@@ -128,8 +128,12 @@ impl<'a> VarBuilder<'a> {
     /// Registers a JS expression, assuming that an expression engine
     /// is present in the list of variable providers.
     /// Panics otherwise.
+    #[cfg(feature = "expr")]
     #[inline]
-    pub fn register_expr(&mut self, expr: &Expression) -> Result<(usize, Option<VarType>), String> {
+    pub fn register_expr(
+        &mut self,
+        expr: &super::modules::expr::js::parser::Expression,
+    ) -> Result<(usize, Option<VarType>), String> {
         Ok(self
             .register_var("_____expr", &[Arg::Expr(expr.clone())])?
             .unwrap())

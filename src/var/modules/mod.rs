@@ -13,6 +13,7 @@ use super::VarBuilder;
 
 pub mod attr;
 pub mod cnv;
+#[cfg(feature = "expr")]
 pub mod expr;
 pub mod general;
 pub mod meta;

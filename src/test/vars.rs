@@ -14,6 +14,7 @@ fn general() {
 }
 
 #[test]
+#[cfg(any(feature = "all-commands", feature = "count"))]
 fn numeric() {
     let t = Tester::new();
     t.cmp(&["count", "-k", "num('1.2')"], *FASTA, "1.2\t4\n")

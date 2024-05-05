@@ -15,6 +15,7 @@ use rkyv::{
 use tempdir::TempDir;
 
 use crate::error::{CliError, CliResult};
+use crate::helpers::value::SimpleValue;
 
 /// Warning limit for number of temporary files
 const TEMP_FILE_WARN_LIMIT: usize = 50;
@@ -26,6 +27,7 @@ pub trait Archivable<'a>:
 
 impl<'a> Archivable<'a> for Vec<u8> {}
 impl<'a> Archivable<'a> for Box<[u8]> {}
+impl<'a> Archivable<'a> for SimpleValue {}
 
 #[derive(Debug)]
 pub struct TmpStore {
