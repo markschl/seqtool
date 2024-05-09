@@ -207,7 +207,7 @@ pub(crate) fn read_pattern_file(path: &str) -> CliResult<Vec<(String, String)>> 
     let mut out = vec![];
     while let Some(r) = reader.next() {
         let r = r?;
-        out.push((r.id()?.to_string(), String::from_utf8(r.seq().to_owned())?));
+        out.push((r.id()?.to_string(), String::from_utf8(r.owned_seq())?));
     }
     if out.is_empty() {
         return fail!(
