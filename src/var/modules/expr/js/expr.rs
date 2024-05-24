@@ -51,7 +51,7 @@ include!("_js_include.rs");
 fn register_globals(ctx: &Ctx) {
     // classes/functions in Rust
     ctx.globals().set("bin", js_bin).unwrap();
-    Class::<JsInterval>::register(&ctx).unwrap();
+    Class::<JsInterval>::register(ctx).unwrap();
     Class::<JsInterval>::define(&ctx.globals()).unwrap();
     // "standard library written in JS"
     let _: () = ctx.eval(JS_INCLUDE.as_bytes()).unwrap();

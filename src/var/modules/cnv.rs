@@ -152,21 +152,19 @@ impl CnvVars {
         match arg {
             Arg::Func(func) => {
                 if let Some((source_id, _)) = builder.register_var(func.name, func.args())? {
-                    return Ok(builder.store_register((source_id, ty), &mut self.num_vars));
+                    Ok(builder.store_register((source_id, ty), &mut self.num_vars))
                 } else {
                     // if unknown, we issue an error
-                    return Err(format!(
+                    Err(format!(
                         "Unknown variable/function passed to '{}': {}",
                         func_name, func.name
-                    ));
+                    ))
                 }
             }
-            Arg::Str(s) => {
-                return Ok(builder.store_register((s.to_string(), ty), &mut self.fixed_vars));
-            }
+            Arg::Str(s) => Ok(builder.store_register((s.to_string(), ty), &mut self.fixed_vars)),
             #[cfg(feature = "expr")]
             Arg::Expr(_) => unreachable!(),
-        };
+        }
     }
 }
 

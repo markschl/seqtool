@@ -52,11 +52,11 @@ impl Matches {
         self.inner.has_matches()
     }
 
-    pub fn matches_iter<'a>(
-        &'a self,
+    pub fn matches_iter(
+        &self,
         pattern_rank: usize,
         group: usize,
-    ) -> impl Iterator<Item = &'a Match> {
+    ) -> impl Iterator<Item = &'_ Match> {
         self.inner.matches_iter(pattern_rank, group)
     }
 
@@ -98,7 +98,7 @@ impl MatchesInner {
         max_shift: Option<Shift>,
     ) -> Self {
         assert!(groups.is_empty() || groups[0] == 0);
-        let group_idx = if groups.len() > 0 {
+        let group_idx = if !groups.is_empty() {
             Some(groups.iter().enumerate().map(|(i, g)| (*g, i)).collect())
         } else {
             None
@@ -140,12 +140,12 @@ impl MatchesInner {
         // more information needed: collect hits
         self.has_matches = false;
         assert!(matchers.len() == self.data.len());
-        for i in 0..matchers.len() {
+        for (i, matcher) in matchers.iter_mut().enumerate() {
             let data = &mut self.data[i];
             data.init(i);
             let mut num_found = 0;
 
-            matchers[i].iter_matches(text, &mut |h| {
+            matcher.iter_matches(text, &mut |h| {
                 // set matches
                 let out = data.next_mut();
                 assert!(self.groups.len() == out.len());
@@ -158,7 +158,7 @@ impl MatchesInner {
                 // check max-shift (assuming group 0 (= full hit) to be present)
                 if let Some(s) = self.max_shift.as_ref() {
                     let full_pos = &out[0];
-                    if !s.in_range((full_pos.start-offset, full_pos.end-offset), text.len()) {
+                    if !s.in_range((full_pos.start - offset, full_pos.end - offset), text.len()) {
                         data.clear_current();
                         return Ok(false);
                     }
@@ -200,7 +200,7 @@ impl MatchesInner {
     }
 
     /// Returns hit no. `hit_i` (0-based index) of given group for `pattern_rank` best-matching pattern
-    pub fn get<'a>(&'a self, hit_i: usize, pattern_rank: usize, group: usize) -> Option<&'a Match> {
+    pub fn get(&self, hit_i: usize, pattern_rank: usize, group: usize) -> Option<&Match> {
         let group_i = *self
             .group_idx
             .as_ref()
@@ -210,11 +210,7 @@ impl MatchesInner {
     }
 
     /// Iterates across all hits of a specific group
-    fn matches_iter<'a>(
-        &'a self,
-        pattern_rank: usize,
-        group: usize,
-    ) -> impl Iterator<Item = &'a Match> {
+    fn matches_iter(&self, pattern_rank: usize, group: usize) -> impl Iterator<Item = &'_ Match> {
         let group_i = self.group_idx.as_ref().map(|i| i[group]).unwrap_or(0);
         self.data[pattern_rank].hits_iter(group_i)
     }
@@ -251,14 +247,14 @@ impl PatternMatches {
         }
     }
 
-    fn hits_iter<'a>(&'a self, group_i: usize) -> impl Iterator<Item = &'a Match> {
+    fn hits_iter(&self, group_i: usize) -> impl Iterator<Item = &'_ Match> {
         self.matches[..self.len]
             .iter()
             .skip(group_i)
             .step_by(self.num_groups)
     }
 
-    pub fn hit<'a>(&'a self, hit_i: usize, group_i: usize) -> Option<&'a Match> {
+    pub fn hit(&self, hit_i: usize, group_i: usize) -> Option<&Match> {
         debug_assert!(group_i < self.num_groups);
         let i = hit_i * self.num_groups + group_i;
         if i < self.len {

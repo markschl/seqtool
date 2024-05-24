@@ -55,7 +55,7 @@ impl Float {
 impl Deref for Float {
     type Target = f64;
     fn deref(&self) -> &Self::Target {
-        &&self.0
+        &self.0
     }
 }
 

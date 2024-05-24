@@ -142,9 +142,9 @@ pub trait VarProviderInfo: fmt::Debug {
                     // TODO: very simple but fine for a help page
                     let desc = info
                         .description
-                        .replace("\n", "<br />")
-                        .replace("<", r"\<")
-                        .replace(">", r"\>");
+                        .replace('\n', "<br />")
+                        .replace('<', r"\<")
+                        .replace('>', r"\>");
                     writeln!(out, "| {} | {} |", usages, desc)?;
                 }
             }

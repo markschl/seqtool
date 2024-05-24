@@ -300,7 +300,7 @@ fn extract_docstring(attrs: &[Attribute]) -> Option<String> {
             if let Expr::Lit(l) = &meta.value {
                 if let Lit::Str(doc) = &l.lit {
                     let line = doc.value();
-                    out.push_str(if !line.starts_with(" ") {
+                    out.push_str(if !line.starts_with(' ') {
                         &line
                     } else {
                         &line[1..]
@@ -331,11 +331,9 @@ fn parse_mod_desc(description: &str) -> (String, String, Vec<(String, String, Op
     let description = join_desc_lines(parts.next().unwrap());
     // examples
     let rest = parts
-        .skip(1)
-        .next()
+        .nth(1)
         .expect("No '# Examples' section found")
         .skip(1)
-        .into_iter()
         .map(|l| if l.trim().is_empty() { "" } else { l })
         .join("\n");
     let mut examples = Vec::new();

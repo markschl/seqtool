@@ -55,11 +55,11 @@ impl SimpleValue {
     }
 
     #[inline]
-    pub fn replace_from_symbol<'a>(
+    pub fn replace_from_symbol(
         &mut self,
         sym: &OptValue,
         rec: &dyn Record,
-        text_buf: &'a mut Vec<u8>,
+        text_buf: &mut Vec<u8>,
     ) {
         if let SimpleValue::Text(t) = self {
             // If present, take the text buffer from SimpleValue.

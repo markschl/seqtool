@@ -106,7 +106,7 @@ pub struct ColorArgs {
     pub truecolor: Option<bool>,
 }
 
-pub static DNA_PAL: &[(&'static str, &'static str)] = &[
+pub const DNA_PAL: &[(&str, &str)] = &[
     (
         "dna",
         "A:ce0000,C:0000ce,G:ffde00,TU:00bb00,RYSWKMBDHVN:8f8f8f",
@@ -123,13 +123,12 @@ pub static DNA_PAL: &[(&'static str, &'static str)] = &[
     ("gcat", "GCS:ff2b25,ATUW:ffd349"),
 ];
 
-pub static PROTEIN_PAL: &[(&'static str, &'static str)] = &[
+pub const PROTEIN_PAL: &[(&str, &str)] = &[
     ("rasmol", "DE:e60a0a,CM:e6e600,RK:145aff,ST:fa9600,FY:3232aa,NQ:00dcdc,G:ebebeb,LVI:0f820f,A:c8c8c8,W:b45Ab4,H:8282d2,P:dc9682"),
     ("polarity", "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff"),
 ];
 
-pub static QUAL_SCALE: &[(&'static str, &'static str)] =
-    &[("red-blue", "5:red,35:blue,40:darkblue")];
+pub const QUAL_SCALE: &[(&str, &str)] = &[("red-blue", "5:red,35:blue,40:darkblue")];
 
 pub fn read_palette<T: PaletteType>(
     palette_str: &str,

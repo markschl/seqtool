@@ -46,7 +46,7 @@ impl Opts {
         let max_dist = if let Some(d) = args.search.max_diffs {
             Some(DistanceThreshold::Diffs(d))
         } else if let Some(d) = args.search.max_diff_rate {
-            if d < 0.0 || d > 1.0 {
+            if !(0.0..=1.0).contains(&d) {
                 return fail!(
                     "The maximum fraction of diverging letters (`-R/--max-diff-rate`) \
                     must be between 0 and 1"
@@ -170,7 +170,7 @@ impl Opts {
             self.pattern_names.clone(),
             self.groups.clone(),
             self.max_hits,
-            self.max_shift.clone(),
+            self.max_shift,
             self.bounds,
         )
     }

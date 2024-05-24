@@ -136,7 +136,7 @@ where
                 // keys are distinct -> report the count of the previous key
                 // (current one still not written since we don't know if it is
                 // distinct yet) -> assign 'count = n')
-                writer.write(&prev_buf)?;
+                writer.write_all(&prev_buf)?;
                 writeln!(writer, "{}", count)?;
                 mem::swap(&mut buf, &mut prev_buf);
                 count = n;
@@ -146,7 +146,7 @@ where
             }
         }
         // write the last line
-        writer.write(&prev_buf)?;
+        writer.write_all(&prev_buf)?;
         writeln!(writer, "{}", count)?;
         Ok(())
     })

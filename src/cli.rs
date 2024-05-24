@@ -317,18 +317,18 @@ pub enum SubCommand {
     ///
     /// `st count -k path input.fasta input2.fasta input3.fasta`
     ///
-    /// input.fasta	1224818
-    /// input2.fasta	573
-    /// input3.fasta	99186
+    /// input.fasta   1224818
+    /// input2.fasta  573
+    /// input3.fasta  99186
     ///
     ///
     /// Print the sequence length distribution:
     ///
     /// `st count -k seqlen input.fasta`
     ///
-    /// 102	1
-    /// 105	2
-    /// 106	3
+    /// 102 1
+    /// 105 2
+    /// 106 3
     /// (...)
     ///
     ///
@@ -345,15 +345,15 @@ pub enum SubCommand {
     ///
     /// `st count -k 'bin(gc_percent, 5) input.fasta`
     ///
-    /// (10, 15]	2
-    /// (15, 20]	9
-    /// (20, 25]	357
-    /// (25, 30]	1397
-    /// (30, 35]	3438
-    /// (35, 40]	2080
-    /// (40, 45]	1212
-    /// (45, 50]	1424
-    /// (50, 55]	81
+    /// (10, 15]    2
+    /// (15, 20]    9
+    /// (20, 25]    357
+    /// (25, 30]    1397
+    /// (30, 35]    3438
+    /// (35, 40]    2080
+    /// (40, 45]    1212
+    /// (45, 50]    1424
+    /// (50, 55]    81
     #[cfg(any(feature = "all-commands", feature = "count"))]
     Count(cmd::count::CountCommand),
     /// Returns per sequence statistics as tab delimited list. All sequence statistics variables
