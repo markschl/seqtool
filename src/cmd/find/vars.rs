@@ -1,16 +1,14 @@
+use std::cmp::max;
 use std::io::Write;
 
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
+use super::matches::Matches;
+use super::opts::{Opts, RequiredInfo};
 use crate::helpers::util::write_list_with;
 use crate::io::Record;
-use crate::var::{
-    modules::VarProvider,
-    parser::Arg,
-    symbols::{SymbolTable, Value},
-    VarBuilder, VarStore,
-};
+use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 
 variable_enum! {
     /// # Variables/functions recognized by the 'find' command
@@ -25,7 +23,7 @@ variable_enum! {
     /// the match range and the mismatches ('dist') to the header as attributes.
     /// The result will be empty (=undefined) if there are > 2 mismatches
     ///
-    /// `st find -d 2 CTTGGTCATTTAGAGGAAGTAA -a rng={match_range} -a dist={match_dist} reads.fasta`
+    /// `st find -d 2 CTTGGTCATTTAGAGGAAGTAA -a rng={match_range} -a dist={match_diffs} reads.fasta`
     ///
     /// >id1 rng=2-21 dist=1
     /// SEQUENCE
@@ -46,7 +44,7 @@ variable_enum! {
     /// Search for several primers with up to 2 mismatches and write the name and mismatches
     /// of the best-matching primer to the header
     ///
-    /// `st find -d 2 file:primers.fasta -a primer={pattern_name} -a dist={match_dist} reads.fasta`
+    /// `st find -d 2 file:primers.fasta -a primer={pattern_name} -a dist={match_diffs} reads.fasta`
     ///
     /// >id1 primer=primer_1 dist=1
     /// SEQUENCE
@@ -80,12 +78,6 @@ variable_enum! {
         /// The hit number (sorted by edit distance or occurrence) and the pattern
         /// number can be specified as well (details above).
         MatchGroup(Text) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
-        /// Number of mismatches/insertions/deletions (edit distance) of the search
-        /// pattern compared to the sequence. Either just `match_dist` for the best match,
-        /// or `match_dist(h, [p])` to get the edit distance of the h-th best hit of
-        /// the p-th pattern. `match_dist('all', [p]) will return a comma delimited list of
-        /// distances for all hits of a pattern.
-        MatchDist(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Start coordinate of the first/best match. Other hits/patterns are selected
         /// with `match_start(hit, [pattern])`, for details see `match`
         MatchStart(Number) { hit: String = String::from("1"), pattern: usize = 1 },
@@ -134,6 +126,17 @@ variable_enum! {
         /// Range of regex match group no. 'group' with '..' as delimiter and relative
         /// to the sequence end (-<start>..-<end>).
         MatchGrpDrange (Text) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
+        /// Number of mismatches/insertions/deletions of the search pattern compared to the sequence
+        /// (corresponds to edit distance). Either just `match_diffs` for the best match,
+        /// or `match_diffs(h, [p])` to get the edit distance of the h-th best hit of
+        /// the p-th pattern. `match_diffs('all', [p]) will return a comma delimited list of
+        /// distances for all hits of a pattern.
+        MatchDiffs(Number) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// Number of insertions in the sequence compared to the search pattern.
+        /// Proportion of differences between the search pattern and the matched
+        /// sequence, relative to the pattern length. See `match_diffs` for details on
+        /// hit/pattern arguments.
+        MatchDiffRate(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Name of the matching pattern if multiple patterns were supplied using
         /// `file:patterns.fasta`; or just `<pattern>` if a single pattern
         /// was specified in commandline. `pattern_name(rank)` allows selecting the n-th
@@ -152,12 +155,12 @@ pub enum FindVarType {
     NegRange(&'static str),
     NegStart,
     NegEnd,
+    Diffs,
+    DiffRate,
     Dist,
     Match,
     Name,
 }
-
-use super::{Matches, SearchConfig};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestedHit {
@@ -174,42 +177,62 @@ pub struct RequestedHit {
 pub struct FindVars {
     // (symbol_id, settings)
     vars: VarStore<RequestedHit>,
-    cfg: SearchConfig,
-    bounds_needed: (bool, bool),
     num_patterns: usize,
+    max_hits: usize,    // usize::MAX for all hits
+    groups: Vec<usize>, // match group numbers (0 = full hit)
+    required_info: RequiredInfo,
 }
 
 impl FindVars {
     pub fn new(num_patterns: usize) -> FindVars {
         FindVars {
             vars: VarStore::default(),
-            cfg: SearchConfig::new(),
-            bounds_needed: (false, false),
             num_patterns,
+            max_hits: 0,
+            groups: Vec::new(),
+            required_info: RequiredInfo::Exists,
         }
     }
 
-    pub fn config(&self) -> &SearchConfig {
-        &self.cfg
+    fn add_group(&mut self, group: usize) {
+        if !self.groups.iter().any(|g| *g == group) {
+            self.groups.push(group);
+        }
     }
 
-    /// hit_num = None means all hits should be returned/stored
-    /// match_group = 0 means the whole hit
+    pub fn _register_pos(&mut self, pos: usize, group: usize) {
+        if pos >= self.max_hits {
+            self.max_hits = pos + 1;
+        }
+        self.add_group(group);
+    }
+
+    pub fn _register_all(&mut self, group: usize) {
+        self.max_hits = usize::MAX;
+        self.add_group(group);
+    }
+
+    pub fn update_opts(&self, out: &mut Opts) {
+        for g in &self.groups {
+            if !out.groups.contains(g) {
+                out.groups.push(*g);
+            }
+        }
+        out.required_info = max(out.required_info, self.required_info);
+        out.max_hits = max(out.max_hits, self.max_hits);
+    }
+
     fn register_match(&mut self, h: &RequestedHit) -> Result<(), String> {
         if let Some(p) = h.hit_pos {
-            self.cfg.register_pos(p, h.match_group);
+            self._register_pos(p, h.match_group);
         } else {
-            self.cfg.register_all(h.match_group);
+            self._register_all(h.match_group);
         }
         Ok(())
     }
 
     pub fn register_all(&mut self, group: usize) {
-        self.cfg.register_all(group);
-    }
-
-    pub fn bounds_needed(&self) -> (bool, bool) {
-        self.bounds_needed
+        self._register_all(group);
     }
 
     pub fn set_with(
@@ -222,22 +245,24 @@ impl FindVars {
         use FindVarType::*;
         for (symbol_id, req_hit) in self.vars.iter() {
             let out = symbols.get_mut(*symbol_id);
-            let val: &mut Value = out.inner_mut();
             if req_hit.var_type == Name {
-                let name = matches.pattern_name(req_hit.pattern_rank).unwrap_or("");
-                val.set_text(name.as_bytes());
+                if let Some(opt_name) = matches.pattern_name(req_hit.pattern_rank) {
+                    out.inner_mut()
+                        .set_text(opt_name.unwrap_or("<pattern>").as_bytes());
+                }
                 continue;
             }
 
+            let val = out.inner_mut();
             if let Some(p) = req_hit.hit_pos.as_ref() {
                 // specific hits requested
-                if let Some(m) = matches.get_match(*p, req_hit.match_group, req_hit.pattern_rank) {
+                if let Some(m) = matches.get_match(*p, req_hit.pattern_rank, req_hit.match_group) {
                     match req_hit.var_type {
                         Start => val.set_int((m.start + 1) as i64),
                         End => val.set_int((m.end) as i64),
                         NegStart => val.set_int(m.neg_start1(rec.seq_len())),
                         NegEnd => val.set_int(m.neg_end1(rec.seq_len())),
-                        Dist => val.set_int(i64::from(m.dist)),
+                        Diffs => val.set_int(m.dist as i64),
                         Range(ref delim) => {
                             write!(val.mut_text(), "{}{}{}", m.start + 1, delim, m.end).unwrap()
                         }
@@ -260,9 +285,7 @@ impl FindVars {
                 // in all cases instead of integers.
                 let out = val.mut_text();
                 let not_empty = write_list_with(
-                    matches
-                        .matches_iter(req_hit.pattern_rank, req_hit.match_group)
-                        .flatten(),
+                    matches.matches_iter(req_hit.pattern_rank, req_hit.match_group),
                     b",",
                     out,
                     |m, o| match req_hit.var_type {
@@ -270,7 +293,7 @@ impl FindVars {
                         End => write!(o, "{}", m.end),
                         NegStart => write!(o, "{}", m.neg_start1(rec.seq_len())),
                         NegEnd => write!(o, "{}", m.neg_end1(rec.seq_len())),
-                        Dist => write!(o, "{}", m.dist),
+                        Diffs => write!(o, "{}", m.dist),
                         Range(ref delim) => write!(o, "{}{}{}", m.start + 1, delim, m.end),
                         NegRange(ref delim) => write!(
                             o,
@@ -317,7 +340,9 @@ impl VarProvider for FindVars {
                     pattern,
                     group,
                 } => (Match, hit, pattern, group),
+                MatchDiffs { hit, pattern } => (Diffs, hit, pattern, 0),
                 MatchDist { hit, pattern } => (Dist, hit, pattern, 0),
+                MatchDiffRate { hit, pattern } => (DiffRate, hit, pattern, 0),
                 MatchStart { hit, pattern } => (Start, hit, pattern, 0),
                 MatchNegStart { hit, pattern } => (NegStart, hit, pattern, 0),
                 MatchEnd { hit, pattern } => (End, hit, pattern, 0),
@@ -381,13 +406,14 @@ impl VarProvider for FindVars {
                 .checked_sub(1)
                 .ok_or("The pattern rank must be > 0")?;
 
-            // determine whether the match bounds need to be calculated
-            // (can be slower depending on the algorithm)
-            if var_type != End && var_type != Dist && var_type != Name {
-                self.bounds_needed.0 = true;
-            }
-            if var_type != Start && var_type != Dist && var_type != Name {
-                self.bounds_needed.1 = true;
+            // update required_info if this variable needs more information than
+            // already configured (passed on to `Matcher` objects)
+            let required_info = match var_type {
+                Diffs | DiffRate | Name => RequiredInfo::Distance,
+                _ => RequiredInfo::Range,
+            };
+            if required_info > self.required_info {
+                self.required_info = required_info;
             }
 
             let req_hit = RequestedHit {

@@ -50,13 +50,49 @@ fn id_desc() {
 #[test]
 fn regex() {
     Tester::new()
-        .cmp(&["find", "--desc", "-rf", r"p=\d$"], *FASTA, records!(0, 1))
-        .cmp(&["find", "-rf", "C[AT]GGCAGG"], *FASTA, records!(1, 2));
+        .cmp(&["find", "-drf", r"p=\d$"], *FASTA, records!(0, 1))
+        .cmp(&["find", "-rf", "C[AT]GGCAGG"], *FASTA, records!(1, 2))
+        // UTF-8
+        .cmp(&["find", "-rif", "^.$"], ">ä\nSEQ\n", ">ä\nSEQ\n");
 }
 
 #[test]
 fn multiline_seq() {
     Tester::new().cmp(&["find", "-f", "ATGC"], ">id\nAT\nGC\n", ">id\nATGC\n");
+}
+
+#[test]
+fn range() {
+    let fa = ">id\nTAG\n";
+    let v = "match_range";
+    Tester::new()
+        .cmp(&["find", "A", "--to-csv", v], fa, "2-2\n")
+        .cmp(&["find", "A", "--rng", "2..2", "--to-csv", v], fa, "2-2\n")
+        .cmp(&["find", "A", "--rng", "..1", "--to-csv", v], fa, "\n")
+        .cmp(
+            &["find", "G", "--max-shift-start", "2", "--to-csv", v],
+            fa,
+            "3-3\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "G",
+                "--rng",
+                "2..",
+                "--max-shift-start",
+                "1",
+                "--to-csv",
+                v,
+            ],
+            fa,
+            "3-3\n",
+        )
+        .cmp(
+            &["find", "G", "--max-shift-start", "1", "--to-csv", v],
+            fa,
+            "\n",
+        );
 }
 
 #[test]
@@ -108,104 +144,39 @@ fn vars() {
             "seq\tCCAA\tCCAA\tCGAT\t\tCCAA,CGAT\t9-12,16-19\t12,19\tAA\tAT\n"
         )
         .cmp(&["find", "CAGG", "--to-csv",
-            "id,match,match_start,match_end,match_range,match_neg_start,match_neg_end,match_drange,match_neg_drange,pattern_name,match_dist,match(all)"], fasta,
+            "id,match,match_start,match_end,match_range,match_neg_start,match_neg_end,match_drange,match_neg_drange,pattern_name,match_diffs,match(all)"], fasta,
             "seq,CAGG,5,8,5-8,-21,-18,5..8,-21..-18,<pattern>,0,CAGG\n"
         );
 }
-//
-// #[test]
-// fn fuzzy() {
-//     // compare seqtool output with equivalent code using rust-bio functions directly
-//
-//     let seq = "GCACCGTGGATGAGCGCCATAG";
-//     let pattern = "ACC";
-//     let fasta = format!(">seq\n{}\n", seq);
-//     let vars = "match_range(all),match(all),match_dist(all)";
-//
-//     let t = Tester::new();
-//
-//     for max_dist in 0..2 {
-//         // approximative matching
-//         let mut ranges = vec![];
-//         let mut matches = vec![];
-//         let mut dists = vec![];
-//         let m = fuzzy_find(pattern.as_bytes(), seq.as_bytes(), max_dist);
-//         for (start, end, dist) in m {
-//             ranges.push(format!("{}-{}", start + 1, end));
-//             matches.push(seq[start..end].to_string());
-//             dists.push(format!("{}", dist));
-//         }
-//
-//         let d = format!("{}", max_dist);
-//         let expected = format!(
-//             "{}\t{}\t{}\n",
-//             ranges.join(","),
-//             matches.join(","),
-//             dists.join(",")
-//         );
-//
-//         t.cmp(
-//                 &["find", "-g", "yes", "-d", &d, "--algo", "ukkonen", "--to-tsv", vars, pattern],
-//                 &fasta, &expected
-//             )
-//             .cmp(
-//                 &["find", "-g", "yes", "-d", &d, "--algo", "myers", "--to-tsv", vars, pattern],
-//                 &fasta, &expected
-//             );
-//
-//         // exact matches
-//         if max_dist == 0 {
-//             t.cmp(&["find", "--to-tsv", vars, pattern], &fasta, &expected)
-//              .cmp(&["find", "-r", "--to-tsv", vars, pattern], &fasta, &expected);
-//         }
-//     }
-// }
-//
-// // this code is equivalent to what seqtool should do
-// // 1. find end positions up to edit distance of 'dist'
-// // 2. NW alignment for finding the start position
-// fn fuzzy_find(pattern: &[u8], text: &[u8], max_dist: usize) -> Vec<(usize, usize, usize)> {
-//     use bio::pattern_matching::ukkonen;
-//     use bio::alignment::pairwise;
-//     use std::cmp::min;
-//
-//     // matcher
-//     let mut u = ukkonen::Ukkonen::with_capacity(pattern.len(), ukkonen::unit_cost);
-//     // aligner
-//     let aln_score = |a, b| if a == b { 1 } else { -1 };
-//     let mut s = pairwise::Scoring::new(-1, -1, &aln_score);
-//     s.xclip_prefix = pairwise::MIN_SCORE;
-//     s.xclip_suffix = pairwise::MIN_SCORE;
-//     s.yclip_prefix = 0;
-//     s.yclip_suffix = pairwise::MIN_SCORE;
-//     let mut a = pairwise::Aligner::with_scoring(s);
-//
-//     let g =
-//         // find end positions of hits
-//         u.find_all_end(pattern, text, max_dist).map(|(end, dist)| {
-//             // align subsequence with length of pattern + max. edit distance + 1
-//             let end = end + 1;
-//             let check_start = end - min(end, pattern.len() + dist as usize + 1);
-//             let aln = a.custom(pattern, &text[check_start..end]);
-//             (check_start + aln.ystart, end, dist)
-//         })
-//         // remove redundant hits per starting position
-//         .group_by(|&(start, _, _)| start);
-//
-//     g.into_iter()
-//         .map(|(_, mut it)| {
-//             let mut out = None;
-//             let mut best_dist = std::usize::MAX;
-//             while let Some(m) = it.next() {
-//                 if m.2 < best_dist {
-//                     best_dist = m.2;
-//                     out = Some(m.clone());
-//                 }
-//             }
-//             out.unwrap()
-//         })
-//         .collect()
-// }
+
+// TODO: to be expanded
+#[test]
+fn fuzzy() {
+    // sequence length = 20, pattern length = 5
+    let fa = ">i\nAACACACTGTGGAGTTTTCA\n";
+    //                 x  mismatch
+    let pattern = "ACACC";
+    let v = "match,match_diffs";
+
+    Tester::new()
+        .cmp(&["find", "-f", "--to-csv", v, pattern], fa, "")
+        .cmp(
+            &["find", "-f", "-D1", "--to-csv", v, pattern],
+            fa,
+            "ACACA,1\n",
+        )
+        // rate (relative to pattern length)
+        .cmp(
+            &["find", "-f", "-R", "0.1999999", "--to-csv", v, pattern],
+            fa,
+            "",
+        )
+        .cmp(
+            &["find", "-f", "-R", "0.2", "--to-csv", v, pattern],
+            fa,
+            "ACACA,1\n",
+        );
+}
 
 #[test]
 fn ambig() {
@@ -221,12 +192,12 @@ fn ambig() {
         .cmp(&["find", "--to-csv", vars, subseq], &fasta, expected)
         .cmp(&["find", "--to-csv", vars, subseq], &fasta, expected)
         .cmp(
-            &["find", "--to-csv", vars, "--dist", "0", &subseq_indel],
+            &["find", "--to-csv", vars, "-D", "0", &subseq_indel],
             &fasta,
             ",\n",
         )
         .cmp(
-            &["find", "--to-csv", vars, "--dist", "1", &subseq_indel],
+            &["find", "--to-csv", vars, "-D", "1", &subseq_indel],
             &fasta,
             expected,
         );
@@ -253,7 +224,7 @@ fn ambig() {
                 "find",
                 "--to-csv",
                 "id,match_range",
-                "--dist",
+                "-D",
                 "2",
                 &seq_orig_[1..],
             ],
@@ -314,9 +285,9 @@ fn multiple() {
             fasta::write_parts(&mut f, format!("p{}", i).as_bytes(), None, *p as &[u8]).unwrap();
         }
 
-        let vars = "match_range,match_range(1,1),match_range(1,2),match_range(1,3),match_dist,match_dist(1,1),match_dist(1,2),match_dist(1,3),pattern_name,pattern_name(1),pattern_name(2),pattern_name(3)";
+        let vars = "match_range,match_range(1,1),match_range(1,2),match_range(1,3),match_diffs,match_diffs(1,1),match_diffs(1,2),match_diffs(1,3),pattern_name,pattern_name(1),pattern_name(2),pattern_name(3)";
         let out = "2-21,2-21,2-21,2-21,0,0,1,2,p0,p0,p2,p1\n";
 
-        t.cmp(&["find", "--to-csv", vars, "-d2", "--algo", "myers", &patt_path], &fasta, out);
+        t.cmp(&["find", "--to-csv", vars, "-D2", &patt_path], &fasta, out);
     });
 }

@@ -7,7 +7,7 @@ use crate::{config::Config, io::FormatVariant};
 use super::pass::{self, PassCommand};
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Stat' command options")]
 pub struct StatCommand {
     /// Comma delimited list of statistics variables.
     #[arg(value_name = "VAR")]

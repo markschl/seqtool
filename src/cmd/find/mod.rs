@@ -1,185 +1,79 @@
 use std::fs::File;
 use std::io::BufWriter;
 
+use crate::cmd::find::opts::Opts;
+use crate::cmd::find::vars::FindVars;
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::helpers::{seqtype::SeqType, util::replace_iter};
-use crate::io::{RecordAttr, RecordEditor};
-use crate::var::{modules::VarProvider, varstring};
+use crate::helpers::util::replace_iter;
+use crate::io::RecordEditor;
+use crate::var::modules::VarProvider;
 
-mod cli;
-mod helpers;
-mod matcher;
-mod matches;
-mod vars;
+pub mod ambig;
+pub mod cli;
+pub mod helpers;
+pub mod matcher;
+pub mod matches;
+pub mod opts;
+pub mod vars;
 
-pub use self::cli::*;
-use self::matches::*;
-pub use self::vars::*;
-
-#[derive(Debug)]
-struct MatchOpts {
-    has_groups: bool,
-    bounds_needed: bool,
-    sorted: bool,
-    max_dist: usize,
-    seqtype: SeqType,
-}
+pub use cli::FindCommand;
+pub use vars::FindVar;
 
 pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
-    // assemble all settings
-
-    let verbose = args.common.general.verbose;
-    // search options
-    let patterns = args.patterns.to_vec();
-    let regex = args.search.regex;
-    let max_dist = args.search.dist;
-    let sorted = args.search.in_order;
-    let num_threads = args.search.threads;
-    let no_ambig = args.search.no_ambig;
-    let algo_override = args.search.algo;
-    // search range
-    let bounds = args
-        .search_range
-        .rng
-        .map(|rng| rng.adjust(false, false))
-        .transpose()?;
-    let max_shift = if let Some(n) = args.search_range.max_shift_l {
-        Some(Shift::Start(n))
-    } else {
-        args.search_range.max_shift_r.map(Shift::End)
-    };
-    // what should be searched?
-    let attr = if args.attr.id {
-        RecordAttr::Id
-    } else if args.attr.desc {
-        RecordAttr::Desc
-    } else {
-        RecordAttr::Seq
-    };
-    // search "actions"
-    let filter = if args.action.filter {
-        Some(true)
-    } else if args.action.exclude {
-        if args.action.filter {
-            return fail!("-f/--filter and -e/--exclude cannot both be specified");
-        }
-        Some(false)
-    } else {
-        None
-    };
-    let dropped_file = args.action.dropped.clone();
-    let replacement = args.action.rep.as_deref();
-
-    // Obtain a sequence type and search algorithm for each pattern
-    // (based on heuristic and/or CLI args)
-    let (seqtype, algorithms) = helpers::analyse_patterns(
-        &patterns,
-        algo_override,
-        cfg.get_seqtype(),
-        no_ambig,
-        regex,
-        max_dist,
-        verbose,
-    )?;
-
     // add variable provider
     cfg.set_custom_varmodule(Box::new(FindVars::new(args.patterns.len())))?;
 
+    // parse all CLI options and initialize replacements
+    let mut opts = Opts::new(&mut cfg, args)?;
+
+    // amongst others, this registers all variables in header attribute / TSV fields
     let mut format_writer = cfg.get_format_writer()?;
 
-    // Parse possible replacement strings.
-    // These can contain variables/expressions.
-    let replacement = replacement
-        .map(|text| {
-            cfg.with_command_vars(|v, _| {
-                let match_vars: &mut FindVars = v.unwrap();
-                // For pattern replacement, all hits for group 0 (the full hit) must
-                // be known.
-                // TODO: API is somehow awkward
-                match_vars.register_all(0);
-                Ok::<_, String>(())
-            })?;
-            let (s, _) = cfg.build_vars(|b| varstring::VarString::parse_register(text, b, true))?;
-            Ok::<_, String>(s)
-        })
-        .transpose()?;
-
-    // Validate and determine requirements to build the configuration.
-    // note: Config::with_command_vars() is called a second time here to avoid borrowing issues
-    let (match_cfg, opts) = cfg.with_command_vars(|match_vars, _| {
+    cfg.with_command_vars(|match_vars, _| {
         let match_vars: &FindVars = match_vars.unwrap();
-        if filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
+        if opts.filter.is_none() && !match_vars.has_vars() && opts.replacement.is_none() {
             return fail!(
                 "Find command does nothing. Use -f/-e for filtering, --repl for replacing or \
                     -a for writing attributes."
             );
         }
-
-        let bounds_needed =
-            match_vars.bounds_needed().0 || match_vars.bounds_needed().1 || max_shift.is_some();
-
-        report!(
-            verbose,
-            "Sort by distance: {:?}. Find full position: {:?}",
-            sorted,
-            bounds_needed
-        );
-
-        let match_cfg = match_vars.config().clone();
-
-        let opts = MatchOpts {
-            has_groups: match_cfg.has_groups(),
-            bounds_needed,
-            sorted,
-            max_dist,
-            seqtype,
-        };
-
-        Ok::<_, String>((match_cfg, opts))
+        // now that all variables are registered, obtain the information about
+        // the information that should be provided by matchers
+        match_vars.update_opts(&mut opts);
+        // dbg!(&match_vars);
+        Ok::<_, String>(())
     })?;
+    // dbg!(&opts);
 
     // More things needed during the search
     // intermediate buffer for replacement text
     let mut replacement_text = vec![];
 
-    let (pattern_names, patterns): (Vec<_>, Vec<_>) = patterns.into_iter().unzip();
     // buffered writer for dropped records
-    let mut dropped_file = if let Some(f) = dropped_file.as_ref() {
-        Some(BufWriter::new(File::create(f)?))
-    } else {
-        None
-    };
+    let mut dropped_file = opts
+        .dropped_path
+        .as_ref()
+        .map(|f| Ok::<_, std::io::Error>(BufWriter::new(File::create(f)?)))
+        .transpose()?;
 
+    // run the search
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_parallel_init(
-            num_threads,
-            || {
-                // initialize matchers (one per record set)
-                algorithms
-                    .iter()
-                    .zip(&patterns)
-                    .map(|(&(algo, is_ambig), patt)| {
-                        helpers::get_matcher(patt, algo, attr, is_ambig, &opts)
-                    })
-                    .collect::<CliResult<Vec<_>>>()
-            },
+            args.search.threads,
+            // initialize matchers (one per record set)
+            || opts.get_matchers(),
             || {
                 // initialize per-record data
-                let editor = Box::<RecordEditor>::default();
-                let matches = Box::new(Matches::new(
-                    &pattern_names,
-                    match_cfg.clone(),
-                    bounds,
-                    max_shift.clone(),
-                ));
+                let editor: Box<RecordEditor> = Default::default();
+                let matches = opts.init_matches();
                 (editor, matches)
             },
             |record, &mut (ref mut editor, ref mut matches), ref mut matchers| {
                 // do the searching in the worker threads
-                let text = editor.get(attr, &record, false);
+                let text = editor.get(opts.attr, &record, false);
                 // update the `Matches` object with the results reported by every `Matcher`
-                matches.find(text, matchers)
+                matches.find(text, matchers).map_err(From::from)
             },
             |record, &mut (ref mut editor, ref matches), ctx| {
                 // handle results in main thread, write output
@@ -187,30 +81,27 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                 // update variables (if any) with search results obtained in the 'work' closure
                 ctx.custom_vars(|match_vars: Option<&mut FindVars>, symbols| {
                     if let Some(_match_vars) = match_vars {
-                        let text = editor.get(attr, &record, true);
+                        let text = editor.get(opts.attr, &record, true);
                         _match_vars.set_with(record, matches, symbols, text)?;
                     }
                     Ok::<_, String>(())
                 })?;
 
                 // fill in replacements (if necessary)
-                if let Some(rep) = replacement.as_ref() {
-                    editor.edit_with_val(attr, &record, true, |text, out| {
+                if let Some(rep) = opts.replacement.as_ref() {
+                    editor.edit_with_val(opts.attr, &record, true, |text, out| {
                         // assemble replacement text
                         replacement_text.clear();
                         rep.compose(&mut replacement_text, &ctx.symbols, record)?;
                         // replace all occurrences of the pattern
-                        let pos = matches
-                            .matches_iter(0, 0)
-                            .flatten()
-                            .map(|m| (m.start, m.end));
+                        let pos = matches.matches_iter(0, 0).map(|m| (m.start, m.end));
                         replace_iter(text, &replacement_text, pos, out).unwrap();
                         Ok::<(), CliError>(())
                     })?;
                 }
 
                 // keep / exclude
-                if let Some(keep) = filter {
+                if let Some(keep) = opts.filter {
                     if matches.has_matches() ^ keep {
                         if let Some(ref mut f) = dropped_file {
                             // we don't write the edited record, since there are no hits to report

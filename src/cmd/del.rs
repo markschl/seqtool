@@ -7,7 +7,7 @@ use crate::io::HeaderRecord;
 use crate::var::attr;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Del' command options")]
 pub struct DelCommand {
     /// Delete description fields
     #[arg(short, long)]

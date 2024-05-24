@@ -9,7 +9,7 @@ use crate::io::SeqQualRecord;
 use crate::helpers::seqtype::{SeqType, SeqtypeHelper};
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Revcomp' command options")]
 pub struct RevcompCommand {
     /// Number of threads to use
     #[arg(short, long, default_value_t = 1)]
@@ -53,6 +53,7 @@ pub fn run(mut cfg: Config, args: &RevcompCommand) -> CliResult<()> {
                 if final_seqtype.is_none() {
                     final_seqtype = revcomp_record.seqtype;
                 } else if revcomp_record.seqtype != final_seqtype {
+                    // fail if there is a mismatch in sequence types guessed in different threads
                     return fail!("Could not reliably guess the sequence type. Please specify with `--seqtype`");
                 }
                 let rc_rec = SeqQualRecord::new(

@@ -5,7 +5,6 @@ use crate::config::Config;
 use crate::error::CliResult;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
 pub struct PassCommand {
     #[command(flatten)]
     pub common: CommonArgs,

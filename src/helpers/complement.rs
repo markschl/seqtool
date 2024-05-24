@@ -6,7 +6,7 @@ pub fn reverse_complement<'a, S>(
     seq_iter: S,
     out: &mut Vec<u8>,
     seqtype: SeqType,
-) -> Result<(), &'static str>
+) -> Result<(), String>
 where
     S: Iterator<Item = &'a [u8]> + DoubleEndedIterator,
 {
@@ -14,10 +14,11 @@ where
         SeqType::Dna => bio::alphabets::dna::complement,
         SeqType::Rna => bio::alphabets::rna::complement,
         _ => {
-            return Err(
+            return Err(format!(
                 "Only DNA/RNA sequences can be reverse-complemented, but the sequence type \
-                is different. Wrongly recognized sequence types can be adjusted with `--seqtype`.",
-            )
+                is '{}'. Wrongly recognized sequence types can be adjusted with `--seqtype`.",
+                seqtype
+            ))
         }
     };
     out.clear();

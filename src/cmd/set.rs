@@ -7,7 +7,7 @@ use crate::io::{RecordAttr, RecordEditor};
 use crate::var::varstring::VarString;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Set' command options")]
 pub struct SetCommand {
     /// New ID (variables allowed)
     #[arg(short, long)]

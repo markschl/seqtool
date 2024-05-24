@@ -271,11 +271,13 @@ impl ColorWriter {
             *store_to = match *source {
                 ColorSource::Qual => Some((qual_scale.clone(), true)),
                 ColorSource::Symbol => {
-                    guess_seqtype(seq, None).and_then(|(ref seqtype, _, _)| match seqtype {
-                        SeqType::Dna | SeqType::Rna => Some((dna_pal.clone(), false)),
-                        SeqType::Protein => Some((protein_pal.clone(), false)),
-                        _ => None,
-                    })
+                    guess_seqtype(seq, None)
+                        .ok()
+                        .and_then(|info| match info.seqtype {
+                            SeqType::Dna | SeqType::Rna => Some((dna_pal.clone(), false)),
+                            SeqType::Protein => Some((protein_pal.clone(), false)),
+                            _ => None,
+                        })
                 }
             };
         }

@@ -8,7 +8,7 @@ use crate::error::CliResult;
 use crate::io::OwnedRecord;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Concat' command options")]
 pub struct ConcatCommand {
     /// Don't check if the IDs of the records from
     /// the different files match
@@ -27,7 +27,7 @@ pub struct ConcatCommand {
     /// Character to use as spacer for qualities.
     /// Defaults to a phred score of 41 (Illumina 1.8+/Phred+33 encoding, which
     /// is the default assumed encoding).
-    #[arg(short, long, default_value = "J")]
+    #[arg(short = 'Q', long, default_value = "J")]
     q_char: char,
 
     #[command(flatten)]

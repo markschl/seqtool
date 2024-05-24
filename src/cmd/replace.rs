@@ -11,7 +11,7 @@ use crate::io::{RecordAttr, RecordEditor};
 use crate::Config;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Replace' command options")]
 pub struct ReplaceCommand {
     /// Search pattern
     pattern: String,

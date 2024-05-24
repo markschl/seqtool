@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::error::CliResult;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Interleave' command options")]
 pub struct InterleaveCommand {
     /// Don't check if the IDs of the files match
     #[arg(short, long)]

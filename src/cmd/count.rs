@@ -11,7 +11,7 @@ use crate::helpers::{value::SimpleValue, DefaultHashMap as HashMap};
 use crate::var::varstring::VarString;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Count' command options")]
 pub struct CountCommand {
     /// Count sequences for each unique value of the given category.
     /// Can be a single variable/function such as 'filename', 'desc' or 'attr(name)',

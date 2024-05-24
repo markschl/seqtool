@@ -7,7 +7,7 @@ use crate::cli::CommonArgs;
 use crate::helpers::bytesize::parse_bytesize;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Unique' command options")]
 pub struct UniqueCommand {
     /// The key used to determine, which records are unique.
     /// The key can be a single variable/function such as 'seq',
@@ -52,10 +52,6 @@ pub struct UniqueCommand {
     /// Maximum number of temporary files allowed
     #[arg(long, value_name = "N", default_value_t = 1000)]
     pub temp_file_limit: usize,
-
-    /// Silence any warnings
-    #[arg(short, long)]
-    pub quiet: bool,
 
     #[command(flatten)]
     pub common: CommonArgs,

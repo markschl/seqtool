@@ -18,12 +18,7 @@ fn revcomp() {
         // mixed / protein
         .fails(
             &["revcomp"],
-            ">id\nTU\n",
-            "Only DNA/RNA sequences can be reverse-complemented",
-        )
-        .fails(
-            &["revcomp"],
-            ">id\nX\n",
+            ">id\nTX\n",
             "Only DNA/RNA sequences can be reverse-complemented",
         )
         // with explicitly set sequence type, invalid letters are left untouched

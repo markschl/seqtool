@@ -14,8 +14,6 @@ build = "build.rs"
 members = ["var_provider", "var_provider/variable_enum_macro"]
 
 [dependencies]
-# general
-lazy_static = "1.4"
 ahash = "0.8"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 memchr = "2.7"
@@ -47,9 +45,9 @@ var_provider = { path = "var_provider" }
 variable_enum_macro = { path = "var_provider/variable_enum_macro" }
 # JS expressions
 rquickjs = { version = "0.5", features=["classes", "properties", "bindgen", "rust-alloc", "macro"], optional=true }
-phf = { version = "0.11", optional = true }
+phf = { version = "0.11", features = ["macros"], optional = true }
 # find, replace, revcomp, view commands
-bio = { version = "1.6", default-features = false, optional = true }
+bio = { version = "1.6", default-features = false }
 regex-lite = { version = "0.1", optional = true }
 regex = { version = "1.10", optional = true }
 # view command
@@ -80,6 +78,7 @@ approx = "0.5"
 rand = "0.8"
 rand_xoshiro = "0.6.0"
 tempdir = "0.3"
+lazy_static = "1.4"
 
 [features]
 default = ["all-commands", "regex-fast", "expr", "gz", "lz4", "zstd"]
@@ -97,11 +96,10 @@ all-commands = [
     "palette", "enterpolation", "termcolor", "ansi_colours", "pager",  # view
     "rand", "rand_xoshiro",  # sample
     "indexmap", "rkyv", "byteorder", "tempdir",  # sort, unique
-    "bio",  # find, revcomp, view
     "regex-lite",  # find, replace
 ]
 pass = []
-view = ["bio", "palette", "enterpolation", "termcolor", "ansi_colours", "pager"]
+view = ["palette", "enterpolation", "termcolor", "ansi_colours", "pager"]
 count = []
 stat = []
 head = []
@@ -113,7 +111,7 @@ unique = ["indexmap", "rkyv", "byteorder", "tempdir"]
 filter = []
 split = []
 interleave = []
-find = ["bio", "regex-lite"]
+find = ["regex-lite"]
 replace = ["regex-lite"]
 del = []
 set = []
@@ -121,7 +119,7 @@ trim = []
 mask = []
 upper = []
 lower = []
-revcomp = ["bio"]
+revcomp = []
 concat = []
 
 [[bin]]

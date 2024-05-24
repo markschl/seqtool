@@ -6,7 +6,7 @@ use crate::cli::CommonArgs;
 use crate::helpers::bytesize::parse_bytesize;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Sort' command options")]
 pub struct SortCommand {
     /// The key used to sort the records. It can be a single variable/function
     /// such as 'seq', 'id', a composed string, e.g. '{id}_{desc}',
@@ -42,10 +42,6 @@ pub struct SortCommand {
     /// Maximum number of temporary files allowed
     #[arg(long, value_name = "N", default_value_t = 1000)]
     pub temp_file_limit: usize,
-
-    /// Silence any warnings
-    #[arg(short, long)]
-    pub quiet: bool,
 
     #[command(flatten)]
     pub common: CommonArgs,

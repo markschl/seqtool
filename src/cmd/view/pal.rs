@@ -165,40 +165,19 @@ impl PaletteType for QualPaletteType {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct SimplePal(Vec<(String, String)>);
-
-impl SimplePal {
-    pub fn add(mut self, name: &str, colors_str: &str) -> Self {
-        self.0.push((name.to_string(), colors_str.to_string()));
-        self
+pub fn display_pal<T>(
+    pal: &[(&str, &str)],
+    writer: &mut termcolor::StandardStream,
+    textcols: &(Color, Color),
+    rgb: bool,
+) -> CliResult<()>
+where
+    T: PaletteType,
+{
+    for (name, colors_str) in pal {
+        write!(writer, "{:<12}", name)?;
+        T::display_palette(colors_str, writer, textcols, rgb)?;
+        writeln!(writer)?;
     }
-
-    pub fn members(&self) -> &[(String, String)] {
-        &self.0
-    }
-
-    pub fn get(&self, name: &str) -> Option<&str> {
-        self.0
-            .iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, c)| c.as_str())
-    }
-
-    pub fn display_pal<T>(
-        &self,
-        writer: &mut termcolor::StandardStream,
-        textcols: &(Color, Color),
-        rgb: bool,
-    ) -> CliResult<()>
-    where
-        T: PaletteType,
-    {
-        for (name, colors_str) in self.members() {
-            write!(writer, "{:<12}", name)?;
-            T::display_palette(colors_str, writer, textcols, rgb)?;
-            writeln!(writer)?;
-        }
-        Ok(())
-    }
+    Ok(())
 }

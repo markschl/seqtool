@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::error::CliResult;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Head' command options")]
 pub struct HeadCommand {
     /// Number of sequences to return
     #[arg(short, long, value_name = "N", default_value_t = 10, value_parser = value_parser!(u64).range(1..))]

@@ -466,11 +466,14 @@ pub enum SubCommand {
     /// The records are returned in the same order as in the input files.
     #[cfg(any(feature = "all-commands", feature = "interleave"))]
     Interleave(cmd::interleave::InterleaveCommand),
-    /// Search for one or more patterns in sequences or headers for
-    /// record filtering, pattern replacement or writing matches to the output.
+    /// Search pattern(s) in sequences or headers
+    /// (including fuzzy/ambiguous or regex matching);
+    /// for record filtering, pattern replacement or passing hits to next command.
+    ///
+    /// TODO: document: ambiguous letters in patterns match corresponding letters in sequence, but only if completely matched (no overlapping matches of ambiguities)
     #[cfg(any(feature = "all-commands", feature = "find"))]
     Find(cmd::find::FindCommand),
-    /// Fast and simple pattern replacement in sequences or sequence headers
+    /// Fast and simple pattern replacement in sequences or headers
     #[cfg(any(feature = "all-commands", feature = "replace"))]
     Replace(cmd::replace::ReplaceCommand),
     /// Replace the header, header attributes or sequence with new content
@@ -496,7 +499,7 @@ pub enum SubCommand {
     /// Convert sequences to lowercase
     #[cfg(any(feature = "all-commands", feature = "lower"))]
     Lower(cmd::lower::LowerCommand),
-    /// Reverse complements DNA sequences. If quality scores are present,
+    /// Reverse complements DNA or RNA sequences. If quality scores are present,
     /// their order is just reversed (see also `st revcomp --help`)
     ///
     /// The sequence type is automatically detected based on the first record,
@@ -512,7 +515,6 @@ pub enum SubCommand {
 
 /// Common options
 #[derive(Args, Clone, Debug)]
-// #[clap(next_help_heading = "Output")]
 pub struct CommonArgs {
     #[command(flatten)]
     pub general: GeneralArgs,
@@ -537,11 +539,15 @@ pub struct CommonArgs {
 }
 
 #[derive(Args, Clone, Debug)]
-// #[group()]
+#[clap(next_help_heading = "General options (common to all commands)")]
 pub struct GeneralArgs {
-    /// Print more detailed information.
+    /// Print more detailed information about the progress and results of certain commands
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Suppress all messages except errors and important warnings
+    #[arg(short, long)]
+    pub quiet: bool,
 
     /// List and explain all variables/functions available
     #[arg(long)]
@@ -615,7 +621,7 @@ pub struct InputArgs {
 
     /// Sequence type; relevant for the `find` and `revcomp` commands,
     /// as well as the variables/functions `seq_revcomp`, `seqhash_rev` and `seqhash_both`
-    /// (auto-detected by default)
+    /// (default: auto-detected based on the first sequence)
     #[arg(long, value_enum, value_name = "TYPE")]
     pub seqtype: Option<SeqType>,
 }

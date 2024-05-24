@@ -28,6 +28,7 @@ static MEM_OVERHEAD: f32 = 1.1;
 
 pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
     let verbose = args.common.general.verbose;
+    let quiet = args.common.general.quiet;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
     // TODO: not activated, since we use a low limit for testing
     // if args.max_mem < 1 << 22 {
@@ -65,12 +66,12 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
                 Item::new(keys.clone(), record_out.into_boxed_slice()),
                 &tmp_path,
                 args.temp_file_limit,
-                args.quiet,
+                quiet,
             )?;
             Ok(true)
         })?;
         // write sorted output
-        sorter.write(io_writer, args.quiet, verbose)
+        sorter.write(io_writer, quiet, verbose)
     })
 }
 

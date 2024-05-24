@@ -12,7 +12,7 @@ use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
 use crate::io::{output::FormatWriter, Record};
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Sample' command options")]
 pub struct SampleCommand {
     /// Randomly select a fixed number of sequences.
     /// In case speed is important, consider -p/--prob.
@@ -53,10 +53,6 @@ pub struct SampleCommand {
     #[arg(short = 'M', long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "5G")]
     max_mem: usize,
 
-    /// Silence any warnings
-    #[arg(short, long)]
-    pub quiet: bool,
-
     #[command(flatten)]
     pub common: CommonArgs,
 }
@@ -90,7 +86,14 @@ pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
     };
     if let Some(amount) = args.num_seqs {
         let amount = amount as usize;
-        sample_n(cfg, amount, rng, args.max_mem, args.two_pass, args.quiet)
+        sample_n(
+            cfg,
+            amount,
+            rng,
+            args.max_mem,
+            args.two_pass,
+            args.common.general.quiet,
+        )
     } else if let Some(p) = args.prob {
         sample_prob(cfg, p, rng)
     } else {

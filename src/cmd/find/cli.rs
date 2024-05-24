@@ -4,13 +4,27 @@ use crate::cli::CommonArgs;
 use crate::error::CliResult;
 use crate::helpers::rng::Range;
 
-use super::helpers::{algorithm_from_name, read_pattern_file, Algorithm};
+use super::opts::{algorithm_from_name, Algorithm};
 
-pub fn parse_patterns(pattern: &str) -> CliResult<Vec<(String, String)>> {
+pub fn parse_patterns(pattern: &str) -> CliResult<Vec<(Option<String>, String)>> {
     if !pattern.starts_with("file:") {
-        Ok(vec![("<pattern>".to_string(), pattern.to_string())])
+        Ok(vec![(None, pattern.to_string())])
     } else {
-        read_pattern_file(&pattern[5..])
+        use seq_io::fasta::*;
+        let path = &pattern[5..];
+        let mut reader = Reader::from_path(path)?;
+        let mut out = vec![];
+        while let Some(r) = reader.next() {
+            let r = r?;
+            out.push((Some(r.id()?.to_string()), String::from_utf8(r.owned_seq())?));
+        }
+        if out.is_empty() {
+            return fail!(
+                "Pattern file is empty: {}. Patterns should be in FASTA format.",
+                path
+            );
+        }
+        Ok(out)
     }
 }
 
@@ -21,16 +35,16 @@ pub struct FindCommand {
     /// Pattern string or 'file:<patterns.fasta>'
     // Using std::vec::Vec due to Clap oddity (https://github.com/clap-rs/clap/issues/4626)
     #[arg(value_parser = parse_patterns)]
-    pub patterns: std::vec::Vec<(String, String)>,
+    pub patterns: std::vec::Vec<(Option<String>, String)>,
+
+    #[command(flatten)]
+    pub attr: SearchAttrArgs,
 
     #[command(flatten)]
     pub search: SearchArgs,
 
     #[command(flatten)]
     pub search_range: SearchRangeArgs,
-
-    #[command(flatten)]
-    pub attr: SearchAttrArgs,
 
     #[command(flatten)]
     pub action: SearchActionArgs,
@@ -40,23 +54,46 @@ pub struct FindCommand {
 }
 
 #[derive(Args, Clone, Debug)]
+#[clap(next_help_heading = "Where to search (default: sequence)")]
+pub struct SearchAttrArgs {
+    /// Search / replace in IDs instead of sequences
+    #[arg(short, long)]
+    pub id: bool,
+
+    /// Search / replace in descriptions
+    #[arg(short, long)]
+    pub desc: bool,
+}
+
+#[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Search options")]
 pub struct SearchArgs {
-    /// Fuzzy string matching with maximum edit distance of <dist> [default: 0]
-    #[arg(short, long, default_value_t = 0)]
-    pub dist: usize,
+    /// Return pattern matches up to a given maximum edit distance of N
+    /// differences (= substitutions, insertions or deletions).
+    /// Residues that go beyond the sequence (partial matches) are always
+    /// counted as differences. [default: pefect match]
+    #[arg(short = 'D', long, value_name = "N")]
+    pub max_diffs: Option<usize>,
 
-    /// Interpret pattern(s) as regular expression(s).
-    /// Unicode characters are supported when searching in IDs/descriptions,
-    /// but not for sequence searches.
+    /// Return of matches up to a given maximum rate of differences, that is
+    /// the fraction of divergences (edit distance = substitutions, insertions or deletions)
+    /// divided by the pattern length. If searching a 20bp pattern at a difference
+    /// rate of 0.2, matches with up to 4 differences (see also `-D/--max-diffs`) are
+    /// returned. [default: pefect match]
+    #[arg(short = 'R', long, value_name = "FRAC")]
+    pub max_diff_rate: Option<f64>,
+
+    /// Interpret pattern(s) as regular expression(s)
     #[arg(short, long)]
     pub regex: bool,
 
-    /// Report hits in the order of their occurrence instead of sorting by distance (with -d > 0)
+    /// Report hits in the order of their occurrence instead of sorting by distance.
+    /// Note that this option only has an effect with `-D/--max-dist` > 0, otherwise
+    /// matches are always reported in the order of their occurrence.
     #[arg(long)]
     pub in_order: bool,
 
-    /// Number of threads to use
+    /// Number of threads to use for searching
     #[arg(short, long, value_name = "N", default_value_t = 1, value_parser = value_parser!(u32).range(1..))]
     pub threads: u32,
 
@@ -77,25 +114,15 @@ pub struct SearchRangeArgs {
     #[arg(long, value_name = "RANGE")]
     pub rng: Option<Range>,
 
-    /// Consider only matches with a maximum distance of <n> from the search start (eventually > 1 if using --rng)
+    /// Consider only matches with a maximum of <N> letters preceding the start
+    /// of the match (relative to the sequence start or the start of the range `--rng`)
     #[arg(long, value_name = "N")]
-    pub max_shift_l: Option<usize>,
+    pub max_shift_start: Option<usize>,
 
-    /// Consider only matches with a maximum distance from the end of the search range
+    /// Consider only matches with a maximum of <N> letters following the end
+    /// of the match (relative to the sequence end or the end of the range `--rng`)
     #[arg(long, value_name = "N")]
-    pub max_shift_r: Option<usize>,
-}
-
-#[derive(Args, Clone, Debug)]
-#[clap(next_help_heading = "Where to search")]
-pub struct SearchAttrArgs {
-    /// Search / replace in IDs instead of sequences
-    #[arg(short, long)]
-    pub id: bool,
-
-    /// Search / replace in descriptions
-    #[arg(long)]
-    pub desc: bool,
+    pub max_shift_end: Option<usize>,
 }
 
 #[derive(Args, Clone, Debug)]

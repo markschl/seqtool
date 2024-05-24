@@ -6,7 +6,7 @@ use crate::error::CliResult;
 use crate::helpers::rng::Range;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Slice' command options")]
 pub struct SliceCommand {
     /// Range in form 'start..end' or '..end' or 'start..'
     #[arg(value_name = "FROM..TO")]

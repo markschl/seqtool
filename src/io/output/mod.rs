@@ -17,10 +17,6 @@ pub mod attr;
 pub mod csv;
 pub mod writer;
 
-lazy_static! {
-    static ref STDOUT: io::Stdout = io::stdout();
-}
-
 #[derive(Clone, Debug)]
 pub struct OutputOptions {
     pub kind: OutputKind,
@@ -272,7 +268,7 @@ pub fn from_format<'a>(
 
 pub fn io_writer_from_kind(kind: &OutputKind) -> io::Result<Box<dyn WriteFinish>> {
     Ok(match *kind {
-        OutputKind::Stdout => Box::new(io::BufWriter::new(STDOUT.lock())),
+        OutputKind::Stdout => Box::new(io::BufWriter::new(io::stdout().lock())),
         OutputKind::File(ref p) => Box::new(io::BufWriter::new(File::create(p).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,

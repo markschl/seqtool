@@ -14,7 +14,7 @@ use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuild
 use crate::CliResult;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Split' command options")]
 pub struct SplitCommand {
     /// Split into chunks of <N> sequences and writes each chunk to a separate
     /// file with a numbered suffix. The output path is: '{filestem}_{chunk}.{default_ext}',

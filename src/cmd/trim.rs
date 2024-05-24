@@ -7,7 +7,7 @@ use crate::helpers::{rng::Range, var_range::VarRanges};
 use crate::io::{Record, SeqQualRecord};
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Trim' command options")]
 pub struct TrimCommand {
     /// Range(s) in the form 'start..end' or 'start..' or '..end',
     /// Multiple ranges can be supplied as comma-delimited list.

@@ -4,14 +4,34 @@ use bio::alphabets::{dna, protein, rna};
 use clap::ValueEnum;
 use strum_macros::{Display, EnumString};
 
-use self::SeqType::*;
+use SeqType::*;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display, EnumString, ValueEnum)]
+#[strum(serialize_all = "snake_case")]
 pub enum SeqType {
     Dna,
     Rna,
     Protein,
     Other,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct SeqTypeInfo {
+    pub seqtype: SeqType,
+    /// has DNA/RNA or protein wildcards (N/X)
+    pub has_wildcard: bool,
+    /// has IUPAC ambiguities
+    pub has_ambiguities: bool,
+}
+
+impl SeqTypeInfo {
+    pub fn new(ty: SeqType, has_wildcard: bool, has_ambiguities: bool) -> Self {
+        Self {
+            seqtype: ty,
+            has_ambiguities,
+            has_wildcard,
+        }
+    }
 }
 
 // For excluding certain characters when running recognition
@@ -20,56 +40,71 @@ fn filter_iter(text: &[u8]) -> impl Iterator<Item = &u8> {
         .filter(|&s| !matches!(s, b'-' | b'.' | b'?' | b' '))
 }
 
-// returns (`SeqType`, has_wildcard (N/X), has_ambiguities(IUPAC))
-// TODO: decide on exact behaviour
-pub fn guess_seqtype(text: &[u8], hint: Option<SeqType>) -> Option<(SeqType, bool, bool)> {
+/// Returns information about the sequence type. In case a type hint is provided,
+/// the sequence is still checked for ambiguities and wildcards.
+/// Returns Err(typehint) if the type hint does not match the actual sequence.
+pub fn guess_seqtype(text: &[u8], hint: Option<SeqType>) -> Result<SeqTypeInfo, SeqType> {
     match hint {
-        Some(SeqType::Dna) => Some(guess_dna(text).unwrap_or((SeqType::Dna, true, true))),
-        Some(SeqType::Rna) => Some(guess_rna(text).unwrap_or((SeqType::Rna, true, true))),
-        Some(SeqType::Protein) => {
-            Some(guess_protein(text).unwrap_or((SeqType::Protein, true, true)))
-        }
-        Some(SeqType::Other) => Some((Other, false, false)),
-        None => Some(
-            guess_dna(text)
-                .or_else(|| guess_rna(text))
-                .or_else(|| guess_protein(text))
-                .unwrap_or((Other, false, false)),
-        ),
+        Some(Dna) => guess_dna(text).ok_or(Dna),
+        Some(Rna) => guess_rna(text).ok_or(Rna),
+        Some(Protein) => guess_protein(text).ok_or(Protein),
+        Some(Other) => Ok(SeqTypeInfo::new(Other, false, false)),
+        None => Ok(guess_dna(text)
+            .or_else(|| guess_rna(text))
+            .or_else(|| guess_protein(text))
+            .unwrap_or(SeqTypeInfo::new(Other, false, false))),
     }
 }
 
-pub fn guess_dna(text: &[u8]) -> Option<(SeqType, bool, bool)> {
+pub fn guess_seqtype_or_fail(
+    text: &[u8],
+    hint: Option<SeqType>,
+    allow_other: bool,
+) -> Result<SeqTypeInfo, String> {
+    let info = guess_seqtype(text, hint).map_err(|hint| {
+        format!(
+            "The sequence type '{}' provided with `--seqtype` does not appear to be valid \
+            for the given sequence. Please make sure that only valid characters are used and \
+            note that only standard ambiguities according to IUPAC are recognized \
+            (e.g. see https://bioinformatics.org/sms/iupac.html).",
+            hint
+        )
+    })?;
+    if !allow_other && info.seqtype == Other {
+        return Err("Could not guess sequence type, please provide with `--seqtype`".to_string());
+    }
+    Ok(info)
+}
+
+pub fn guess_dna(text: &[u8]) -> Option<SeqTypeInfo> {
     if dna::alphabet().is_word(filter_iter(text)) {
-        Some((Dna, false, false))
+        Some(SeqTypeInfo::new(Dna, false, false))
     } else if dna::n_alphabet().is_word(filter_iter(text)) {
-        Some((Dna, true, false))
+        Some(SeqTypeInfo::new(Dna, true, false))
     } else if dna::iupac_alphabet().is_word(filter_iter(text)) {
-        Some((Dna, true, true))
+        Some(SeqTypeInfo::new(Dna, true, true))
     } else {
         None
     }
 }
 
-pub fn guess_rna(text: &[u8]) -> Option<(SeqType, bool, bool)> {
+pub fn guess_rna(text: &[u8]) -> Option<SeqTypeInfo> {
     if rna::alphabet().is_word(filter_iter(text)) {
-        Some((Rna, false, false))
+        Some(SeqTypeInfo::new(Rna, false, false))
     } else if rna::n_alphabet().is_word(filter_iter(text)) {
-        Some((Rna, true, false))
+        Some(SeqTypeInfo::new(Rna, true, false))
     } else if rna::iupac_alphabet().is_word(filter_iter(text)) {
-        Some((Rna, true, true))
+        Some(SeqTypeInfo::new(Rna, true, true))
     } else {
         None
     }
 }
 
-pub fn guess_protein(text: &[u8]) -> Option<(SeqType, bool, bool)> {
+pub fn guess_protein(text: &[u8]) -> Option<SeqTypeInfo> {
     if protein::alphabet().is_word(filter_iter(text)) {
-        Some((Protein, true, false))
-    } else if filter_iter(text).any(|&b| (b as char).is_alphabetic()) {
-        // all letters can potentially represent an amino acid or
-        // an IUPAC ambiguity code
-        Some((Protein, false, false))
+        Some(SeqTypeInfo::new(Protein, false, false))
+    } else if protein::iupac_alphabet().is_word(filter_iter(text)) {
+        Some(SeqTypeInfo::new(Protein, true, true))
     } else {
         None
     }
@@ -85,16 +120,15 @@ impl SeqtypeHelper {
         Self { seqtype: typehint }
     }
 
-    pub fn get_or_guess(&mut self, record: &dyn Record) -> Result<SeqType, &'static str> {
+    pub fn get_or_guess(&mut self, record: &dyn Record) -> Result<SeqType, String> {
         if let Some(seqtype) = self.seqtype {
             Ok(seqtype)
         } else {
             let mut buf = Vec::new();
             let seq = record.full_seq(&mut buf);
-            let (seqtype, _, _) = guess_seqtype(&seq, self.seqtype)
-                .ok_or("Could not guess sequence type, please provide with `--seqtype`")?;
-            self.seqtype = Some(seqtype);
-            Ok(seqtype)
+            let info = guess_seqtype_or_fail(&seq, self.seqtype, false)?;
+            self.seqtype = Some(info.seqtype);
+            Ok(info.seqtype)
         }
     }
 }

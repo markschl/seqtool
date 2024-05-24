@@ -7,7 +7,7 @@ use crate::helpers::var_range::VarRanges;
 use crate::io::SeqQualRecord;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Mask' command options")]
 pub struct MaskCommand {
     /// Range in the form 'start..end' or 'start..' or '..end',
     /// The range start/end may be defined by varialbes/functions,

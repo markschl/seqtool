@@ -4,12 +4,12 @@ use clap::{value_parser, Args, Parser};
 use vec_map::VecMap;
 
 use crate::cli::CommonArgs;
+use crate::cmd::view::display_pal;
 use crate::error::CliResult;
 
-use super::{Color, PaletteType, QualPaletteType, SeqPaletteType, SimplePal};
+use super::{Color, PaletteType, QualPaletteType, SeqPaletteType};
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
 pub struct ViewCommand {
     #[command(flatten)]
     pub general: GeneralViewArgs,
@@ -26,7 +26,7 @@ pub struct ViewCommand {
 }
 
 #[derive(Args, Clone, Debug)]
-#[clap(next_help_heading = "General command options")]
+#[clap(next_help_heading = "General 'view' command options")]
 pub struct GeneralViewArgs {
     /// Length of IDs in characters. Longer IDs are truncated (default: 10 - 100 depending on ID length)
     #[arg(short, long, value_name = "CHARS", value_parser = value_parser!(u32).range(1..))]
@@ -106,32 +106,41 @@ pub struct ColorArgs {
     pub truecolor: Option<bool>,
 }
 
-lazy_static! {
-    pub static ref DNA_PAL: SimplePal = SimplePal::default()
-        .add("dna", "A:ce0000,C:0000ce,G:ffde00,TU:00bb00,RYSWKMBDHVN:8f8f8f")
-        .add("dna-bright", "A:ff3333,C:3333ff,G:ffe747,TU:00db00,RYSWKMBDHVN:b8b8b8")
-        .add("dna-dark", "A:940000,C:00008f,G:9e8900,TU:006b00,RYSWKMBDHVN:8f8f8f")
-        .add("pur-pyrimid", "AGR:ff83fa,CTUY:25bdff")
-        .add("gcat", "GCS:ff2b25,ATUW:ffd349");
+pub static DNA_PAL: &[(&'static str, &'static str)] = &[
+    (
+        "dna",
+        "A:ce0000,C:0000ce,G:ffde00,TU:00bb00,RYSWKMBDHVN:8f8f8f",
+    ),
+    (
+        "dna-bright",
+        "A:ff3333,C:3333ff,G:ffe747,TU:00db00,RYSWKMBDHVN:b8b8b8",
+    ),
+    (
+        "dna-dark",
+        "A:940000,C:00008f,G:9e8900,TU:006b00,RYSWKMBDHVN:8f8f8f",
+    ),
+    ("pur-pyrimid", "AGR:ff83fa,CTUY:25bdff"),
+    ("gcat", "GCS:ff2b25,ATUW:ffd349"),
+];
 
-    pub static ref PROTEIN_PAL: SimplePal = SimplePal::default()
-        .add("rasmol", "DE:e60a0a,CM:e6e600,RK:145aff,ST:fa9600,FY:3232aa,NQ:00dcdc,G:ebebeb,LVI:0f820f,A:c8c8c8,W:b45Ab4,H:8282d2,P:dc9682")
-        .add("polarity", "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff");
+pub static PROTEIN_PAL: &[(&'static str, &'static str)] = &[
+    ("rasmol", "DE:e60a0a,CM:e6e600,RK:145aff,ST:fa9600,FY:3232aa,NQ:00dcdc,G:ebebeb,LVI:0f820f,A:c8c8c8,W:b45Ab4,H:8282d2,P:dc9682"),
+    ("polarity", "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff"),
+];
 
-    pub static ref QUAL_SCALE: SimplePal = SimplePal::default()
-        .add("red-blue", "5:red,35:blue,40:darkblue");
-}
+pub static QUAL_SCALE: &[(&'static str, &'static str)] =
+    &[("red-blue", "5:red,35:blue,40:darkblue")];
 
 pub fn read_palette<T: PaletteType>(
-    s: &str,
-    default_pal: &SimplePal,
+    palette_str: &str,
+    default_pal: &[(&str, &str)],
 ) -> Result<VecMap<Color>, String> {
-    if let Some(colors) = default_pal.get(s) {
+    if let Some((_, colors)) = default_pal.iter().find(|(n, _)| *n == palette_str) {
         if let Ok(cols) = T::parse_palette(colors) {
             return Ok(cols);
         }
     }
-    T::parse_palette(s)
+    T::parse_palette(palette_str)
 }
 
 pub fn print_palettes(fg: &(Color, Color), rgb: bool) -> CliResult<()> {
@@ -143,11 +152,11 @@ pub fn print_palettes(fg: &(Color, Color), rgb: bool) -> CliResult<()> {
     ));
     eprintln!("\nDNA\n===");
     let mut w = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
-    DNA_PAL.display_pal::<SeqPaletteType>(&mut w, fg, rgb)?;
+    display_pal::<SeqPaletteType>(DNA_PAL, &mut w, fg, rgb)?;
     eprintln!("\nProtein\n=======");
-    PROTEIN_PAL.display_pal::<SeqPaletteType>(&mut w, fg, rgb)?;
+    display_pal::<SeqPaletteType>(PROTEIN_PAL, &mut w, fg, rgb)?;
     eprintln!("\nQuality scores\n==============");
-    QUAL_SCALE.display_pal::<QualPaletteType>(&mut w, fg, rgb)?;
+    display_pal::<QualPaletteType>(QUAL_SCALE, &mut w, fg, rgb)?;
     Ok(())
 }
 

@@ -33,6 +33,7 @@ static MEM_OVERHEAD: f32 = 1.2;
 
 pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let verbose = args.common.general.verbose;
+    let quiet = args.common.general.quiet;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
     let mut record_buf_factory = VecFactory::new();
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
@@ -79,7 +80,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
                 io_writer,
                 &tmp_path,
                 args.temp_file_limit,
-                args.quiet,
+                quiet,
             )?;
             Ok(true)
         })?;
@@ -88,10 +89,10 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
         // and/or map output
         if let Some(path) = map_out {
             with_general_io_writer(path, |out| {
-                dedup.write_deferred(io_writer, Some((out, args.map_fmt)), args.quiet, verbose)
+                dedup.write_deferred(io_writer, Some((out, args.map_fmt)), quiet, verbose)
             })?;
         } else {
-            dedup.write_deferred(io_writer, None, args.quiet, verbose)?;
+            dedup.write_deferred(io_writer, None, quiet, verbose)?;
         }
         Ok(())
     })

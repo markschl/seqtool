@@ -9,7 +9,7 @@ use crate::error::{CliError, CliResult};
 use crate::var::{modules::expr::js::parser::Expression, symbols::Value};
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Filter' command options")]
 pub struct FilterCommand {
     /// Filter expression
     expression: String,

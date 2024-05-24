@@ -6,7 +6,7 @@ use crate::error::CliResult;
 use crate::io::SeqQualRecord;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "Command options")]
+#[clap(next_help_heading = "'Upper' command options")]
 pub struct UpperCommand {
     #[command(flatten)]
     pub common: CommonArgs,
