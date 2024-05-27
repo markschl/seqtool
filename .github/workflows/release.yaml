@@ -6,7 +6,7 @@ on:
       - "v*.*.*"
 
 jobs:
-  test:
+  build:
     name: build
     runs-on: ${{ matrix.os }}
     strategy:
