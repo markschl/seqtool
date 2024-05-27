@@ -355,7 +355,6 @@ impl VarProvider for FindVars {
                     group,
                 } => (Match, hit, pattern, group),
                 MatchDiffs { hit, pattern } => (Diffs, hit, pattern, 0),
-                MatchDist { hit, pattern } => (Dist, hit, pattern, 0),
                 MatchDiffRate { hit, pattern } => (DiffRate, hit, pattern, 0),
                 MatchStart { hit, pattern } => (Start, hit, pattern, 0),
                 MatchNegStart { hit, pattern } => (NegStart, hit, pattern, 0),
