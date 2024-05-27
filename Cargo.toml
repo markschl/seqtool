@@ -1,6 +1,6 @@
 [package]
 name = "seqtool"
-version = "0.4.0-dev"
+version = "0.4.0-beta1"
 edition = "2021"
 authors = ["<markschl19@gmail.com>"]
 description = "General purpose tool for reading, modifying and writing biological sequences."
