@@ -1,0 +1,44 @@
+name: Run tests
+
+on:
+  push:
+    tags:
+    - "v[0-9]+.[0-9]+(.[0-9]+)?(-beta[0-9]+)?"
+
+jobs:
+  test:
+    name: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        build: [linux, osx, windows-msvc]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+
+          - build: osx
+            os: macos-latest
+            target: x86_64-apple-darwin
+
+          - build: windows-msvc
+            os: windows-latest
+            target: x86_64-pc-windows-msvc        
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Build binary
+        run: cargo build --release
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/release/st
+    
