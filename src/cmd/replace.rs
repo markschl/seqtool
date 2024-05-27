@@ -56,7 +56,7 @@ pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
     let regex = args.regex;
     let num_threads = args.threads;
 
-    let replacer = get_replacer(pattern, attr, regex, has_backrefs)?;
+    let replacer = get_replacer(pattern, regex, has_backrefs)?;
 
     let mut format_writer = cfg.get_format_writer()?;
 
@@ -128,26 +128,20 @@ macro_rules! regex_replacer_impl {
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "regex-fast")] {
-        regex_replacer_impl!(RegexReplacer, regex::Regex, |t| std::str::from_utf8(t), str::as_bytes);
         regex_replacer_impl!(BytesRegexReplacer, regex::bytes::Regex, Ok::<_, crate::error::CliError>, |s| s);
     } else {
-        regex_replacer_impl!(RegexReplacer, regex_lite::Regex, |t| std::str::from_utf8(t), str::as_bytes);
-        type BytesRegexReplacer = RegexReplacer;
+        // TODO: no way to operate on byte slices (although it might be added according to regex_lite docs)
+        regex_replacer_impl!(BytesRegexReplacer, regex_lite::Regex, |t| std::str::from_utf8(t), str::as_bytes);
     }
 }
 
 fn get_replacer(
     pattern: &str,
-    attr: RecordAttr,
     regex: bool,
     has_backrefs: bool,
 ) -> CliResult<Box<dyn Replacer + Sync>> {
     if regex {
-        if attr == RecordAttr::Seq {
-            Ok(Box::new(BytesRegexReplacer::new(pattern, has_backrefs)?))
-        } else {
-            Ok(Box::new(RegexReplacer::new(pattern, has_backrefs)?))
-        }
+        Ok(Box::new(BytesRegexReplacer::new(pattern, has_backrefs)?))
     } else {
         Ok(Box::new(BytesReplacer(pattern.as_bytes().to_owned())))
     }
