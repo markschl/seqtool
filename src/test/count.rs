@@ -32,7 +32,7 @@ fn discrete_bins() {
     );
 }
 
-const FLOAT_FASTA: &'static str = "\
+const FLOAT_FASTA: &str = "\
 >s1 a=1.10000000000002 =1.1
 SEQ
 >s2 a=0.00000000000001 =1e-14

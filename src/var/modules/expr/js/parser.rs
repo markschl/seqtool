@@ -601,7 +601,7 @@ mod tests {
                 Fragment::Operator('+'),
                 Fragment::FuncLike {
                     name: "f",
-                    args: vec![Fragment::Nested(vec![Fragment::Literal("'ab'".into())])],
+                    args: vec![Fragment::Nested(vec![Fragment::Literal("'ab'")])],
                 },
             ]),
         };
