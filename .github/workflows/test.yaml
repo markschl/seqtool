@@ -1,0 +1,41 @@
+name: Run tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+# Make sure CI fails on all warnings, including Clippy lints
+# env:
+#   RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  test:
+    name: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        build: [stable, macos, win-msvc, win-gnu]
+        include:
+        - build: stable
+          os: ubuntu-latest
+          rust: stable
+        # - build: macos
+        #   os: macos-12
+        #   rust: stable
+        # - build: win-msvc
+        #   os: windows-2022
+        #   rust: stable
+        # - build: win-gnu
+        #   os: windows-2022
+        #   rust: stable-x86_64-gnu
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+    - run: cargo build --verbose
+    - run: cargo test --verbose
