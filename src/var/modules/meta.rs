@@ -98,7 +98,7 @@ variable_enum! {
         Meta(Text) { column: String, file_number: usize = 1 },
         /// Like `meta(...)`, but metadata entries can be missing, i.e. not every sequence
         /// record ID needs a matching metadata entry.
-        /// Missing values will result in an empty string in the output or 'undefined'
+        /// Missing values will result in 'N/A' if written to the output, or 'undefined'
         /// in JavaScript expressions.
         OptMeta(Text) { column: String, file_number: usize = 1 },
         /// Returns `true` if the given record has a metadata entry with the same ID in

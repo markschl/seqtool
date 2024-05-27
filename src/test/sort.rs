@@ -155,7 +155,7 @@ fn mixed_types() {
 #[cfg(feature = "expr")]
 fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
-    let out = ">s3 k=-3\nS3\n>s1 k=\nS1\n>s2 k=\nS2\n";
+    let out = ">s3 k=-3\nS3\n>s1 k=N/A\nS1\n>s2 k=N/A\nS2\n";
     let expr = "{ if (seq_num <= 2) return undefined; return -parseInt(id.substring(1, 2)); }";
     Tester::new().cmp(&["sort", expr, "-a", "k={key}"], fa, out);
 }

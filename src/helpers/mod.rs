@@ -10,6 +10,9 @@ pub type DefaultHashMap<K, V> = HashMap<K, V, RandomState>;
 pub type DefaultHashSet<V> = HashSet<V, RandomState>;
 pub type DefaultBuildHasher = ahash::RandomState; // BuildHasherDefault<ahash::AHasher>;
 
+// NA string
+pub const NA: &[u8] = b"N/A";
+
 #[macro_use]
 pub mod macros;
 pub mod any;

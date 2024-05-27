@@ -71,7 +71,27 @@ fn trim_multiline() {
 #[test]
 fn trim_multiline_multirange() {
     let fa = ">id\nAB\nC\nDE\nFGHI\nJ";
-    let t = Tester::new();
-    t.cmp(&["trim", "2..4,6..7"], &fa, ">id\nBCDFG\n");
-    t.cmp(&["trim", "-4..-3,-1.."], &fa, ">id\nGHJ\n");
+    Tester::new()
+        .cmp(&["trim", "2..4,6..7"], &fa, ">id\nBCDFG\n")
+        .cmp(&["trim", "-4..-3,-1.."], &fa, ">id\nGHJ\n");
+}
+
+#[test]
+fn trim_na() {
+    Tester::new()
+        .cmp(
+            &["trim", "{attr(s)}..{attr(e)}"],
+            ">id s=N/A e=3\nABCDE\n",
+            ">id s=N/A e=3\nABC\n",
+        )
+        .cmp(
+            &["trim", "{opt_attr(s)}..{opt_attr(e)}"],
+            ">id s=3\nABCDE\n",
+            ">id s=3\nCDE\n",
+        )
+        .fails(
+            &["trim", "{opt_attr(s)}..{opt_attr(e)}"],
+            ">id s=NA\nABCDE\n",
+            "Could not convert 'NA' to an integer number",
+        );
 }

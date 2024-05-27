@@ -119,7 +119,7 @@ where
             // write the keys to the current buffer
             buf.clear();
             for key in keys.iter() {
-                key.write(&mut buf, "N/A")?;
+                key.write(&mut buf)?;
                 write!(&mut buf, "\t")?;
             }
             // If the formatted key is distinct from the previous one,

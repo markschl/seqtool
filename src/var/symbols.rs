@@ -1,6 +1,10 @@
-use std::{cell::RefCell, fmt, io::Write, str::Utf8Error};
+use std::io::{self, Write};
+use std::{cell::RefCell, fmt, str::Utf8Error};
 
-use crate::helpers::number::{parse_float, parse_int, Float, Interval};
+use crate::helpers::{
+    number::{parse_float, parse_int, Float, Interval},
+    NA,
+};
 use crate::io::{Record, RecordAttr};
 
 macro_rules! impl_value {
@@ -490,6 +494,18 @@ impl OptValue {
     pub fn set_none(&mut self) {
         self.is_some = false;
     }
+
+    pub fn to_text<W: io::Write + ?Sized>(
+        &self,
+        record: &dyn Record,
+        out: &mut W,
+    ) -> io::Result<()> {
+        if let Some(v) = self.inner() {
+            v.as_text(record, |s| out.write_all(s))
+        } else {
+            out.write_all(NA)
+        }
+    }
 }
 
 impl fmt::Display for OptValue {
@@ -497,7 +513,7 @@ impl fmt::Display for OptValue {
         if self.is_some {
             write!(f, "{}", self.value)
         } else {
-            write!(f, "undefined")
+            write!(f, "N/A")
         }
     }
 }

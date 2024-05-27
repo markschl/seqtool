@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use memchr::memmem;
 
-use super::number::parse_int;
+use super::{number::parse_int, NA};
 
 /// General and simple range type used in this crate
 /// Unbounded ranges that can be negative (viewed from end of sequence).
@@ -35,14 +35,14 @@ impl Range {
             let start = trim_ascii(&b[..delim_pos]);
             let end = trim_ascii(&b[delim_pos + delim.len()..]);
             if memmem::find(end, delim).is_none() {
-                let start = if start.is_empty() {
+                let start = if start.is_empty() || start == NA {
                     None
                 } else {
                     Some(parse_int(start).map_err(|_| {
                         format!("Invalid range start: '{}'", String::from_utf8_lossy(start))
                     })? as isize)
                 };
-                let end = if end.is_empty() {
+                let end = if end.is_empty() || end == NA {
                     None
                 } else {
                     Some(parse_int(end).map_err(|_| {

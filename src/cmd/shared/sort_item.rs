@@ -100,7 +100,7 @@ impl Key {
             // }
             Key::Multiple(values) => {
                 let text = sym.inner_mut().mut_text();
-                write_list_with(values.iter(), b",", text, |v, o| v.write(o, "")).unwrap();
+                write_list_with(values.iter(), b",", text, |v, o| v.write(o)).unwrap();
             }
         }
     }

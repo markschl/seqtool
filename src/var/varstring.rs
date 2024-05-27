@@ -4,7 +4,7 @@ use std::{io, mem, str};
 use bstr::ByteSlice;
 use var_provider::VarType;
 
-use crate::helpers::{number::parse_int, value::SimpleValue};
+use crate::helpers::{number::parse_int, value::SimpleValue, NA};
 use crate::io::Record;
 use crate::var;
 
@@ -178,11 +178,7 @@ impl VarString {
         record: &dyn Record,
     ) -> io::Result<()> {
         if let Some(id) = self.one_var {
-            symbols
-                .get(id)
-                .inner()
-                .map(|v| v.as_text(record, |s| out.write_all(s)))
-                .transpose()?;
+            symbols.get(id).to_text(record, out)?;
         } else {
             for part in &self.parts {
                 match part {
@@ -190,11 +186,7 @@ impl VarString {
                         out.write_all(s)?;
                     }
                     VarStringSegment::Var(id) => {
-                        symbols
-                            .get(*id)
-                            .inner()
-                            .map(|v| v.as_text(record, |s| out.write_all(s)))
-                            .transpose()?;
+                        symbols.get(*id).to_text(record, out)?;
                     }
                 }
             }
@@ -215,10 +207,10 @@ impl VarString {
         }
         text_buf.clear();
         self.compose(text_buf, table, record).unwrap();
-        if text_buf.is_empty() {
-            return Ok(None);
+        if text_buf.as_slice() != NA {
+            return Ok(Some(parse_int(text_buf)?));
         }
-        Ok(Some(parse_int(text_buf)?))
+        return Ok(None)
     }
 
     /// Returns a SimpleValue (text/numeric/none).
@@ -242,10 +234,9 @@ impl VarString {
             }
             text_buf.clear();
             self.compose(text_buf, symbols, record).unwrap();
-            if !text_buf.is_empty() {
+            if text_buf.as_slice() != NA {
                 *out = SimpleValue::Text(mem::take(text_buf).into_boxed_slice());
             } else {
-                // empty text is interpreted as None
                 *out = SimpleValue::None;
             }
         }

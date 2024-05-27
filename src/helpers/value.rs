@@ -3,6 +3,7 @@ use std::mem;
 
 use deepsize::{Context, DeepSizeOf};
 
+use crate::helpers::NA;
 use crate::io::Record;
 use crate::var::symbols::{OptValue, Value};
 
@@ -31,14 +32,14 @@ pub enum SimpleValue {
 
 impl SimpleValue {
     #[inline]
-    pub fn write<W: io::Write + ?Sized>(&self, writer: &mut W, none_value: &str) -> io::Result<()> {
+    pub fn write<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         use SimpleValue::*;
         match self {
             Text(v) => writer.write_all(v),
             Number(v) => write!(writer, "{}", v),
             Boolean(v) => write!(writer, "{}", v),
             Interval(i) => write!(writer, "{}", i),
-            None => write!(writer, "{}", none_value),
+            None => writer.write_all(NA),
         }
     }
 

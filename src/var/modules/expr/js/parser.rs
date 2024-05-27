@@ -170,7 +170,7 @@ impl<'a> SimpleAst<'a> {
         let ast = expr
             .parse_next(&mut input)
             .map_err(|_| VarStringParseErr(input.to_string()))?;
-        dbg!(input, &ast);
+        // dbg!(input, &ast);
         if !input.is_empty() {
             return Err(VarStringParseErr(input.to_string()));
         }

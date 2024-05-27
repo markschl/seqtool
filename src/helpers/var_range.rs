@@ -9,6 +9,7 @@ use crate::var::{
 use super::number::parse_int;
 use super::rng::Range;
 use super::slice::split_text;
+use super::NA;
 
 /// Represents a range bound integer stored either directly or in a `VarString`
 /// that is evaluated later with `RngBound::value()`.
@@ -21,7 +22,7 @@ pub enum RngBound {
 impl RngBound {
     pub fn from_varstring(vs: VarString) -> Result<Option<RngBound>, String> {
         if let Some(text) = vs.get_text() {
-            if text.is_empty() {
+            if text.is_empty() || text == NA {
                 return Ok(None);
             }
             if let Ok(bound) = parse_int(text) {
@@ -36,13 +37,10 @@ impl RngBound {
         symbols: &SymbolTable,
         record: &dyn Record,
         text_buf: &mut Vec<u8>,
-    ) -> CliResult<isize> {
+    ) -> CliResult<Option<isize>> {
         Ok(match *self {
-            RngBound::Number(n) => n,
-            RngBound::Expr(ref e) => {
-                e.get_int(symbols, record, text_buf)?
-                    .ok_or("Range bound results in empty string.")? as isize
-            }
+            RngBound::Number(n) => Some(n),
+            RngBound::Expr(ref e) => e.get_int(symbols, record, text_buf)?.map(|i| i as isize),
         })
     }
 }
@@ -100,10 +98,12 @@ impl VarRange {
                 start
                     .as_ref()
                     .map(|s| s.value(symbols, record, text_buf))
-                    .transpose()?,
+                    .transpose()?
+                    .and_then(|s| s),
                 end.as_ref()
                     .map(|e| e.value(symbols, record, text_buf))
-                    .transpose()?,
+                    .transpose()?
+                    .and_then(|s| s),
             ),
             VarRange::Full {
                 ref varstring,

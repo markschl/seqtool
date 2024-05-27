@@ -18,9 +18,11 @@ fn fixed() {
         .cmp(&["count", "-k", "num('2.3')"], *FASTA, "2.3\t4\n")
         .cmp(&["count"], *FASTA, "4\n")
         .cmp(&["count", "-k", "bin('2.3', 1)"], *FASTA, "(2, 3]\t4\n")
-        // empty is always N/A (since empty attributes are undefined)
-        .cmp(&["count"], *FASTA, "4\n")
-        .cmp(&["count", "-k", ""], *FASTA, "N/A\t4\n");
+        .cmp(
+            &["count", "-k", "opt_attr(non_existent)"],
+            *FASTA,
+            "N/A\t4\n",
+        );
 }
 
 #[test]

@@ -38,8 +38,8 @@ pub fn run(mut cfg: Config, args: &TrimCommand) -> CliResult<()> {
 
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
-        let mut out_seq = vec![];
-        let mut out_qual = vec![];
+        let mut out_seq = Vec::new();
+        let mut out_qual = Vec::new();
 
         let mut ranges = cfg.build_vars(|b| VarRanges::from_str(ranges, b))?;
         let mut num_buf = Vec::new();

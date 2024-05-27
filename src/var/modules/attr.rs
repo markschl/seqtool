@@ -38,7 +38,7 @@ variable_enum! {
     /// `st count -k 'attr(abund)' --attr-fmt ';key=value' seqs.fa`
     ///
     ///
-    /// Summarize over an attribute 'a', which may be missing/empty in some
+    /// Summarize over an attribute 'a', which may be missing or 'N/A' in some
     /// headers
     ///
     /// `st count -k 'opt_attr(a)' seqs.fa`
@@ -49,8 +49,8 @@ variable_enum! {
     AttrVar {
         /// Obtain an attribute of given name (must be present in all sequences)
         Attr(Text) { name: String },
-        /// Obtain an attribute value, or an empty string if missing. In
-        /// Javascript expressions, missing attributes equal to `undefined`.
+        /// Obtain an attribute value, or 'N/A' if missing.
+        /// In JavaScript expressions, missing attributes equal to `undefined`.
         OptAttr(Text) { name: String },
         /// Obtain an attribute (must be present), simultaneously removing
         /// it from the header.
