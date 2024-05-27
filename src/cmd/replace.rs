@@ -6,7 +6,7 @@ use memchr::memmem::find_iter;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
-use crate::helpers::util::replace_iter;
+use crate::helpers::replace::replace_iter;
 use crate::io::{RecordAttr, RecordEditor};
 use crate::Config;
 

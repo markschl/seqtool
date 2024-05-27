@@ -5,7 +5,7 @@ use crate::cmd::find::opts::Opts;
 use crate::cmd::find::vars::FindVars;
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::helpers::util::replace_iter;
+use crate::helpers::replace::replace_iter;
 use crate::io::RecordEditor;
 use crate::var::modules::VarProvider;
 

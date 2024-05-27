@@ -1,27 +1,4 @@
-//use std::ops::Deref;
-use std::{convert::AsRef, io};
-
-use crate::helpers::DefaultHashMap as HashMap;
-
-pub fn match_fields<'a, S1, S2>(fields: &'a [S1], other: &'a [S2]) -> Result<Vec<usize>, &'a str>
-where
-    S1: AsRef<str>,
-    S2: AsRef<str>,
-{
-    let other: HashMap<_, _> = other
-        .iter()
-        .enumerate()
-        .map(|(i, f)| (f.as_ref(), i))
-        .collect();
-
-    fields
-        .iter()
-        .map(|field| match other.get(field.as_ref()) {
-            Some(i) => Ok(*i),
-            None => Err(field.as_ref()),
-        })
-        .collect()
-}
+use std::io;
 
 /// Helper function for replacing parts of a given text
 /// with a new text and writing the result to an io::Write instance.
@@ -63,44 +40,6 @@ where
     }
     out.write_all(&text[last_end..])?;
     Ok(())
-}
-
-/// Writes an iterator of of text slices as delimited list to the output.
-/// Returns true if the list is not empty
-pub fn write_list<L, I, W>(list: L, sep: &[u8], out: &mut W) -> io::Result<bool>
-where
-    L: IntoIterator<Item = I>,
-    I: AsRef<[u8]>,
-    W: io::Write + ?Sized,
-{
-    write_list_with(list, sep, out, |item, o| o.write_all(item.as_ref()))
-}
-
-/// Writes an iterator of of values as delimited list to the output
-/// using a custom writing function.
-/// Returns true if the list is not empty
-#[inline]
-pub fn write_list_with<L, I, W, F>(
-    list: L,
-    sep: &[u8],
-    out: &mut W,
-    mut write_fn: F,
-) -> io::Result<bool>
-where
-    L: IntoIterator<Item = I>,
-    W: io::Write + ?Sized,
-    F: FnMut(I, &mut W) -> io::Result<()>,
-{
-    let mut first = true;
-    for item in list {
-        if first {
-            first = false;
-        } else {
-            out.write_all(sep)?;
-        }
-        write_fn(item, out)?;
-    }
-    Ok(!first)
 }
 
 #[cfg(test)]

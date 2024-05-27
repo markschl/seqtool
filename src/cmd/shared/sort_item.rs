@@ -4,11 +4,12 @@ use std::hash::{Hash, Hasher};
 use deepsize::DeepSizeOf;
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::helpers::util::write_list_with;
-use crate::helpers::value::SimpleValue;
+use crate::helpers::{value::SimpleValue, write_list::write_list_with};
 use crate::io::Record;
-use crate::var::symbols::{OptValue, SymbolTable};
-use crate::var::varstring::VarString;
+use crate::var::{
+    symbols::{OptValue, SymbolTable},
+    varstring::VarString,
+};
 
 use super::tmp_store::Archivable;
 

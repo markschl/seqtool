@@ -3,7 +3,7 @@ use std::io;
 use clap::ValueEnum;
 
 use crate::cmd::shared::sort_item::Key;
-use crate::helpers::util::{write_list, write_list_with};
+use crate::helpers::write_list::{write_list, write_list_with};
 
 use super::DuplicateInfo;
 

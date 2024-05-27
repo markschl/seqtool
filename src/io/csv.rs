@@ -3,7 +3,7 @@ use std::convert::AsRef;
 use std::io;
 
 use crate::error::CliResult;
-use crate::helpers::{util::match_fields, DefaultHashMap as HashMap};
+use crate::helpers::DefaultHashMap as HashMap;
 use csv;
 
 use super::{MaybeModified, Record, RecordHeader, SeqReader};
@@ -202,4 +202,24 @@ impl Record for CsvRecord {
     fn qual(&self) -> Option<&[u8]> {
         self.cols.qual_col.map(|i| self.data.get(i).unwrap_or(b""))
     }
+}
+
+pub fn match_fields<'a, S1, S2>(fields: &'a [S1], other: &'a [S2]) -> Result<Vec<usize>, &'a str>
+where
+    S1: AsRef<str>,
+    S2: AsRef<str>,
+{
+    let other: HashMap<_, _> = other
+        .iter()
+        .enumerate()
+        .map(|(i, f)| (f.as_ref(), i))
+        .collect();
+
+    fields
+        .iter()
+        .map(|field| match other.get(field.as_ref()) {
+            Some(i) => Ok(*i),
+            None => Err(field.as_ref()),
+        })
+        .collect()
 }

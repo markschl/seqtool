@@ -1,10 +1,7 @@
 use std::mem::replace;
 
 pub fn split_text(text: &[u8], sep: u8) -> SplitIter {
-    SplitIter {
-        sep,
-        text,
-    }
+    SplitIter { sep, text }
 }
 
 pub struct SplitIter<'a> {

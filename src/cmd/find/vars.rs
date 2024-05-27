@@ -6,7 +6,7 @@ use variable_enum_macro::variable_enum;
 
 use super::matches::Matches;
 use super::opts::{Opts, RequiredInfo};
-use crate::helpers::util::write_list_with;
+use crate::helpers::write_list::write_list_with;
 use crate::io::Record;
 use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 

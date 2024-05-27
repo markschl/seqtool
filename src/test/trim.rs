@@ -43,7 +43,11 @@ fn trim_vars() {
         .cmp(&["trim", "{attr(range)}"], &fa, &trimmed)
         // multiple ranges
         // TODO: space not deleted
-        .cmp(&["trim", "{attr_del(r)}"], ">id r=1..2,4..4\nATGC\n", ">id \nATC\n");
+        .cmp(
+            &["trim", "{attr_del(r)}"],
+            ">id r=1..2,4..4\nATGC\n",
+            ">id \nATC\n",
+        );
 }
 
 #[test]
