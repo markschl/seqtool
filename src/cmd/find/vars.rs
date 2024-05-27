@@ -253,67 +253,81 @@ impl FindVars {
                 continue;
             }
 
-            let val = out.inner_mut();
-            if let Some(p) = req_hit.hit_pos.as_ref() {
-                // specific hits requested
-                if let Some(m) = matches.get_match(*p, req_hit.pattern_rank, req_hit.match_group) {
-                    match req_hit.var_type {
-                        Start => val.set_int((m.start + 1) as i64),
-                        End => val.set_int((m.end) as i64),
-                        NegStart => val.set_int(m.neg_start1(rec.seq_len())),
-                        NegEnd => val.set_int(m.neg_end1(rec.seq_len())),
-                        Diffs => val.set_int(m.dist as i64),
-                        Range(ref delim) => {
-                            write!(val.mut_text(), "{}{}{}", m.start + 1, delim, m.end).unwrap()
-                        }
-                        NegRange(ref delim) => write!(
-                            val.mut_text(),
-                            "{}{}{}",
-                            m.neg_start1(rec.seq_len()),
-                            delim,
-                            m.neg_end1(rec.seq_len())
-                        )
-                        .unwrap(),
-                        Match => val.set_text(&text[m.start..m.end]),
-                        _ => unreachable!(),
-                    }
-                    continue;
-                }
-            } else {
-                // List of all matches requested:
-                // This is different from above by requiring a string type
-                // in all cases instead of integers.
-                let out = val.mut_text();
-                let not_empty = write_list_with(
-                    matches.matches_iter(req_hit.pattern_rank, req_hit.match_group),
-                    b",",
-                    out,
-                    |m, o| match req_hit.var_type {
-                        Start => write!(o, "{}", m.start + 1),
-                        End => write!(o, "{}", m.end),
-                        NegStart => write!(o, "{}", m.neg_start1(rec.seq_len())),
-                        NegEnd => write!(o, "{}", m.neg_end1(rec.seq_len())),
-                        Diffs => write!(o, "{}", m.dist),
-                        Range(ref delim) => write!(o, "{}{}{}", m.start + 1, delim, m.end),
-                        NegRange(ref delim) => write!(
-                            o,
-                            "{}{}{}",
-                            m.neg_start1(rec.seq_len()),
-                            delim,
-                            m.neg_end1(rec.seq_len())
-                        ),
-                        Match => o.write_all(&text[m.start..m.end]),
-                        _ => unreachable!(),
-                    },
-                )
-                .unwrap();
-                if not_empty {
-                    continue;
-                }
+            // In the following, we use macros to avoid having to repeat the
+            // code for setting a single value or a comma-separated list of
+            // multiple values
+            macro_rules! set_single {
+                ($m:ident, ($fmt:expr, $($args:expr),*)) => {
+                    write!(out.inner_mut().mut_text(), $fmt, $($args),*).unwrap()
+                };
+                ($m:ident, ($set_method:ident($a:expr))) => {
+                    out.inner_mut().$set_method($a)
+                };
+
             }
 
-            // important: reset previous value if nothing was found
-            out.set_none();
+            macro_rules! set_multi {
+                ($m:ident, $out:expr, (set_text($a:expr))) => {
+                    $out.write_all($a)
+                };
+                ($m:ident, $out:expr, ($_:ident($a:expr))) => {
+                    set_multi!($m, $out, ("{}", $a))
+                };
+                ($m:ident, $out:expr, ($fmt:expr, $($a:expr),*)) => {
+                    write!($out, $fmt, $($a),*)
+                };
+            }
+
+            macro_rules! impl_set_value {
+                (($m:ident), $($variant:pat => $arg:tt),*) => {
+                    if let Some(p) = req_hit.hit_pos.as_ref() {
+                        // specific hits requested
+                        if let Some($m) = matches.get_match(*p, req_hit.pattern_rank, req_hit.match_group) {
+                            match req_hit.var_type {
+                                $($variant => set_single!($m, $arg)),*,
+                                _ => unreachable!(),
+                            }
+                            continue;
+                        }
+                    } else {
+                        // List of all matches requested:
+                        // This is different from above by requiring a string type
+                        // in all cases instead of integers.
+                        let not_empty = write_list_with(
+                            matches.matches_iter(req_hit.pattern_rank, req_hit.match_group),
+                            b",",
+                            out.inner_mut().mut_text(),
+                            |$m, o| match req_hit.var_type {
+                                $($variant => set_multi!($m, o, $arg)),*,
+                                _ => unreachable!(),
+                            },
+                        )
+                        .unwrap();
+                        if not_empty {
+                            continue;
+                        }
+                    }
+                    // important: reset previous value if nothing was found
+                    out.set_none();
+                };
+            }
+            
+            // here we define how to obtain and set the individual values
+            impl_set_value!((m),
+                Start => (set_int((m.start + 1) as i64)),
+                End => (set_int((m.end) as i64)),
+                NegStart => (set_int(m.neg_start1(rec.seq_len()))),
+                NegEnd => (set_int(m.neg_end1(rec.seq_len()))),
+                Diffs => (set_int(m.dist as i64)),
+                Range(delim) => ("{}{}{}", m.start + 1, delim, m.end),
+                NegRange(delim) => (
+                    "{}{}{}",
+                    m.neg_start1(rec.seq_len()),
+                    delim,
+                    m.neg_end1(rec.seq_len())
+                ),
+                Match => (set_text(&text[m.start..m.end]))
+            );
         }
         Ok(())
     }
