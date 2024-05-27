@@ -16,16 +16,18 @@ jobs:
           - build: linux
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-
+            rust: stable
           - build: osx
             os: macos-latest
             target: x86_64-apple-darwin
-
+            rust: stable
           - build: windows-msvc
             os: windows-latest
-            target: x86_64-pc-windows-msvc        
+            target: x86_64-pc-windows-msvc
+            rust: stable
+
     steps:
-      - name: Checkout sources
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Rust
