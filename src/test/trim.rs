@@ -40,7 +40,10 @@ fn trim_vars() {
     let trimmed = format!(">{}\nTG\n", id);
     Tester::new()
         .cmp(&["trim", "{attr(start)}..{attr(end)}"], &fa, &trimmed)
-        .cmp(&["trim", "{attr(range)}"], &fa, &trimmed);
+        .cmp(&["trim", "{attr(range)}"], &fa, &trimmed)
+        // multiple ranges
+        // TODO: space not deleted
+        .cmp(&["trim", "{attr_del(r)}"], ">id r=1..2,4..4\nATGC\n", ">id \nATC\n");
 }
 
 #[test]

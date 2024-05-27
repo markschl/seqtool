@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::error::CliResult;
 use crate::io::Record;
 use crate::var::{
@@ -10,6 +8,7 @@ use crate::var::{
 
 use super::number::parse_int;
 use super::rng::Range;
+use super::slice::split_text;
 
 /// Represents a range bound integer stored either directly or in a `VarString`
 /// that is evaluated later with `RngBound::value()`.
@@ -53,10 +52,16 @@ impl RngBound {
 #[derive(Debug, Clone)]
 pub enum VarRange {
     /// range (..) notation already found in input text
-    Split(Option<RngBound>, Option<RngBound>),
-    /// range notation will be present in composed `VarString`
-    /// The Vec<u8> is a reusable allocation.
-    Full(VarString, Vec<u8>),
+    Split {
+        start: Option<RngBound>,
+        end: Option<RngBound>,
+    },
+    /// range notation start..end will be present after the `VarString`
+    /// has been composed (separately for every record)
+    Full {
+        varstring: VarString,
+        cache: Vec<u8>,
+    },
 }
 
 impl VarRange {
@@ -64,15 +69,18 @@ impl VarRange {
     /// {range_var}, whose value should be a valid range.
     /// In theory, more complicated compositions are possible, but they will
     /// rarely result in useful/valid ranges.
-    pub fn from_varstring(vs: VarString) -> Result<VarRange, String> {
-        if vs.len() == 1 && vs.is_one_var() {
-            return Ok(VarRange::Full(vs, Vec::with_capacity(20)));
+    pub fn from_varstring(varstring: VarString) -> Result<VarRange, String> {
+        if varstring.is_one_var() {
+            return Ok(VarRange::Full {
+                varstring,
+                cache: Vec::with_capacity(20),
+            });
         }
-        if let Some((start, end)) = vs.split_at(b"..") {
-            return Ok(VarRange::Split(
-                RngBound::from_varstring(start)?,
-                RngBound::from_varstring(end)?,
-            ));
+        if let Some((start, end)) = varstring.split_at(b"..") {
+            return Ok(VarRange::Split {
+                start: RngBound::from_varstring(start)?,
+                end: RngBound::from_varstring(end)?,
+            });
         }
         fail!("Invalid variable range. Valid are 'start..end', 'start..', '..end' or '..'")
     }
@@ -85,7 +93,10 @@ impl VarRange {
         text_buf: &mut Vec<u8>,
     ) -> CliResult<Range> {
         Ok(match *self {
-            VarRange::Split(ref mut start, ref mut end) => Range::new(
+            VarRange::Split {
+                ref mut start,
+                ref mut end,
+            } => Range::new(
                 start
                     .as_ref()
                     .map(|s| s.value(symbols, record, text_buf))
@@ -94,12 +105,13 @@ impl VarRange {
                     .map(|e| e.value(symbols, record, text_buf))
                     .transpose()?,
             ),
-            VarRange::Full(ref varstring, ref mut val) => {
-                val.clear();
-                varstring.compose(val, symbols, record)?;
-                // TODO: unnecessary UTF-8 conversion -> investigate range parsing from byte slices (FromStr right now)
-                let s = std::str::from_utf8(val)?;
-                Range::from_str(s)?
+            VarRange::Full {
+                ref varstring,
+                ref mut cache,
+            } => {
+                cache.clear();
+                varstring.compose(cache, symbols, record)?;
+                Range::from_bytes(cache)?
             }
         })
     }
@@ -118,7 +130,7 @@ pub enum VarRangesType {
 pub struct VarRanges {
     ty: VarRangesType,
     out: Vec<Range>,
-    val: Vec<u8>,
+    cache: Vec<u8>,
 }
 
 impl VarRanges {
@@ -134,16 +146,16 @@ impl VarRanges {
         // single-variable strings may hold a range list (not only a single range)
         let mut ty = VarRangesType::Split(ranges.clone());
         if ranges.len() == 1 {
-            if let VarRange::Full(vs, _) = ranges.drain(..).next().unwrap() {
-                if vs.is_one_var() {
-                    ty = VarRangesType::Full(vs)
+            if let VarRange::Full { varstring, .. } = ranges.drain(..).next().unwrap() {
+                if varstring.is_one_var() {
+                    ty = VarRangesType::Full(varstring)
                 }
             }
         }
         Ok(VarRanges {
             ty,
-            out: vec![],
-            val: vec![],
+            out: Vec::new(),
+            cache: Vec::new(),
         })
     }
 
@@ -161,11 +173,10 @@ impl VarRanges {
                 }
             }
             VarRangesType::Full(ref varstring) => {
-                self.val.clear();
-                varstring.compose(&mut self.val, symbols, record)?;
-                let s = std::str::from_utf8(&self.val)?;
-                for r in s.split(',') {
-                    self.out.push(Range::from_str(r)?);
+                self.cache.clear();
+                varstring.compose(&mut self.cache, symbols, record)?;
+                for part in split_text(&self.cache, b',') {
+                    self.out.push(Range::from_bytes(part)?);
                 }
             }
         }

@@ -1,5 +1,9 @@
 use std::str::FromStr;
 
+use memchr::memmem;
+
+use super::number::parse_int;
+
 /// General and simple range type used in this crate
 /// Unbounded ranges that can be negative (viewed from end of sequence).
 /// They should behave exactly like Python indexing (slicing) indices, which
@@ -23,6 +27,35 @@ impl Range {
 
     pub fn new(start: Option<isize>, end: Option<isize>) -> Self {
         Self { start, end }
+    }
+
+    pub fn from_bytes(b: &[u8]) -> Result<Self, String> {
+        let delim = b"..";
+        if let Some(delim_pos) = memmem::find(b, delim) {
+            let start = trim_ascii(&b[..delim_pos]);
+            let end = trim_ascii(&b[delim_pos + delim.len()..]);
+            if memmem::find(end, delim).is_none() {
+                let start = if start.is_empty() {
+                    None
+                } else {
+                    Some(parse_int(start).map_err(|_| {
+                        format!("Invalid range start: '{}'", String::from_utf8_lossy(start))
+                    })? as isize)
+                };
+                let end = if end.is_empty() {
+                    None
+                } else {
+                    Some(parse_int(end).map_err(|_| {
+                        format!("Invalid range end: '{}'", String::from_utf8_lossy(end))
+                    })? as isize)
+                };
+                return Ok(Self { start, end });
+            }
+        }
+        Err(format!(
+            "Invalid range: '{}'. Possible notations: 'start..end', 'start..', '..end', or '..'",
+            String::from_utf8_lossy(b)
+        ))
     }
 
     pub fn adjust(mut self, range0: bool, exclusive: bool) -> Result<Self, String> {
@@ -77,38 +110,41 @@ impl Range {
     }
 }
 
+// Code copied from standard library. Will be removed when slice::trim_ascii
+// is stabilized (https://github.com/rust-lang/rust/issues/94035)
+#[inline]
+pub const fn trim_ascii(bytes: &[u8]) -> &[u8] {
+    trim_ascii_end(trim_ascii_start(bytes))
+}
+
+pub const fn trim_ascii_start(mut bytes: &[u8]) -> &[u8] {
+    while let [first, rest @ ..] = bytes {
+        if first.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
+#[inline]
+const fn trim_ascii_end(mut bytes: &[u8]) -> &[u8] {
+    while let [rest @ .., last] = bytes {
+        if last.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
 impl FromStr for Range {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.splitn(2, "..").map(|s| s.trim());
-        let start = parts.next().unwrap();
-        if let Some(end) = parts.next() {
-            if parts.next().is_none() {
-                let start = if start.is_empty() {
-                    None
-                } else {
-                    Some(
-                        start
-                            .parse()
-                            .map_err(|_| format!("Invalid range start: '{}'", start))?,
-                    )
-                };
-                let end = if end.is_empty() {
-                    None
-                } else {
-                    Some(
-                        end.parse()
-                            .map_err(|_| format!("Invalid range end: '{}'", end))?,
-                    )
-                };
-                return Ok(Self { start, end });
-            }
-        }
-        Err(format!(
-            "Invalid range: '{}'. Possible notations: 'start..end', 'start..', '..end', or '..'",
-            s
-        ))
+        Self::from_bytes(s.as_bytes())
     }
 }
 

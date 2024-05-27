@@ -19,6 +19,7 @@ pub mod heap_merge;
 pub mod number;
 pub mod rng;
 pub mod seqtype;
+pub mod slice;
 pub mod util;
 pub mod value;
 pub mod var_range;
