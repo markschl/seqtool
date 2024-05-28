@@ -20,9 +20,9 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             rust: stable
-          - build: macos-x86_64
+          - build: macos-aarch64
             os: macos-latest
-            target: x86_64-apple-darwin
+            target: aarch64-apple-darwin
             rust: stable
           - build: macos-x86_64
             os: macos-latest
@@ -52,7 +52,7 @@ jobs:
 
       - name: Build archive
         shell: bash
-        run: >
+        run: |
           bin=st
 
           name="$bin-${{ env.VERSION }}-${{ matrix.target }}"
