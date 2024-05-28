@@ -1,6 +1,6 @@
 [package]
 name = "seqtool"
-version = "0.4.0-beta1"
+version = "0.4.0-beta.1"
 edition = "2021"
 authors = ["<markschl19@gmail.com>"]
 description = "General purpose tool for reading, modifying and writing biological sequences."
@@ -20,7 +20,7 @@ memchr = "2.7"
 winnow = { version = "0.6", features = ["simd"] }
 vec_map = "0.8"
 deepsize = "0.2"
-itertools = "0.12"
+itertools = "0.13"
 bytecount = "0.6"
 strum = "0.26"
 strum_macros = "0.26"
