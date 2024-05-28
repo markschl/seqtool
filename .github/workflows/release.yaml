@@ -13,8 +13,8 @@ jobs:
     name: build
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        fail-fast: false
         include:
           - build: linux
             os: ubuntu-latest
