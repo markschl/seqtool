@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::{io, mem, str};
 
-use bstr::ByteSlice;
+use memchr::memmem;
 use var_provider::VarType;
 
 use crate::helpers::{number::parse_int, value::SimpleValue, NA};
@@ -128,7 +128,7 @@ impl VarString {
     pub fn split_at(&self, sep: &[u8]) -> Option<(Self, Self)> {
         for i in 0..self.len() {
             if let VarStringSegment::Text(ref t) = self.parts[i] {
-                if let Some(pos) = t.find(sep) {
+                if let Some(pos) = memmem::find(t, sep) {
                     let mut start = self.parts[..i + 1].to_owned();
                     if let VarStringSegment::Text(ref mut t) = start[i] {
                         t.truncate(pos);
@@ -210,7 +210,7 @@ impl VarString {
         if text_buf.as_slice() != NA {
             return Ok(Some(parse_int(text_buf)?));
         }
-        return Ok(None)
+        Ok(None)
     }
 
     /// Returns a SimpleValue (text/numeric/none).
