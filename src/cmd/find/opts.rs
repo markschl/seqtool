@@ -168,6 +168,7 @@ impl Opts {
     pub fn init_matches(&self) -> Matches {
         Matches::new(
             self.pattern_names.clone(),
+            self.patterns.clone(),
             self.groups.clone(),
             self.max_hits,
             self.max_shift,

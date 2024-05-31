@@ -11,6 +11,7 @@ use super::opts::Shift;
 pub struct Matches {
     inner: MatchesInner,
     pattern_names: Vec<Option<String>>,
+    patterns: Vec<String>,
     // search only within these bounds
     bounds: Option<Range>,
     // has_matches: bool,
@@ -19,6 +20,7 @@ pub struct Matches {
 impl Matches {
     pub fn new(
         pattern_names: Vec<Option<String>>,
+        patterns: Vec<String>,
         groups: Vec<usize>,
         max_hits: usize,
         max_shift: Option<Shift>,
@@ -27,6 +29,7 @@ impl Matches {
         Matches {
             inner: MatchesInner::new(pattern_names.len(), groups, max_hits, max_shift),
             pattern_names,
+            patterns,
             bounds,
         }
     }
@@ -68,6 +71,12 @@ impl Matches {
         self.pattern_names
             .get(self.inner.pattern_idx(pattern_rank))
             .map(|n| n.as_deref())
+    }
+
+    pub fn pattern(&self, pattern_rank: usize) -> Option<&str> {
+        self.patterns
+            .get(self.inner.pattern_idx(pattern_rank))
+            .map(|p| p.as_str())
     }
 }
 

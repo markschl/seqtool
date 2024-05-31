@@ -348,6 +348,7 @@ macro_rules! impl_aln_hit {
         {
             fn get_group(&self, group: usize, out: &mut Match) -> Result<(), String> {
                 debug_assert!(group == 0);
+                out.alignment_path.clear();
                 let (start, dist) = self.1.path_at(self.0, &mut out.alignment_path).unwrap();
                 out.start = start;
                 out.end = self.0 + 1;

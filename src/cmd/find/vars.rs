@@ -1,6 +1,7 @@
 use std::cmp::max;
 use std::io::Write;
 
+use bio::alignment::AlignmentOperation;
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
@@ -54,25 +55,25 @@ variable_enum! {
     /// SEQUENCE
     /// (...)
     FindVar {
-        /// The text matched by the pattern. With approximate matching
-        /// (`-d/--dist` argument), this is the best hit
-        /// (with the smallest edit distance) or the
-        /// leftmost occurrence if `--in-order` was specified.
+        /// The text matched by the pattern.
+        /// With approximate matching (`-D/--diffs` > 0), this is the match with the
+        /// smallest edit distance or the leftmost occurrence if `--in-order` was specified.
         /// With exact/regex matching, the leftmost hit is always returned.
-        /// With multiple patterns in a pattern file, the best hit of the
+        /// In case of multiple patterns in a pattern file, the best hit of the
         /// best-matching pattern is returned (fuzzy matching), or the first
-        /// hit of the first pattern with an exact match;
-        /// see below for selecting other hits or other patterns).
+        /// hit of the first pattern with an exact match.
         ///
         /// `match(hit) returns the matched text of the given hit number,
-        /// whereas `match(all)` or `match('all') returns a command delimited
+        /// whereas `match(all)` or `match('all') returns a comma-delimited
         /// list of all hits. These are either sorted by the edit distance
-        /// (default) or by occurrence (with `--in-order` or exact matching).
+        /// (default) or by occurrence (`--in-order` or exact matching).
         ///
         /// `match(1, 2)`, `match(1, 3)`, etc. references the 2nd, 3rd, etc.
         /// best matching pattern in case multiple patterns were suplied in a
         /// file (default: hit=1, pattern=1)."
         Match(Text) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// Text match aligned with the pattern, including gaps if needed.
+        AlignedMatch(Text) { hit: String = String::from("1"), rank: usize = 1 },
         /// Text matched by regex match group of given number (0 = entire match).
         /// An empty string is returned if the group does not exist
         /// The hit number (sorted by edit distance or occurrence) and the pattern
@@ -92,6 +93,8 @@ variable_enum! {
         /// Other hits/patterns are selected with `match_neg_end(hit, [pattern])`,
         /// for details see `match`.
         MatchNegEnd(Number) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// Length of the match
+        MatchLen(Number) { hit: String = String::from("1"), rank: usize = 1 },
         /// Range (start-end) of the first/best match. Other hits/patterns are selected
         /// with `match_range(hit, [pattern])`, for details see `match`
         MatchRange(Number) { hit: String = String::from("1"), pattern: usize = 1 },
@@ -137,11 +140,27 @@ variable_enum! {
         /// sequence, relative to the pattern length. See `match_diffs` for details on
         /// hit/pattern arguments.
         MatchDiffRate(Number) { hit: String = String::from("1"), pattern: usize = 1 },
-        /// Name of the matching pattern if multiple patterns were supplied using
-        /// `file:patterns.fasta`; or just `<pattern>` if a single pattern
-        /// was specified in commandline. `pattern_name(rank)` allows selecting the n-th
-        /// matching pattern (sorted by edit distance and/or pattern number)
+        /// Number of insertions in the matched sequence compared to the search pattern.
+        MatchIns(Number) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// Number of deletions in the matched text sequence to the search pattern.
+        MatchDel(Number) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// Number of substitutions (non-matching letters) in the matched sequence compared
+        /// to the pattern
+        MatchSubst(Number) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// Name of the matching pattern (patterns supplied with `file:patterns.fasta`).
+        /// In case a single pattern was specified in the commandline, this will just be `<pattern>`.
+        /// `pattern_name(rank)` selects the n-th matching pattern, sorted by edit distance
+        /// and/or pattern number (depending on `-D/-R` and `--in-order`).
         PatternName(Text) { rank: usize = 1 },
+        /// The best-matching pattern sequence, or the n-th matching pattern if `rank` is given,
+        /// sorted by edit distance or by occurrence (depending on `-D/-R` and `--in-order`).
+        Pattern(Text) { rank: usize = 1 },
+        /// The aligned pattern, including gaps if needed.
+        /// Regex patterns are returned as-is.
+        AlignedPattern(Text) { hit: String = String::from("1"), rank: usize = 1 },
+        /// Length of the matching pattern (see also `pattern`). For regex patterns, the length
+        /// of the complete regular expression is returned.
+        PatternLen(Number) { rank: usize = 1 },
     }
 }
 
@@ -157,9 +176,16 @@ pub enum FindVarType {
     NegEnd,
     Diffs,
     DiffRate,
-    Dist,
+    Ins,
+    Del,
+    Subst,
     Match,
+    AlignedMatch,
+    MatchLen,
     Name,
+    Pattern,
+    AlignedPattern,
+    PatternLen,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -242,16 +268,8 @@ impl FindVars {
         symbols: &mut SymbolTable,
         text: &[u8],
     ) -> Result<(), String> {
-        use FindVarType::*;
         for (symbol_id, req_hit) in self.vars.iter() {
             let out = symbols.get_mut(*symbol_id);
-            if req_hit.var_type == Name {
-                if let Some(opt_name) = matches.pattern_name(req_hit.pattern_rank) {
-                    out.inner_mut()
-                        .set_text(opt_name.unwrap_or("<pattern>").as_bytes());
-                }
-                continue;
-            }
 
             // In the following, we use macros to avoid having to repeat the
             // code for setting a single value or a comma-separated list of
@@ -260,15 +278,20 @@ impl FindVars {
                 ($m:ident, ($fmt:expr, $($args:expr),*)) => {
                     write!(out.inner_mut().mut_text(), $fmt, $($args),*).unwrap()
                 };
+                ($m:ident, (with_text($func:expr))) => {
+                    $func(out.inner_mut().mut_text())
+                };
                 ($m:ident, ($set_method:ident($a:expr))) => {
                     out.inner_mut().$set_method($a)
                 };
-
             }
 
             macro_rules! set_multi {
                 ($m:ident, $out:expr, (set_text($a:expr))) => {
                     $out.write_all($a)
+                };
+                ($m:ident, $out:expr, (with_text($func:expr))) => {
+                    Ok($func($out))
                 };
                 ($m:ident, $out:expr, ($_:ident($a:expr))) => {
                     set_multi!($m, $out, ("{}", $a))
@@ -285,7 +308,6 @@ impl FindVars {
                         if let Some($m) = matches.get_match(*p, req_hit.pattern_rank, req_hit.match_group) {
                             match req_hit.var_type {
                                 $($variant => set_single!($m, $arg)),*,
-                                _ => unreachable!(),
                             }
                             continue;
                         }
@@ -299,7 +321,6 @@ impl FindVars {
                             out.inner_mut().mut_text(),
                             |$m, o| match req_hit.var_type {
                                 $($variant => set_multi!($m, o, $arg)),*,
-                                _ => unreachable!(),
                             },
                         )
                         .unwrap();
@@ -313,12 +334,16 @@ impl FindVars {
             }
 
             // here we define how to obtain and set the individual values
+            use FindVarType::*;
             impl_set_value!((m),
                 Start => (set_int((m.start + 1) as i64)),
                 End => (set_int((m.end) as i64)),
                 NegStart => (set_int(m.neg_start1(rec.seq_len()))),
                 NegEnd => (set_int(m.neg_end1(rec.seq_len()))),
                 Diffs => (set_int(m.dist as i64)),
+                DiffRate => (set_float(
+                    m.dist as f64 / matches.pattern(req_hit.pattern_rank).unwrap().len() as f64
+                )),
                 Range(delim) => ("{}{}{}", m.start + 1, delim, m.end),
                 NegRange(delim) => (
                     "{}{}{}",
@@ -326,10 +351,72 @@ impl FindVars {
                     delim,
                     m.neg_end1(rec.seq_len())
                 ),
-                Match => (set_text(&text[m.start..m.end]))
+                Ins => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Del) as i64)),
+                Del => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Ins) as i64)),
+                Subst => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Subst) as i64)),
+                Match => (set_text(&text[m.start..m.end])),
+                MatchLen => (set_int((m.end - m.start) as i64)),
+                Name => (set_text(
+                    matches
+                        .pattern_name(req_hit.pattern_rank)
+                        .unwrap()
+                        .unwrap_or("<pattern>")
+                        .as_bytes())
+                ),
+                Pattern => (set_text(matches.pattern(req_hit.pattern_rank).unwrap().as_bytes())),
+                PatternLen => (set_int(matches.pattern(req_hit.pattern_rank).unwrap().len() as i64)),
+                AlignedPattern => (with_text(
+                    |t| align_pattern(
+                        matches.pattern(req_hit.pattern_rank).unwrap().as_bytes(),
+                        &m.alignment_path,
+                        t
+                    )
+                )),
+                AlignedMatch => (with_text(
+                    |t| align_match(&text[m.start..m.end], &m.alignment_path, t)
+                ))
             );
         }
         Ok(())
+    }
+}
+
+fn count_aln_op(path: &[AlignmentOperation], op: AlignmentOperation) -> usize {
+    path.iter().filter(|&&x| x == op).count()
+}
+
+fn align_pattern(pattern: &[u8], path: &[AlignmentOperation], out: &mut Vec<u8>) {
+    if path.is_empty() {
+        // empty path: exact/regex matching
+        out.extend_from_slice(pattern);
+    } else {
+        use AlignmentOperation::*;
+        let mut pattern = pattern.iter();
+        dbg!(&path);
+        for op in path {
+            match op {
+                Match | Subst | Ins => out.push(*pattern.next().unwrap()),
+                Del => out.push(b'-'),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn align_match(text: &[u8], path: &[AlignmentOperation], out: &mut Vec<u8>) {
+    if path.is_empty() {
+        // empty path: exact/regex matching
+        out.extend_from_slice(text);
+    } else {
+        use AlignmentOperation::*;
+        let mut text = text.iter();
+        for op in path {
+            match op {
+                Match | Subst | Del => out.push(*text.next().unwrap()),
+                Ins => out.push(b'-'),
+                _ => {}
+            }
+        }
     }
 }
 
@@ -349,12 +436,17 @@ impl VarProvider for FindVars {
             use FindVarType::*;
             let (var_type, hit, pattern_rank, match_group) = match var {
                 FindVar::Match { hit, pattern } => (FindVarType::Match, hit, pattern, 0),
+                FindVar::AlignedMatch { hit, rank } => (FindVarType::AlignedMatch, hit, rank, 0),
+                FindVar::MatchLen { hit, rank } => (FindVarType::MatchLen, hit, rank, 0),
                 MatchGroup {
                     hit,
                     pattern,
                     group,
                 } => (Match, hit, pattern, group),
                 MatchDiffs { hit, pattern } => (Diffs, hit, pattern, 0),
+                MatchIns { hit, pattern } => (Ins, hit, pattern, 0),
+                MatchDel { hit, pattern } => (Del, hit, pattern, 0),
+                MatchSubst { hit, pattern } => (Subst, hit, pattern, 0),
                 MatchDiffRate { hit, pattern } => (DiffRate, hit, pattern, 0),
                 MatchStart { hit, pattern } => (Start, hit, pattern, 0),
                 MatchNegStart { hit, pattern } => (NegStart, hit, pattern, 0),
@@ -395,6 +487,11 @@ impl VarProvider for FindVars {
                     group,
                 } => (Range(".."), hit, pattern, group),
                 PatternName { rank } => (Name, "1".into(), rank, 0),
+                FindVar::Pattern { rank } => (FindVarType::Pattern, "1".into(), rank, 0),
+                FindVar::AlignedPattern { hit, rank } => {
+                    (FindVarType::AlignedPattern, hit, rank, 0)
+                }
+                FindVar::PatternLen { rank } => (FindVarType::PatternLen, "1".into(), rank, 0),
             };
 
             // parse hit number
@@ -423,6 +520,7 @@ impl VarProvider for FindVars {
             // already configured (passed on to `Matcher` objects)
             let required_info = match var_type {
                 Diffs | DiffRate | Name => RequiredInfo::Distance,
+                Ins | Del | Subst | AlignedPattern | AlignedMatch => RequiredInfo::Alignment,
                 _ => RequiredInfo::Range,
             };
             if required_info > self.required_info {

@@ -148,13 +148,31 @@ fn rng() {
 fn vars() {
     let fasta = ">seq\nTTGGCAGGCCAAGGCCGATGGATCA\n";
     Tester::new()
-        .cmp(&["find", "-r", "C[GC](A[AT])", "--to-tsv",
-            "id,match,match(1),match(2),match(3),match(all),match_range(all),match_end(all),match_group(1),match_group(1,2)"], fasta,
-            "seq\tCCAA\tCCAA\tCGAT\tN/A\tCCAA,CGAT\t9-12,16-19\t12,19\tAA\tAT\n"
+        .cmp(
+            &[
+                "find",
+                "-r",
+                "C[GC](A[AT])",
+                "--to-csv",
+                "id,pattern,match,aligned_match,match(1),match(2),match(3),match(all),\
+                match_range(all),match_end(all),\
+                match_group(1),match_group(1,2)",
+            ],
+            fasta,
+            "seq,C[GC](A[AT]),CCAA,CCAA,CCAA,CGAT,N/A,CCAA,CGAT,9-12,16-19,12,19,AA,AT\n",
         )
-        .cmp(&["find", "CAGG", "--to-csv",
-            "id,match,match_start,match_end,match_range,match_neg_start,match_neg_end,match_drange,match_neg_drange,pattern_name,match_diffs,match(all)"], fasta,
-            "seq,CAGG,5,8,5-8,-21,-18,5..8,-21..-18,<pattern>,0,CAGG\n"
+        .cmp(
+            &[
+                "find",
+                "CAGG",
+                "--to-csv",
+                "id,pattern,match,aligned_match,\
+                match_start,match_end,match_range,match_neg_start,match_neg_end,\
+                match_drange,match_neg_drange,\
+                pattern_name,match_diffs,match(all)",
+            ],
+            fasta,
+            "seq,CAGG,CAGG,CAGG,5,8,5-8,-21,-18,5..8,-21..-18,<pattern>,0,CAGG\n",
         );
 }
 
@@ -165,14 +183,14 @@ fn fuzzy() {
     let fa = ">i\nAACACACTGTGGAGTTTTCA\n";
     //                 x  mismatch
     let pattern = "ACACC";
-    let v = "match,match_diffs";
+    let v = "match,aligned_match,match_diffs";
 
-    Tester::new()
-        .cmp(&["find", "-f", "--to-csv", v, pattern], fa, "")
+    let t = Tester::new();
+    t.cmp(&["find", "-f", "--to-csv", v, pattern], fa, "")
         .cmp(
             &["find", "-f", "-D1", "--to-csv", v, pattern],
             fa,
-            "ACACA,1\n",
+            "ACACA,ACACA,1\n",
         )
         // rate (relative to pattern length)
         .cmp(
@@ -183,8 +201,26 @@ fn fuzzy() {
         .cmp(
             &["find", "-f", "-R", "0.2", "--to-csv", v, pattern],
             fa,
-            "ACACA,1\n",
+            "ACACA,ACACA,1\n",
         );
+    // match/pattern alignment
+    let fa = concat!(">s1\nACAATGG\n", ">s2\nACG\n", ">s3\nAAGGTA\n");
+    let pat = concat!(">a\nCATG\n", ">b\nACGT\n");
+    t.temp_file("patterns.fasta", Some(pat), |p, _| {
+        let v = "id,pattern_name,pattern,aligned_pattern,pattern_len,\
+                 match,aligned_match,match_len,\
+                 match_diffs,match_ins,match_del,match_subst";
+        let exp = concat!(
+            "s1,a,CATG,CA-TG,4,CAATG,CAATG,5,1,1,0,0\n",
+            "s2,b,ACGT,ACGT,4,ACG,ACG-,3,1,0,1,0\n",
+            "s3,b,ACGT,ACGT,4,AGGT,AGGT,4,1,0,0,1\n",
+        );
+        t.cmp(
+            &["find", "-D2", &format!("file:{}", p), "--to-csv", v],
+            fa,
+            exp,
+        );
+    })
 }
 
 #[test]
