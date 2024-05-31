@@ -60,9 +60,9 @@ impl Tester {
 
     fn temp_dir<F, O>(&self, prefix: &str, mut f: F) -> O
     where
-        F: FnMut(&mut tempdir::TempDir) -> O,
+        F: FnMut(&mut tempfile::TempDir) -> O,
     {
-        let mut d = tempdir::TempDir::new(prefix).expect("Could not create temp. dir");
+        let mut d = tempfile::TempDir::with_prefix(prefix).expect("Could not create temp. dir");
         let out = f(&mut d);
         d.close().unwrap();
         out
@@ -72,7 +72,7 @@ impl Tester {
     where
         F: FnMut(&str, &mut File) -> O,
     {
-        self.temp_dir("test", |d| {
+        self.temp_dir("st_test", |d| {
             let p = d.path().join(name);
             let mut f = File::create(&p).expect("Error creating file");
             if let Some(c) = content {

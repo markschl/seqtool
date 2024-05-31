@@ -12,7 +12,7 @@ use rkyv::{
     },
     AlignedVec, Archive, Deserialize, Infallible, Serialize,
 };
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 use crate::error::{CliError, CliResult};
 use crate::helpers::value::SimpleValue;
@@ -39,7 +39,7 @@ pub struct TmpStore {
 impl TmpStore {
     pub fn new(tmp_dir: PathBuf, prefix: &str, file_limit: usize) -> io::Result<Self> {
         Ok(Self {
-            tmp_dir: TempDir::new_in(tmp_dir, prefix)?,
+            tmp_dir: TempDir::with_prefix_in(prefix, tmp_dir)?,
             num: 0,
             file_limit,
         })
