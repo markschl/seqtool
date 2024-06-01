@@ -6,6 +6,7 @@ static INPUT: &str = ">id_123 some desc\nA\nT\nGC\n";
 fn exact() {
     Tester::new()
         .cmp(&["replace", "T", "U"], INPUT, ">id_123 some desc\nAUGC\n")
+        .cmp(&["replace", "T", "U"], ">a\nT\nT\n>b\nT\nT\n>c\nT\nT\n", ">a\nUU\n>b\nUU\n>c\nUU\n")
         .cmp(
             &["replace", "ATG", "TGA"],
             INPUT,
