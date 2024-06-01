@@ -224,6 +224,86 @@ fn fuzzy() {
 }
 
 #[test]
+fn fuzzy_gaps() {
+    // same sequence repeated twice (with a TTTTT spacer) to test multi-hit reporting
+    let fa = ">i\nAACGCACTTTTTTAACGCACT\n";
+    let pattern = "ACGTGC";
+    // alignment is:
+    //
+    // AACG--CCACT  [diffs = 2]
+    //  |||xx|
+    //  ACGTGC
+    //
+    // or
+    //
+    // AACGCACT  [diffs = 2]
+    //  |||\\|
+    //  ACGTGC
+    //
+    // with gap penalty of > 0, the second alignment will be chosen,
+    // with penalty of 0 it will be the first one since the end position
+    let v = "match,aligned_match,aligned_pattern,match_range,match_len,match_diffs";
+
+    Tester::new()
+        .cmp(
+            &[
+                "find",
+                "-f",
+                "-D2",
+                "--gap-penalty",
+                "0",
+                "--to-csv",
+                v,
+                pattern,
+            ],
+            fa,
+            "ACGC,ACG--C,ACGTGC,2-5,4,2\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "-f",
+                "-D2",
+                "--gap-penalty",
+                "2",
+                "--to-csv",
+                v,
+                pattern,
+            ],
+            fa,
+            "ACGCAC,ACGCAC,ACGTGC,2-7,6,2\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "-f",
+                "-D2",
+                "--gap-penalty",
+                "0",
+                "--to-tsv",
+                "match_range(all),aligned_match(all)",
+                pattern,
+            ],
+            fa,
+            "2-5,15-18\tACG--C,ACG--C\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "-f",
+                "-D2",
+                "--gap-penalty",
+                "1000",
+                "--to-tsv",
+                "match_range(all),aligned_match(all)",
+                pattern,
+            ],
+            fa,
+            "2-7,15-20\tACGCAC,ACGCAC\n",
+        );
+}
+
+#[test]
 fn ambig() {
     let seq = "AACACACTGTGGAGTTTTCAT";
     //              R        N
@@ -330,7 +410,9 @@ fn multiple() {
             fasta::write_parts(&mut f, format!("p{}", i).as_bytes(), None, *p as &[u8]).unwrap();
         }
 
-        let vars = "match_range,match_range(1,1),match_range(1,2),match_range(1,3),match_diffs,match_diffs(1,1),match_diffs(1,2),match_diffs(1,3),pattern_name,pattern_name(1),pattern_name(2),pattern_name(3)";
+        let vars = "match_range,match_range(1,1),match_range(1,2),match_range(1,3),\
+                match_diffs,match_diffs(1,1),match_diffs(1,2),match_diffs(1,3),\
+                pattern_name,pattern_name(1),pattern_name(2),pattern_name(3)";
         let out = "2-21,2-21,2-21,2-21,0,0,1,2,p0,p0,p2,p1\n";
 
         t.cmp(&["find", "--to-csv", vars, "-D2", &patt_path], &fasta, out);

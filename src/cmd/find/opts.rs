@@ -34,6 +34,7 @@ pub struct Opts {
     pub seqtype: SeqType,
     pub bounds: Option<Range>,
     pub max_shift: Option<Shift>,
+    pub gap_penalty: u32,
     // actions
     pub filter: Option<bool>,
     pub dropped_path: Option<String>,
@@ -147,6 +148,7 @@ impl Opts {
             seqtype,
             bounds,
             max_shift,
+            gap_penalty: args.search.gap_penalty,
             filter,
             dropped_path: args.action.dropped.clone(),
             replacement,

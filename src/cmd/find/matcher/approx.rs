@@ -6,10 +6,6 @@ use crate::CliResult;
 
 use super::{Hit, Match, Matcher};
 
-// Scores to use to select the best alignment amonst multiple hits with the
-// same edit distance
-const GAP_PENALTY: isize = 3;
-
 #[derive(Debug, Clone)]
 struct MyersOpts {
     /// maximum edit distance
@@ -22,6 +18,8 @@ struct MyersOpts {
     best_dist_only: bool,
     /// alignment path needed?
     needs_alignment: bool,
+    /// gap penalty for selecting among multiple best hits with the same edit distance
+    gap_penalty: u32,
 }
 
 impl MyersOpts {
@@ -30,6 +28,7 @@ impl MyersOpts {
         sort_by_dist: bool,
         max_hits: usize,
         required_info: RequiredInfo,
+        gap_penalty: u32,
     ) -> Self {
         if required_info == RequiredInfo::Exists {
             debug_assert!(max_hits == 0);
@@ -40,6 +39,7 @@ impl MyersOpts {
             best_only: max_hits == 1,
             best_dist_only: max_hits == 1 && required_info == RequiredInfo::Distance,
             needs_alignment: required_info == RequiredInfo::Alignment,
+            gap_penalty,
         }
     }
 }
@@ -86,7 +86,13 @@ impl MyersMatcher {
     ) -> CliResult<Self> {
         Ok(MyersMatcher {
             myers: MyersMatcherInner::new(pattern, ambig_trans),
-            opts: MyersOpts::new(max_dist, !opts.in_order, opts.max_hits, opts.required_info),
+            opts: MyersOpts::new(
+                max_dist,
+                !opts.in_order,
+                opts.max_hits,
+                opts.required_info,
+                opts.gap_penalty,
+            ),
             dist_sort_vec: Vec::new(),
             path_buf: Vec::new(),
         })
@@ -179,28 +185,31 @@ impl MyersMatcherInner {
                 return Ok(());
             }
 
+            // let pattern = b"ACGTGC";
+            // eprintln!("find {} in {} (max dist = {})", std::str::from_utf8(pattern).unwrap(), std::str::from_utf8(text).unwrap(), opts.max_dist);
+
             // other cases: either range or alignment of hits needed, or multiple hits
             // in any case, we need to calculate the traceback for part of them (thus, we need `find_all_lazy`)
             let mut matches = $myers.find_all_lazy(text, opts.max_dist as $dist_ty);
 
-            // calculates alignment score using a custom scoring that penalizes InDels more than
-            // with the edit distance
-            macro_rules! calc_score {
+            // calculates an alignment score that (depending on the gap penalty) penalizes InDels
+            // (larger scores mean larger penalty)
+            macro_rules! calc_penalty {
                 ($pos:expr) => {
                     {
                         path_buf.clear();  // TODO: should it be cleared in bio API already?
                         let (start, dist) = matches.path_at($pos, path_buf).unwrap();
-                        let score: isize = path_buf.iter().map(|op| {
+                        let penalty: usize = path_buf.iter().map(|op| {
                             use AlignmentOperation::*;
                             match op {
                                 Match => 0,
-                                Ins | Del => -GAP_PENALTY,
-                                Subst => -1,
+                                Ins | Del => opts.gap_penalty as usize,
+                                Subst => 1,
                                 _ => unreachable!(),
                             }
                         }).sum();
-                        // dbg!((start, i, best_dist, score));
-                        (start, dist, score)
+                        // dbg!((start, i, best_dist, penalty));
+                        (start, dist, penalty)
                     }
                 }
             }
@@ -229,20 +238,21 @@ impl MyersMatcherInner {
                     //   The range of possible end positions is: end .. end + 2 * best_dist + 1
                     //    whereby 'end' is the end of the *leftmost* 'best' hit
                     let mut best_pos = (usize::MAX, usize::MAX);
-                    let mut best_score = isize::MIN;
+                    let mut lowest_penalty = usize::MAX;
                     for i in end..std::cmp::min(end + 2 * best_dist as usize + 1, text.len()) {
                         // TODO: we need to calculate a traceback to obtain the distance,
                         //       but it is actually already known (internally) -> issue a PR to rust-bio
                         //       for a `LazyMatches::dist_at()` method
-                        let (start, dist, score) = calc_score!(i);
-                        // eprintln!("f {}..{} -> d {} (s {})", start, i, dist, score);
+                        let (start, dist, penalty) = calc_penalty!(i);
+                        // eprintln!("f {}..{} -> d {} (p {})", start, i, dist, penalty);
                         // matches.alignment_at(i, &mut aln);
                         // println!("{}", aln.pretty(pattern, text, 80));
                         if start == best_pos.0 || best_pos.0 == usize::MAX {
-                            if dist == best_dist && score > best_score {
-                                // found a better hit (higher score) with the same edit distance
+                            if dist == best_dist && penalty < lowest_penalty {
+                                // found a better hit with the same (lowest) edit distance,
+                                // but a lower penalty score
                                 best_pos = (start, i);
-                                best_score = score;
+                                lowest_penalty = penalty;
                             }
                         } else {
                             // not the same starting position -> done
@@ -250,10 +260,7 @@ impl MyersMatcherInner {
                         }
                     }
                     debug_assert!(best_pos.0 != usize::MAX);
-                    // TODO: +1?
-                    // black_box(best_pos);
-                    // black_box(matches.alignment_at(best_pos.1, &mut aln));
-                    // println!("final\n{}", aln.pretty(pattern, text, 80));
+                    // eprintln!("final\n{}", aln.pretty(pattern, text, 80));
                     let do_continue = report_hit!((best_pos.0, best_pos.1, best_dist as usize))?;
                     debug_assert!(!do_continue);
                 }
@@ -282,30 +289,32 @@ impl MyersMatcherInner {
                     }
                 }
 
-                let mut best_score = isize::MIN;
+                let mut lowest_penalty = usize::MAX;
                 let mut best_hit = (usize::MAX, usize::MAX, usize::MAX);
                 while let Some((end, dist)) = matches.next() {
-                    let (start, _dist, score) = calc_score!(end);
+                    let (start, _dist, penalty) = calc_penalty!(end);
                     debug_assert!(dist == _dist);
-                    // eprintln!("f ({}, {}) -> d {} (s {})", start, end, dist, score);
+                    // eprintln!("f ({}, {}) -> d {} (p {})", start, end, dist, penalty);
                     // let mut aln = bio::alignment::Alignment::default();
                     // matches.alignment_at(end, &mut aln);
-                    // println!("{}", aln.pretty(b"A", text, 80));
+                    // eprintln!("{}", aln.pretty(pattern, text, 80));
                     if start != best_hit.0 {
                         // new hit with different starting position
-                        if best_score != isize::MIN && !report_push_hit!(best_hit)? {
+                        if lowest_penalty != usize::MAX && !report_push_hit!(best_hit)? {
                             break;
                         }
-                        best_score = score;
+                        lowest_penalty = penalty;
                         best_hit = (start, end, dist as usize);
-                    } else if score > best_score {
-                        // new best score found for current starting position
-                        best_score = score;
+                    } else if (dist as usize) < best_hit.2 || (dist as usize) == best_hit.2 && penalty < lowest_penalty {
+                        // new best hit found for current starting position:
+                        // either a hit with a smaller edit distance
+                        // or with the same edit distance and a lower penalty score
+                        lowest_penalty = penalty;
                         best_hit = (start, end, dist as usize);
                     }
                 }
                 // add last hit (if any)
-                if best_score != isize::MIN {
+                if lowest_penalty != usize::MAX {
                     report_push_hit!(best_hit)?;
                 }
 
