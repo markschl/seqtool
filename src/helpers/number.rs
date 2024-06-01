@@ -13,6 +13,7 @@ pub fn bin(num: f64, interval: f64) -> Interval {
     Interval::new(start, start + interval)
 }
 
+// TODO: consider replacing rust-lexical https://github.com/rustsec/advisory-db/issues/1757
 pub fn parse_float(text: &[u8]) -> Result<f64, String> {
     lexical::parse(text).map_err(|_| {
         format!(
@@ -23,7 +24,7 @@ pub fn parse_float(text: &[u8]) -> Result<f64, String> {
 }
 
 pub fn parse_int(text: &[u8]) -> Result<i64, String> {
-    lexical::parse(text).map_err(|_| {
+    atoi::atoi(text).ok_or_else(|| {
         format!(
             "Could not convert '{}' to an integer number.",
             String::from_utf8_lossy(text)
@@ -67,8 +68,8 @@ impl DerefMut for Float {
 
 impl fmt::Display for Float {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO: consider replacing rust-lexical https://github.com/rustsec/advisory-db/issues/1757
         use lexical::WriteFloatOptions;
-
         let opts = WriteFloatOptions::builder()
             .trim_floats(true)
             .max_significant_digits(std::num::NonZeroUsize::new(6))
