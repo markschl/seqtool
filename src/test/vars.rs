@@ -4,13 +4,36 @@ static ATTR_FA: &str = ">seq;a=0 b=3\nATGC\n";
 
 #[test]
 fn general() {
-    let fa = ">seq1\nSEq\n>seq2\nsEq\n>seq3\nSEQ\n";
     let t = Tester::new();
-    t.cmp(
-        &[".", "--to-tsv", "id,seq_num,seq_idx,upper_seq,lower_seq"],
-        fa,
-        "seq1\t1\t0\tSEQ\tseq\nseq2\t2\t1\tSEQ\tseq\nseq3\t3\t2\tSEQ\tseq\n",
+
+    let fa = concat!(">seq1\nSEq\n", ">seq2\nsEq\n", ">seq3\nSEQ\n");
+    let v = "id,seq_num,seq_idx,upper_seq,lower_seq";
+    let exp = concat!(
+        "seq1,1,0,SEQ,seq\n",
+        "seq2,2,1,SEQ,seq\n",
+        "seq3,3,2,SEQ,seq\n"
     );
+    t.cmp(&[".", "--to-csv", v], fa, exp);
+    // seq_idx / seq_num
+    t.temp_dir("st_general", |tmp_dir| {
+        let paths = ["f1", "f2"]
+            .iter()
+            .map(|f| tmp_dir.path().join(f).to_str().unwrap().to_string())
+            .collect();
+        for p in &paths {
+            std::fs::write(p, fa).unwrap();
+        }
+        let v = "id,seq_num,seq_num(true),seq_idx,seq_idx(true)";
+        let exp = concat!(
+            "seq1,1,1,0,0\n",
+            "seq2,2,2,1,1\n",
+            "seq3,3,3,2,2\n",
+            "seq1,4,1,3,0\n",
+            "seq2,5,2,4,1\n",
+            "seq3,6,3,5,2\n"
+        );
+        t.cmp(&[".", "--to-csv", v], MultiFileInput(paths), exp);
+    });
 }
 
 #[test]

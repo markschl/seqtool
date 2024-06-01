@@ -84,12 +84,20 @@ variable_enum! {
         /// to prevent integer overflow]
         SeqhashBoth(Number) { ignorecase: bool = false },
         /// Sequence number (n-th sequence in the input), starting from 1.
-        /// If multiple sequence files are supplied, numbering is simply continued.
+        /// The numbering continues across all provided sequence files unless `reset`
+        /// is `true`, in which case the numbering re-starts from 1 for each new
+        /// sequence file.
+        ///
         /// Note that the output order can vary with multithreaded processing.
-        SeqNum(Number),
-        /// Sequence index, starting from 0 (continued across all sequence files).
+        SeqNum(Number) { reset: bool = false },
+        /// Sequence index, starting from 0.
+        ///
+        /// The index is incremented across all provided sequence files unless `reset`
+        /// is `true`, in which case the index is reset to 0 at the start of each
+        /// new sequence file.
+        ///
         /// Note that the output order can vary with multithreaded processing.
-        SeqIdx(Number),
+        SeqIdx(Number) { reset: bool = false },
         /// Path to the current input file (or '-' if reading from STDIN)
         Path(Text),
         /// Name of the current input file with extension (or '-')
@@ -119,7 +127,8 @@ struct PathInfo {
 #[derive(Debug)]
 pub struct GeneralVars {
     vars: VarStore<GeneralVar>,
-    idx: usize,
+    // index of file start, total index
+    idx: Option<(usize, usize)>,
     path_info: PathInfo,
     seq_cache: Vec<u8>,
     seqtype_helper: SeqtypeHelper,
@@ -129,7 +138,7 @@ impl GeneralVars {
     pub fn new(seqtype_hint: Option<SeqType>) -> GeneralVars {
         GeneralVars {
             vars: VarStore::default(),
-            idx: 0,
+            idx: None,
             path_info: PathInfo::default(),
             seq_cache: vec![],
             seqtype_helper: SeqtypeHelper::new(seqtype_hint),
@@ -156,6 +165,9 @@ impl VarProvider for GeneralVars {
                 Filestem => self.path_info.stem = Some(vec![]),
                 Extension => self.path_info.ext = Some(vec![]),
                 Dirname => self.path_info.dir = Some(vec![]),
+                SeqIdx { .. } | SeqNum { .. } if self.idx.is_none() => {
+                    self.idx = Some((0, 0));
+                }
                 _ => {}
             }
             let symbol_id: usize = builder.store_register(var, &mut self.vars);
@@ -205,8 +217,20 @@ impl VarProvider for GeneralVars {
                     let hash = seqhash_both(record, &mut self.seq_cache, ty, *ignorecase)?;
                     sym.set_int(hash as i64);
                 }
-                SeqNum => sym.set_int((self.idx + 1) as i64),
-                SeqIdx => sym.set_int(self.idx as i64),
+                SeqNum { reset } => {
+                    let (start_i, mut i) = self.idx.unwrap();
+                    if *reset {
+                        i -= start_i;
+                    }
+                    sym.set_int((i + 1) as i64);
+                }
+                SeqIdx { reset } => {
+                    let (start_i, mut i) = self.idx.unwrap();
+                    if *reset {
+                        i -= start_i;
+                    }
+                    sym.set_int(i as i64);
+                }
                 Path => sym.set_text(self.path_info.path.as_ref().unwrap()),
                 Filename => sym.set_text(self.path_info.name.as_ref().unwrap()),
                 Filestem => sym.set_text(self.path_info.stem.as_ref().unwrap()),
@@ -215,7 +239,9 @@ impl VarProvider for GeneralVars {
                 DefaultExt => sym.set_text(&self.path_info.out_ext),
             }
         }
-        self.idx += 1;
+        if let Some((_, idx)) = self.idx.as_mut() {
+            *idx += 1;
+        }
         Ok(())
     }
 
@@ -240,6 +266,9 @@ impl VarProvider for GeneralVars {
         }
         if let Some(ref mut ext) = self.path_info.ext {
             write_os_str(in_opts, ext, |p| p.extension())
+        }
+        if let Some((start_i, i)) = self.idx.as_mut() {
+            *start_i = *i;
         }
         Ok(())
     }
