@@ -25,6 +25,7 @@ bytecount = "0.6"
 strum = "0.26"
 strum_macros = "0.26"
 lexical = { version = "6.1.1", default-features = false, features = ["parse-floats", "parse-integers", "parse", "write-floats"] }
+atoi = "2.0"
 ordered-float = { version = "4.2", default-features = false, features = ["std", "rkyv", "rkyv_ck"] }
 cfg-if = "1.0"
 # CLI
