@@ -392,7 +392,6 @@ fn align_pattern(pattern: &[u8], path: &[AlignmentOperation], out: &mut Vec<u8>)
     } else {
         use AlignmentOperation::*;
         let mut pattern = pattern.iter();
-        dbg!(&path);
         for op in path {
             match op {
                 Match | Subst | Ins => out.push(*pattern.next().unwrap()),
