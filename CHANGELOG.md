@@ -11,11 +11,11 @@ Aside from minor bugs (listed further down), a few more important bugs were disc
 in *seqtool* v0.3.0, and are now fixed in v.0.4.0.
 
 * Some multi-member GZIP and BZIP2 files were not read completely (#bc27f91).
-  *seqtool* v0.3.0 stops parsing early, leading in truncated input.
+  *seqtool* v0.3.0 stops parsing early, leading to truncated input.
   For example, `st count seqs.fastq.gz` may report a smaller sequence count, while
-  `zcat seqs.fastq.gz | st count` reads the correct total count.
+  `zcat seqs.fastq.gz | st count` returns the correct total count.
 * Searching (*find*) and replacing (*replace*) in **multi-line** (wrapped) FASTA sequences
-  lead to incorrect results
+  can lead to incorrect results
   - *find*: `-f/--filter` wrongly returns one or several sequences *after* a sequence match,
     even if they don't contain the searched pattern. Match coordinates (`f:start`, `f:range`, etc.)
     are also wrong (shifted).
@@ -26,7 +26,7 @@ in *seqtool* v0.3.0, and are now fixed in v.0.4.0.
   play together with `-f/--filter` or `-e/--exclude`, records were always returned
   if *any* match was found, irrespective of their position in the sequence.
 
-### New syntax for variables/functions
+### New function-like syntax for variables
 
 The rather odd variable syntax (names containing `:` and `.`) was replaced by
 a more familiar function-style syntax. The most notable changes are:
@@ -72,7 +72,7 @@ but for now we have an informative error message that is displayed in those case
 These two new commands allow sorting and de-replicating by any variable/function/expression.
 Both have a built-in (but configurable) memory limit, above which the tool will switch to
 using sorted temporary files. This takes longer, but allows sorting or de-replicating
-huge collections.
+huge collections with limited memory.
 
 For efficient de-replication, the *seqhash* and *seqhash_both* variables/functions
 were introduced.
@@ -188,6 +188,16 @@ even with in-order parsing to detect problematic input.
 * The key=value attribute format is now defined using `--attr-format` or
   the `ST_FORMAT` env variable instead of having two complicated options for it.
 * Minor bugs fixed (#03ca54b).
+
+### New behaviour with exclusive ranges
+
+The and *trim*, *mask* accept an `-e/--exclusive` flag to exclude the start/end
+bounds themselves from the range. The old behaviour was to also exclude the 
+first/last position with *unbounded* ranges `..end` or `start..`. 
+The new behaviour is to always include everything from the start/to the end
+even with `-e/--exclusive`.
+To exclude the start/end, specify `0..end` or `start..-1`.
+See also the documentation on ranges.
 
 ### Highly customizable due to feature flags
 

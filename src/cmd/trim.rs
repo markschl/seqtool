@@ -16,9 +16,12 @@ masking). Reverting soft masking is also possible.";
 #[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct TrimCommand {
     /// Range(s) in the form 'start..end' or 'start..' or '..end',
-    /// Multiple ranges can be supplied as comma-delimited list.
-    /// Variables containing one range bound or the whole range,
-    /// or even the whole list of multiple ranges are possible.
+    /// Multiple ranges can be supplied as comma-delimited list:
+    /// start..end,start2..end2,etc.
+    /// The start/end positions can be defined by variables/functions
+    /// (start_var..end_var), or variables/functions may return
+    /// the whole range (e.g. stored as header attribute 'attr(range)'),
+    /// or even a list of ranges (e.g. 'attr(range_list)').
     /// *Note* that with the FASTA format, multiple trim ranges
     /// must be in order (from left to right) and cannot overlap.
     #[arg(allow_hyphen_values = true)]

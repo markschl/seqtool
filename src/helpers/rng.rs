@@ -58,17 +58,22 @@ impl Range {
         ))
     }
 
+    /// Normalizes a range to 0-based coordinates (used in seqtool internally),
+    /// shifting the start or negative end coordinate if the range is 1-based (!range0),
+    /// and adjusting the coordinates in case of exclusive range
     pub fn adjust(mut self, range0: bool, exclusive: bool) -> Result<Self, String> {
         if !range0 {
-            // input is 1-based -> convert to 0-based coordinates,
-            // which are used internally:
-            // start coordinate - 1
+            // start0 = start - 1
+            // 3..6 becomes 2..6
+            // 0..6 stays 0..6  (0 is not a valid 1-based coordinate but may rather be interpreted as open range?)
             if let Some(s) = self.start.as_mut() {
                 if *s >= 1 {
                     *s -= 1;
                 }
             }
-            // negative coordinates: end coordinate + 1
+            // negative end coordinates: end0 = end + 1
+            // ..-3 becomes ..-2
+            // ..-1 becomes None (end not trimmed)
             if self.end == Some(-1) {
                 self.end = None;
             } else if let Some(e) = self.end.as_mut() {
@@ -77,18 +82,23 @@ impl Range {
                 }
             }
         }
-        // TODO: check
         if exclusive {
-            self.start = Some(self.start.unwrap_or(0) + 1);
-            self.end = Some(
-                self.end
-                    .map(|e| if e != 0 { e - 1 } else { 0 })
-                    .unwrap_or(-1),
-            );
+            // exclusive range: we leave open ranges as-is and only adjust actual coordinates
+            if let Some(s) = self.start.as_mut() {
+                *s += 1;
+            }
+            if let Some(e) = self.end.as_mut() {
+                if *e != 0 {
+                    *e -= 1;
+                }
+            }
         }
         Ok(self)
     }
 
+    /// Resolves a range with respect to a given sequence length,
+    /// converting negative coordinates to standard 0-based coordinates.
+    /// Coordinates outside of the sequence range are silently adjusted
     pub fn obtain(&self, length: usize) -> (usize, usize) {
         // resolve negative bounds
         let mut start = self.start.unwrap_or(0);
@@ -196,6 +206,14 @@ mod tests {
                 .obtain(10),
             (3, 3)
         );
+        // start > length -> empty range
+        assert_eq!(
+            Range::new(Some(12), Some(13))
+                .adjust(true, false)
+                .unwrap()
+                .obtain(10),
+            (10, 10)
+        );
         // exclusive
         assert_eq!(
             Range::new(Some(0), Some(10))
@@ -210,6 +228,21 @@ mod tests {
                 .unwrap()
                 .obtain(10),
             (5, 5)
+        );
+        // open ranges are not changed (ends not trimmed)
+        assert_eq!(
+            Range::new(None, Some(10))
+                .adjust(true, true)
+                .unwrap()
+                .obtain(10),
+            (0, 9)
+        );
+        assert_eq!(
+            Range::new(None, None)
+                .adjust(true, true)
+                .unwrap()
+                .obtain(10),
+            (0, 10)
         );
     }
 }

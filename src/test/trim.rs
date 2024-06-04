@@ -9,7 +9,13 @@ fn trim() {
         .cmp(&["trim", "1.."], &fasta, &fasta)
         .cmp(&["trim", "..1"], &fasta, &fasta_record(&seq[..1]))
         .cmp(&["trim", "2..-2"], &fasta, &fasta_record(&seq[1..3]))
+        // exclusive
         .cmp(&["trim", "-e", "1..3"], &fasta, &fasta_record(&seq[1..2]))
+        .cmp(&["trim", "-e", "2..3"], &fasta, &fasta_record(&seq[2..2]))
+        .cmp(&["trim", "-e", "2..4"], &fasta, &fasta_record(&seq[2..3]))
+        // exclusive + unbounded
+        .cmp(&["trim", "-e", "..3"], &fasta, &fasta_record(&seq[..2]))
+        .cmp(&["trim", "-e", "2.."], &fasta, &fasta_record(&seq[2..]))
         // empty seq
         .cmp(&["trim", "2..1"], &fasta, &fasta_record(""));
 }
