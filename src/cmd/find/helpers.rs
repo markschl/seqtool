@@ -2,10 +2,8 @@ use std::{collections::HashSet, fmt::Display};
 
 use itertools::Itertools;
 
-use crate::{
-    helpers::seqtype::{guess_seqtype_or_fail, SeqType, SeqTypeInfo},
-    CliResult,
-};
+use crate::helpers::seqtype::{guess_seqtype_or_fail, SeqType, SeqTypeInfo};
+use crate::CliResult;
 
 use super::opts::{Algorithm, DistanceThreshold};
 

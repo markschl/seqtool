@@ -7,26 +7,30 @@ use crate::helpers::rng::Range;
 use super::opts::{algorithm_from_name, Algorithm};
 
 pub fn parse_patterns(pattern: &str) -> CliResult<Vec<(Option<String>, String)>> {
+    let mut patterns = Vec::new();
     if !pattern.starts_with("file:") {
-        Ok(vec![(None, pattern.to_string())])
+        patterns.push((None, pattern.to_string()))
     } else {
         use seq_io::fasta::*;
         let path = &pattern[5..];
         let mut reader = Reader::from_path(path)?;
-        let mut out = vec![];
         while let Some(r) = reader.next() {
             let r = r?;
-            out.push((Some(r.id()?.to_string()), String::from_utf8(r.owned_seq())?));
+            patterns.push((Some(r.id()?.to_string()), String::from_utf8(r.owned_seq())?));
         }
-        if out.is_empty() {
+        if patterns.is_empty() {
             return fail!(
                 "Pattern file is empty: {}. Patterns should be in FASTA format.",
                 path
             );
         }
-        Ok(out)
+    };
+    if patterns.iter().any(|(_, p)| p.is_empty()) {
+        return fail!("Empty pattern found");
     }
+    Ok(patterns)
 }
+
 
 /// Fast searching for one or more patterns in sequences or ids/descriptions, with optional multithreading.
 #[derive(Parser, Clone, Debug)]
@@ -80,10 +84,16 @@ pub struct SearchArgs {
     /// divided by the pattern length. If searching a 20bp pattern at a difference
     /// rate of 0.2, matches with up to 4 differences (see also `-D/--max-diffs`) are
     /// returned. [default: pefect match]
-    #[arg(short = 'R', long, value_name = "FRAC")]
+    #[arg(short = 'R', long, value_name = "R")]
     pub max_diff_rate: Option<f64>,
 
-    /// Interpret pattern(s) as regular expression(s)
+    /// Interpret pattern(s) as regular expression(s).
+    /// All *non-overlapping* matches in are searched in headers or sequences.
+    /// The regex engine lacks some advanced syntax features such as look-around
+    /// and backreferences (see https://docs.rs/regex).
+    /// Capture groups can be extracted by functions such as `match_group(number)`,
+    /// or `match_group(name)` if named: `(?<name>)`
+    /// (see also `st find --help-vars`).
     #[arg(short, long)]
     pub regex: bool,
 
@@ -157,7 +167,9 @@ pub struct SearchActionArgs {
     #[arg(long, value_name = "FILE")]
     pub dropped: Option<String>,
 
-    /// Replace by a string, which may also contain variables/functions
+    /// Replace by a string, which may also contain variables/functions.
+    /// References to regular expression groups are specified with
+    /// '$1', '$2' or '$name', etc.
     #[arg(long, value_name = "BY")]
     pub rep: Option<String>,
 }

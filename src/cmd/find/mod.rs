@@ -1,13 +1,11 @@
 use std::fs::File;
 use std::io::BufWriter;
 
-use crate::cmd::find::opts::Opts;
-use crate::cmd::find::vars::FindVars;
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::helpers::replace::replace_iter;
 use crate::io::RecordEditor;
-use crate::var::modules::VarProvider;
+use crate::var::{modules::VarProvider, varstring::VarString};
 
 pub mod ambig;
 pub mod cli;
@@ -18,23 +16,48 @@ pub mod opts;
 pub mod vars;
 
 pub use cli::FindCommand;
+use opts::Opts;
 pub use vars::FindVar;
+use vars::FindVars;
 
 pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
-    // add variable provider
-    cfg.set_custom_varmodule(Box::new(FindVars::new(args.patterns.len())))?;
-
     // parse all CLI options and initialize replacements
     let mut opts = Opts::new(&mut cfg, args)?;
+
+    // add variable provider
+    cfg.set_custom_varmodule(Box::new(FindVars::new(
+        opts.patterns.clone(),
+        args.search.regex,
+    )))?;
+
+    // Parse replacement strings
+    // These can contain variables/expressions.
+    let replacement = args
+        .action
+        .rep
+        .as_deref()
+        .map(|text| {
+            cfg.with_command_vars(|v, _| {
+                let match_vars: &mut FindVars = v.unwrap();
+                // For pattern replacement, *all* hits for group 0 (the full hit)
+                // up to the given max. edit distance must be known, since
+                // all of them will be replaced.
+                match_vars.register_all(0);
+                Ok::<_, String>(())
+            })?;
+            let (s, _) = cfg.build_vars(|b| VarString::parse_register(text, b, true))?;
+            Ok::<_, String>(s)
+        })
+        .transpose()?;
 
     // amongst others, this registers all variables in header attribute / TSV fields
     let mut format_writer = cfg.get_format_writer()?;
 
     cfg.with_command_vars(|match_vars, _| {
         let match_vars: &FindVars = match_vars.unwrap();
-        if opts.filter.is_none() && !match_vars.has_vars() && opts.replacement.is_none() {
+        if opts.filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
             return fail!(
-                "Find command does nothing. Use -f/-e for filtering, --repl for replacing or \
+                "Find command does nothing. Use -f/-e for filtering, --rep for replacing or \
                     -a for writing attributes."
             );
         }
@@ -46,10 +69,9 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
     })?;
     // dbg!(&opts);
 
-    // More things needed during the search
+    // More things needed during the search:
     // intermediate buffer for replacement text
-    let mut replacement_text = vec![];
-
+    let mut replacement_text = Vec::new();
     // buffered writer for dropped records
     let mut dropped_file = opts
         .dropped_path
@@ -88,7 +110,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                 })?;
 
                 // fill in replacements (if necessary)
-                if let Some(rep) = opts.replacement.as_ref() {
+                if let Some(rep) = replacement.as_ref() {
                     editor.edit_with_val(opts.attr, &record, true, |text, out| {
                         // assemble replacement text
                         replacement_text.clear();

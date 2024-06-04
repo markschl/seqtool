@@ -1,19 +1,13 @@
 use strum_macros::Display;
 
-use crate::{
-    config::Config,
-    helpers::{rng::Range, seqtype::SeqType},
-    io::RecordAttr,
-    var::varstring::VarString,
-    CliResult,
-};
+use crate::config::Config;
+use crate::helpers::{rng::Range, seqtype::SeqType};
+use crate::io::RecordAttr;
+use crate::CliResult;
 
-use super::{
-    cli::FindCommand,
-    matcher::{get_matcher, Matcher},
-    matches::Matches,
-    vars::FindVars,
-};
+use super::cli::FindCommand;
+use super::matcher::{get_matcher, Matcher};
+use super::matches::Matches;
 
 /// General options/properties derived from CLI options
 #[derive(Debug)]
@@ -38,7 +32,6 @@ pub struct Opts {
     // actions
     pub filter: Option<bool>,
     pub dropped_path: Option<String>,
-    pub replacement: Option<VarString>,
 }
 
 impl Opts {
@@ -113,26 +106,6 @@ impl Opts {
             args.common.general.quiet,
         )?;
 
-        // Parse replacement strings
-        // These can contain variables/expressions.
-        let replacement = args
-            .action
-            .rep
-            .as_deref()
-            .map(|text| {
-                cfg.with_command_vars(|v, _| {
-                    let match_vars: &mut FindVars = v.unwrap();
-                    // For pattern replacement, *all* hits for group 0 (the full hit)
-                    // up to the given max. edit distance must be known, since
-                    // all of them will be replaced.
-                    match_vars.register_all(0);
-                    Ok::<_, String>(())
-                })?;
-                let (s, _) = cfg.build_vars(|b| VarString::parse_register(text, b, true))?;
-                Ok::<_, String>(s)
-            })
-            .transpose()?;
-
         let (pattern_names, patterns): (Vec<_>, Vec<_>) = args.patterns.iter().cloned().unzip();
 
         Ok(Self {
@@ -151,7 +124,6 @@ impl Opts {
             gap_penalty: args.search.gap_penalty,
             filter,
             dropped_path: args.action.dropped.clone(),
-            replacement,
         })
     }
 

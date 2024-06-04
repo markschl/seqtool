@@ -106,7 +106,6 @@ impl MatchesInner {
         search_limit: usize,
         max_shift: Option<Shift>,
     ) -> Self {
-        assert!(groups.is_empty() || groups[0] == 0);
         let group_idx = if !groups.is_empty() {
             Some(groups.iter().enumerate().map(|(i, g)| (*g, i)).collect())
         } else {

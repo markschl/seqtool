@@ -49,11 +49,60 @@ fn id_desc() {
 
 #[test]
 fn regex() {
-    Tester::new()
-        .cmp(&["find", "-drf", r"p=\d$"], *FASTA, records!(0, 1))
+    let t = Tester::new();
+    t.cmp(&["find", "-drf", r"p=\d$"], *FASTA, records!(0, 1))
         .cmp(&["find", "-rf", "C[AT]GGCAGG"], *FASTA, records!(1, 2))
         // UTF-8
         .cmp(&["find", "-rif", "^.$"], ">ä\nSEQ\n", ">ä\nSEQ\n");
+
+    // groups
+    let pat = r"(?:[a-z]+)(\d+?)\|(?<code>\w+?)\|";
+    let fa = ">id123|abc|rest desc\nSEQ\n";
+    let vars = "id,match,match_group(1),match_group(code)";
+    let exp = "id123|abc|rest,id123|abc|,123,abc\n";
+    t.cmp(&["find", "-ri", pat, "--to-csv", vars], fa, exp)
+        .fails(
+            &["find", "-ri", pat, "--to-csv", "match_group(b)"],
+            fa,
+            "Named regex group 'b' not present",
+        )
+        .fails(
+            &["find", "-ri", pat, "--to-csv", "match_group(3)"],
+            fa,
+            "Regex group no. 3 not found",
+        )
+        .fails(
+            &["find", "-i", pat, "--to-csv", "match_group(1)"],
+            fa,
+            "groups other than '0' (the whole hit) are not supported",
+        );
+    // multiple groups
+    let fa = concat!(">s1\nSEQ\n", ">2\nSEQ\n", ">s\nSEQ\n");
+    let pat = concat!(">a\n(?<s>.)(?<n>\\d+)\n", ">b\n^(?<n>\\d+)$\n");
+    t.temp_file("patterns.fasta", Some(pat), |p, _| {
+        let f = format!("file:{}", p);
+        t.cmp(
+            &[
+                "find",
+                "-ri",
+                &f,
+                "--to-csv",
+                "id,pattern_name,match_group(1)",
+            ],
+            fa,
+            concat!("s1,a,s\n", "2,b,2\n", "s,N/A,N/A\n"),
+        )
+        .fails(
+            &["find", "-ri", &f, "--to-csv", "id,match_group(s)"],
+            fa,
+            r"Named regex group 's' not present in pattern '^(?<n>\d+)$'",
+        )
+        .fails(
+            &["find", "-ri", &f, "--to-csv", "id,match_group(n)"],
+            fa,
+            "Named group 'n' does not resolve to the same group number",
+        );
+    })
 }
 
 #[test]
@@ -168,11 +217,11 @@ fn vars() {
                 "--to-csv",
                 "id,pattern,match,aligned_match,\
                 match_start,match_end,match_range,match_neg_start,match_neg_end,\
-                match_drange,match_neg_drange,\
+                match_drange,\
                 pattern_name,match_diffs,match(all)",
             ],
             fasta,
-            "seq,CAGG,CAGG,CAGG,5,8,5-8,-21,-18,5..8,-21..-18,<pattern>,0,CAGG\n",
+            "seq,CAGG,CAGG,CAGG,5,8,5-8,-21,-18,5..8,<pattern>,0,CAGG\n",
         );
 }
 

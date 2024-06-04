@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
-mod approx;
-mod exact;
-mod regex;
+pub mod approx;
+pub mod exact;
+pub mod regex;
 
 use bio::alignment::AlignmentOperation;
 
@@ -61,7 +61,7 @@ pub fn get_matcher(
     }
     let matcher: Box<dyn Matcher + Send> = match algorithm {
         Exact => Box::new(exact::ExactMatcher::new(pattern.as_bytes())),
-        Regex => regex::get_matcher(pattern, opts.has_groups())?,
+        Regex => regex::get_matcher(pattern, opts.max_hits == 1, opts.has_groups())?,
         Myers => approx::get_matcher(pattern, ambig, opts)?,
     };
     Ok(matcher)

@@ -1,7 +1,9 @@
 use bio::{alignment::AlignmentOperation, pattern_matching::myers};
 
-use crate::cmd::find::ambig::{AMBIG_DNA, AMBIG_PROTEIN, AMBIG_RNA};
-use crate::cmd::find::opts::{DistanceThreshold, Opts, RequiredInfo};
+use crate::cmd::find::{
+    ambig::{AMBIG_DNA, AMBIG_PROTEIN, AMBIG_RNA},
+    opts::{DistanceThreshold, Opts, RequiredInfo},
+};
 use crate::CliResult;
 
 use super::{Hit, Match, Matcher};

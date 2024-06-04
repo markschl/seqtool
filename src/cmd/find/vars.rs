@@ -5,11 +5,13 @@ use bio::alignment::AlignmentOperation;
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
-use super::matches::Matches;
-use super::opts::{Opts, RequiredInfo};
 use crate::helpers::write_list::write_list_with;
 use crate::io::Record;
 use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
+
+use super::matcher::regex::resolve_group;
+use super::matches::Matches;
+use super::opts::{Opts, RequiredInfo};
 
 variable_enum! {
     /// # Variables/functions recognized by the 'find' command
@@ -74,61 +76,52 @@ variable_enum! {
         Match(Text) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Text match aligned with the pattern, including gaps if needed.
         AlignedMatch(Text) { hit: String = String::from("1"), rank: usize = 1 },
-        /// Text matched by regex match group of given number (0 = entire match).
-        /// An empty string is returned if the group does not exist
-        /// The hit number (sorted by edit distance or occurrence) and the pattern
-        /// number can be specified as well (details above).
-        MatchGroup(Text) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
         /// Start coordinate of the first/best match. Other hits/patterns are selected
         /// with `match_start(hit, [pattern])`, for details see `match`
         MatchStart(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Start of the first/best match relative to sequence end (negative coordinate).
         /// Other hits/patterns are selected with `match_neg_start(hit, [pattern])`,
         /// for details see `match`.
-        MatchNegStart(Number) { hit: String = String::from("1"), pattern: usize = 1 },
-        /// End coordinate of the first/best match. Other hits/patterns are selected
-        /// with `match_end(hit, [pattern])`, for details see `match`
         MatchEnd(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// End of the first/best match relative to sequence end (negative coordinate).
         /// Other hits/patterns are selected with `match_neg_end(hit, [pattern])`,
         /// for details see `match`.
+        MatchNegStart(Number) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// End coordinate of the first/best match. Other hits/patterns are selected
+        /// with `match_end(hit, [pattern])`, for details see `match`
         MatchNegEnd(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Length of the match
         MatchLen(Number) { hit: String = String::from("1"), rank: usize = 1 },
         /// Range (start-end) of the first/best match. Other hits/patterns are selected
         /// with `match_range(hit, [pattern])`, for details see `match`
         MatchRange(Number) { hit: String = String::from("1"), pattern: usize = 1 },
-        /// Range of the first/best match relative to sequence end (negative coordinate).
-        /// Other hits/patterns are selected with `match_neg_range(hit, [pattern])`,
-        /// for details see `match`.
-        MatchNegRange(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Range of the match with two dots as delimiter (start..end). Useful if the
         /// matched range(s) should be passed to the 'trim' or 'mask' commands.
         MatchDrange (Text) { hit: String = String::from("1"), pattern: usize = 1 },
-        /// Range of the match (dot delimiter) relative to the sequence end
-        /// (-<start>..-<end>).
-        MatchNegDrange (Text) { hit: String = String::from("1"), pattern: usize = 1 },
-        /// Start of regex match group no. 'group' of the first/best match
-        /// (group=0 is the entire match). Other hits/patterns are selected
-        /// with `matchgrp_start(hit, [pattern])`, for details see `match`.
-        MatchGrpStart(Number) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
-        /// End of regex match group no. 'group' of the first/best match
-        /// (group=0 is the entire match). Other hits/patterns are selected
-        /// with `matchgrp_end(hit, [pattern])`, for details see `match`.
-        MatchGrpEnd(Number) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
-        /// End coordinate of regex match group no. 'group' relative to the sequence end
-        /// (negative coordinate).
-        MatchGrpNegEnd(Number) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
-        /// Range (start-end) of regex match group no. 'group' of the first/best match
-        /// (group=0 is the entire match). Other hits/patterns are selected
-        /// with `matchgrp_range(hit, [pattern])`, for details see `match`.
-        MatchGrpRange(Number) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
-        /// Range of regex match group no. 'group' relative to the sequence end
-        /// (-<start>..-<end>).
-        MatchGrpNegRange(Number) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
-        /// Range of regex match group no. 'group' with '..' as delimiter and relative
-        /// to the sequence end (-<start>..-<end>).
-        MatchGrpDrange (Text) { group: usize, hit: String = String::from("1"), pattern: usize = 1 },
+        /// Text matched by regex match group of given number (0 = entire match)
+        /// or name in case of a named group: `(?<name>...)`.
+        /// The hit number (sorted by edit distance or occurrence) and the pattern
+        /// number can be specified as well (see `match` for details).
+        MatchGroup(Text) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
+        /// Start coordinate of the regex match group 'group' within the first/best match.
+        /// See 'match_group' for options and details.
+        MatchGrpStart(Number) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
+        /// End coordinate of the regex match group 'group' within the first/best match.
+        /// See 'match_group' for options and details.
+        MatchGrpEnd(Number) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
+        /// Start coordinate of regex match group 'group' relative to the sequence end (negative number).
+        /// See 'match_group' for options and details.
+        MatchGrpNegStart(Number) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
+        /// Start coordinate of regex match group 'group' relative to the sequence end (negative number).
+        /// See 'match_group' for options and details.
+        MatchGrpNegEnd(Number) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
+        /// Range (start-end) of regex match group 'group' relative to the sequence end.
+        /// See 'match_group' for options and details.
+        MatchGrpRange(Number) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
+        /// Range of regex match group 'group' relative to the sequence end, delimited
+        /// by two dots (start..end).
+        /// See 'match_group' for options and details.
+        MatchGrpDrange (Text) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
         /// Number of mismatches/insertions/deletions of the search pattern compared to the sequence
         /// (corresponds to edit distance). Either just `match_diffs` for the best match,
         /// or `match_diffs(h, [p])` to get the edit distance of the h-th best hit of
@@ -171,7 +164,6 @@ pub enum FindVarType {
     Start,
     End,
     Range(&'static str),
-    NegRange(&'static str),
     NegStart,
     NegEnd,
     Diffs,
@@ -201,21 +193,23 @@ pub struct RequestedHit {
 
 #[derive(Debug)]
 pub struct FindVars {
-    // (symbol_id, settings)
     vars: VarStore<RequestedHit>,
-    num_patterns: usize,
-    max_hits: usize,    // usize::MAX for all hits
+    // we need a copy of the patterns here to check for regex groups
+    patterns: Vec<String>,
+    max_hits: usize, // usize::MAX for all hits
+    regex: bool,
     groups: Vec<usize>, // match group numbers (0 = full hit)
     required_info: RequiredInfo,
 }
 
 impl FindVars {
-    pub fn new(num_patterns: usize) -> FindVars {
+    pub fn new(patterns: Vec<String>, regex: bool) -> FindVars {
         FindVars {
             vars: VarStore::default(),
-            num_patterns,
+            patterns,
             max_hits: 0,
             groups: Vec::new(),
+            regex,
             required_info: RequiredInfo::Exists,
         }
     }
@@ -345,12 +339,6 @@ impl FindVars {
                     m.dist as f64 / matches.pattern(req_hit.pattern_rank).unwrap().len() as f64
                 )),
                 Range(delim) => ("{}{}{}", m.start + 1, delim, m.end),
-                NegRange(delim) => (
-                    "{}{}{}",
-                    m.neg_start1(rec.seq_len()),
-                    delim,
-                    m.neg_end1(rec.seq_len())
-                ),
                 Ins => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Del) as i64)),
                 Del => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Ins) as i64)),
                 Subst => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Subst) as i64)),
@@ -434,63 +422,61 @@ impl VarProvider for FindVars {
             use FindVar::*;
             use FindVarType::*;
             let (var_type, hit, pattern_rank, match_group) = match var {
-                FindVar::Match { hit, pattern } => (FindVarType::Match, hit, pattern, 0),
-                FindVar::AlignedMatch { hit, rank } => (FindVarType::AlignedMatch, hit, rank, 0),
-                FindVar::MatchLen { hit, rank } => (FindVarType::MatchLen, hit, rank, 0),
+                FindVar::Match { hit, pattern } => (FindVarType::Match, hit, pattern, None),
+                FindVar::AlignedMatch { hit, rank } => (FindVarType::AlignedMatch, hit, rank, None),
+                FindVar::MatchLen { hit, rank } => (FindVarType::MatchLen, hit, rank, None),
                 MatchGroup {
                     hit,
                     pattern,
                     group,
-                } => (Match, hit, pattern, group),
-                MatchDiffs { hit, pattern } => (Diffs, hit, pattern, 0),
-                MatchIns { hit, pattern } => (Ins, hit, pattern, 0),
-                MatchDel { hit, pattern } => (Del, hit, pattern, 0),
-                MatchSubst { hit, pattern } => (Subst, hit, pattern, 0),
-                MatchDiffRate { hit, pattern } => (DiffRate, hit, pattern, 0),
-                MatchStart { hit, pattern } => (Start, hit, pattern, 0),
-                MatchNegStart { hit, pattern } => (NegStart, hit, pattern, 0),
-                MatchEnd { hit, pattern } => (End, hit, pattern, 0),
-                MatchNegEnd { hit, pattern } => (NegEnd, hit, pattern, 0),
-                MatchRange { hit, pattern } => (Range("-"), hit, pattern, 0),
-                MatchNegRange { hit, pattern } => (NegRange("-"), hit, pattern, 0),
-                MatchDrange { hit, pattern } => (Range(".."), hit, pattern, 0),
-                MatchNegDrange { hit, pattern } => (NegRange(".."), hit, pattern, 0),
+                } => (Match, hit, pattern, Some(group)),
+                MatchDiffs { hit, pattern } => (Diffs, hit, pattern, None),
+                MatchIns { hit, pattern } => (Ins, hit, pattern, None),
+                MatchDel { hit, pattern } => (Del, hit, pattern, None),
+                MatchSubst { hit, pattern } => (Subst, hit, pattern, None),
+                MatchDiffRate { hit, pattern } => (DiffRate, hit, pattern, None),
+                MatchStart { hit, pattern } => (Start, hit, pattern, None),
+                MatchEnd { hit, pattern } => (End, hit, pattern, None),
+                MatchNegStart { hit, pattern } => (NegStart, hit, pattern, None),
+                MatchNegEnd { hit, pattern } => (NegEnd, hit, pattern, None),
+                MatchRange { hit, pattern } => (Range("-"), hit, pattern, None),
+                MatchDrange { hit, pattern } => (Range(".."), hit, pattern, None),
                 MatchGrpStart {
                     hit,
                     pattern,
                     group,
-                } => (Start, hit, pattern, group),
+                } => (Start, hit, pattern, Some(group)),
                 MatchGrpEnd {
                     hit,
                     pattern,
                     group,
-                } => (End, hit, pattern, group),
+                } => (End, hit, pattern, Some(group)),
+                MatchGrpNegStart {
+                    hit,
+                    pattern,
+                    group,
+                } => (NegStart, hit, pattern, Some(group)),
                 MatchGrpNegEnd {
                     hit,
                     pattern,
                     group,
-                } => (NegEnd, hit, pattern, group),
-                MatchGrpNegRange {
-                    hit,
-                    pattern,
-                    group,
-                } => (NegRange("-"), hit, pattern, group),
+                } => (NegEnd, hit, pattern, Some(group)),
                 MatchGrpRange {
                     hit,
                     pattern,
                     group,
-                } => (Range("-"), hit, pattern, group),
+                } => (Range("-"), hit, pattern, Some(group)),
                 MatchGrpDrange {
                     hit,
                     pattern,
                     group,
-                } => (Range(".."), hit, pattern, group),
-                PatternName { rank } => (Name, "1".into(), rank, 0),
-                FindVar::Pattern { rank } => (FindVarType::Pattern, "1".into(), rank, 0),
+                } => (Range(".."), hit, pattern, Some(group)),
+                PatternName { rank } => (Name, "1".into(), rank, None),
+                FindVar::Pattern { rank } => (FindVarType::Pattern, "1".into(), rank, None),
                 FindVar::AlignedPattern { hit, rank } => {
-                    (FindVarType::AlignedPattern, hit, rank, 0)
+                    (FindVarType::AlignedPattern, hit, rank, None)
                 }
-                FindVar::PatternLen { rank } => (FindVarType::PatternLen, "1".into(), rank, 0),
+                FindVar::PatternLen { rank } => (FindVarType::PatternLen, "1".into(), rank, None),
             };
 
             // parse hit number
@@ -504,16 +490,46 @@ impl VarProvider for FindVars {
             };
 
             // pattern rank:
-            debug_assert!(self.num_patterns > 0);
-            if pattern_rank > self.num_patterns {
+            debug_assert!(self.patterns.len() > 0);
+            if pattern_rank > self.patterns.len() {
                 return fail!(format!(
                     "Pattern rank {} requested, but there are only {} patterns",
-                    pattern_rank, self.num_patterns
+                    pattern_rank,
+                    self.patterns.len()
                 ));
             }
             let pattern_rank = pattern_rank
                 .checked_sub(1)
                 .ok_or("The pattern rank must be > 0")?;
+
+            // resolve match group
+            let match_group = match_group.as_deref().unwrap_or("0");
+            let match_group = if match_group == "0" {
+                0
+            } else if !self.regex {
+                return Err(format!(
+                    "Regex group '{}' was requested, but groups other than '0' (the whole hit) \
+                    are not supported for non-regex patterns. Did you forget to enable regex matching with
+                    `-r/--regex`?", match_group));
+            } else {
+                let mut num = None;
+                for pattern in &self.patterns {
+                    let _n = resolve_group(pattern, match_group)?;
+                    if let Some(n) = num {
+                        if n != _n {
+                            return Err(format!(
+                                "Named group '{}' does not resolve to the same group number in all patterns.\
+                                This is a requirement in the case of multiple regex patterns. \
+                                Consider using simple group numbers instead.",
+                                match_group,
+                            ));
+                        }
+                    } else {
+                        num = Some(_n);
+                    }
+                }
+                num.unwrap()
+            };
 
             // update required_info if this variable needs more information than
             // already configured (passed on to `Matcher` objects)
