@@ -4,14 +4,72 @@ use std::ops::{Deref, DerefMut};
 
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{value::SimpleValue, DefaultHashMap as HashMap};
 use crate::var::varstring::VarString;
 
+pub const DESC: &str = "
+Records in all the provided input (including multiple files) are counted
+collectively.
+
+In addition, records can be summarized over one or more categories
+specified with `-k/--key`. The reported counts are always sorted by the
+numeric or text category.
+";
+
+lazy_static::lazy_static! {
+    pub static ref EXAMPLES: String = color_print::cformat!(
+        "\
+<y,s,u>Examples</y,s,u>:
+
+Print record counts per input file:
+
+<c>`st count -k path input.fasta input2.fasta input3.fasta`</c><r>
+input.fasta   1224818
+input2.fasta  573
+input3.fasta  99186
+</r>
+
+Print the sequence length distribution:
+
+<c>`st count -k seqlen input.fasta`</c><r>
+102 1
+105 2
+106 3
+(...)
+</r>
+
+In case of a header attribute `attr(name)` or a value from
+an associated list `meta(column)`, these are always interpreted
+as text by default, unless the `num(...)` function is used,
+which makes sure that the categories are correctly sorted:
+
+<c>`st count -k 'num(attr(name))' input.fasta`</c>
+
+Note that continuous numbers may lead to too many categories, in which
+case 'bin(..)' should be used to group the numbers into intervals.
+Example summarizing the GC content in 5% intervals:
+
+<c>`st count -k 'bin(gc_percent, 5) input.fasta`</c><r>
+(10, 15]    2
+(15, 20]    9
+(20, 25]    357
+(25, 30]    1397
+(30, 35]    3438
+(35, 40]    2080
+(40, 45]    1212
+(45, 50]    1424
+(50, 55]    81
+</r>
+"
+    );
+}
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Count' command options")]
+#[clap(before_help=DESC, after_help=&*EXAMPLES, help_template=WORDY_HELP)]
 pub struct CountCommand {
     /// Count sequences for each unique value of the given category.
     /// Can be a single variable/function such as 'filename', 'desc' or 'attr(name)',

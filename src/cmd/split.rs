@@ -6,15 +6,43 @@ use clap::Parser;
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::helpers::DefaultHashMap as HashMap;
 use crate::io::output::{FormatWriter, OutputKind};
 use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuilder};
 use crate::CliResult;
 
+pub const DESC: &str = "\
+or advanced expressions specified in the output path (`-o/--output`).
+See `--help` and `--help-vars` for more information.
+In contrast to other commands, the output argument (`-o`) of the
+'split' command can contain variables/functions to determine the
+file path for each sequence.\
+";
+
+lazy_static::lazy_static! {
+    pub static ref EXAMPLES: String = color_print::cformat!("\
+<y,s,u>Examples</y,s,u>:
+
+Distribute sequences into different files by an attribute 'category'
+found in the sequence headers (with values A and B):
+
+ <c>st split input.fasta -o 'outdir/{{attr(category)}}.fasta'</c>
+
+Created files:
+<r>outdir/category_A.fasta
+outdir/category_B.fasta</r>
+
+Group the input sequences by the recognized primer, which is recognized
+using the 'find' command
+ <c>st find -f file:primers.fa input.fq -a primer='{{pattern_name}}' |
+     st split -o '{{attr(primer)}}.fq'</c>");
+}
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Split' command options")]
+#[clap(before_help=DESC, after_help=&*EXAMPLES, help_template=WORDY_HELP)]
 pub struct SplitCommand {
     /// Split into chunks of <N> sequences and writes each chunk to a separate
     /// file with a numbered suffix. The output path is: '{filestem}_{chunk}.{default_ext}',

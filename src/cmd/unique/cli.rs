@@ -3,11 +3,21 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use super::MapFormat;
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::helpers::bytesize::parse_bytesize;
+
+pub const DESC: &str = "\
+The unique key can be 'seq' or any variable/function, expression, or
+text containing them (see <KEY> help and `st unique --help-vars`).
+
+The order of the records is the same as in the input unless the memory limit
+is exceeded, in which case temporary files are used and all remaining records
+are sorted by the unique key. Use `-s/--sorted` to always sort the output
+by key.";
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Unique' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct UniqueCommand {
     /// The key used to determine, which records are unique.
     /// The key can be a single variable/function such as 'seq',

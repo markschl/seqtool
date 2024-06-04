@@ -5,14 +5,17 @@ use clap::{value_parser, Parser};
 use deepsize::DeepSizeOf;
 use rand::{distributions::Uniform, prelude::*};
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::{Config, SeqContext};
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
 use crate::io::{output::FormatWriter, Record};
 
+pub const DESC: &str = " The records are returned in input order.";
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Sample' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct SampleCommand {
     /// Randomly select a fixed number of sequences.
     /// In case speed is important, consider -p/--prob.

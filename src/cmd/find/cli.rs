@@ -1,6 +1,6 @@
 use clap::{value_parser, Args, Parser};
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::error::CliResult;
 use crate::helpers::rng::Range;
 
@@ -31,9 +31,30 @@ pub fn parse_patterns(pattern: &str) -> CliResult<Vec<(Option<String>, String)>>
     Ok(patterns)
 }
 
+pub const DESC: &str = "\
+There are different search modes:
+1) Exact search
+2) Regular expressions (`-r/--regex`)
+2) DNA or protein patterns with ambiguous letters
+3) Approximate matching up to a given edit distance
+    (`-D/--diffs` or `-R/--max-diff-rate`) search with am
+    to a given edit distance, or using a regular expression.
+
+Search results can be used in three different ways:
+1) Keeping (`-f/--filter`) or excluding (`-e/--exclude`) matched
+   sequences
+2) Pattern replacement (`--rep`) with ambiguous/approximate
+   matching (for exact/regex replacement, use the 'replace'
+   command)
+3) Passing the search results to the output in sequence
+   headers (`-a/--attr`) or TSV/CSV fields (`--to-tsv/--to-csv`);
+   see `st find --help-vars` for all possible variables/
+   functions
+";
 
 /// Fast searching for one or more patterns in sequences or ids/descriptions, with optional multithreading.
 #[derive(Parser, Clone, Debug)]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct FindCommand {
     // #[arg(required_unless_present = "--help-vars")]
     /// Pattern string or 'file:<patterns.fasta>'

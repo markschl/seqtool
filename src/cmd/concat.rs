@@ -2,13 +2,18 @@ use std::iter::repeat;
 
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::OwnedRecord;
 
+pub const DESC: &str = "\
+The sequence IDs must be in the same order in all files;
+Fails if the IDs don't match.";
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Concat' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct ConcatCommand {
     /// Don't check if the IDs of the records from
     /// the different files match

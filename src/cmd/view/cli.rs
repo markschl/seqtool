@@ -3,11 +3,15 @@ use std::env;
 use clap::{value_parser, Args, Parser};
 use vec_map::VecMap;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::cmd::view::display_pal;
 use crate::error::CliResult;
 
 use super::{Color, PaletteType, QualPaletteType, SeqPaletteType};
+
+pub const DESC: &str = "\
+The output is automatically forwarded to the 'less' pager on UNIX.\
+";
 
 #[derive(Parser, Clone, Debug)]
 pub struct ViewCommand {
@@ -27,6 +31,7 @@ pub struct ViewCommand {
 
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "General 'view' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct GeneralViewArgs {
     /// Length of IDs in characters. Longer IDs are truncated (default: 10 - 100 depending on ID length)
     #[arg(short, long, value_name = "CHARS", value_parser = value_parser!(u32).range(1..))]
@@ -102,7 +107,7 @@ pub struct ColorArgs {
 
     /// Use 16M colors, not only 256. This has to be supported by the terminal.
     /// Useful if autorecognition fails.
-    #[arg(short, long)]
+    #[arg(short, long, value_name = "?")]
     pub truecolor: Option<bool>,
 }
 

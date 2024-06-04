@@ -2,12 +2,17 @@ use std::cmp::max;
 
 use clap::{value_parser, Parser};
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 
+pub const DESC: &str = "\
+This only works for files (not STDIN), since records are counted in a first
+step, and only returned after reading a second time.";
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Tail' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct TailCommand {
     /// Number of sequences to return
     #[arg(short, long, value_name = "N", default_value_t = 10, value_parser = value_parser!(u64).range(1..))]

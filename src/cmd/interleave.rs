@@ -1,11 +1,15 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 
+pub const DESC: &str = "\
+The records are returned in the same order as in the input files.";
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Interleave' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct InterleaveCommand {
     /// Don't check if the IDs of the files match
     #[arg(short, long)]

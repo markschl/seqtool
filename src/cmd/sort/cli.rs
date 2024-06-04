@@ -2,11 +2,47 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::helpers::bytesize::parse_bytesize;
+
+pub const DESC: &str = "\
+The sort key can be 'seq', 'id', or any variable/function, expression, or
+text containing them (see <KEY> help and `st sort --help-vars`).
+
+Records with identical keys are kept in input order.
+
+The actual value of the key is available through the 'key' variable. It can
+be written to a header attribute or TSV field.
+";
+
+lazy_static::lazy_static! {
+    pub static ref EXAMPLES: String = color_print::cformat!(
+        "\
+ <c>st sort seqlen input.fasta</c><r>
+>>id10
+SEQ
+>>id3
+SEQUE
+>>id1
+SEQUENCE
+</r>
+
+Write the sort key (obtained from JS expression, whose evaluation takes time)
+to a header attribute:
+
+<c>st sort -n '{{ id.substring(2, 5) }}' -a id_num='{{num(key)}}' input.fasta</c><r>
+>>id001 id_num=1
+SEQ
+>>id002 id_num=2
+SEQ
+</r>\
+"
+);
+}
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Sort' command options")]
+#[clap(before_help=DESC, after_help=&*EXAMPLES, help_template=WORDY_HELP)]
 pub struct SortCommand {
     /// The key used to sort the records. It can be a single variable/function
     /// such as 'seq', 'id', a composed string, e.g. '{id}_{desc}',

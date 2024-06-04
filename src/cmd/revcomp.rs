@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::complement::reverse_complement;
@@ -8,8 +8,17 @@ use crate::io::SeqQualRecord;
 
 use crate::helpers::seqtype::{SeqType, SeqtypeHelper};
 
+pub const DESC: &str = "\
+The sequence type is automatically detected based on the first record,
+unless the `--seqtype` option is used.
+
+*Note*: Unknown letters are not reversed, but left unchanged.
+
+If quality scores are present, their order is just reversed";
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Revcomp' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct RevcompCommand {
     /// Number of threads to use
     #[arg(short, long, default_value_t = 1)]

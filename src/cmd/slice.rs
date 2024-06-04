@@ -1,12 +1,25 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::rng::Range;
 
+pub const DESC: &str = "\
+The range is specified as `start..end`, whereby start and end
+are the sequence numbers (starting from 1). Open ranges are
+possible, in the form `start..` or `..end`.
+
+The following is equivalent with the
+'head' and 'tail' commands:
+ `st slice ..10 input.fasta`
+ `st slice '-10..' input.fasta`
+
+The 'slice' command does not extract subsequences; see the
+'trim' command for that.";
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Slice' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct SliceCommand {
     /// Range in form 'start..end' or '..end' or 'start..'
     #[arg(value_name = "FROM..TO")]
