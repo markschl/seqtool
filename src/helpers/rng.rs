@@ -109,6 +109,15 @@ impl Range {
         if end < 0 {
             end = (length as isize + end).max(0);
         }
+        if start > length as isize {
+            // silently set start and end to length if both are outside of range,
+            // resulting in empty slice
+            start = length as isize;
+            end = length as isize;
+        } else if end > length as isize {
+            // silently set end to length if outside of range to avoid panics
+            end = length as isize;
+        }
         // silently adjust the end bound if it is smaller than the start
         // we don't want a hard error, just return an empty slice
         // TODO: make configurable?
