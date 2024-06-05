@@ -29,8 +29,10 @@ pub struct TrimCommand {
 
     /// Exclusive trim range: excludes start and end positions
     /// from the output sequence.
+    /// In the case of unbounded ranges (`start..` or `..end`), the range still
+    /// extends to the complete end or the start of the sequence.
     #[arg(short, long)]
-    exclude: bool,
+    exclusive: bool,
 
     /// Interpret range as 0-based, with the end not included.
     #[arg(short('0'), long)]
@@ -43,7 +45,7 @@ pub struct TrimCommand {
 pub fn run(mut cfg: Config, args: &TrimCommand) -> CliResult<()> {
     let ranges = &args.ranges;
     let rng0 = args.zero_based;
-    let exclusive = args.exclude;
+    let exclusive = args.exclusive;
 
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {

@@ -25,8 +25,10 @@ pub struct MaskCommand {
 
     /// Exclusive range: excludes start and end positions
     /// from the masked sequence.
+    /// In the case of unbounded ranges (`start..` or `..end`), the range still
+    /// extends to the complete end or the start of the sequence.
     #[arg(short, long)]
-    exclude: bool,
+    exclusive: bool,
 
     /// Interpret range as 0-based, with the end not included.
     #[arg(short('0'), long)]
@@ -40,7 +42,7 @@ pub fn run(mut cfg: Config, args: &MaskCommand) -> CliResult<()> {
     let ranges = &args.ranges;
     let hard_mask = args.hard;
     let rng0 = args.zero_based;
-    let exclusive = args.exclude;
+    let exclusive = args.exclusive;
     let unmask = args.unmask;
 
     let mut format_writer = cfg.get_format_writer()?;
