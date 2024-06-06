@@ -22,7 +22,7 @@ pub enum RngBound {
 impl RngBound {
     pub fn from_varstring(vs: VarString) -> Result<Option<RngBound>, String> {
         if let Some(text) = vs.get_text() {
-            if text.is_empty() || text == NA {
+            if text.is_empty() || text == NA.as_bytes() {
                 return Ok(None);
             }
             if let Ok(bound) = parse_int(text) {

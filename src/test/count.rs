@@ -1,3 +1,5 @@
+use crate::helpers::NA;
+
 use super::*;
 
 #[test]
@@ -21,7 +23,7 @@ fn fixed() {
         .cmp(
             &["count", "-k", "opt_attr(non_existent)"],
             *FASTA,
-            "N/A\t4\n",
+            &format!("{}\t4\n", NA),
         );
 }
 
@@ -74,17 +76,21 @@ fn float() {
 #[test]
 fn missing() {
     let t = Tester::new();
-    t.cmp(&["count", "-k", "{opt_attr(missing)}"], *FASTA, "N/A\t4\n")
-        .cmp(
-            &["count", "-k", "{num(opt_attr(missing))}"],
-            *FASTA,
-            "N/A\t4\n",
-        )
-        .fails(
-            &["count", "-k", "{attr(missing)}"],
-            *FASTA,
-            "'missing' not found in record",
-        );
+    t.cmp(
+        &["count", "-k", "{opt_attr(missing)}"],
+        *FASTA,
+        &format!("{}\t4\n", NA),
+    )
+    .cmp(
+        &["count", "-k", "{num(opt_attr(missing))}"],
+        *FASTA,
+        &format!("{}\t4\n", NA),
+    )
+    .fails(
+        &["count", "-k", "{attr(missing)}"],
+        *FASTA,
+        "'missing' not found in record",
+    );
 
     #[cfg(feature = "expr")]
     t.cmp(

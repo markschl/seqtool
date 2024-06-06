@@ -103,8 +103,13 @@ st trim ".." input.fasta
 ATGCATGCMORE</span>
 </pre>
 
+### `undefined`
 
-### Exclusive ranges (`-e/--exclusive`)
+*Undefined* is a special keyword that equals to missing data and thus,
+`undefined..undefined` equals to an unbounded range `..`.
+
+`undefined` may be returned by functions such as `opt_attr()` and `opt_meta()`.
+
 
 The `trim` and `mask` commands also accept an `-e/--exclusive` argument
 that excludes start and end coordinates from the range.

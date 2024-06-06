@@ -1,5 +1,7 @@
 use seq_io::fasta;
 
+use crate::helpers::NA;
+
 use super::*;
 
 #[test]
@@ -90,7 +92,7 @@ fn regex() {
                 "id,pattern_name,match_group(1)",
             ],
             fa,
-            concat!("s1,a,s\n", "2,b,2\n", "s,N/A,N/A\n"),
+            &format!("s1,a,s\n2,b,2\ns,{na},{na}\n", na = NA),
         )
         .fails(
             &["find", "-ri", &f, "--to-csv", "id,match_group(s)"],
@@ -115,7 +117,7 @@ fn missing() {
     Tester::new().cmp(
         &["find", "ATGC", "-a", "pos={match_start}"],
         ">id\n\n",
-        ">id pos=N/A\n\n",
+        &format!(">id pos={}\n\n", NA),
     );
 }
 
@@ -126,7 +128,11 @@ fn range() {
     Tester::new()
         .cmp(&["find", "A", "--to-csv", v], fa, "2-2\n")
         .cmp(&["find", "A", "--rng", "2..2", "--to-csv", v], fa, "2-2\n")
-        .cmp(&["find", "A", "--rng", "..1", "--to-csv", v], fa, "N/A\n")
+        .cmp(
+            &["find", "A", "--rng", "..1", "--to-csv", v],
+            fa,
+            &format!("{}\n", NA),
+        )
         .cmp(
             &["find", "G", "--max-shift-start", "2", "--to-csv", v],
             fa,
@@ -149,7 +155,7 @@ fn range() {
         .cmp(
             &["find", "G", "--max-shift-start", "1", "--to-csv", v],
             fa,
-            "N/A\n",
+            &format!("{}\n", NA),
         );
 }
 
@@ -178,7 +184,10 @@ fn drop_file() {
         let mut f = File::open(out_path).expect("File not there");
         let mut s = String::new();
         f.read_to_string(&mut s).unwrap();
-        assert_eq!(&s, ">seq1 m=N/A\nSEQ1\n>seq3 m=N/A\nSEQ3\n");
+        assert_eq!(
+            &s,
+            &format!(">seq1 m={na}\nSEQ1\n>seq3 m={na}\nSEQ3\n", na = NA)
+        );
     })
 }
 
@@ -208,7 +217,10 @@ fn vars() {
                 match_group(1),match_group(1,2)",
             ],
             fasta,
-            "seq,C[GC](A[AT]),CCAA,CCAA,CCAA,CGAT,N/A,CCAA,CGAT,9-12,16-19,12,19,AA,AT\n",
+            &format!(
+                "seq,C[GC](A[AT]),CCAA,CCAA,CCAA,CGAT,{},CCAA,CGAT,9-12,16-19,12,19,AA,AT\n",
+                NA
+            ),
         )
         .cmp(
             &[
@@ -368,7 +380,7 @@ fn ambig() {
         .cmp(
             &["find", "--to-csv", vars, "-D", "0", &subseq_indel],
             &fasta,
-            "N/A,N/A\n",
+            &format!("{na},{na}\n", na = NA),
         )
         .cmp(
             &["find", "--to-csv", vars, "-D", "1", &subseq_indel],
@@ -390,7 +402,7 @@ fn ambig() {
         .cmp(
             &["find", "--to-csv", "id,match_range", &seq_orig_[1..]],
             &*format!(">seq\n{}\n", seq_ambig),
-            "seq,N/A\n",
+            &format!("seq,{}\n", NA),
         )
         // fuzzy matching however will work
         .cmp(

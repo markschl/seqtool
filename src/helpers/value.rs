@@ -39,7 +39,7 @@ impl SimpleValue {
             Number(v) => write!(writer, "{}", v),
             Boolean(v) => write!(writer, "{}", v),
             Interval(i) => write!(writer, "{}", i),
-            None => writer.write_all(NA),
+            None => writer.write_all(NA.as_bytes()),
         }
     }
 

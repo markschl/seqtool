@@ -1,3 +1,5 @@
+use crate::helpers::NA;
+
 use super::*;
 
 static ATTR_FA: &str = ">seq;a=0 b=3\nATGC\n";
@@ -116,9 +118,29 @@ fn attrs() {
             &[".", "-a", "a={attr_del(p)}_{attr(p)}"],
             *FASTA,
             "attribute 'p' is supposed to be deleted",
+        )
+        // undefined
+        .cmp(
+            &[".", "-a", "b={opt_attr('a')}"],
+            &format!(">seq a={}\nSEQ\n", NA),
+            &format!(">seq a={na} b={na}\nSEQ\n", na = NA),
+        )
+        .cmp(
+            &[".", "-a", "b={has_attr('a')}"],
+            &format!(">seq a={}\nSEQ\n", NA),
+            &format!(">seq a={} b=false\nSEQ\n", NA),
+        )
+        .fails(
+            &[".", "-a", "b={attr('a')}"],
+            &format!(">seq a={}\nSEQ\n", NA),
+            &format!(
+                "value for attribute 'a' is '{}', which is reserved for missing values",
+                NA
+            ),
         );
 
     #[cfg(feature = "expr")]
+    use crate::helpers::NA;
     t.cmp(
         &[".", "--to-tsv", "{num(attr('p'))+1}"],
         *FASTA,
@@ -135,13 +157,17 @@ fn attrs() {
 #[test]
 fn attrs_missing() {
     let t = Tester::new();
-    t.cmp(&[".", "--to-tsv", "opt_attr(a)"], ATTR_FA, "N/A\n")
-        .cmp(&[".", "--to-tsv", "has_attr(a)"], ATTR_FA, "false\n")
-        .fails(
-            &[".", "--to-tsv", "attr(a)"],
-            ATTR_FA,
-            "not found in record",
-        );
+    t.cmp(
+        &[".", "--to-tsv", "opt_attr(a)"],
+        ATTR_FA,
+        &format!("{}\n", NA),
+    )
+    .cmp(&[".", "--to-tsv", "has_attr(a)"], ATTR_FA, "false\n")
+    .fails(
+        &[".", "--to-tsv", "attr(a)"],
+        ATTR_FA,
+        "not found in record",
+    );
     #[cfg(feature = "expr")]
     t.cmp(
         &[".", "--to-tsv", "{opt_attr('a') === undefined}"],
@@ -164,7 +190,7 @@ fn attr_format() {
         fa,
         "true\n",
     )
-    .cmp(&[".", "--to-tsv", "opt_attr(a)"], fa, "N/A\n")
+    .cmp(&[".", "--to-tsv", "opt_attr(a)"], fa, &format!("{}\n", NA))
     .fails(
         &[".", "--to-tsv", "attr(b)", "--attr-fmt", ";key=value"],
         fa,
@@ -328,7 +354,7 @@ fn meta_missing() {
     let t = Tester::new();
     t.temp_file("meta", Some(META_MISSING), |p, _| {
         // opt_meta
-        let out = "2\nN/A\n10\n11\n";
+        let out = &format!("2\n{}\n10\n11\n", NA);
         t.cmp(&[".", "-m", p, "--to-tsv", "{opt_meta(2)}"], *FASTA, out);
         // has_meta
         let out = "true\nfalse\ntrue\ntrue\n";
@@ -336,6 +362,23 @@ fn meta_missing() {
         // meta() should fail
         let msg = "not found in metadata";
         t.fails(&[".", "-m", p, "--to-tsv", "{meta(2)}"], *FASTA, msg);
+    });
+    // undefined value
+    use crate::helpers::NA;
+    t.temp_file("meta", Some(&format!("id1\t{}\n", NA)), |p, _| {
+        t.cmp(
+            &[".", "-m", p, "--to-csv", "id,opt_meta(2)"],
+            ">id1\nSEQ\n",
+            &format!("id1,{}\n", NA),
+        )
+        .fails(
+            &[".", "-m", p, "--to-csv", "id,meta(2)"],
+            ">id1\nSEQ\n",
+            &format!(
+                "field no. 2 in record 'id1' is '{}', which is reserved for missing values",
+                NA
+            ),
+        );
     });
 }
 
@@ -370,7 +413,7 @@ fn meta_multi_file() {
             t.temp_file("meta", Some(META_MISSING), |f3, _| {
                 // three files
                 let fields = "meta(2, 1),meta(2, 2),opt_meta(2, 3)";
-                let out = "2\t2\t2\n1\t1\tN/A\n10\t10\t10\n11\t11\t11\n";
+                let out = &format!("2\t2\t2\n1\t1\t{}\n10\t10\t10\n11\t11\t11\n", NA);
                 t.cmp(
                     &[".", "-m", f1, "-m", f2, "-m", f3, "--to-tsv", fields],
                     *FASTA,
@@ -405,13 +448,29 @@ fn meta_larger() {
     let _meta = [(1, 1), (2, 2), (2, 0), (3, 3), (4, 4), (6, 6), (7, 7)];
     // expected output
     let out = [
-        "1\t1", "2\t2", "2\t0", "3\t3", "4\t4", "7\t7", "2\tN/A", "5\tN/A", "6\t6",
+        "1\t1",
+        "2\t2",
+        "2\t0",
+        "3\t3",
+        "4\t4",
+        "7\t7",
+        &format!("2\t{}", NA),
+        &format!("5\t{}", NA),
+        "6\t6",
     ]
     .join("\n")
         + "\n";
     // with --dup-ids: always the same value for 2
     let idx_out = [
-        "1\t1", "2\t2", "2\t2", "3\t3", "4\t4", "7\t7", "2\t2", "5\tN/A", "6\t6",
+        "1\t1",
+        "2\t2",
+        "2\t2",
+        "3\t3",
+        "4\t4",
+        "7\t7",
+        "2\t2",
+        &format!("5\t{}", NA),
+        "6\t6",
     ]
     .join("\n")
         + "\n";
@@ -443,7 +502,7 @@ fn meta_larger() {
         let fasta2 = format!("{}>5\nSEQ\n", fasta);
         let dup_err = "Found duplicate sequence ID: '5'.";
         t.fails(&[".", "-m", path, "--to-tsv", fields], &fasta2, dup_err);
-        let exp = format!("{}5\tN/A\n", idx_out);
+        let exp = format!("{}5\t{}\n", idx_out, NA);
         t.cmp(
             &[".", "-m", path, "--to-tsv", fields, "--dup-ids"],
             &fasta2,

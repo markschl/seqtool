@@ -503,7 +503,7 @@ impl OptValue {
         if let Some(v) = self.inner() {
             v.as_text(record, |s| out.write_all(s))
         } else {
-            out.write_all(NA)
+            out.write_all(NA.as_bytes())
         }
     }
 }
@@ -513,7 +513,7 @@ impl fmt::Display for OptValue {
         if self.is_some {
             write!(f, "{}", self.value)
         } else {
-            write!(f, "N/A")
+            write!(f, "{}", NA)
         }
     }
 }

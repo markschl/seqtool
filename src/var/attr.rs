@@ -7,6 +7,7 @@ use winnow::combinator::{alt, rest, terminated};
 use winnow::token::{take, take_until};
 use winnow::{Located, PResult, Parser as _};
 
+use crate::helpers::NA;
 use crate::io::{MaybeModified, Record, RecordAttr};
 use crate::{CliError, CliResult};
 
@@ -264,9 +265,18 @@ impl Attributes {
         Ok(())
     }
 
-    pub fn has_value(&self, attr_id: usize) -> bool {
-        let (_, position) = self.parser.get(attr_id);
-        position.is_some()
+    pub fn has_value<'a>(
+        &self,
+        attr_id: usize,
+        id_text: &'a [u8],
+        desc_text: Option<&'a [u8]>,
+    ) -> bool {
+        if let Some(text) = self.get_value(attr_id, id_text, desc_text) {
+            if text != NA.as_bytes() {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn get_value<'a>(

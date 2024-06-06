@@ -24,7 +24,7 @@ variable_enum! {
     ///
     /// Find a primer sequence with up to 2 mismatches (`-d/--dist``) and write
     /// the match range and the mismatches ('dist') to the header as attributes.
-    /// The result will be N/A (or undefined in JavaScript) if there are > 2 mismatches
+    /// The result will be 'undefined' (=undefined in JavaScript) if there are > 2 mismatches
     ///
     /// `st find -d 2 CTTGGTCATTTAGAGGAAGTAA -a rng={match_range} -a dist={match_diffs} reads.fasta`
     ///

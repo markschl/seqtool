@@ -8,7 +8,7 @@ use csv::{self, ByteRecord, Reader, ReaderBuilder};
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
-use crate::helpers::{DefaultHashMap as HashMap, DefaultHashSet as HashSet};
+use crate::helpers::{DefaultHashMap as HashMap, DefaultHashSet as HashSet, NA};
 use crate::io::{
     input::{get_io_reader, InputKind},
     FileInfo, FormatVariant, QualConverter, Record,
@@ -98,8 +98,8 @@ variable_enum! {
         Meta(Text) { column: String, file_number: usize = 1 },
         /// Like `meta(...)`, but metadata entries can be missing, i.e. not every sequence
         /// record ID needs a matching metadata entry.
-        /// Missing values will result in 'N/A' if written to the output, or 'undefined'
-        /// in JavaScript expressions.
+        /// Missing values will result in 'undefined' if written to the output
+        /// (= undefined in JavaScript expressions).
         OptMeta(Text) { column: String, file_number: usize = 1 },
         /// Returns `true` if the given record has a metadata entry with the same ID in
         /// the in the given file. In case of multiple files, the file number
@@ -243,7 +243,20 @@ impl VarProvider for MetaVars {
                         let sym = symbols.get_mut(*symbol_id);
                         if let Some(rec) = opt_record {
                             if let Some(text) = rec.get(*i) {
-                                sym.inner_mut().set_text(text);
+                                if text != NA.as_bytes() {
+                                    sym.inner_mut().set_text(text);
+                                    continue;
+                                }
+                                if !allow_missing {
+                                    return fail!(
+                                        "The value for the field no. {col} in record '{id}' is '{na}', \
+                                        which is reserved for missing values. \
+                                        If '{na}' is meant to represent a missing value, use `opt_meta()` \
+                                        to avoid this error. Otherwise, consider avoiding '{na}' \
+                                        in the metadata file.",
+                                        col=*i + 1, id=String::from_utf8_lossy(id), na=NA
+                                    );
+                                }
                             } else {
                                 if !allow_missing {
                                     return fail!(
@@ -252,19 +265,18 @@ impl VarProvider for MetaVars {
                                         String::from_utf8_lossy(id)
                                     );
                                 }
-                                sym.set_none();
                             }
                         } else {
                             if !allow_missing {
                                 return fail!(
-                                    "ID '{}' not found in metadata file '{}'. Use the `opt_meta(field)` function \
+                                    "ID '{}' not found in metadata file '{}'. Use `opt_meta(field)` \
                                     instead of `meta(field)` if you expect missing entries.",
                                     String::from_utf8_lossy(id),
                                     rdr.path
                                 );
                             }
-                            sym.set_none();
                         }
+                        sym.set_none();
                     }
                     MetaVarKind::Exists => {
                         symbols

@@ -1,6 +1,7 @@
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
+use crate::helpers::NA;
 use crate::io::{QualConverter, Record};
 use crate::var::{
     attr::{self, Attributes},
@@ -38,19 +39,19 @@ variable_enum! {
     /// `st count -k 'attr(abund)' --attr-fmt ';key=value' seqs.fa`
     ///
     ///
-    /// Summarize over an attribute 'a', which may be missing or 'N/A' in some
+    /// Summarize over an attribute 'a', which may be 'undefined' (=missing) in some
     /// headers
     ///
     /// `st count -k 'opt_attr(a)' seqs.fa`
     ///
     /// value1	6042
     /// value2	1012
-    /// N/A	9566
+    /// undefined	9566
     AttrVar {
         /// Obtain an attribute of given name (must be present in all sequences)
         Attr(Text) { name: String },
-        /// Obtain an attribute value, or 'N/A' if missing.
-        /// In JavaScript expressions, missing attributes equal to `undefined`.
+        /// Obtain an attribute value, or 'undefined' if missing
+        /// (=undefined in JavaScript expressions)
         OptAttr(Text) { name: String },
         /// Obtain an attribute (must be present), simultaneously removing
         /// it from the header.
@@ -152,23 +153,35 @@ impl VarProvider for AttrVars {
             let sym = symbols.get_mut(*symbol_id);
             match var.return_type {
                 AttrVarType::Value => {
-                    if let Some(val) = attrs.get_value(var.attr_id, rec.id(), rec.desc()) {
-                        sym.inner_mut().set_text(val);
-                    } else {
-                        if !var.allow_missing {
-                            return fail!(format!(
-                                "Attribute '{}' not found in record '{}'. \
-                                Use 'opt_attr()' if attributes are missing in some records. \
-                                Use --attr-format to adjust the attribute key/value format.",
-                                var.name,
-                                String::from_utf8_lossy(rec.id())
-                            ));
+                    let opt_value = attrs.get_value(var.attr_id, rec.id(), rec.desc());
+                    if let Some(val) = opt_value {
+                        if val != NA.as_bytes() {
+                            sym.inner_mut().set_text(val);
+                            continue;
                         }
-                        sym.set_none();
+                        if !var.allow_missing {
+                            return fail!(
+                                "The value for attribute '{attr}' is '{na}', which is reserved for missing values. \
+                                If '{na}' is meant to represent a missing value, use `opt_attr()` or `opt_attr_del()` \
+                                to avoid this error. Otherwise, consider adjusting the attribute values to avoid '{na}'.",
+                                attr=var.name, na=NA
+                            );
+                        }
                     }
+                    if !var.allow_missing {
+                        return fail!(
+                            "Attribute '{}' not found in record '{}'. \
+                            Use `opt_attr()` or `opt_attr_del()` if attributes are missing in some records. \
+                            Use --attr-format to adjust the attribute key/value format.",
+                            var.name,
+                            String::from_utf8_lossy(rec.id())
+                        );
+                    }
+                    sym.set_none();
                 }
                 AttrVarType::Exists => {
-                    sym.inner_mut().set_bool(attrs.has_value(var.attr_id));
+                    sym.inner_mut()
+                        .set_bool(attrs.has_value(var.attr_id, rec.id(), rec.desc()));
                 }
             }
         }

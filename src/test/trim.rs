@@ -1,3 +1,5 @@
+use crate::helpers::NA;
+
 use super::*;
 
 #[test]
@@ -86,9 +88,24 @@ fn trim_multiline_multirange() {
 fn trim_na() {
     Tester::new()
         .cmp(
+            &["trim", &format!("{}..", NA)],
+            ">id\nABCDE\n",
+            ">id\nABCDE\n",
+        )
+        .cmp(
+            &["trim", &format!("{na}..{na}", na = NA)],
+            ">id\nABCDE\n",
+            ">id\nABCDE\n",
+        )
+        .cmp(
+            &["trim", "{opt_attr(s)}..{attr(e)}"],
+            &format!(">id s={} e=3\nABCDE\n", NA),
+            &format!(">id s={} e=3\nABC\n", NA),
+        )
+        .fails(
             &["trim", "{attr(s)}..{attr(e)}"],
-            ">id s=N/A e=3\nABCDE\n",
-            ">id s=N/A e=3\nABC\n",
+            &format!(">id s={} e=3\nABCDE\n", NA),
+            "reserved for missing values",
         )
         .cmp(
             &["trim", "{opt_attr(s)}..{opt_attr(e)}"],
@@ -97,7 +114,7 @@ fn trim_na() {
         )
         .fails(
             &["trim", "{opt_attr(s)}..{opt_attr(e)}"],
-            ">id s=NA\nABCDE\n",
-            "Could not convert 'NA' to an integer number",
+            ">id s=something\nABCDE\n",
+            "Could not convert 'something' to an integer number",
         );
 }

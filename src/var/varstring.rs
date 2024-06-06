@@ -207,7 +207,7 @@ impl VarString {
         }
         text_buf.clear();
         self.compose(text_buf, table, record).unwrap();
-        if text_buf.as_slice() != NA {
+        if text_buf.as_slice() != NA.as_bytes() {
             return Ok(Some(parse_int(text_buf)?));
         }
         Ok(None)
@@ -234,7 +234,7 @@ impl VarString {
             }
             text_buf.clear();
             self.compose(text_buf, symbols, record).unwrap();
-            if text_buf.as_slice() != NA {
+            if text_buf.as_slice() != NA.as_bytes() {
                 *out = SimpleValue::Text(mem::take(text_buf).into_boxed_slice());
             } else {
                 *out = SimpleValue::None;

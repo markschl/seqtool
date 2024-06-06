@@ -35,14 +35,14 @@ impl Range {
             let start = trim_ascii(&b[..delim_pos]);
             let end = trim_ascii(&b[delim_pos + delim.len()..]);
             if memmem::find(end, delim).is_none() {
-                let start = if start.is_empty() || start == NA {
+                let start = if start.is_empty() || start == NA.as_bytes() {
                     None
                 } else {
                     Some(parse_int(start).map_err(|_| {
                         format!("Invalid range start: '{}'", String::from_utf8_lossy(start))
                     })? as isize)
                 };
-                let end = if end.is_empty() || end == NA {
+                let end = if end.is_empty() || end == NA.as_bytes() {
                     None
                 } else {
                     Some(parse_int(end).map_err(|_| {

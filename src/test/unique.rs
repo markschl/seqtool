@@ -159,8 +159,10 @@ fn case() {
 #[test]
 #[cfg(feature = "expr")]
 fn key_var() {
+    use crate::helpers::NA;
+
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
-    let out = ">s1 k=-1\nS1\n>s2 k=N/A\nS2\n";
+    let out = &format!(">s1 k=-1\nS1\n>s2 k={}\nS2\n", NA);
     let formula = "{ if (seq_num <= 1) return -parseInt(id.substring(1, 2)); return undefined; }";
     Tester::new().cmp(&["unique", formula, "-a", "k={key}"], fa, out);
 }
