@@ -56,7 +56,7 @@ variable_enum! {
     /// Remove duplicate records irrespective of the sequence orientation and
     /// whether letters are uppercase or lowercase
     ///
-    /// `st unique seqhash_both(false) input.fasta`
+    /// `st unique 'seqhash_both(true)' input.fasta`
     GeneralVar {
         /// Record ID (in FASTA/FASTQ: everything before first space)
         Id(Text),

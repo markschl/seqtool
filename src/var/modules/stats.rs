@@ -23,9 +23,9 @@ variable_enum! {
     /// seq3	47.3684
     ///
     ///
-    /// Remove DNA sequences with at least 1% ambiguous bases
+    /// Remove DNA sequences with more than 1% ambiguous bases
     ///
-    /// `st filter 'charcount("ACGT") / seqlen >= 0.01' input.fa`
+    /// `st filter 'charcount("ACGT") / seqlen >= 0.99' input.fa`
     StatVar {
         /// Sequence length
         Seqlen(Number),

@@ -49,7 +49,7 @@ variable_enum! {
     ///
     /// Discard sequences with >1% ambiguous bases or sequences shorter than 100bp
     ///
-    /// `st filter 'charcount("ACGT") / seqlen >= 0.01 && seqlen >= 100' seqs.fasta`
+    /// `st filter 'charcount("ACGT") / seqlen >= 0.99 && seqlen >= 100' seqs.fasta`
     ///
     ///
     /// Distribute sequences into different files by a slightly complicated condition.

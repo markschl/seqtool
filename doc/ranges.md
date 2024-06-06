@@ -1,7 +1,21 @@
 # Explanation of ranges
 
-Ranges in seqtool are used by commands like [trim](trim), [find](find), [mask](mask),
-and [slice](slice).
+Ranges in seqtool are used or produced by commands like [trim](trim), [find](find),
+[mask](mask), and [slice](slice).
+
+## In a nutshell
+
+1. Ranges in the form `start..end` include both the start and end position,
+   unless [0-based coordinates](#0-based-coordinates--0) are configured.
+2. Negative coordinates (e.g. `-5..-1`) indicate coordinate offsets from the end
+   (right)
+3. [Unbounded](#unbounded-ranges-start-or-end) ranges (`start..` or `..end`)
+   have only one defined coordinate, while the range includes everything on the
+   other side. *"undefined"* equals to missing coordinates.
+4. If interpreting ranges as [exclusive](#exclusive-ranges--e--exclusive), the
+   actual start or end positions are not included in the range.
+
+## Overview
 
 Ranges look like this: `start..end`.
 The the start and end positions are **always part of the range**, unless
@@ -20,13 +34,13 @@ from end:      -8  <span style="color:blue">-7  -6  -5  -4  -3</span>  -2  -1
 The following commands all trim sequences to the <span style="color:blue">blue</span> range,
 resulting in the same output:
 
-```bash
+```sh
 st trim '2..6' input.fasta
 st trim '-7..-3' input.fasta
 st trim '2..-3' input.fasta
 ```
 
-### Empty ranges
+## Empty ranges
 
 Ranges of zero length are only possible if the start is greater than the end
 (e.g. `5..4`).
@@ -37,16 +51,16 @@ An exception are [0-based ranges](#0-based-coordinates--0).
 In this specific mode, `5..5` would result in an empty range.
 
 
-### Unbounded ranges: `start..` or `..end`
+## Unbounded ranges: `start..` or `..end`
 
 The start or end positions can be missing, which results in the whole sequence
 up or from a certain position being included in the range.
 
-#### No end
+### No end
 
 The following retains all positions from `5` to the end:
 
-```bash
+```sh
 st trim '5..' input.fasta
 st trim '-4..' input.fasta
 ```
@@ -73,12 +87,12 @@ ATGC<span style="color:blue">ATGCMORE</span>
 Usually, you might want to use the unbounded `start..` range, which will *always*
 include the whole sequence end.
 
-#### No start
+### No start
 
 It is also possible to omit the **start** position to return all positions up to
 a given position:
 
-```bash
+```sh
 st trim '..3' input.fasta
 ```
 
@@ -90,11 +104,11 @@ st trim '..3' input.fasta
 > ⚠️ again, `0..3` is equivalent to `..3`, but only if not using
 > [exclusive ranges](#exclusive-ranges--e--exclusive).
 
-#### No bounds at all
+### No bounds at all
 
 The following will retain the whole sequence, resulting in *no trimming* at all:
 
-```bash
+```sh
 st trim ".." input.fasta
 ```
 
@@ -110,6 +124,7 @@ ATGCATGCMORE</span>
 
 `undefined` may be returned by functions such as `opt_attr()` and `opt_meta()`.
 
+## Exclusive ranges (`-e/--exclusive`)
 
 The `trim` and `mask` commands also accept an `-e/--exclusive` argument
 that excludes start and end coordinates from the range.
@@ -117,7 +132,7 @@ that excludes start and end coordinates from the range.
 The following commands trim to positions 3-5 (<span style="color:blue">blue</span>)
 without the range bounds `2` and `6` themselves (<span style="color:red">red</span>).
 
-```bash
+```sh
 st trim -e '2..6' input.fasta
 st trim -e '-7..-3' input.fasta
 ```
@@ -130,11 +145,11 @@ from end:      -8 <span style="color:red"> -7 </span><span style="color:blue"> -
 </pre>
 
 One important corner case are **[unbounded ranges](#unbounded-ranges-start-or-end)**.
-In case of missing bounds, the ranges are not trimmed on that side, the range
+In case of missing bounds, the ranges are not trimmed or masked on that side, the range
 still extends to the start or end as if it would without `-e/--exclusive`:
 
 
-```bash
+```sh
 st trim -e '5..' input.fasta
 st trim -e '-4..' input.fasta
 ```
@@ -147,7 +162,7 @@ from end:      -8  -7  -6  -5  <span style="color:red">-4 </span><span style="co
 </pre>
 
 
-### 0-based coordinates (`-0`)
+## 0-based coordinates (`-0`)
 
 If you prefer 0-based ranges common to many programming languages, specify the `-0` argument.
 These are less intuitive, but have the advantage that empty slices can be more easily
@@ -164,7 +179,7 @@ base number:    1  <span style="color:blue"> 2   3   4   5   6</span>   7   8
 from end:      -8  <span style="color:blue">-7  -6  -5  -4  -3</span>  <span style="color:green">-2</span>  -1
 </pre>
 
-```bash
+```sh
 st trim -0 '1..6' input.fasta
 st trim -0 '-7..-2' input.fasta
 ```

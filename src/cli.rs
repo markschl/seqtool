@@ -368,7 +368,7 @@ pub enum SubCommand {
     /// or extract and concatenate several ranges.
     #[cfg(any(feature = "all-commands", feature = "trim"))]
     Trim(cmd::trim::TrimCommand),
-    /// Soft or hard mask sequence ranges (see also `st mask --help`)
+    /// Soft or hard mask sequence ranges
     #[cfg(any(feature = "all-commands", feature = "mask"))]
     Mask(cmd::mask::MaskCommand),
     /// Convert sequences to uppercase
@@ -514,7 +514,7 @@ pub struct OutputArgs {
     /// TSV/CSV delimiter. Defaults: '\t' for tsv/txt; ',' for csv
     pub out_delim: Option<char>,
 
-    #[arg(long, value_name = "FIELD")]
+    #[arg(long, value_name = "FIELDS")]
     /// Comma delimited list of CSV/TSV fields, which can be
     /// variables/functions or contain variables/expressions.
     /// [default: input fields or 'id,desc,seq']
@@ -577,7 +577,7 @@ pub struct AttrArgs {
     #[arg(
         long,
         env = "ST_ATTR_FORMAT",
-        value_name = "DELIM",
+        value_name = "FMT",
         default_value = " key=value"
     )]
     pub attr_fmt: AttrFormat,
@@ -618,7 +618,7 @@ pub struct MetaArgs {
 #[clap(next_help_heading = "Expressions/scripts (all commands)")]
 pub struct ExprArgs {
     /// Javascript code to execute during initialization
-    /// (for setting global variables used during parsing).
+    /// (e.g. for defining global variables used later during parsing).
     /// Either a plain string or 'file:path/to/file.js'
     #[arg(long, value_name = "CODE")]
     pub js_init: Option<String>,
