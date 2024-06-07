@@ -100,6 +100,7 @@ impl Opts {
             &args.patterns,
             args.search.algo,
             cfg.get_seqtype(),
+            attr,
             args.search.no_ambig,
             args.search.regex,
             max_dist,

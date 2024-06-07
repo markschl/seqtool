@@ -3,6 +3,7 @@ use std::{collections::HashSet, fmt::Display};
 use itertools::Itertools;
 
 use crate::helpers::seqtype::{guess_seqtype_or_fail, SeqType, SeqTypeInfo};
+use crate::io::RecordAttr;
 use crate::CliResult;
 
 use super::opts::{Algorithm, DistanceThreshold};
@@ -11,6 +12,7 @@ pub(crate) fn analyse_patterns<S>(
     patterns: &[(Option<S>, S)],
     algo_override: Option<Algorithm>,
     typehint: Option<SeqType>,
+    search_attr: RecordAttr,
     no_ambig: bool,
     regex: bool,
     max_dist: Option<DistanceThreshold>,
@@ -65,7 +67,11 @@ where
                 }
             }
 
-            if typehint.is_none() && algorithm != Algorithm::Regex && !quiet {
+            if search_attr == RecordAttr::Seq
+                && typehint.is_none()
+                && algorithm != Algorithm::Regex
+                && !quiet
+            {
                 // unless 'regex' was specified, we must know the correct sequence type,
                 // or there could be unexpected behaviour
                 eprint!("Note: the sequence type of the pattern ",);
