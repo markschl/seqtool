@@ -77,6 +77,12 @@ huge collections with limited memory.
 For efficient de-replication, the *seqhash* and *seqhash_both* variables/functions
 were introduced.
 
+### New range notation
+
+The Rust-like `start..end` has been replaced with the shorter Python-like
+`start:end` syntax. Using dashes (`start-end`) is not an option because
+like Python, *seqtool* supports negative coordinates (offset from end).
+
 ### Improvements to other commands
 
 #### Pattern matching (`find`)
@@ -145,7 +151,7 @@ making this command much more powerful.
 #### `trim`
 
 * The `trim` command now accepts comma-delimited lists of ranges in the form
-`start1..end1,start2..end2`, etc., whereby the trimmed sub-ranges are concatenated.now
+`start1:end1,start2:end2`, etc., whereby the trimmed sub-ranges are concatenated.now
   Previously, only the `mask` command could handle multiple ranges.
 * In the trim ranges, the start coordinates may now be greater than the end,
   which results in empty sequences. Previously, this resulted in the error
@@ -193,10 +199,10 @@ even with in-order parsing to detect problematic input.
 
 The and *trim*, *mask* accept an `-e/--exclusive` flag to exclude the start/end
 bounds themselves from the range. The old behaviour was to also exclude the 
-first/last position with *unbounded* ranges `..end` or `start..`. 
+first/last position with *unbounded* ranges `:end` or `start:`. 
 The new behaviour is to always include everything from the start/to the end
 even with `-e/--exclusive`.
-To exclude the start/end, specify `0..end` or `start..-1`.
+To exclude the start/end, specify `0:end` or `start:-1`.
 See also the documentation on ranges.
 
 ### Highly customizable due to feature flags
@@ -214,9 +220,9 @@ For example, it is possible to have:
 
 ### Other changes
 
-* Missing values are now represented by `N/A` instead of empty strings.
+* Missing values are now represented by `undefined` instead of empty strings.
   This is more intuitive and clear in some ambiguous situations.
-  JavaScript `undefined` and `null` are also converted to `N/A`, e.g.
+  JavaScript `undefined` and `null` are also converted to `undefined`, e.g.
   when setting header attributes with `-a key={expression}`.
 * CSV/TSV fields are *not* quoted/escaped anymore. If the separator (comma, tab, etc.)
   is found in one of the fields, this will lead to invalid output, and the user
