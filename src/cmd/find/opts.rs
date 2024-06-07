@@ -1,5 +1,3 @@
-use std::fmt;
-
 use itertools::Itertools;
 use strum_macros::Display;
 
@@ -103,16 +101,7 @@ impl Opts {
 
         // Obtain a sequence type and search algorithm for each pattern
         // (based on heuristic and/or CLI args)
-        let (seqtype, algorithms) = analyse_patterns(
-            &args.patterns,
-            args.search.algo,
-            cfg.get_seqtype(),
-            attr,
-            args.search.no_ambig,
-            args.search.regex,
-            max_dist,
-            args.common.general.quiet,
-        )?;
+        let (seqtype, algorithms) = analyse_patterns(args, cfg.get_seqtype(), attr, max_dist)?;
 
         let (pattern_names, patterns): (Vec<_>, Vec<_>) = args.patterns.iter().cloned().unzip();
 
@@ -214,32 +203,27 @@ impl Shift {
     }
 }
 
-pub(crate) fn analyse_patterns<S>(
-    patterns: &[(Option<S>, S)],
-    algo_override: Option<Algorithm>,
+fn analyse_patterns(
+    args: &FindCommand,
     typehint: Option<SeqType>,
     search_attr: RecordAttr,
-    no_ambig: bool,
-    regex: bool,
     max_dist: Option<DistanceThreshold>,
-    quiet: bool,
-) -> CliResult<(SeqType, Vec<(Algorithm, bool)>)>
-where
-    S: AsRef<str> + fmt::Display,
-{
+) -> CliResult<(SeqType, Vec<(Algorithm, bool)>)> {
     let mut ambig_seqs = vec![];
+    let quiet = args.common.general.quiet;
 
-    let (unique_seqtypes, out): (HashSet<SeqType>, Vec<(Algorithm, bool)>) = patterns
+    let (unique_seqtypes, out): (HashSet<SeqType>, Vec<(Algorithm, bool)>) = args
+        .patterns
         .iter()
         .map(|(name, pattern)| {
-            let info = if regex {
+            let info = if args.search.regex {
                 SeqTypeInfo::new(SeqType::Other, false, false)
             } else {
-                guess_seqtype_or_fail(pattern.as_ref().as_bytes(), typehint, true).map_err(|e| {
+                guess_seqtype_or_fail(pattern.as_bytes(), typehint, true).map_err(|e| {
                     format!(
                         "Error in search pattern{}: {}",
                         name.as_ref()
-                            .map(|n| format!(" '{}'", n.as_ref()))
+                            .map(|n| format!(" '{}'", n))
                             .unwrap_or_default(),
                         e
                     )
@@ -248,15 +232,15 @@ where
             // no discrimination here
             let mut has_ambig = info.has_wildcard || info.has_ambiguities;
             if has_ambig {
-                ambig_seqs.push(name.as_ref());
+                ambig_seqs.push(name);
             }
             // override if no_ambig was set
-            if no_ambig {
+            if args.search.no_ambig {
                 has_ambig = false;
             }
 
             // decide which algorithm should be used
-            let mut algorithm = if regex {
+            let mut algorithm = if args.search.regex {
                 Algorithm::Regex
             } else if max_dist.is_some() || has_ambig {
                 Algorithm::Myers
@@ -265,7 +249,7 @@ where
             };
 
             // override with user choice
-            if let Some(a) = algo_override {
+            if let Some(a) = args.search.algo {
                 algorithm = a;
                 if a != Algorithm::Myers && has_ambig {
                     eprintln!("Warning: `--ambig` ignored with search algorithm '{}'.", a);
@@ -300,11 +284,11 @@ where
         .into_iter()
         .unzip();
 
-    if no_ambig && !ambig_seqs.is_empty() && !quiet {
+    if args.search.no_ambig && !ambig_seqs.is_empty() && !quiet {
         eprintln!(
             "Warning: Ambiguous matching is deactivated (--no-ambig), but there are patterns \
             with ambiguous letters ({}). Use `-q/--quiet` to suppress this message.",
-            ambig_seqs.iter().map(|s| s.unwrap()).join(", ") // unwrap: >1 patterns means they are all named
+            ambig_seqs.iter().map(|s| s.as_ref().unwrap()).join(", ") // unwrap: >1 patterns means they are all named
         );
     }
 
