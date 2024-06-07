@@ -123,7 +123,7 @@ impl VarString {
     }
 
     /// Splits the VarString at the first occurrence of a given separator.
-    /// This is used for parsing slice ranges (start..end)
+    /// This is used for parsing slice ranges (start:end)
     /// The implementation is not particularly efficient, but this method is only rarely called
     pub fn split_at(&self, sep: &[u8]) -> Option<(Self, Self)> {
         for i in 0..self.len() {

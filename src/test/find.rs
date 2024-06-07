@@ -126,31 +126,31 @@ fn range() {
     let fa = ">id\nTAG\n";
     let v = "match_range";
     Tester::new()
-        .cmp(&["find", "A", "--to-csv", v], fa, "2-2\n")
-        .cmp(&["find", "A", "--rng", "2..2", "--to-csv", v], fa, "2-2\n")
+        .cmp(&["find", "A", "--to-csv", v], fa, "2:2\n")
+        .cmp(&["find", "A", "--rng", "2:2", "--to-csv", v], fa, "2:2\n")
         .cmp(
-            &["find", "A", "--rng", "..1", "--to-csv", v],
+            &["find", "A", "--rng", ":1", "--to-csv", v],
             fa,
             &format!("{}\n", NA),
         )
         .cmp(
             &["find", "G", "--max-shift-start", "2", "--to-csv", v],
             fa,
-            "3-3\n",
+            "3:3\n",
         )
         .cmp(
             &[
                 "find",
                 "G",
                 "--rng",
-                "2..",
+                "2:",
                 "--max-shift-start",
                 "1",
                 "--to-csv",
                 v,
             ],
             fa,
-            "3-3\n",
+            "3:3\n",
         )
         .cmp(
             &["find", "G", "--max-shift-start", "1", "--to-csv", v],
@@ -178,7 +178,7 @@ fn drop_file() {
                 out_path,
             ],
             fa,
-            ">seq2 m=4-4\nSEQ2\n",
+            ">seq2 m=4:4\nSEQ2\n",
         );
 
         let mut f = File::open(out_path).expect("File not there");
@@ -194,12 +194,12 @@ fn drop_file() {
 #[test]
 fn rng() {
     Tester::new()
-        .cmp(&["find", "-f", "--rng", "..4", "TTGG"], *FASTA, records!(0))
-        .cmp(&["find", "-f", "--rng", "..3", "TTGG"], *FASTA, "")
-        .cmp(&["find", "-f", "--rng", "2..5", "TTGG"], *FASTA, "")
-        .cmp(&["find", "-f", "--rng", "2..4", "TGGC"], *FASTA, "")
-        .cmp(&["find", "-f", "--rng", " -5..", "GATCA"], *FASTA, &FASTA)
-        .cmp(&["find", "-f", "--rng", "16..-7", "CGAT"], *FASTA, &FASTA);
+        .cmp(&["find", "-f", "--rng", ":4", "TTGG"], *FASTA, records!(0))
+        .cmp(&["find", "-f", "--rng", ":3", "TTGG"], *FASTA, "")
+        .cmp(&["find", "-f", "--rng", "2:5", "TTGG"], *FASTA, "")
+        .cmp(&["find", "-f", "--rng", "2:4", "TGGC"], *FASTA, "")
+        .cmp(&["find", "-f", "--rng", "-5:", "GATCA"], *FASTA, &FASTA)
+        .cmp(&["find", "-f", "--rng", "16:-7", "CGAT"], *FASTA, &FASTA);
 }
 
 #[test]
@@ -218,7 +218,7 @@ fn vars() {
             ],
             fasta,
             &format!(
-                "seq,C[GC](A[AT]),CCAA,CCAA,CCAA,CGAT,{},CCAA,CGAT,9-12,16-19,12,19,AA,AT\n",
+                "seq,C[GC](A[AT]),CCAA,CCAA,CCAA,CGAT,{},CCAA,CGAT,9:12,16:19,12,19,AA,AT\n",
                 NA
             ),
         )
@@ -229,11 +229,10 @@ fn vars() {
                 "--to-csv",
                 "id,pattern,match,aligned_match,\
                 match_start,match_end,match_range,match_neg_start,match_neg_end,\
-                match_drange,\
                 pattern_name,match_diffs,match(all)",
             ],
             fasta,
-            "seq,CAGG,CAGG,CAGG,5,8,5-8,-21,-18,5..8,<pattern>,0,CAGG\n",
+            "seq,CAGG,CAGG,CAGG,5,8,5:8,-21,-18,<pattern>,0,CAGG\n",
         );
 }
 
@@ -318,7 +317,7 @@ fn fuzzy_gaps() {
                 pattern,
             ],
             fa,
-            "ACGC,ACG--C,ACGTGC,2-5,4,2\n",
+            "ACGC,ACG--C,ACGTGC,2:5,4,2\n",
         )
         .cmp(
             &[
@@ -332,7 +331,7 @@ fn fuzzy_gaps() {
                 pattern,
             ],
             fa,
-            "ACGCAC,ACGCAC,ACGTGC,2-7,6,2\n",
+            "ACGCAC,ACGCAC,ACGTGC,2:7,6,2\n",
         )
         .cmp(
             &[
@@ -346,7 +345,7 @@ fn fuzzy_gaps() {
                 pattern,
             ],
             fa,
-            "2-5,15-18\tACG--C,ACG--C\n",
+            "2:5,15:18\tACG--C,ACG--C\n",
         )
         .cmp(
             &[
@@ -360,7 +359,7 @@ fn fuzzy_gaps() {
                 pattern,
             ],
             fa,
-            "2-7,15-20\tACGCAC,ACGCAC\n",
+            "2:7,15:20\tACGCAC,ACGCAC\n",
         );
 }
 
@@ -371,7 +370,7 @@ fn ambig() {
     let subseq = "ACRCTGTGGAGNTTTC";
     let subseq_indel = "ACRCTG-GGAGNTTTC".replace('-', "");
     let vars = "match_range,match";
-    let expected = "4-19,ACACTGTGGAGTTTTC\n";
+    let expected = "4:19,ACACTGTGGAGTTTTC\n";
     let fasta = format!(">seq\n{}\n", seq);
 
     Tester::new()
@@ -397,7 +396,7 @@ fn ambig() {
         .cmp(
             &["find", "--to-csv", "id,match_range", &seq_ambig[1..]],
             &*format!(">seq\n{}\n", seq_orig_),
-            "seq,2-16\n",
+            "seq,2:16\n",
         )
         .cmp(
             &["find", "--to-csv", "id,match_range", &seq_orig_[1..]],
@@ -415,7 +414,7 @@ fn ambig() {
                 &seq_orig_[1..],
             ],
             &*format!(">seq\n{}\n", seq_ambig),
-            "seq,2-16\n",
+            "seq,2:16\n",
         );
 }
 
@@ -471,10 +470,11 @@ fn multiple() {
             fasta::write_parts(&mut f, format!("p{}", i).as_bytes(), None, *p as &[u8]).unwrap();
         }
 
-        let vars = "match_range,match_range(1,1),match_range(1,2),match_range(1,3),\
+        let vars =
+            "match_range,match_range(1,1),match_range(1,2),match_range(1,3),match_range(1,1,'-'),\
                 match_diffs,match_diffs(1,1),match_diffs(1,2),match_diffs(1,3),\
                 pattern_name,pattern_name(1),pattern_name(2),pattern_name(3)";
-        let out = "2-21,2-21,2-21,2-21,0,0,1,2,p0,p0,p2,p1\n";
+        let out = "2:21,2:21,2:21,2:21,2-21,0,0,1,2,p0,p0,p2,p1\n";
 
         t.cmp(&["find", "--to-csv", vars, "-D2", &patt_path], &fasta, out);
     });

@@ -9,7 +9,7 @@ use crate::io::SeqQualRecord;
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Mask' command options")]
 pub struct MaskCommand {
-    /// Range in the form 'start..end' or 'start..' or '..end',
+    /// Range in the form 'start:end' or 'start:' or ':end',
     /// The range start/end may be defined by varialbes/functions,
     /// or the varialbe/function may contain a whole range.
     ranges: String,
@@ -25,7 +25,7 @@ pub struct MaskCommand {
 
     /// Exclusive range: excludes start and end positions
     /// from the masked sequence.
-    /// In the case of unbounded ranges (`start..` or `..end`), the range still
+    /// In the case of unbounded ranges (`start:` or `:end`), the range still
     /// extends to the complete end or the start of the sequence.
     #[arg(short, long)]
     exclusive: bool,

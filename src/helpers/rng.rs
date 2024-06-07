@@ -30,7 +30,7 @@ impl Range {
     }
 
     pub fn from_bytes(b: &[u8]) -> Result<Self, String> {
-        let delim = b"..";
+        let delim = b":";
         if let Some(delim_pos) = memmem::find(b, delim) {
             let start = trim_ascii(&b[..delim_pos]);
             let end = trim_ascii(&b[delim_pos + delim.len()..]);
@@ -53,7 +53,7 @@ impl Range {
             }
         }
         Err(format!(
-            "Invalid range: '{}'. Possible notations: 'start..end', 'start..', '..end', or '..'",
+            "Invalid range: '{}'. Possible notations: 'start:end', 'start:', ':end', or ':'",
             String::from_utf8_lossy(b)
         ))
     }
@@ -64,16 +64,16 @@ impl Range {
     pub fn adjust(mut self, range0: bool, exclusive: bool) -> Result<Self, String> {
         if !range0 {
             // start0 = start - 1
-            // 3..6 becomes 2..6
-            // 0..6 stays 0..6  (0 is not a valid 1-based coordinate but may rather be interpreted as open range?)
+            // '3:6' becomes '2:6'
+            // '0:6' stays '0:6'  (0 is not a valid 1-based coordinate but may rather be interpreted as open range?)
             if let Some(s) = self.start.as_mut() {
                 if *s >= 1 {
                     *s -= 1;
                 }
             }
             // negative end coordinates: end0 = end + 1
-            // ..-3 becomes ..-2
-            // ..-1 becomes None (end not trimmed)
+            // ':-3' becomes ':-2'
+            // ':-1' becomes None (end not trimmed)
             if self.end == Some(-1) {
                 self.end = None;
             } else if let Some(e) = self.end.as_mut() {

@@ -15,11 +15,11 @@ masking). Reverting soft masking is also possible.";
 #[clap(next_help_heading = "'Trim' command options")]
 #[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct TrimCommand {
-    /// Range(s) in the form 'start..end' or 'start..' or '..end',
+    /// Range(s) in the form 'start:end' or 'start:' or ':end',
     /// Multiple ranges can be supplied as comma-delimited list:
-    /// start..end,start2..end2,etc.
+    /// 'start:end,start2:end2', etc.
     /// The start/end positions can be defined by variables/functions
-    /// (start_var..end_var), or variables/functions may return
+    /// (start_var:end_var), or variables/functions may return
     /// the whole range (e.g. stored as header attribute 'attr(range)'),
     /// or even a list of ranges (e.g. 'attr(range_list)').
     /// *Note* that with the FASTA format, multiple trim ranges
@@ -29,7 +29,7 @@ pub struct TrimCommand {
 
     /// Exclusive trim range: excludes start and end positions
     /// from the output sequence.
-    /// In the case of unbounded ranges (`start..` or `..end`), the range still
+    /// In the case of unbounded ranges (`start:` or `:end`), the range still
     /// extends to the complete end or the start of the sequence.
     #[arg(short, long)]
     exclusive: bool,

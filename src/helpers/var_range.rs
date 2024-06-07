@@ -49,12 +49,12 @@ impl RngBound {
 /// later
 #[derive(Debug, Clone)]
 pub enum VarRange {
-    /// range (..) notation already found in input text
+    /// range (start:end) notation already found in input text
     Split {
         start: Option<RngBound>,
         end: Option<RngBound>,
     },
-    /// range notation start..end will be present after the `VarString`
+    /// range notation 'start:end' will be present after the `VarString`
     /// has been composed (separately for every record)
     Full {
         varstring: VarString,
@@ -63,7 +63,7 @@ pub enum VarRange {
 }
 
 impl VarRange {
-    /// Obtain range from start..end or {start_var}..{end_var} or
+    /// Obtain range from 'start:end' or {start_var}:{end_var} or
     /// {range_var}, whose value should be a valid range.
     /// In theory, more complicated compositions are possible, but they will
     /// rarely result in useful/valid ranges.
@@ -74,13 +74,13 @@ impl VarRange {
                 cache: Vec::with_capacity(20),
             });
         }
-        if let Some((start, end)) = varstring.split_at(b"..") {
+        if let Some((start, end)) = varstring.split_at(b":") {
             return Ok(VarRange::Split {
                 start: RngBound::from_varstring(start)?,
                 end: RngBound::from_varstring(end)?,
             });
         }
-        fail!("Invalid variable range. Valid are 'start..end', 'start..', '..end' or '..'")
+        fail!("Invalid variable range. Valid are 'start:end', 'start:', ':end' or ':'")
     }
 
     /// Replace variables to obtain the actual range

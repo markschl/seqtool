@@ -155,12 +155,13 @@ pub struct SearchArgs {
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Search range")]
 pub struct SearchRangeArgs {
-    /// Search within the given range ('start..end', 'start..' or '..end'). Using variables is not possible.
-    #[arg(long, value_name = "RANGE")]
+    /// Search within the given range ('start:end', 'start:' or ':end'). Using variables is not possible.
+    #[arg(long, value_name = "RANGE", allow_hyphen_values = true)]
     pub rng: Option<Range>,
 
     /// Consider only matches with a maximum of <N> letters preceding the start
     /// of the match (relative to the sequence start or the start of the range `--rng`)
+    // TODO: adjust --rng to only search the range of possible occurrences
     #[arg(long, value_name = "N")]
     pub max_shift_start: Option<usize>,
 

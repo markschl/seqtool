@@ -28,9 +28,9 @@ variable_enum! {
     ///
     /// `st find -d 2 CTTGGTCATTTAGAGGAAGTAA -a rng={match_range} -a dist={match_diffs} reads.fasta`
     ///
-    /// >id1 rng=2-21 dist=1
+    /// >id1 rng=2:21 dist=1
     /// SEQUENCE
-    /// >id2 rng=1-20 dist=0
+    /// >id2 rng=1:20 dist=0
     /// SEQUENCE
     /// >id3 rng= dist=
     /// SEQUENCE
@@ -92,12 +92,14 @@ variable_enum! {
         MatchNegEnd(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Length of the match
         MatchLen(Number) { hit: String = String::from("1"), rank: usize = 1 },
-        /// Range (start-end) of the first/best match. Other hits/patterns are selected
-        /// with `match_range(hit, [pattern])`, for details see `match`
-        MatchRange(Number) { hit: String = String::from("1"), pattern: usize = 1 },
-        /// Range of the match with two dots as delimiter (start..end). Useful if the
-        /// matched range(s) should be passed to the 'trim' or 'mask' commands.
-        MatchDrange (Text) { hit: String = String::from("1"), pattern: usize = 1 },
+        /// Range (start:end) of the first/best match. Other hits/patterns are selected
+        /// with `match_range(hit, [pattern])`, for details see `match`.
+        /// The 3rd argument allows changing the range delimiter, e.g. to '-'.
+        MatchRange(Number) {
+            hit: String = String::from("1"),
+            pattern: usize = 1,
+            delim: String = String::from(":")
+        },
         /// Text matched by regex match group of given number (0 = entire match)
         /// or name in case of a named group: `(?<name>...)`.
         /// The hit number (sorted by edit distance or occurrence) and the pattern
@@ -117,11 +119,13 @@ variable_enum! {
         MatchGrpNegEnd(Number) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
         /// Range (start-end) of regex match group 'group' relative to the sequence end.
         /// See 'match_group' for options and details.
-        MatchGrpRange(Number) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
-        /// Range of regex match group 'group' relative to the sequence end, delimited
-        /// by two dots (start..end).
-        /// See 'match_group' for options and details.
-        MatchGrpDrange (Text) { group: String, hit: String = String::from("1"), pattern: usize = 1 },
+        /// The 4th argument allows changing the range delimiter, e.g. to '-'.
+        MatchGrpRange(Number) {
+            group: String,
+            hit: String = String::from("1"),
+            pattern: usize = 1,
+            delim: String = String::from(":")
+        },
         /// Number of mismatches/insertions/deletions of the search pattern compared to the sequence
         /// (corresponds to edit distance). Either just `match_diffs` for the best match,
         /// or `match_diffs(h, [p])` to get the edit distance of the h-th best hit of
@@ -163,7 +167,7 @@ variable_enum! {
 pub enum FindVarType {
     Start,
     End,
-    Range(&'static str),
+    Range(String),
     NegStart,
     NegEnd,
     Diffs,
@@ -338,7 +342,7 @@ impl FindVars {
                 DiffRate => (set_float(
                     m.dist as f64 / matches.pattern(req_hit.pattern_rank).unwrap().len() as f64
                 )),
-                Range(delim) => ("{}{}{}", m.start + 1, delim, m.end),
+                Range(ref delim) => ("{}{}{}", m.start + 1, delim, m.end),
                 Ins => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Del) as i64)),
                 Del => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Ins) as i64)),
                 Subst => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Subst) as i64)),
@@ -439,8 +443,11 @@ impl VarProvider for FindVars {
                 MatchEnd { hit, pattern } => (End, hit, pattern, None),
                 MatchNegStart { hit, pattern } => (NegStart, hit, pattern, None),
                 MatchNegEnd { hit, pattern } => (NegEnd, hit, pattern, None),
-                MatchRange { hit, pattern } => (Range("-"), hit, pattern, None),
-                MatchDrange { hit, pattern } => (Range(".."), hit, pattern, None),
+                MatchRange {
+                    hit,
+                    pattern,
+                    ref delim,
+                } => (Range(delim.clone()), hit, pattern, None),
                 MatchGrpStart {
                     hit,
                     pattern,
@@ -465,12 +472,8 @@ impl VarProvider for FindVars {
                     hit,
                     pattern,
                     group,
-                } => (Range("-"), hit, pattern, Some(group)),
-                MatchGrpDrange {
-                    hit,
-                    pattern,
-                    group,
-                } => (Range(".."), hit, pattern, Some(group)),
+                    ref delim,
+                } => (Range(delim.clone()), hit, pattern, Some(group)),
                 PatternName { rank } => (Name, "1".into(), rank, None),
                 FindVar::Pattern { rank } => (FindVarType::Pattern, "1".into(), rank, None),
                 FindVar::AlignedPattern { hit, rank } => {
