@@ -45,7 +45,7 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                 match_vars.register_all(0);
                 Ok::<_, String>(())
             })?;
-            let (s, _) = cfg.build_vars(|b| VarString::parse_register(text, b, true))?;
+            let (s, _) = cfg.build_vars(|b| VarString::parse_register(text, b, false))?;
             Ok::<_, String>(s)
         })
         .transpose()?;
