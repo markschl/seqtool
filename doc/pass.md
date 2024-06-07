@@ -4,17 +4,22 @@ commands, which don't return any sequences).
 
 ### Examples
 
-```bash
+```sh
 st pass input.fastq.gz -o output.fasta
-# equivalent, shorter notation:
+```
+
+equivalent, shorter notation:
+
+```sh
 st . input.fastq.gz -o output.fasta
 ```
+
 The input and output formats are automatically inferred based on the file
 extensions, assuming GZIP compressed FASTQ input and FASTA output.
 If receiving from STDIN or writing to STDOUT, the format has to be
 specified unless it is FASTA, which is the default.
 
-```bash
+```sh
 cat input.fastq.gz | st . --fmt fastq.gz --to fasta > output.fasta
 ```
 Note that GZIP compression can be specified in the format string by adding
@@ -59,17 +64,20 @@ Comma / tab / ... delimited input and output can be configured providing the
 `--fields` / `--outfields` argument, or directly using `--csv`/`--to-csv`
 or `--tsv`/`--to-tsv`. The delimiter is configured with `--delim <delim>`
 
-```bash
-st . --outfields id,seq -o output.tsv input.fa
+```sh
+st . --outfields id,seq -o output.tsv input.fasta
+```
 
-# equivalent shortcut:
+equivalent shortcut:
+
+```sh
 st . --to-tsv id,seq > output.tsv
 ```
 
 [Variables](variables) can also be included:
 
-```bash
-st . --to-tsv "id,seq,length: {s:seqlen}" input.fa
+```sh
+st . --to-tsv "id,seq,length: {s:seqlen}" input.fasta
 ```
 
 returns:
@@ -85,16 +93,16 @@ The `ST_FORMAT` environment variable can be used to set a default format other
 than FASTA. This is especially useful if connecting many commands via pipe,
 saving the need to specify `--fq` / `--tsv <fields>` / ... repeatedly. Example:
 
-```bash
+```sh
 export ST_FORMAT=fastq
 
-st trim ..10 input.fastq | st revcomp > trimmed_revcomp.fastq
+st trim :10 input.fastq | st revcomp > trimmed_revcomp.fastq
 ```
 
 For delimited files (CSV or TSV), the input fields can be configured
 additionally after a colon (':'):
 
-```bash
+```sh
 export ST_FORMAT=tsv:id,seq
 
 ## Input file:
@@ -102,7 +110,7 @@ export ST_FORMAT=tsv:id,seq
 # id2 ACGT...
 # ...
 
-st trim ..4 input.txt | st revcomp > trimmed_revcomp.txt
+st trim ':4' input.txt | st revcomp > trimmed_revcomp.txt
 
 ## Output:
 # id1 ACGT...
@@ -126,7 +134,7 @@ Quality scores can be visualized using the [view command](view).
 The following example converts a legacy Illumina 1.3+ file to the Sanger /
 Illumina 1.8+ format:
 
-```bash
-st . --fmt fq-illumina --to fq illumina_1_3.fq > sanger.fq
+```sh
+st . --fmt fq-illumina --to.fastq illumina_1_3.fastq > sanger.fastq
 ```
 Another useful application is filtering by quality (see [filter command](filter#quality-filtering)).

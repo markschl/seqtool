@@ -1,203 +1,198 @@
-The find command allows searching for patterns in sequences or sequence headers.
-It can be used for simple filtering, but results can also be returned by
-using [the variables](#variables). Occurrences can be replaced.
+### Searching in headers
 
+Specify `-i/--id` to search in sequence IDs (everything before the first space)
+or `-d/--desc` to search in the description part (everything *after* the space).
 
-### Exact searching
+Example: selectively return sequences that have `label` in their description
+(filtering with the `-f/--filter` flag):
 
-This is the simplest and also the fastest way of searching.
-In the following example, a pattern
-is searched and only hits matching sequences are returned (`-f`).
-Unmatched sequences are written to a different file.
-
-```bash
-st find -s AATG -f --dropped not_matched.fa seqs.fa
+```sh
+st find -df 'label' gb_seqs.fasta
 ```
 
-### Regular expressions
+> *Note*: use `--dropped <not_matched_out>` to write unmatched sequences to 
+> another file.
 
-Especially useful when searching in sequence headers. Different regex
-groups can be accessed as [output variables](#variables).
+Often, searching in headers requires a regular expression (`-r/--regex`).
+The following example extracts Genbank accessions from sequence headers that follow
+the old-style Genbank format:
 
-The following example extracts Genbank accessions from sequences in an old style
-Genbank format by using a regex group named 'acc' and replaces the ID with
-this group:
-
-```bash
-st find -ir "gi\|\d+\|[a-z]+\|(?P<acc>.+?)\|.*" seqs.fa \
-   --rep "{f:match::acc}" > seqs_accession.fa
+```sh
+st find -ir "gi\|\d+\|[a-z]+\|(?<acc>.+?)\|.*" gb_seqs.fasta -a 'acc={match_group(acc)}'
 ```
 
-Headers like this one: `>gi|1031916024|gb|KU317675.1|` are transformed
-to `>KU317675.`
-
-**Note:** Only ASCII is currently supported, unicode is not recognized
-in regular expressions.
-
-### Approximative searching
-
-Approximative matching is particularly useful for finding primers and
-adapters or other short patterns. The tool is not specialized for removing
-adapters like other software, but still aims at being very fast and
-useful for many purposes. **Note:** The length of search patterns for
-approximative matching is limited to 64 characters, currently.
-
-It is possible to search for all matches up to a maximum
-[edit distance](https://en.wikipedia.org/wiki/Edit_distance)
-(`-d/--dist` argument). By default, the best hit is reported first.
-Example:
-
-```bash
-st find -d 4 ATTAGCG seqs.fa \
-     -a hit="{f:range}_(dist:{f:dist})" -a range="{m:range}"
 ```
-
-Possible output:
-
-```
->seq464 hit=2-9_(dist:1) matched=ATCAGCG
-GGATCAGCGATCC
+>gi|1031916024|gb|KU317675.1| acc=KU317675.1
+SEQUENCE
 (...)
 ```
 
-The second best hit can be returned by using `{f:range:2}` or `{f:match:2}`, etc.
-Use `--in-order` to report hits in order from left to right instead.
+> You can use online tools such as https://regex101.com to build and debug your
+> regular expression
 
-Substantial speedups can be achieved by [restricting the search range](#restrict_search_range)
-and by multithreading (`-t`).
-
-
-#### Search performance
-
-Approximative matching uses the fast bit-parallel algorithm by
-[Myers](https://doi.org/10.1145/316542.316550).
-The runtimes for searching two forward primers (22 bp) with up to 4 mismatches (`-d 4`)
-in a [1.2 GB file](https://github.com/markschl/seqtool#performance)
-vary depending on the options used. In the following table, different settings
-as well as other tools are compared, using 1 or 4 threads or processes ('cores').
-
-|                                                         | 1 core      | 4 cores     |
-|---------------------------------------------------------|-------------|-------------|
-| Find the position of best hit                           | 31.3s       | 7.73s       |
-| Report first hit from left<sup>1</sup>                  | 31.1s       | 7.72s       |
-| Best hit in range where the primer should occur<sup>2</sup>| 8.02s    | 2.34s       |
-| Filter by occurrence (`-f`), no position determined     | 14.0s       | 3.24s       |
-| Exact search (no mismatches/ambiguities)<sup>3</sup>    | 11.1s       | 2.57s       |
-| [cutadapt](https://github.com/marcelm/cutadapt)         | 1min 16s    | 24.2s       |
-| [AdapterRemoval](https://github.com/MikkelSchubert/adapterremoval)<sup>4</sup> | 35.0s| 8.75s |
-
-<sup>1</sup> `--in-order` option. Normally, hits are sorted by decreasing
-distance.
-
-<sup>2</sup> `--rng ..25`
-
-<sup>3</sup> Using the Two Way algorithm for comparison, not Myers
-
-<sup>4</sup> Single-end mode
+> *Note:* replacing the whole header with the accession would be another
+> (probably faster) approach, see the [replace](replace) command.
 
 
-### Ambiguities
+### Searching in sequences
 
-DNA (RNA) ambiguity codes according to the IUPAC nomenclature are accepted and
-automatically recognised in search patterns. For Proteins, `X` is recognised as
-wildcard for all amino acids. The molecule type is automatically determined
-from the pattern. Use `-v` to show which search settings are being used. Example:
+Without the `-i` or `-d` flag, the default mode is to search in the sequence.
+The pattern type is automatically recognized and usually reported to avoid
+problems:
 
-```bash
-st find -v file:primers.fasta -a primer={f:name} -a rng={f:range} input.fasta > output.fasta
+```sh
+st find -f AATGRAAT seqs.fasta > filtered.fasta
 ```
 
 ```
-primer1: DNA, search algorithm: Exact
-primer2: DNA with ambiguities, search algorithm: Myers
-Sorting by distance: true, searching start position: true
+Note: the sequence type of the pattern was determined as 'dna' (with ambiguous letters). If incorrect, please provide the correct type with `--seqtype`. Use `-q/--quiet` to suppress this message.
 ```
 
-In case of wrongly recognised patterns, specify `--seqtype`. The tool is
-very cautious and will warn about any inconsistencies between multiple patterns.
+`R` stands for `A` or `G`. *Seqtool* recognizes the IUPAC ambiguity codes for
+[DNA/RNA](https://iubmb.qmul.ac.uk/misc/naseq.html#500) and
+[proteins](https://iupac.qmul.ac.uk/AminoAcid/A2021.html#AA212)
+(with the exception of U = Selenocysteine).
 
-**Note:** Matching is asymmetric: `R` in a search pattern matches [`A`, `G`, `R`]
+
+**⚠** Matching is asymmetric: `R` in a search pattern matches [`A`, `G`, `R`]
 in sequences, but `R` in a sequence will only match ambiguities sharing the same
 set of bases (`R`, `V`, `D`, `N`) in the pattern. This should prevent false
 positive matches in sequences with many ambiguous characters.
 
 
+#### Approximate matching
+
+*Seqtool* can find patterns with mismatches or insertions/deletions
+(up to a given [edit distance](https://en.wikipedia.org/wiki/Edit_distance))
+using the `-D/--diffs` argument. Alternatively, use `-R/--diff-rate` to
+specify a distance limit relative to the length of the pattern
+(in other words, an "error rate").
+
+In this example, the edit distance and range of the best match are saved
+into [header attributes](attributes) (or `undefined` if not found):
+
+```sh
+st find -D 2 AATGRAAT seqs.fasta -a d='{match_diffs}' -a rng='{match_range}'
+```
+
+```
+>seq1 d=1 rng=3:11
+GGAACGAAATATCAGCGATCC
+>seq2 d=undefined rng=undefined
+TTATCGAATATGAGCGATCG
+(...)
+```
+
+In case of multiple hits, the second best hit can be returned by using
+`{match_diffs(2)}` or `{match_range(2)}`, etc.
+
+
+Use `--in-order` to report hits in order from left to right instead.
+
+> *Note:* Approximative matching is done using [Myers](https://doi.org/10.1145/316542.316550)
+> bit-parallel algorithm, which is very fast with short patterns and reasonably
+> short sequences. It may not be the fastest solution if searching in large
+> genomes.
+> 
+> Recognizing adapter or primers should be very fast.
+> Further speedups can be achieved by multithreading (`-t`) and
+> restricting the search range (`--rng`).
+
+> *Note 2*: To report all hits below the given distance threshold 
+> *in order of occurrence* instead of *decreasing distance*, specify `--in-order`.
+
+
 ### Multiple patterns
 
-Several patterns can be searched in one command. They have to be supplied
-in a separate FASTA file. The best matching pattern with the smallest edit
-distance is always reported first. Other patterns are accessed using
-`<variable>.<pattern_num>`:
+The *find* command supports searching for several patterns at once.
+They have to be supplied in a separate FASTA file (`file:path`).
+The best matching pattern with the smallest edit distance is always reported first.
 
-```bash
-st find -d6 file:f_primers.fa seqs.fa \
-    -p f_primer={f:name} -p f_dist={f:dist} \
-    -p second_best={f:name.2}_({f:dist.2}) > primer_search.fa
+The following example de-multiplexes sequences amplified with different forward
+primers and then uses [trim](trim) to remove the primers, and finally distributes
+the sequences into different files named by the forward primer ([split](split)).
+
+<table>
+<tr><th>
+
+`primers.fasta`
+
+</th></tr>
+<tr><td>
+
+```
+>prA
+PRIMER
+>prB
+PRIMER
 ```
 
-Example output:
+</td></tr>
+</table>
+
+
+```sh
+st find file:primers.fasta -a primer='{pattern_name}' -a end='{match_end}' sequences.fasta |
+    st trim -e '{attr(end)}:' | 
+    st split -o '{attr(primer)}'
+```
+
+<table>
+<tr><th>prA.fasta </th><th>prB.fasta</th><th>undefined.fasta</th></tr>
+<tr>
+<td>
 
 ```
->seq1 f_primer=primer2 f_dist=1 second_best=primer1_(5)
+>id1 primer=prA end=22
 SEQUENCE
+>id4 primer=prA end=21
+SEQUENCE
+(...)
 ```
 
+</td>
+<td>
 
-### Restrict search range
-
-It is possible to search only part of the target string by using `--rng`.
-This can substantially speed up the search.
-
-
-```bash
-st find -d6 --rng ..23 file:f_primers.fa seqs.fa \
-    -p f_primer={f:name} > primer_search.fa
+```
+>id2 primer=prB end=20
+SEQUENCE
+>id3 primer=prB end=22
+SEQUENCE
+(...)
 ```
 
-If the hit is known to occur at the start or end of the
-search range, `--max-shift-l` and `--max-shift-r` can be
-used to report only those hits.
+</td>
+<td>
 
-### Replace matches
+```
+>id5 primer=undefined end=undefined
+UNTRIMMEDSEQUENCE
+(...)
+```
+
+> *Note:* no primer, sequence **not** trimmed since `end=undefined` (see [ranges](ranges)).
+
+</td>
+</tr>
+</table>
+
+
+### Selecting other hits
+
+The find command is very versatile thanks to the large number of variables/functions
+that provide information about the search results (see [variable reference](#variable-function-reference)).
+
+
+For instance, the best hit from the *second best* matching pattern can be selected using
+`{match_range(1, 2)}`.
+
+It is also possible to return a comma-delimited list of matches, e.g.:
+`{match_range(all)}`. See the [mask](mask) command for an example on how this could be useful.
+
+
+### Replacing matches
 
 Hits can be replaced by other text (`--repl`). Variables are allowed
 as well (in contrast to the *replace* command). Backreferences to regex groups
-(e.g. `$1`) are not supported like the _replace_
-command does. Instead, they can be accessed using variables
-(`<variable>::<group>`)
-
-### Variables
-
-Variables for the matched sequence (`f:match`), coordinates
-(`f:start`, `f:end`, `f:range`, etc.) are available.
-Selecting another match than the best/first one is possible by adding
-the match number after a colon (`:`): `f:range:2` will return
-the second match.
-Match groups of regular expressions can be
-specified as well by the addition of a second colon:
-`f:range::2` will select the second match group of the first match.
-Even named groups are possible. In that case, specify the group name
-instead of the index: `f:range::<group_name>`.
-
-A more generalized scheme:
-
-`m:<variable>.<pattern_rank>:<hit_num>:<match_group>`
-
-This is admittedly quite complicated, but adds a lot of flexibility.
-
-It is also possible to return all hits instead of a specific one
-by using `f:<variable>:all`. This will return a comma delimited list.
-The following command searches for all occurrences of a pattern
-and converts them to lowercase:
-
-```bash
-st find -r -p rng={f:drange:all} [AG]GA seqs.fa \
-  | st mask {a:rng}
-```
-
-Exmaple output:
-
-```
->seq464 rng=6..8,14..16
-AGTTAagaCTTAAggaT
-```
+(e.g. `$1`) are not supported like the *replace* command does.
+Instead, they can be accessed using variables (`match_group()`, etc.)

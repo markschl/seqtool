@@ -26,16 +26,6 @@ SEQUE
 >>id1
 SEQUENCE
 </r>
-
-Write the sort key (obtained from JS expression, whose evaluation takes time)
-to a header attribute:
-
-<c>st sort -n '{{ id.substring(2, 5) }}' -a id_num='{{num(key)}}' input.fasta</c><r>
->>id001 id_num=1
-SEQ
->>id002 id_num=2
-SEQ
-</r>\
 "
 );
 }

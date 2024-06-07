@@ -1,8 +1,9 @@
-This command is equivalent to 'st pass --to-txt <stats>', but
-variable prefixes (s:) are not necessary. Example:
+`st stat <variables>` is a shorter equivalent of `st pass --to-tsv id,<variables>`.
 
-```bash
-st stat seqlen,gc seqs.fa
+Example:
+
+```sh
+st stat seqlen,gc seqs.fasta
 ```
 
 Example output:

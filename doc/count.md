@@ -1,7 +1,9 @@
-By default, the count command will return the global count for all files in the
-input:
+## Counting the overall record number
 
-```bash
+By default, the count command returns the overall number of records in all
+of the input (even if multiple files are provided):
+
+```sh
 st count *.fastq
 ```
 
@@ -9,24 +11,49 @@ st count *.fastq
 10648515
 ```
 
-If the count for each file is needed, use the `filename` variable:
+## Categorized counting
 
-```bash
-st count -k filename *.fastq
+
+Print record counts per input file:
+
+<c>`st count -k path input.fasta input2.fasta input3.fasta`</c><r>
+input.fasta   1224818
+input2.fasta  573
+input3.fasta  99186
+</r>
+
+
+If the record number is required for each file, use the `path` or `filename`
+variable:
+
+```sh
+st count -k path *.fasta
 ```
 ```
-file1.fastq    6474547
-file2.fastq    2402290
-file3.fastq    1771678
+file1.fasta    6470547
+file2.fasta    24022
+file3.fasta    1771678
 ```
 
-It is possible to use multiple keys. Consider the [example for the find
-command](find#multiple-patterns) where the primer names and number of mismatches are
-annotated as attributes. Now, the mismatch distribution for each primer
-can be analysed:
+Print the sequence length distribution:
 
-```bash
-st count -k {a:f_primer} -k n:{a:f_dist} seqs.fa
+```sh
+st count -k seqlen input.fasta
+```
+```
+102 1
+105 2
+106 3
+(...)
+```
+
+It is possible to use multiple keys. Consider the
+[primer finding example](find#multiple-patterns) where the primer names 
+and number of mismatches are annotated as attributes.
+Now, the mismatch distribution for each primer can be analysed:
+
+```sh
+st count -k 'attr(f_primer)' -k 'attr(f_dist)' seqs.fasta
 ```
 ```
 primer1	0	249640
@@ -42,15 +69,15 @@ primer2	3	691
 primer2	4	34
 primer2	5	7
 primer2	6	1
-N/A	5029
+undefined	5029
 ```
 
-If primers on both ends were searched, it might make sense to use a
-[math expression](variables#math-expressions) to get the sum of distances
-for both primers.
+If primers on both ends were searched, it might make sense to use an
+[expression](expressions) to get the sum of edit distances for both primers.
 
-```bash
-st count -k {a:f_primer} -k {a:r_primer} -k "n:{{a:f_dist + a:r_dist}}" primer_trimmed.fq.gz
+```sh
+st count -k 'attr(f_primer)' -k 'attr(r_primer)' \
+  -k '{ num(attr("f_dist")) + num(attr("r_dist")) }' primer_trimmed.fq.gz
 ```
 ```
 f_primer1	r_primer1	0	3457490
@@ -61,25 +88,48 @@ f_primer1	r_primer1	4	10
 (...)
 ```
 
-The curly braces are actually only needed if a string of multiple
-variables and/or text is composed. The `n:` prefix tells the tool that
-the distance is numeric, which is useful for correct sorting.
+> ⚠ [JavaScript expressions](expressions) always need to be enclosed in
+> `{curly braces}`, while simple variables/functions only require this
+>  [in some cases](variables). Also, attribute names need to be in double
+>  or single quotes: `attr("f_dist")`.
 
-With numeric keys, it is possible to summarize over intervals, add
-a `n:<interval>` prefix. This example shows the GC content
-summarized over 10% windows:
+> ⚠ The `f_dist` and `r_dist` attributes are numeric, but *seqtool* doesn't know
+> that (see [below](#numbers-stored-as-text)), and the JavaScript expression would simply
+> [concatenate them as strings](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Language_overview#strings)
+> instead of adding the numbers up. Therefore we require the `num` function
+> for conversion to numeric.
 
-```bash
-st count -k n:10:{s:gc} seqs.fa
+## Numeric keys
+
+With numeric keys, it is possible to summarize over intervals using the 
+`bin(number, interval)` function. Example summarizing the GC content:
+
+```sh
+st count -k '{bin(gc_percent, 10)}' seqs.fasta
 ```
 ```
-(20,30]	2
-(30,40]	15
-(40,50]	193
-(50,60]	984
-(60,70]	7
+(10, 15]    2
+(15, 20]    9
+(20, 25]    357
+(25, 30]    1397
+(30, 35]    3438
+(35, 40]    2080
+(40, 45]    1212
+(45, 50]    1424
+(50, 55]    81
 ```
 
-The intervals (start,end] are open at the start and
+The intervals `(start,end]` are open at the start and
 closed at the end, meaning that
-start <= value < end.
+`start <= value < end`.
+
+### Numbers stored as text
+
+In case of a header attribute `attr(name)` or a value from
+an associated list `meta(column)`, these are always interpreted
+as text by default, unless the `num(...)` function is used,
+which makes sure that the categories are correctly sorted:
+
+```sh
+st count -k 'num(attr(numeric_attr))' input.fasta
+```

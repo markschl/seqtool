@@ -1,72 +1,115 @@
-# Variables
+# Variables/functions
 
-Many commands can use variables, and some of them will
-also provide part of their output as variables. See below
-for a list of global variables. They are normally written in
-curly braces: `{variable}`. The following example recodes
-sequence IDs to `seq_1/2/3...`:
+*Seqtool* offers many variables/functions providing information about
+the sequence records or the output of some commands.
 
-```bash
-st set -i seq_{num} seqs.fa > renamed.fa
+The following variable categories are provided (amongst others):
+
+* General properties of the sequence header (`id`, `desc`),
+  the sequence (`seq`), input files (`filename`), etc.
+* Sequence statistics such as the GC content (`gc` or `gc_percent`), etc.
+* Access to *key=value* [attributes](attributes) in sequence headers (`attr(name)`, ...)
+* Integration of metadata from [delimited text files](meta) (`meta(field)`, ...)
+* Some commands provide the results of some calculations in the form of variables/functions
+  ([find](find), [unique](unique), [sort](sort), [split](split))
+
+**[Complete variable/function reference](var_reference)**
+
+
+## Use in *seqtool* commands
+
+Variables/functions are usually written in curly braces: `{variable}`,
+although the braces can be omitted in some cases (see [below](#use-of-braces)).
+
+The following command recodes IDs to `seq_1`, `seq_2`, `seq_3`, etc.:
+
+```sh
+st set -i seq_{num} seqs.fasta > renamed.fasta
 ```
 
-The variables can be categorized into different categories. Aside from
-'basic' variables, each category has its own prefix divided from the
-variable name with a colon (`<prefix>:<varible>`). Categories:
+The **[sort](sort)**, **[unique](unique)** and **[count](count)** use variables/functions
+for categorization.
 
-* 'Basic' variables (id, desc, num, filename, ...): no prefix
-* Sequence [attributes](attributes) in the form 'key=value': `a:<key>`
-* Metadata from [associated lists](lists): `l:<fieldname>` or `l:<column_index>`
-* Sequence statistics: `s:<name>` (also available in dedicated [stat](stat) command)
-* Variables provided by commands, currently: [find](find) (`f:`) and
-  [split](split) (`split:`)
+Example:
 
-The prefix makes it possible to e.g. have list fields and attributes with the
-same name.
-
-See [below](#variables-available-to-all-commands) for a full list of all available variables.
-
-**Note**  that the variable is written inbetween curly brackets: `{<a:otu>}`.
-This is also required when using them in [attributes](#attributes).
-
-## Writing to output
-
-Variables provided by commands (and all others) can be written to the output
-in two ways: [attributes](attributes) and [CSV/TXT output](pass).
-This example uses regex matching:
-
-```bash
-st find -ir "([^\.]+).*" seqs.fa -p id={f:match::1}
-# returns `>seqname.1234 id=seqname`
-
-st find -ir "([^\.]+).*" seqs.fa --to-txt id,f:match::1,seq
-# returns `seqname.1234 seqname SEQ`
-# Note: curly brackets are not necessary here.
+```sh
+st sort seqlen input.fasta > length_sorted.fasta
 ```
 
-## Math expressions
+The `{braces}` notation is only necessary for composed keys such as `{id}_{desc}`.
 
-Mathematical expressions are written with double curly brackets.
-This example calculates the length of a match found by the _find_ command.
+The **[trim](trim)** and **[mask](mask)** commands accept ranges or even lists of ranges
+in the form of variables.
 
-```bash
-st find -d3 GCATATCAATAAGCGGAGGA seqs.fa \
-  -p match_len="{{f:end - f:start + 1}}"
+### Header attributes
+
+Variables/functions are needed for composing new [header attributes](attributes).
+
+```sh
+st find PATTERN -a '{match_range}' input.fasta > with_range.fasta
 ```
 
-If compiled with [ExprTk](http://www.partow.net/programming/exprtk/) support
-(which is the default for the provided binaries), filtering expressions
-are also possible using the [filter](filter) command:
-
-```bash
-st filter "s:seqlen >= 100" input.fa > filtered.fa
+```
+>id1 3:10
+SEQUENCE
+>id2 5:12
+SEQUENCE
+(...)
 ```
 
-### String variables
+### Expressions
 
-ExprTk expressions can also handle strings. String variables have to be
-explicitly marked as such using a preceding dot (`.variable`).
+All variables are available in [expressions](expressions), which usually need to
+be in `{braces}`, except for the [filter](command).
 
-```bash
-st filter ".id == 'id1' or .id == 'id2'" input.fa > filtered.fa
+Example: calculating the fraction of ambiguous bases for each sequence:
+
+```sh
+st stat '{ 1 - charcount("ATGC")/seqlen }'
 ```
+
+```
+id1	1
+id2	0.99
+id3	0.95
+id4	1
+...
+```
+
+## Delimited text output
+
+Variables/functions are used to define the content of [delimited text files](pass).
+
+This example searches a sequence ID for a string preceding the dot `.`
+using a regular expression, and returns the matched text as TSV:
+
+```sh
+st find -ir '[^.]+' seqs.fasta --to-tsv 'id,match,seq' > out.tsv
+```
+
+`out.tsv`
+
+```
+seq1.suffix123	seq1	SEQUENCE`
+seq2.suffix_abc	seq2	SEQUENCE`
+...
+```
+
+> As with sort/unique/count keys, `{braces}` are not needed, unless a field is composed
+> mixed text and/or other variables.
+
+## Use of braces
+
+The braced `{variable}` notation is *always* necessary:
+
+* when setting/composing [attributes](attributes) with `-a/--attr key=value`
+* if variables/functions are mixed with plain text text and/or other other variables
+* in [set](set), output paths in [split](split), text replacements in [find](find)
+* with JavaScript [expressions](expressions)
+
+The braces *can optionally* be omitted if only a *single* variable/function
+is used as:
+
+* [sort](sort), [unique](unique) and [count](count) key: `st sort seq input.fasta`
+* range bound in [trim](trim), [mask](mask): `st trim 'attr(start):' input.fasta`
+* delimited text field: `st pass input.fasta --to-tsv id,desc,seq`

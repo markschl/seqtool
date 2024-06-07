@@ -14,7 +14,7 @@ use super::matches::Matches;
 use super::opts::{Opts, RequiredInfo};
 
 variable_enum! {
-    /// # Variables/functions recognized by the 'find' command
+    /// # Variables/functions provided by the 'find' command
     ///
     /// The find command provides many variables/functions to obtain information about
     /// the pattern matches. These are either written to header attributes
@@ -512,8 +512,10 @@ impl VarProvider for FindVars {
             } else if !self.regex {
                 return Err(format!(
                     "Regex group '{}' was requested, but groups other than '0' (the whole hit) \
-                    are not supported for non-regex patterns. Did you forget to enable regex matching with
-                    `-r/--regex`?", match_group));
+                    are not supported for non-regex patterns. Did you forget to enable regex \
+                    matching (`-r/--regex`)?",
+                    match_group
+                ));
             } else {
                 let mut num = None;
                 for pattern in &self.patterns {

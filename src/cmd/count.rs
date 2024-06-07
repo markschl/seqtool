@@ -22,46 +22,14 @@ numeric or text category.
 lazy_static::lazy_static! {
     pub static ref EXAMPLES: String = color_print::cformat!(
         "\
-<y,s,u>Examples</y,s,u>:
+<y,s,u>Example</y,s,u>:
 
 Print record counts per input file:
 
-<c>`st count -k path input.fasta input2.fasta input3.fasta`</c><r>
-input.fasta   1224818
-input2.fasta  573
-input3.fasta  99186
-</r>
-
-Print the sequence length distribution:
-
-<c>`st count -k seqlen input.fasta`</c><r>
-102 1
-105 2
-106 3
-(...)
-</r>
-
-In case of a header attribute `attr(name)` or a value from
-an associated list `meta(column)`, these are always interpreted
-as text by default, unless the `num(...)` function is used,
-which makes sure that the categories are correctly sorted:
-
-<c>`st count -k 'num(attr(name))' input.fasta`</c>
-
-Note that continuous numbers may lead to too many categories, in which
-case 'bin(..)' should be used to group the numbers into intervals.
-Example summarizing the GC content in 5% intervals:
-
-<c>`st count -k 'bin(gc_percent, 5) input.fasta`</c><r>
-(10, 15]    2
-(15, 20]    9
-(20, 25]    357
-(25, 30]    1397
-(30, 35]    3438
-(35, 40]    2080
-(40, 45]    1212
-(45, 50]    1424
-(50, 55]    81
+<c>`st count -k path *.fasta`</c><r>
+file1.fasta    6470547
+file2.fasta    24022
+file3.fasta    1771678
 </r>
 "
     );

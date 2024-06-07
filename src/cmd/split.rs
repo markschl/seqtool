@@ -23,21 +23,13 @@ file path for each sequence.\
 
 lazy_static::lazy_static! {
     pub static ref EXAMPLES: String = color_print::cformat!("\
-<y,s,u>Examples</y,s,u>:
+<y,s,u>Example</y,s,u>:
 
 Distribute sequences into different files by an attribute 'category'
 found in the sequence headers (with values A and B):
 
- <c>st split input.fasta -o 'outdir/{{attr(category)}}.fasta'</c>
-
-Created files:
-<r>outdir/category_A.fasta
-outdir/category_B.fasta</r>
-
-Group the input sequences by the recognized primer, which is recognized
-using the 'find' command
- <c>st find -f file:primers.fa input.fq -a primer='{{pattern_name}}' |
-     st split -o '{{attr(primer)}}.fq'</c>");
+ <c>st split input.fasta -o 'outdir/{{attr(category)}}.fasta'</c>"
+);
 }
 
 #[derive(Parser, Clone, Debug)]

@@ -37,8 +37,7 @@ There are different search modes:
 2) Regular expressions (`-r/--regex`)
 2) DNA or protein patterns with ambiguous letters
 3) Approximate matching up to a given edit distance
-    (`-D/--diffs` or `-R/--max-diff-rate`) search with am
-    to a given edit distance, or using a regular expression.
+    (`-D/--diffs` or `-R/--max-diff-rate`)
 
 Search results can be used in three different ways:
 1) Keeping (`-f/--filter`) or excluding (`-e/--exclude`) matched
@@ -52,7 +51,6 @@ Search results can be used in three different ways:
    functions
 ";
 
-/// Fast searching for one or more patterns in sequences or ids/descriptions, with optional multithreading.
 #[derive(Parser, Clone, Debug)]
 #[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct FindCommand {
@@ -189,9 +187,7 @@ pub struct SearchActionArgs {
     #[arg(long, value_name = "FILE")]
     pub dropped: Option<String>,
 
-    /// Replace by a string, which may also contain variables/functions.
-    /// References to regular expression groups are specified with
-    /// '$1', '$2' or '$name', etc.
+    /// Replace by a string, which may also contain {variables/functions}.
     #[arg(long, value_name = "BY")]
     pub rep: Option<String>,
 }

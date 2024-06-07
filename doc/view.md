@@ -4,21 +4,19 @@ the sequences are directly forwarded to the `less` pager command, which allows f
 navigating up and down or in horizontal direction. On Windows, this is not done.
 
 The first sequence line in the input is always used to determine the
-sequence type (DNA/RNA or Protein). For each type, there are multiple
-color schemes / palettes available, which can be configured using `--dna-pal`
-and `--aa-pal`.
+sequence type (DNA/RNA or Protein).
 
 
 Example view of DNA sequences:
 
-```bash
+```sh
 st view seqs.fasta
 ```
 
 ![DNA sequence](img/base_view.png)
 
 
-```bash
+```sh
 st view H1.fasta
 ```
 
@@ -30,8 +28,18 @@ colored according to the [RasMol scheme](http://www.openrasmol.org/doc/#aminocol
 If quality scores are present (from FASTQ or QUAL files), the background is colored
 accordingly (configure with `--qscale` and `--qmax`):
 
-```bash
+```sh
 st view seqs.fastq
 ```
 
 ![Sequence quality](img/qual_view.png)
+
+
+## Palettes
+
+There are multiple color schemes/palettes available, which can be configured
+using `--dna-pal`, `--aa-pal` and `--qscale`.
+
+A visualization of the builtin palettes is obtained with `st view --list-pal`:
+
+![Palettes](img/palettes.png)

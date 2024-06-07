@@ -10,9 +10,10 @@ The range is specified as `start:end`, whereby start and end
 are the sequence numbers (starting from 1). Open ranges are
 possible, in the form `start:` or `:end`.
 
-The following is equivalent with the
-'head' and 'tail' commands:
- `st slice ':10' input.fasta`
+The following is equivalent with `st head input.fasta`:
+`st slice ':10' input.fasta`
+
+The following is equivalent with `st tail input.fasta`:
  `st slice '-10:' input.fasta`
 
 The 'slice' command does not extract subsequences; see the
