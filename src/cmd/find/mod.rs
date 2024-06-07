@@ -9,7 +9,6 @@ use crate::var::{modules::VarProvider, varstring::VarString};
 
 pub mod ambig;
 pub mod cli;
-pub mod helpers;
 pub mod matcher;
 pub mod matches;
 pub mod opts;
