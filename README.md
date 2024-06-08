@@ -13,7 +13,7 @@ The standalone binary (~6 MB) is simply named `st` to save some typing.
 
 **[📥 download stable release (v0.3.0)](https://github.com/markschl/seqtool/releases/latest)**
 
-**[📥 download beta release (v0.4.0-beta)](https://github.com/markschl/seqtool/releases/tag/v0.4.0-beta.2)**
+**[📥 download beta release (v0.4.0-beta)](https://github.com/markschl/seqtool/releases/tag/0.4.0-beta.2)**
 
 [![CI](https://github.com/markschl/seqtool/actions/workflows/ci.yaml/badge.svg)](https://github.com/markschl/seqtool/actions/workflows/ci.yaml)
 
