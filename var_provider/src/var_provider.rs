@@ -136,18 +136,20 @@ pub trait VarProviderInfo: fmt::Debug {
             for info in vars {
                 if !info.hidden {
                     let usages = usage_list(info)
-                        .into_iter()
-                        .map(|u| format!("`{}`", u))
+                        // .into_iter()
+                        // .map(|u| format!("{}`", u))
                         .join("<br />");
                     // TODO: very simple but fine for a help page
                     let desc = info
                         .description
-                        .replace('\n', "<br />")
                         .replace('<', r"\<")
-                        .replace('>', r"\>");
+                        .replace('>', r"\>")
+                        .replace('\n', "<br />");
+
                     writeln!(out, "| {} | {} |", usages, desc)?;
                 }
             }
+            writeln!(out)?;
         }
         // examples
         let examples = Self::EXAMPLES;
