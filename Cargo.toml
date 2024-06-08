@@ -5,8 +5,7 @@ edition = "2021"
 authors = ["Markus Schlegel <markschl19@gmail.com>"]
 description = "General purpose tool for reading, modifying and writing biological sequences."
 license = "MIT"
-repository = "https://github.com/markschl/seq_io"
-documentation = "https://docs.rs/seq_io"
+repository = "https://github.com/markschl/seqtool"
 readme = "README.md"
 build = "build.rs"
 
