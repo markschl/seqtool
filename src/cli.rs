@@ -63,7 +63,7 @@ impl Cli {
                     _ => None,
                 };
                 crate::var::print_var_help(custom_help, m.help_vars_md, m.help_cmd_vars)?;
-                exit(2);
+                exit(0);
             }
         }
         Ok(Self(ClapCli::parse()))
