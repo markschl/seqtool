@@ -1,28 +1,31 @@
 #!/bin/bash
 
-cargo build
+# cargo build
 
 seqtool=target/debug/st
-outdir=_docs
-main=_README.md
+outdir=../seqtool-docs
+main=../seqtool-docs/index.md #_README.md
+nav=../seqtool-docs/nav.yml
 
-mkdir -p $outdir
+# # prepend table of contents if there are H3 headings
+# prepend_toc() {
+#   contents="$1"
+#   level="$2"
+#   toc_level="$3"
+#   toc=`grep "^$level " "$contents" |
+#     sed -E "s/^$level (.*)/* [\1]   #\1/g" |
+#     awk -F'   ' '{ gsub(" ", "-", $2); rep=gsub("[()]", "", $2); print sprintf("%s(%s)", $1, tolower($2)) }'`
 
-# prepend table of contents if there are H3 headings
-prepend_toc() {
-  contents="$1"
-  level="$2"
-  toc_level="$3"
-  toc=`grep "^$level " "$contents" |
-    sed -E "s/^$level (.*)/* [\1]   #\1/g" |
-    awk -F'   ' '{ gsub(" ", "-", $2); rep=gsub("[()]", "", $2); print sprintf("%s(%s)", $1, tolower($2)) }'`
+#   if [ `printf "$toc" | wc -l` -gt 1 ]; then
+#     printf "$toc_level Contents\n\n$toc\n\n" | cat - "$contents" > tmp_out
+#     mv tmp_out "$contents"
+#   fi
+# }
 
-  if [ `printf "$toc" | wc -l` -gt 1 ]; then
-    printf "$toc_level Contents\n\n$toc\n\n" | cat - "$contents" > tmp_out
-    mv tmp_out "$contents"
-  fi
-}
 
+# echo -e "---\npermalink: /\ntitle: title\nwide: true\nsidebar:\n  \nnav: docs\n---\n" > tmp_out
+
+echo -e "docs:\n  - title: Commands\n    children:\n" > $nav
 
 cat doc/_head.md > $main
 
@@ -72,13 +75,17 @@ for c in "${cmd[@]}"; do
     echo -e "$vars" | sed 's/^ *#/##/g' >> $out
   fi
 
-  prepend_toc $out '###' '##'
+  # prepend_toc $out '###' '##'
 
+  # TODO: why prepend?
   # prepend usage info
+  # echo -e "---\npermalink: /$c/\ntitle: $c\ntoc: true\nsidebar:\n  nav: docs\n---\n" > tmp_out
   usage=$(echo "$opts" | sed '/Usage:/,$!d')
   printf "$desc\n\n\`\`\`\n$usage\n\`\`\`\n\n[See this page](opts) for the options common to all commands.\n\n" |
-    cat - $out > tmp_out
+    cat - $out >> tmp_out
     mv tmp_out $out
+
+  echo -e "      - title: $c\n        url: /$c" >> $nav
 
 done
 
