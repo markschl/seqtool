@@ -137,7 +137,7 @@ impl VarRanges {
     pub fn from_str(s: &str, var_builder: &mut VarBuilder) -> Result<VarRanges, String> {
         // first, we collect all comma-delimited parts, registering any variables
         let mut parts = vec![];
-        register_var_list(s.trim(), var_builder, &mut parts, true)?;
+        register_var_list(s.trim(), var_builder, &mut parts, true, false)?;
         // then, we parse all ranges
         let mut ranges: Vec<VarRange> = parts
             .into_iter()

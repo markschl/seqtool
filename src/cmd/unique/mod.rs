@@ -46,7 +46,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
         let mut varstring_keys = Vec::with_capacity(1);
-        cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, true))?;
+        cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, true, true))?;
         let mut keys = Key::with_size(varstring_keys.len());
         let mut text_buf = vec![Vec::new(); varstring_keys.len()];
         // Depending on the CLI options, different information is needed,

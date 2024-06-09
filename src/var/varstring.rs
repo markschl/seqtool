@@ -20,9 +20,21 @@ pub fn register_var_list(
     builder: &mut VarBuilder,
     out: &mut Vec<VarString>,
     raw_var: bool,
+    require_vars: bool,
 ) -> Result<(), String> {
     for frags in parse_varstring_list(text, raw_var)? {
-        out.push(VarString::register_parsed(&frags, builder)?.0);
+        let (vs, _) = VarString::register_parsed(&frags, builder)?;
+        if require_vars && vs.len() == 1 {
+            if let VarStringSegment::Text(t) = &vs[0] {
+                return fail!(
+                    "The following string contains no variables/functions: '{}' \
+                    Is it possible that you misspelled the variable/function name? \
+                    See also st <command> --help-vars.",
+                    String::from_utf8_lossy(t)
+                );
+            }
+        }
+        out.push(vs);
     }
     Ok(())
 }
