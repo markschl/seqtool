@@ -26,7 +26,7 @@ fn compress_pipe() {
         &FASTA,
     );
 
-    #[cfg(feature = "zst")]
+    #[cfg(feature = "zstd")]
     Tester::new().pipe(
         &[".", "--to", "fasta.zst", "--compr-level", "9"],
         &FASTA,

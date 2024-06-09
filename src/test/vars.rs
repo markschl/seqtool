@@ -140,7 +140,6 @@ fn attrs() {
         );
 
     #[cfg(feature = "expr")]
-    use crate::helpers::NA;
     t.cmp(
         &[".", "--to-tsv", "{num(attr('p'))+1}"],
         *FASTA,

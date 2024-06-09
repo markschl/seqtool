@@ -200,7 +200,7 @@ macro_rules! records {
 mod compress;
 #[cfg(any(feature = "all-commands", feature = "concat"))]
 mod concat;
-#[cfg(any(feature = "all-commands", feature = "convert"))]
+#[cfg(any(feature = "all-commands", feature = "pass"))]
 mod convert;
 #[cfg(any(feature = "all-commands", feature = "count"))]
 mod count;
