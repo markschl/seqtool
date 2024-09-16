@@ -139,14 +139,14 @@ pub trait VarProviderInfo: fmt::Debug {
                         // .into_iter()
                         // .map(|u| format!("{}`", u))
                         .join("<br />");
-                    // TODO: very simple but fine for a help page
+                    // TODO: very simple but... but probably fine for a help page
                     let desc = info
                         .description
                         .replace('<', r"\<")
                         .replace('>', r"\>")
                         .replace('\n', "<br />");
 
-                    writeln!(out, "| {} | {} |", usages, desc)?;
+                    writeln!(out, "| <a name=\"{}\"></a>{} | {} |", info.name, usages, desc)?;
                 }
             }
             writeln!(out)?;
@@ -161,7 +161,7 @@ pub trait VarProviderInfo: fmt::Debug {
             writeln!(out, "### {}", ex)?;
             for example in examples {
                 writeln!(out, "{}:", example.description)?;
-                writeln!(out, "```sh\n{}\n```", example.command)?;
+                writeln!(out, "```bash\n{}\n```", example.command)?;
                 if let Some(output) = example.output {
                     writeln!(out, "```\n{}\n```", output)?;
                 }

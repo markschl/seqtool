@@ -332,10 +332,9 @@ pub enum SubCommand {
     /// Sort records by sequence or any other criterion
     #[cfg(any(feature = "all-commands", feature = "sort"))]
     Sort(cmd::sort::cli::SortCommand),
-    /// De-replicate records by sequence or any other criterion, returning only
+    /// De-replicate by sequence and/or other properties, returning only
     /// unique records
     #[cfg(any(feature = "all-commands", feature = "unique"))]
-    #[clap(about, long_about)]
     Unique(cmd::unique::cli::UniqueCommand),
     /// Keep/exclude sequences based on different properties with a
     /// mathematical (JavaScript) expression

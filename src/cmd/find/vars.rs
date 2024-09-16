@@ -22,7 +22,7 @@ variable_enum! {
     ///
     /// # Examples
     ///
-    /// Find a primer sequence with up to 2 mismatches (`-d/--dist``) and write
+    /// Find a primer sequence with up to 2 mismatches (`-d/--dist`) and write
     /// the match range and the mismatches ('dist') to the header as attributes.
     /// The result will be 'undefined' (=undefined in JavaScript) if there are > 2 mismatches
     ///
@@ -32,7 +32,7 @@ variable_enum! {
     /// SEQUENCE
     /// >id2 rng=1:20 dist=0
     /// SEQUENCE
-    /// >id3 rng= dist=
+    /// >id3 rng=undefined dist=undefined
     /// SEQUENCE
     /// (...)
     ///
@@ -41,7 +41,7 @@ variable_enum! {
     /// while non-matching sequences are written to 'no_primer.fasta'
     ///
     /// `st find -f -d 2 CTTGGTCATTTAGAGGAAGTAA --dropped no_primer.fasta -a end={match_end} reads.fasta |
-    ///    st trim -e '{attr(match_end)}..' > primer_trimmed.fasta`
+    ///    st trim -e '{attr(match_end)}:' > primer_trimmed.fasta`
     ///
     ///
     /// Search for several primers with up to 2 mismatches and write the name and mismatches
@@ -53,7 +53,7 @@ variable_enum! {
     /// SEQUENCE
     /// >id1 primer=primer_2 dist=0
     /// SEQUENCE
-    /// >id1 primer= dist=
+    /// >id1 primer=undefined dist=undefined
     /// SEQUENCE
     /// (...)
     FindVar {
@@ -145,7 +145,7 @@ variable_enum! {
         /// to the pattern
         MatchSubst(Number) { hit: String = String::from("1"), pattern: usize = 1 },
         /// Name of the matching pattern (patterns supplied with `file:patterns.fasta`).
-        /// In case a single pattern was specified in the commandline, this will just be `<pattern>`.
+        /// In case a single pattern was specified in the commandline, this will just be *<pattern>*.
         /// `pattern_name(rank)` selects the n-th matching pattern, sorted by edit distance
         /// and/or pattern number (depending on `-D/-R` and `--in-order`).
         PatternName(Text) { rank: usize = 1 },

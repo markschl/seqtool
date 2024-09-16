@@ -69,7 +69,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='General purpose tool for reading, modifying and writing biological sequences.'
+            Description='General-purpose tool for reading, modifying and writing biological sequences.'
             Manufacturer='Markus Schlegel'
             InstallerVersion='450'
             Languages='1033'

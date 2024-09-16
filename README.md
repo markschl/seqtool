@@ -1,22 +1,13 @@
 **Seqtool** is a  fast and flexible command line program for dealing with
 large amounts of biological sequences.
-It provides different subcommands for *converting*, *inspecting* and *modifying*
-sequences.
+It provides different [subcommands](#commands) for *converting*, *inspecting*
+and *modifying* sequences.
 The standalone binary (~6 MB) is simply named `st` to save some typing.
-
-> **Note:** this page describes the development version 0.4-beta.
-> **The older stable version (v0.3.0) is [documented here](https://github.com/markschl/seqtool/wiki).**
-
-> ⚠ Also note that **there are some bugs in v0.3.0**,
-> see [CHANGELOG](https://github.com/markschl/seqtool/blob/main/CHANGELOG.md#important-bugfixes-).
-> Alternatively, v0.4.0-beta should be pretty safe to use already.
-
-**[📥 download stable release (v0.3.0)](https://github.com/markschl/seqtool/releases/latest)**
-
-**[📥 download beta release (v0.4.0-beta)](https://github.com/markschl/seqtool/releases/tag/0.4.0-beta.2)**
 
 [![CI](https://github.com/markschl/seqtool/actions/workflows/ci.yaml/badge.svg)](https://github.com/markschl/seqtool/actions/workflows/ci.yaml)
 
+> **Note:** this page describes the development version 0.4-beta.
+> **The older stable version (v0.3.0) is [documented here](https://github.com/markschl/seqtool/wiki).**
 
 
 ## Detailed documentation
@@ -24,32 +15,47 @@ The standalone binary (~6 MB) is simply named `st` to save some typing.
 **See [this page](https://markschl.github.io/seqtool-docs)**
 
 
+## Downloads
+
+**[📥 download stable release (v0.3.0)](https://github.com/markschl/seqtool/releases/latest)**
+
+> **⚠ Note**: there are a few **unfixed bugs in v0.3.0** (currently)
+> when reading GZIP files or searching/replacing;
+> see [CHANGELOG for v0.4.0-beta](https://github.com/markschl/seqtool/blob/main/CHANGELOG.md#important-bugfixes-).
+> Alternatively, consider using v0.4.0-beta.
+
+**[📥 download beta release (v0.4.0-beta)](https://github.com/markschl/seqtool/releases/tag/0.4.0-beta.2)**
+
+> Should be pretty safe to use despite considerable refactoring.
+> Approximate matching (https://markschl.github.io/seqtool-docs/[find](find) command) is yet to be fully tested.
+
+
 ## Feature overview
 
 ### File formats
 
-[**Reads** and **writes**](https://markschl.github.io/seqtool-docs/pass) **FASTA, FASTQ** and **CSV/TSV**, optionally compressed
+[**Reads** and **writes**](https://markschl.github.io/seqtool-docs/formats) **FASTA, FASTQ** and **CSV/TSV**, optionally compressed
 with [GZIP](https://en.wikipedia.org/wiki/Gzip), [BZIP2](https://en.wikipedia.org/wiki/Bzip2),
 or the faster and more modern [Zstandard](http://facebook.github.io/zstd/) or [LZ4](https://lz4.org/)
 formats
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: compressed FASTQ to FASTA
 </summary>
 
 Combine multiple compressed FASTQ files, converting them to FASTA, using [pass](https://markschl.github.io/seqtool-docs/pass).
 
-> **Note**: almost every command can read multiple input files and convert between formats,
-> but *pass* does nothing other than reading and writing while other command perform certain actions.
-
-```sh
+```bash
 st pass file1.fastq.gz file2.fastq.gz -o output.fasta
 ```
 
+> **Note**: almost every command can read multiple input files and convert between formats,
+> but *pass* does nothing other than reading and writing while other command perform certain actions.
+
 </details>
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: FASTA to tab-separated list
 </summary>
@@ -57,7 +63,7 @@ Example: FASTA to tab-separated list
 Aside from ID and sequence, any [variable/function](https://markschl.github.io/seqtool-docs/variables) such as
 the sequence length (`seqlen`) can be written to  delimited text.
 
-```sh
+```bash
 st pass input.fasta --to-tsv id,seq,seqlen
 ``` 
 
@@ -70,23 +76,16 @@ id1	ACGTA	5
 </details>
 
 
-### Commands for many different tasks
+### Highly versatile thanks to variables/functions
 
-([see list below](#commands))
+See also **[variables/functions](https://markschl.github.io/seqtool-docs/variables)** for more details.
 
-### Highly versatile
-
-... thanks to **[variables/functions](https://markschl.github.io/seqtool-docs/variables)**
-
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: count sequences in a large set of FASTQ files
 </summary>
 
-In [count](https://markschl.github.io/seqtool-docs/count), one or several categorical [variables/functions](https://markschl.github.io/seqtool-docs/variables)
-can be specified with `-k/--key`.
-
-```sh
+```bash
 st count -k path data/*.fastq.gz
 ```
 
@@ -99,9 +98,12 @@ data/sample5.fastq.gz	7021
 (...)
 ```
 
+> In [count](https://markschl.github.io/seqtool-docs/count), one or several categorical [variables/functions](https://markschl.github.io/seqtool-docs/variables)
+> can be specified with `-k/--key`.
+
 </details>
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: summarize the GC content in 10% intervals
 </summary>
@@ -109,7 +111,7 @@ Example: summarize the GC content in 10% intervals
 The function `bin(variable, interval)` groups continuous numeric values
 into intervals
 
-```sh
+```bash
 st count -k 'bin(gc_percent, 10)' sequences.fasta
 ```
 
@@ -123,12 +125,12 @@ st count -k 'bin(gc_percent, 10)' sequences.fasta
 
 </details>
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: Assign new sequence IDs
 </summary>
 
-```sh
+```bash
 st set -i 'seq_{num}' seqs.fasta > renamed.fasta
 ```
 
@@ -144,7 +146,7 @@ SEQUENCE
 
 </details>
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: De-replicate by description and sequence
 </summary>
@@ -164,7 +166,7 @@ SEQUENCE1
 SEQUENCE1
 ```
 
-```sh
+```bash
 st unique 'desc,seq' seqs.fasta > grouped_uniques.fasta
 ```
 
@@ -185,7 +187,7 @@ From simple math to complicated filter [expressions](https://markschl.github.io/
 ([QuickJS](https://bellard.org/quickjs)) offers countless possibilities for customized
 sequence processing.
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: filter FASTQ sequences by quality and length
 </summary>
@@ -194,19 +196,19 @@ This [filter](https://markschl.github.io/seqtool-docs/filter) command removes se
 sequencing error (like [USEARCH](https://www.drive5.com/usearch/manual/exp_errs.html) can do)
 or sequence length of <100 bp.
 
-```sh
+```bash
 st filter 'exp_err < 1 && seqlen >= 100' reads.fastq > filtered.fastq
 ```
 
 </details>
 
 
-### Header attributes
+### Header attributes for metadata storage
 
 **`key=value` [header attributes](https://markschl.github.io/seqtool-docs/attributes)** allow storing and passing on
 all kinds of information
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: De-replicate by sequence (seq variable) and/or other properties  
 </summary>
@@ -214,7 +216,7 @@ Example: De-replicate by sequence (seq variable) and/or other properties
 The [unique](https://markschl.github.io/seqtool-docs/unique) command returns all unique sequences and annotates
 the number of records with the same sequence in the header:
 
-```sh
+```bash
 st unique seq -a abund={n_duplicates} input.fasta > uniques.fasta
 ```
 
@@ -229,7 +231,7 @@ GGAGGATCCGAGCG
 It is also possible to de-replicate by multiple keys, e.g. by sequence,
 but grouped by a `sample` attribute in the header:
 
-```sh
+```bash
 st unique 'seq,attr(sample)' input.fasta > uniques.fasta
 ```
 
@@ -247,7 +249,7 @@ SEQUENCE4
 
 </details>
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: pre-processing of mixed multi-marker amplicon sequences (primer trimming, grouping by amplicon)
 </summary>
@@ -258,7 +260,7 @@ multi-marker amplicons.
 and finally [split](https://markschl.github.io/seqtool-docs/split) distributes the sequences into different files named
 by the forward primer.
 
-`primers.fasta`
+**primers.fasta**
 
 ```
 >prA
@@ -267,16 +269,18 @@ PRIMER
 PRIMER
 ```
 
-```sh
+**Command for searching/trimming**
+
+```bash
 st find file:primers.fasta -a primer='{pattern_name}' -a end='{match_end}' sequences.fasta |
   st trim -e '{attr(end)}..' | 
   st split -o '{attr(primer)}'
 ```
 
-<table>
+<table markdown>
 <tr><th>prA.fasta </th><th>prB.fasta</th><th>undefined.fasta</th></tr>
-<tr>
-<td>
+<tr markdown>
+<td markdown>
 
 ```
 >id1 primer=prA end=22
@@ -287,7 +291,7 @@ SEQUENCE
 ```
 
 </td>
-<td>
+<td markdown>
 
 ```
 >id2 primer=prB end=20
@@ -298,7 +302,7 @@ SEQUENCE
 ```
 
 </td>
-<td>
+<td markdown>
 
 ```
 >id5 primer=undefined end=undefined
@@ -315,19 +319,19 @@ UNTRIMMEDSEQUENCE
 </details>
 
 
-### Metadata integration
+### Integration of external metadata
 
 Integration of [**sequence metadata sources**](https://markschl.github.io/seqtool-docs/meta) in the form of delimited text
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: Add Genus names from a separate tab-separated list
 </summary>
 
-<table>
+<table markdown>
 <tr><th>input.fasta</th><th>genus.tsv</th></tr>
-<tr>
-<td>
+<tr markdown>
+<td markdown>
 
 ```
 >id1
@@ -338,7 +342,7 @@ SEQUENCE
 ```
 
 </td>
-<td>
+<td markdown>
 
 ```
 id  genus
@@ -353,14 +357,14 @@ seq2  Amycolatopsis
 
 Using `-m/--meta` to include `genus.tsv` as metadata source:
 
-```sh
+```bash
 st set -m genus.tsv --desc '{meta(genus)}' input.fasta > with_genus.fasta
 ```
 
-<table>
+<table markdown>
 <tr><th>with_genus.fasta</th></tr>
-<tr>
-<td>
+<tr markdown>
+<td markdown>
 
 ```
 >seq1 Actinomyces
@@ -375,15 +379,15 @@ SEQUENCE
 </table>
 </details>
 
-<details markdown>
+<details markdown class="highlight">
 <summary>
 Example: Choose specific sequences given a separate file with an ID list
 </summary>
 
-<table>
+<table markdown>
 <tr><th>input.fasta</th><th>id_list.txt</th></tr>
-<tr>
-<td>
+<tr markdown>
+<td markdown>
 
 ```
 >id1
@@ -409,14 +413,14 @@ id4
 </table>
 
 
-```sh
+```bash
 st filter -m id_list.txt 'has_meta()' input.fasta > subset.fasta
 ```
 
-<table>
+<table markdown>
 <tr><th>subset.fasta</th></tr>
-<tr>
-<td>
+<tr markdown>
+<td markdown>
 
 ```
 >id1
@@ -442,7 +446,7 @@ attribute setting
 
 ### Subset/shuffle
 * **[sort](https://markschl.github.io/seqtool-docs/sort)**: Sort records by sequence or any other criterion
-* **[unique](https://markschl.github.io/seqtool-docs/unique)**: General purpose tool for reading, modifying and writing biological sequences.
+* **[unique](https://markschl.github.io/seqtool-docs/unique)**: De-replicate by sequence and/or other properties, returning only unique records
 * **[filter](https://markschl.github.io/seqtool-docs/filter)**: Keep/exclude sequences based on different properties with a mathematical
 (JavaScript) expression
 * **[split](https://markschl.github.io/seqtool-docs/split)**: Distribute sequences into multiple files based on a variable/function or
@@ -470,3 +474,14 @@ concatenate several ranges
 * **[revcomp](https://markschl.github.io/seqtool-docs/revcomp)**: Reverse complements DNA or RNA sequences
 * **[concat](https://markschl.github.io/seqtool-docs/concat)**: Concatenates sequences/alignments from different files
 
+## Comparison with other tools
+
+There are other tools with a similar focus such as [Seqtk](https://github.com/lh3/seqtk),
+[SeqKit](https://github.com/shenwei356/seqkit), the [FASTX-Toolkit](https://github.com/agordon/fastx_toolkit),
+as well as the more specialized [USEARCH](https://www.drive5.com/usearch) and
+[VSEARCH](https://github.com/torognes/vsearch) offering some of the functions
+as well.
+
+*Seqtool* performs well compared to these tools on a selection of diverse tasks:
+
+**[Comparison of tools](https://markschl.github.io/seqtool-docs/comparison)**

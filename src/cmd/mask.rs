@@ -1,13 +1,19 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::var_range::VarRanges;
 use crate::io::SeqQualRecord;
 
+pub const DESC: &str = "\
+Masks the sequence within a given range or comma delimited list of ranges
+by converting to lowercase (soft mask) or replacing with a character (hard
+masking). Reverting soft masking is also possible.";
+
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Mask' command options")]
+#[clap(before_help=DESC, help_template=WORDY_HELP)]
 pub struct MaskCommand {
     /// Range in the form 'start:end' or 'start:' or ':end',
     /// The range start/end may be defined by varialbes/functions,

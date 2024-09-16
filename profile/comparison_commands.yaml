@@ -1,0 +1,305 @@
+pass:
+  no_action:
+    description: Do nothing, just read and write FASTA
+    cmd: st pass input.fasta > output.fasta
+    other:
+      SeqKit: seqkit seq [-w 0] input.fasta > output.fasta
+    compare_with: [SeqKit]
+  fasta:
+    description: Convert FASTQ to FASTA
+    cmd: st pass --to-fa input.fastq > output.fasta
+    other:
+      FASTX-Toolkit: fastq_to_fasta -Q33 -i input.fastq > output.fasta
+      Seqtk: seqtk seq -A input.fastq > output.fasta
+      SeqKit: seqkit fq2fa input.fastq > output.fasta
+    compare_with: [SeqKit]
+  qual_scores:
+    description: Convert FASTQ quality scores
+    cmd: st pass --to fastq-illumina input.fastq > output.fastq
+    other:
+      VSEARCH: vsearch --fastq_convert input.fastq --fastq_asciiout 64 --fastqout output.fastq
+      SeqKit: seqkit convert --from 'Sanger' --to 'Illumina-1.3+' input.fastq > output.fastq
+    compare_with: [SeqKit]
+  gzip_compress:
+    description: Write compressed FASTQ files in GZIP format
+    cmd: st pass input.fastq -o output.fastq.gz
+    other:
+      SeqKit: seqkit seq input.fastq -o output.fastq.gz
+      seqtool | gzip: st pass input.fastq | gzip -c > output.fastq.gz
+      gzip directly: gzip -kf input.fastq
+      pigz directly (4 threads): pigz -p4 -kf input.fastq
+  compress_zstd:
+    description: Write compressed FASTQ files in Zstandard format
+    cmd: st pass input.fastq -o output.fastq.zst
+    other:
+      seqtool | zstd piped: st pass input.fastq | zstd -c > output.fastq.zst
+  compress_lz4:
+    description: Write compressed FASTQ files in Lz4 format
+    cmd: st pass input.fastq -o output.fastq.lz4
+    other:
+      seqtool | lz4 piped: st pass input.fastq | lz4 -c > output.fastq.lz4
+
+
+count:
+  all:
+    description: Count the number of FASTQ sequences in the input
+    cmd: st count input.fastq
+    other:
+      Seqtk: seqtk size input.fasta
+    compare:
+      seqtk:
+        - st count input.fastq > output.tsv
+        - seqtk size input.fastq | cut -f1 > output.tsv
+  gc:
+    description: Count the number of FASTQ sequences, grouped by GC content (in 10% intervals)
+    cmd: st count -k 'bin(gc_percent, 10)' input.fastq
+    other:
+      st with math expression: st count -k '{bin(gc_percent/100*100, 10)}' input.fastq
+
+
+sort:
+  sequence:
+    description: Sort by sequence
+    cmd: st sort seq input.fasta > output.fasta
+    other:
+      SeqKit: seqkit sort -s [-w 0] input.fasta > output.fasta
+  sequence_lim:
+    description: Sort by sequence with ~ 50 MiB memory limit
+    cmd: st sort seq input.fasta -M 50M > output.fasta
+    other:
+      100 MiB memory limit: st sort seq input.fasta -M 100M > output.fasta
+
+  id:
+    description: Sort by record ID
+    cmd: st sort id input.fasta > output.fasta
+    other:
+      SeqKit: seqkit sort [-w 0] input.fasta > output.fasta
+    compare_with: [SeqKit]
+  length:
+    description: Sort by sequence length
+    cmd: st sort seqlen input.fasta > output.fasta
+    other:
+      SeqKit: seqkit sort -l [-w 0] input.fasta > output.fasta
+      VSEARCH: vsearch --sortbylength input.fasta --output output.fasta [--fasta_width 0]
+  size:
+    description: Sort sequences by USEARCH/VSEARCH-style abundance annotations
+    cmd: >
+      ST_ATTR_FMT=';key=value' st unique seq -a size={n_duplicates} input.fasta |
+        st sort '{-attr("size")}' > output.fasta
+    other:
+      VSEARCH: >
+        vsearch --derep_fulllength input.fasta --output - --sizeout |
+          vsearch --sortbysize - --output output.fasta [--fasta_width 0]
+    compare_with: []
+
+
+unique:
+  seqhash:
+    description: >
+      Remove duplicate sequences using sequence hashes.
+      This is more memory efficient and usually faster than keeping the whole 
+      sequence around.
+    cmd: st unique seqhash input.fasta > output.fasta
+    other:
+      SeqKit: seqkit rmdup -sP [-w 0] input.fasta > output.fasta
+    compare_with: [SeqKit]
+  
+  seqhash_ignorecase:
+    description: >
+      Remove duplicate sequences using sequence hashes (case-insensitive).
+    cmd: st unique 'seqhash(true)' input.fasta > output.fasta
+    other:
+      VSEARCH: vsearch --derep_smallmem input.fasta --fastaout output.fasta [--fasta_width 0]
+      SeqKit: seqkit rmdup -sPi [-w 0] input.fasta > output.fasta
+    compare_with: [SeqKit]
+    compare:
+        vsearch_id_sorted_smallmem:
+        - st unique 'seqhash(true)' input.fasta | st sort id | st del -d > output.fasta
+        - vsearch --derep_smallmem input.fasta --fastaout - | st sort id > output.fasta
+
+  seq:
+    description: >
+      Remove duplicate sequences that are exactly identical (case-insensitive);
+      comparing full sequences instead of not hashes (requires more memory).
+      VSEARCH additionally treats 'T' and 'U' in
+      the same way (seqtool doesn't).
+    cmd: st unique upper_seq input.fasta > output.fasta
+    other:
+      seqtool (sorted by sequence): st unique -s upper_seq input.fasta > output.fasta
+      VSEARCH: vsearch --derep_fulllength input.fasta --output output.fasta [--fasta_width 0]
+    compare:
+      st_mem:
+        - st unique -s seq input.fasta > output.fasta
+        - st unique -s -M 50M seq input.fasta > output.fasta
+      vsearch_id_sorted:
+        - st unique seq input.fasta | st sort id | st del -d > output.fasta
+        - vsearch --derep_fulllength input.fasta --output - | st sort id > output.fasta
+  
+  seq_smallmem:
+    description: Remove duplicate sequences (exact mode) with a memory limit of ~50 MiB
+    cmd: st unique seq -M 50M input.fasta > output.fasta
+
+  seq_both:
+    description: Remove duplicate sequences, checking both strands
+    cmd: st unique seqhash_both input.fasta > output.fasta
+    other:
+      SeqKit: seqkit rmdup -s [-w 0] input.fasta > output.fasta
+    compare_with: [SeqKit]
+
+  size_annot:
+    description: >
+      Remove duplicate sequences, appending USEARCH/VSEARCH-style abundance
+      annotations to the headers: *>id;size=NN*
+    cmd: st unique seq -a size={n_duplicates} --attr-fmt ';key=value' input.fasta > output.fasta
+    other:
+      VSEARCH: vsearch --derep_fulllength input.fasta --sizeout --output output.fasta [--fasta_width 0]
+    compare:
+      vsearch_id_sorted:
+        - st unique seq input.fasta -a size={n_duplicates} --attr-fmt ';key=value' | st del -d | st sort id > output.fasta
+        - vsearch --derep_fulllength input.fasta --output - --sizeout --fasta_width 0 | st sort id > output.fasta
+
+  id_seq:
+    description: >
+      De-replicate both by sequence *and* record ID (the part before the first space in the header).
+      The given benchmark actually has unique sequence IDs, so the result is the same as de-replication
+      by sequence.
+    cmd: st unique id,seq input.fasta > output.fasta
+    other:
+      VSEARCH: vsearch --derep_id input.fasta --output output.fasta
+    compare:
+      vsearch_id_sorted:
+        - st unique id,seq input.fasta | st del -d | st sort id > output.fasta
+        - vsearch --derep_id input.fasta --output - --fasta_width 0 | st sort id > output.fasta
+
+
+filter:
+  seqlen:
+    description: Filter sequences by length
+    cmd: st filter 'seqlen >= 100' input.fastq > output.fastq
+    other:
+      Seqtk: seqtk seq -L 100 input.fastq > output.fastq
+      SeqKit: seqkit seq -m 100 input.fastq > output.fastq
+    compare_with: [Seqtk, SeqKit]
+  quality:
+    description: >
+      Filter sequences by the total expected error as calculated from the
+      quality scores
+    cmd: st filter 'exp_err <= 1' input.fastq --to-fa > output.fastq
+    other:
+      VSEARCH: vsearch --fastq_filter input.fastq --fastq_maxee 1 --fastaout output.fasta [--fasta_width 0]
+      USEARCH: usearch -fastq_filter input.fastq -fastq_maxee 1 -fastaout output.fasta
+    compare_with: [VSEARCH]
+  select_ids:
+    description: Select records from a large set of sequences given a list of 1000 sequence IDs
+    prepare: st sample -n 1000 input.fasta --to-tsv id > ids_list.txt
+    cleanup: rm ids_list.txt
+    cmd: st filter -m ids_list.txt 'has_meta()' input.fasta > output.fasta
+    other:
+      VSEARCH: vsearch --fastx_getseqs input.fasta --labels ids_list.txt --fastaout output.fasta
+      SeqKit: seqkit grep -f ids_list.txt input.fasta > output.fasta
+
+
+sample:
+  n:
+    description: Random subsampling to 1000 of sequences
+    cmd: st sample -n 1000 input.fasta > output.fasta
+    other:
+      VSEARCH: vsearch --fastx_subsample input.fasta --sample_size 1000 --fastaout output.fasta
+      Seqtk: seqtk sample input.fasta 1000 > output.fasta
+      SeqKit: seqkit sample -n 1000 input.fasta > output.fasta
+  proportion:
+    description: Random subsampling to ~10% of sequences
+    cmd: st sample -p 0.1 input.fasta > output.fasta
+    other:
+      Seqtk: seqtk sample input.fastq 0.1 > output.fasta
+      SeqKit: seqkit sample -p 0.1 input.fastq > output.fasta
+
+
+find:
+  primer_location:
+    description: Find the forward primer location in the input reads with up to 4 mismatches
+    cmd: st find -D4 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
+    other:
+      st (4 threads): st find -t4 -D4 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
+      st (max. mismatches = 2): st find -D2 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
+      st (max. mismatches = 8): st find -D8 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
+  find_trim_primer:
+    description: >
+      Find and trim the forward primer up to an error rate (edit distance) of 20%,
+      discarding unmatched reads.
+      *Note:* Unlike Cutadapt, seqtool currently does not offer ungapped alignments
+      (`--no-indels`).
+    cmd: >
+      st find -f file:primers.fasta -R 0.2 input.fastq -a primer={pattern_name} -a end={match_end} |
+        st trim -e '{attr(end)}:' --fq > output.fastq
+    other:
+      Cutadapt: >
+        cutadapt -g 'file:primers.fasta;min_overlap=15' input.fastq -e 0.2 --rename '{id} primer={adapter_name}' --discard-untrimmed > output.fastq
+  find_trim_primer_j4:
+    description: >
+      Find and trim the forward primer in parallel using 4 threads (cores).
+    cmd: >
+      st find -f file:primers.fasta -R 0.2 -t4 input.fastq -a primer={pattern_name} -a end={match_end} |
+        st trim -e '{attr(end)}:' --fq > output.fastq
+    other:
+      Cutadapt: >
+        cutadapt -j4 -g 'file:primers.fasta;min_overlap=15' input.fastq -e 0.2 --rename '{id} primer={adapter_name}' --discard-untrimmed > output.fastq
+
+
+replace:
+  dna_to_rna:
+    description: Convert DNA to RNA using the replace command
+    cmd: st replace T U input.fasta > output.fasta
+    other:
+      st find: st find T --rep U input.fasta > output.fasta
+      SeqKit: seqkit seq --dna2rna [-w 0] input.fasta > output.fasta
+      FASTX-Toolkit: fasta_nucleotide_changer -r -i input.fasta > output.fasta
+    compare_with:
+      ['st find', SeqKit]
+  dna_to_rna_4:
+    description: Convert DNA to RNA using 4 threads
+    cmd: st replace -t4 T U input.fasta > output.fasta
+    other:
+      st find: st find -t4 T --rep U input.fasta > output.fasta
+
+
+trim:
+  trim:
+    description: Trim the leading 99 bp from the sequences
+    cmd: "st trim 100: input.fasta > output.fasta"
+    other:
+      SeqKit (creates FASTA index): seqkit subseq -r '100:-1' [-w 0] input.fasta > output.fasta
+    compare_with: [SeqKit (creates FASTA index)]
+
+
+upper:
+  upper:
+    description: Convert sequences to uppercase
+    cmd: st upper input.fasta > output.fasta
+    other:
+      Seqtk: seqtk seq -U input.fasta > output.fasta
+      SeqKit: seqkit seq -u [-w 0] input.fasta > output.fasta
+    compare_with: [Seqtk, SeqKit]
+
+
+revcomp:
+  revcomp:
+    description: Reverse complement sequences
+    cmd: st revcomp input.fasta > output.fasta
+    other:
+      Seqtk: seqtk seq -r input.fasta > output.fasta
+      VSEARCH: vsearch --fastx_revcomp input.fasta --fastaout output.fasta [--fasta_width 0]
+      SeqKit: seqkit seq -rp [-w 0] input.fasta > output.fasta
+    compare_with: [Seqtk, SeqKit, VSEARCH]
+
+
+concat:
+  concat:
+    description: Concatenate sequences, adding an `NNNNN` spacer inbetween
+    prepare:
+      - ln -s input.fastq file1.fastq
+      - ln -s input.fastq file2.fastq
+    cleanup: rm file1.fastq file2.fastq
+    cmd: st concat -s 5 -c N file1.fastq file2.fastq > output.fastq
+    other:
+      VSEARCH: vsearch --fastq_join file1.fastq --reverse file2.fastq --join_padgap NNNNN --fastqout output.fastq

@@ -11,12 +11,9 @@ use crate::helpers::{value::SimpleValue, DefaultHashMap as HashMap};
 use crate::var::varstring::VarString;
 
 pub const DESC: &str = "
-Records in all the provided input (including multiple files) are counted
-collectively.
-
-In addition, records can be summarized over one or more categories
-specified with `-k/--key`. The reported counts are always sorted by the
-numeric or text category.
+The overall record count is returned for all input files collectively.
+Optionally, grouping categories (text or numeric) can be specified using
+`-k/--key`. The tab-delimited output is sorted by the categories.
 ";
 
 lazy_static::lazy_static! {
@@ -49,9 +46,9 @@ pub struct CountCommand {
 
     /// Maximum number of categories to count before aborting with an error.
     /// This limit is a safety measure to prevent memory exhaustion.
-    /// Usually, a very large number of categories is not intended and may
-    /// happen if continuous numbers are not categorized with the
-    /// `bin(<num>, <interval>)` function.
+    /// A very large number of categories could unintentionally occur with a
+    /// condinuous numeric key (e.g. `gc_percent`). These can be grouped into
+    /// regular intervals using `bin(<variable>, <interval>)`.
     #[arg(short = 'l', long, default_value_t = 1000000)]
     category_limit: usize,
 
