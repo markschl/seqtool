@@ -12,7 +12,7 @@ use crate::cmd::shared::{
 use crate::error::CliResult;
 use crate::helpers::{vec::VecFactory, DefaultBuildHasher as BuildHasher};
 
-use super::{FileDeduplicator, MapFormat, MapWriter, Record, RequiredInformation};
+use super::{FileDeduplicator, MapWriter, Record, RequiredInformation};
 
 // type RecordMap<K, V> = std::collections::HashMap<K, V, BuildHasher>;
 // type RecordSet<V> = std::collections::HashSet<V, BuildHasher>;
@@ -186,10 +186,10 @@ impl Records {
         }
     }
 
-    pub fn write_deferred(
+    pub fn write_deferred<M: io::Write>(
         &mut self,
         io_writer: &mut dyn io::Write,
-        map_out: Option<(&mut dyn io::Write, MapFormat)>,
+        mut map_writer: Option<&mut MapWriter<M>>,
     ) -> CliResult<()> {
         match self {
             Self::Records {
@@ -201,7 +201,6 @@ impl Records {
                 if *sort {
                     records.sort_keys();
                 }
-                let mut map_writer = map_out.map(|(out, fmt)| MapWriter::new(out, fmt));
                 for (key, rec) in records {
                     rec.write_deferred(*has_placeholders, io_writer)?;
                     if let Some(w) = map_writer.as_mut() {
@@ -314,12 +313,12 @@ impl MemDeduplicator {
     /// Write records to output, which have been kept in memory, either
     /// because we need to sort them, or because we need to insert the
     /// content of the `n_duplicates` or `duplicate_ids` variables.
-    pub fn write_deferred(
+    pub fn write_deferred<M: io::Write>(
         &mut self,
         io_writer: &mut dyn io::Write,
-        map_out: Option<(&mut dyn io::Write, MapFormat)>,
+        map_writer: Option<&mut MapWriter<M>>,
     ) -> CliResult<()> {
-        self.records.write_deferred(io_writer, map_out)
+        self.records.write_deferred(io_writer, map_writer)
     }
 
     /// Obtains a FileDeduplicator from this MemDeduplicator.

@@ -8,8 +8,9 @@ use rkyv::{Archive, Deserialize, Serialize};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::vec::VecFactory;
-use crate::io::output::with_general_io_writer;
+use crate::io::output::general_io_writer;
 use crate::var::varstring::register_var_list;
+use crate::CliError;
 
 use super::shared::{sort_item::Key, tmp_store::Archivable};
 
@@ -37,7 +38,11 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
     let mut record_buf_factory = VecFactory::new();
     let tmp_path = args.temp_dir.clone().unwrap_or_else(temp_dir);
-    let map_out = args.map_out.as_ref();
+    let mut map_writer = args
+        .map_out
+        .as_ref()
+        .map(|path| Ok::<_, CliError>(MapWriter::new(general_io_writer(path)?, args.map_fmt)))
+        .transpose()?;
 
     cfg.set_custom_varmodule(Box::<UniqueVars>::default())?;
 
@@ -87,12 +92,9 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
 
         // write unique output (in case of deferred writing)
         // and/or map output
-        if let Some(path) = map_out {
-            with_general_io_writer(path, |out| {
-                dedup.write_deferred(io_writer, Some((out, args.map_fmt)), quiet, verbose)
-            })?;
-        } else {
-            dedup.write_deferred(io_writer, None, quiet, verbose)?;
+        dedup.write_deferred(io_writer, map_writer.as_mut(), quiet, verbose)?;
+        if let Some(writer) = map_writer {
+            writer.into_inner().finish()?;
         }
         Ok(())
     })
@@ -204,16 +206,16 @@ impl Deduplicator {
         Ok(())
     }
 
-    fn write_deferred(
+    pub fn write_deferred<M: io::Write>(
         &mut self,
         io_writer: &mut dyn io::Write,
-        map_out: Option<(&mut dyn io::Write, MapFormat)>,
+        map_writer: Option<&mut MapWriter<M>>,
         quiet: bool,
         verbose: bool,
     ) -> CliResult<()> {
         match self {
-            Self::Mem(m) => m.write_deferred(io_writer, map_out),
-            Self::File(f) => f.write_records(io_writer, map_out, quiet, verbose),
+            Self::Mem(m) => m.write_deferred(io_writer, map_writer),
+            Self::File(f) => f.write_records(io_writer, map_writer, quiet, verbose),
         }
     }
 }

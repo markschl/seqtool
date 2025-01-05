@@ -263,7 +263,7 @@ impl CommonArgs {
             opts.qual_out.as_deref(),
         )?;
 
-        let opts = OutputOptions::new(output, format, info.compression)
+        let opts = OutputOptions::new(output, format, info.compression, opts.append)
             .thread_opts(self.advanced.write_thread, self.advanced.write_tbufsize);
         Ok(opts)
     }
@@ -499,6 +499,13 @@ pub struct OutputArgs {
     #[arg(short, long, value_name = "FILE")]
     /// Write output to <file> instead of STDOUT [Default: STDOUT (-)]
     pub output: Option<OutputKind>,
+
+    /// Append sequences to the end if the output file(s) already exist instead of
+    /// replacing the content. In case writing to standard output
+    /// (which is the default if `-o/--output` is not specified), this option
+    /// has no effect.
+    #[arg(long)]
+    append: bool,
 
     #[arg(long, value_name = "FORMAT")]
     /// Output format and compression. See --fmt.

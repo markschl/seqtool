@@ -35,6 +35,10 @@ impl<W: io::Write> MapWriter<W> {
         Self { inner, format }
     }
 
+    pub fn into_inner(self) -> W {
+        self.inner
+    }
+
     pub fn write(&mut self, key: &Key, duplicates: &DuplicateInfo) -> io::Result<()> {
         let ids = match duplicates {
             DuplicateInfo::Ids(ids) => ids,

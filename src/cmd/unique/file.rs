@@ -9,7 +9,7 @@ use crate::cmd::shared::{
 use crate::error::CliResult;
 use crate::helpers::{heap_merge::HeapMerge, vec::VecFactory};
 
-use super::{MapFormat, MapWriter, MemDeduplicator, Record, RecordMap, Records};
+use super::{MapWriter, MemDeduplicator, Record, RecordMap, Records};
 
 /// Object handling the de-duplication using temporary files.
 /// The final unique records are obtained in the `write_records` method.
@@ -99,10 +99,10 @@ impl FileDeduplicator {
     /// The items in each file are unique, but there can be duplicates across
     /// different files. Since the merged output is sorted, duplicates are
     /// easily removed from the final output.
-    pub fn write_records(
+    pub fn write_records<M: io::Write>(
         &mut self,
         io_writer: &mut dyn Write,
-        map_out: Option<(&mut dyn Write, MapFormat)>,
+        mut map_writer: Option<&mut MapWriter<M>>,
         quiet: bool,
         verbose: bool,
     ) -> CliResult<()> {
@@ -127,7 +127,6 @@ impl FileDeduplicator {
 
         // use k-way merging of sorted chunks with a min-heap to obtain
         // the final sorted output
-        let mut map_writer = map_out.map(|(out, fmt)| MapWriter::new(out, fmt));
         let mut current_item: Option<Item<Record>> = None;
         let kmerge = HeapMerge::new(&mut readers, false)?;
         for new_item in kmerge {

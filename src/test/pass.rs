@@ -8,6 +8,22 @@ fn pass() {
 }
 
 #[test]
+fn append() {
+    use std::fs::read_to_string;
+    let fa = ">seq\nATGC\n";
+    let t = Tester::new();
+    t.temp_file("out.fa", None, |out_path, _| {
+        let read_output = || read_to_string(out_path).unwrap();
+        t.succeeds(&["pass", "--append", "-o", out_path], fa);
+        assert_eq!(&read_output(), fa);
+        t.succeeds(&["pass", "--append", "-o", out_path], fa);
+        assert_eq!(&read_output(), &(fa.to_string() + fa));
+        t.succeeds(&["pass", "--append", "-o", out_path], fa);
+        assert_eq!(&read_output(), &(fa.to_string() + fa + fa));
+    })
+}
+
+#[test]
 fn fasta_io() {
     let fa = ">seq\nATGC\n";
     let fa_wrap = ">seq\nAT\nGC\n";

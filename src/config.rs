@@ -53,6 +53,7 @@ impl Config {
             args.attr.attr_fmt.clone(),
             qual_format,
             (output_opts.compression, output_opts.compression_level),
+            output_opts.append,
         );
         ctx.init_vars(&var_opts, input_opts[0].seqtype, &output_opts)?;
 
@@ -258,6 +259,7 @@ pub struct SeqContext {
     // needed by `io_writer_from_path`
     // TODO: this is duplicated data
     out_compression: (Compression, Option<u8>),
+    append_out: bool,
 }
 
 impl SeqContext {
@@ -265,6 +267,7 @@ impl SeqContext {
         attr_format: AttrFormat,
         qual_format: QualFormat,
         out_compression: (Compression, Option<u8>),
+        append_out: bool,
     ) -> Self {
         Self {
             var_modules: Vec::new(),
@@ -273,6 +276,7 @@ impl SeqContext {
             attrs: Attributes::new(attr_format),
             qual_converter: QualConverter::new(qual_format),
             out_compression,
+            append_out,
         }
     }
 
@@ -400,7 +404,7 @@ impl SeqContext {
     // same output format and compression settings. It may not be flexible enough
     // for all future uses.
     pub fn io_writer_from_path(&self, path: &str) -> CliResult<Box<dyn WriteFinish>> {
-        let io_writer = io_writer_from_kind(&OutputKind::File(path.into()))?;
+        let io_writer = io_writer_from_kind(&OutputKind::File(path.into()), self.append_out)?;
         let (compr, level) = self.out_compression;
         let out = compr_writer(io_writer, compr, level)?;
         Ok(out)

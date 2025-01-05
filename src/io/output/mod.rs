@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{convert::Infallible, path::Path};
@@ -23,17 +23,24 @@ pub struct OutputOptions {
     pub format: OutFormat,
     pub compression: Compression,
     pub compression_level: Option<u8>,
+    pub append: bool,
     pub threaded: bool,
     pub thread_bufsize: Option<usize>,
 }
 
 impl OutputOptions {
-    pub fn new(kind: OutputKind, format: OutFormat, compression: Compression) -> Self {
+    pub fn new(
+        kind: OutputKind,
+        format: OutFormat,
+        compression: Compression,
+        append: bool,
+    ) -> Self {
         Self {
             kind,
             format,
             compression,
             compression_level: None,
+            append,
             threaded: false,
             thread_bufsize: None,
         }
@@ -153,6 +160,7 @@ impl OutFormat {
 }
 
 /// Helper trait to finish compression streams in an unified way.
+/// All writers are additionally flushed.
 pub trait WriteFinish: io::Write {
     fn finish<'a>(self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
     where
@@ -160,10 +168,11 @@ pub trait WriteFinish: io::Write {
 }
 
 impl<W: io::Write> WriteFinish for io::BufWriter<W> {
-    fn finish<'a>(self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
+    fn finish<'a>(mut self: Box<Self>) -> io::Result<Box<dyn io::Write + 'a>>
     where
         Self: 'a,
     {
+        self.flush()?;
         Ok(self)
     }
 }
@@ -174,7 +183,8 @@ impl<W: io::Write> WriteFinish for lz4::Encoder<W> {
     where
         Self: 'a,
     {
-        let (w, res) = (*self).finish();
+        let (mut w, res) = (*self).finish();
+        w.flush()?;
         res.map(|_| Box::new(w) as Box<dyn io::Write>)
     }
 }
@@ -185,7 +195,10 @@ impl<W: io::Write> WriteFinish for zstd::Encoder<'_, W> {
     where
         Self: 'a,
     {
-        (*self).finish().map(|w| Box::new(w) as Box<dyn io::Write>)
+        (*self).finish().and_then(|mut w| {
+            w.flush()?;
+            Ok(Box::new(w) as Box<dyn io::Write>)
+        })
     }
 }
 
@@ -195,7 +208,10 @@ impl<W: io::Write> WriteFinish for flate2::write::GzEncoder<W> {
     where
         Self: 'a,
     {
-        (*self).finish().map(|w| Box::new(w) as Box<dyn io::Write>)
+        (*self).finish().and_then(|mut w| {
+            w.flush()?;
+            Ok(Box::new(w) as Box<dyn io::Write>)
+        })
     }
 }
 
@@ -205,7 +221,10 @@ impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
     where
         Self: 'a,
     {
-        (*self).finish().map(|w| Box::new(w) as Box<dyn io::Write>)
+        (*self).finish().and_then(|mut w| {
+            w.flush()?;
+            Ok(Box::new(w) as Box<dyn io::Write>)
+        })
     }
 }
 
@@ -225,18 +244,18 @@ where
             thread_bufsize,
             4,
             || {
-                let mut writer = io_writer_from_kind(&o.kind)?;
+                let mut writer = io_writer_from_kind(&o.kind, o.append)?;
                 writer = compr_writer(writer, o.compression, o.compression_level)?;
                 Ok(writer)
             },
             |mut w| func(&mut w),
-            |w| w.finish()?.flush(),
+            |w| w.finish().map(|_| ()),
         )
         .map(|(o, _)| o)
     } else {
-        let mut writer = io_writer_from_kind(&o.kind)?;
+        let mut writer = io_writer_from_kind(&o.kind, o.append)?;
         let o = func(&mut writer)?;
-        writer.finish()?.flush()?;
+        writer.finish()?;
         Ok(o)
     }
 }
@@ -266,35 +285,58 @@ pub fn from_format<'a>(
     })
 }
 
-pub fn io_writer_from_kind(kind: &OutputKind) -> io::Result<Box<dyn WriteFinish>> {
+pub fn io_writer_from_kind(kind: &OutputKind, append: bool) -> io::Result<Box<dyn WriteFinish>> {
     Ok(match *kind {
         OutputKind::Stdout => Box::new(io::BufWriter::new(io::stdout().lock())),
-        OutputKind::File(ref p) => Box::new(io::BufWriter::new(File::create(p).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Error creating '{}': {}", p, e),
-            )
-        })?)),
+        OutputKind::File(ref p) => {
+            let f = File::options()
+                .create(true)
+                .write(true)
+                .truncate(!append)
+                .append(append)
+                .open(p)
+                .map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("Error creating '{}': {}", p, e),
+                    )
+                })?;
+            Box::new(io::BufWriter::new(f))
+        }
     })
 }
 
-/// Provides a general I/O writer (not for sequence writing), given a path,
-/// automatically recognizing possible compression from the extension.
-pub fn with_general_io_writer<P, F>(path: P, func: F) -> CliResult<()>
+/// Returns a general I/O writer (not for sequence writing), given a path
+/// (or '-' for STDOUT), automatically recognizing possible compression
+/// from the extension.
+/// The type `WriteFinish`, and the caller is responsible itself for finalizing
+/// by calling `finish()` on the writer.
+pub fn general_io_writer<P>(path: P) -> CliResult<Box<dyn WriteFinish>>
 where
     P: AsRef<Path>,
-    F: FnOnce(&mut dyn io::Write) -> CliResult<()>,
 {
     let path = path.as_ref();
     let kind = OutputKind::from_str(&path.to_string_lossy()).unwrap();
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let compr = Compression::from_str(ext).unwrap_or(Compression::None);
-    let out = io_writer_from_kind(&kind)?;
-    let mut compr_writer = compr_writer(out, compr, None)?;
-    func(&mut compr_writer)?;
-    compr_writer.finish()?;
-    Ok(())
+    let out = io_writer_from_kind(&kind, false)?;
+    let compr_writer = compr_writer(out, compr, None)?;
+    Ok(compr_writer)
 }
+
+// /// Provides a scoped general I/O writer (not for sequence writing), taking
+// /// care of cleanup when done.
+// /// See also `general_io_writer`.
+// pub fn with_general_io_writer<P, F>(path: P, func: F) -> CliResult<()>
+// where
+//     P: AsRef<Path>,
+//     F: FnOnce(&mut dyn io::Write) -> CliResult<()>,
+// {
+//     let mut compr_writer = general_io_writer(path)?;
+//     func(&mut compr_writer)?;
+//     compr_writer.finish()?;
+//     Ok(())
+// }
 
 pub fn compr_writer(
     writer: Box<dyn WriteFinish>,
