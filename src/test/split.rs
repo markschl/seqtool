@@ -82,7 +82,11 @@ fn seqlen_count() {
         let p = tmp_dir.path().join("{seqlen}.fa");
         let outfile = tmp_dir.path().join("25.fa");
         let counts = format!("{}\t4\n", outfile.to_string_lossy());
-        t.cmp(&["split", "-po", p.to_str().unwrap(), "-c", "-"], *FASTA, &counts);
+        t.cmp(
+            &["split", "-po", p.to_str().unwrap(), "-c", "-"],
+            *FASTA,
+            &counts,
+        );
         let mut f = File::open(outfile).unwrap();
         let mut s = String::new();
         f.read_to_string(&mut s).unwrap();

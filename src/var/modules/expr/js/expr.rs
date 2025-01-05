@@ -159,7 +159,8 @@ impl ExprContext for Context {
             register_globals(&ctx);
             // initialization code
             if let Some(code) = init_code {
-                let _: () = ctx.eval(code.as_bytes())
+                let _: () = ctx
+                    .eval(code.as_bytes())
                     .map_err(|e| obtain_exception(e, ctx.clone()))?;
             }
             Ok::<_, String>(())

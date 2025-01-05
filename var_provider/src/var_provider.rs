@@ -146,7 +146,11 @@ pub trait VarProviderInfo: fmt::Debug {
                         .replace('>', r"\>")
                         .replace('\n', "<br />");
 
-                    writeln!(out, "| <a name=\"{}\"></a>{} | {} |", info.name, usages, desc)?;
+                    writeln!(
+                        out,
+                        "| <a name=\"{}\"></a>{} | {} |",
+                        info.name, usages, desc
+                    )?;
                 }
             }
             writeln!(out)?;
