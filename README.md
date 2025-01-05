@@ -27,7 +27,7 @@ The standalone binary (~6 MB) is simply named `st` to save some typing.
 **[📥 download beta release (v0.4.0-beta)](https://github.com/markschl/seqtool/releases/tag/0.4.0-beta.2)**
 
 > Should be pretty safe to use despite considerable refactoring.
-> Approximate matching (https://markschl.github.io/seqtool-docs/[find](find) command) is yet to be fully tested.
+> Approximate matching ([find](https://markschl.github.io/seqtool-docs/find) command) is yet to be fully tested.
 
 
 ## Feature overview
@@ -310,7 +310,7 @@ UNTRIMMEDSEQUENCE
 (...)
 ```
 
-*Note:* no primer, sequence **not** trimmed since `end=undefined` (https://markschl.github.io/seqtool-docs/see [ranges](ranges)).
+*Note:* no primer, sequence **not** trimmed since `end=undefined` (see [ranges](https://markschl.github.io/seqtool-docs/ranges)).
 
 </td>
 </tr>
