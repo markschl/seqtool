@@ -173,7 +173,7 @@
         <!--<Icon Id='ProductICO' SourceFile='wix\Product.ico'/>-->
         <!--<Property Id='ARPPRODUCTICON' Value='ProductICO' />-->
 
-        <Property Id='ARPHELPLINK' Value='https://docs.rs/seq_io'/>
+        <Property Id='ARPHELPLINK' Value='https://github.com/markschl/seqtool'/>
         
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
