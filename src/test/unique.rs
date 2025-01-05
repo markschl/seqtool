@@ -284,7 +284,7 @@ fn large() {
 
 #[test]
 fn map_out() {
-    use std::io::read_to_string;
+    use std::fs::read_to_string;
     let fa = ">s1 a=1\nSEQ\n>s2 a=1\nSEQ\n>s3 a=2\nSEQ\n>s4 a=1\nSEQ\n";
     let unique_fa = ">s1 a=1\nSEQ\n>s3 a=2\nSEQ\n";
     let long = "s1\ts1\ns2\ts1\ns4\ts1\ns3\ts3\n";
@@ -296,9 +296,9 @@ fn map_out() {
     t.temp_dir("find_drop", |d| {
         let out = d.path().join("map.tsv");
         let out_path = out.to_str().unwrap();
-        let read_file = || read_to_string(File::open(out_path).unwrap()).unwrap();
+        let read_output = || read_to_string(out_path).unwrap();
         t.cmp(&["unique", "attr(a)", "--map-out", out_path], fa, unique_fa);
-        assert_eq!(&read_file(), long);
+        assert_eq!(&read_output(), long);
         t.cmp(
             &[
                 "unique",
@@ -311,7 +311,7 @@ fn map_out() {
             fa,
             unique_fa,
         );
-        assert_eq!(&read_file(), long_star);
+        assert_eq!(&read_output(), long_star);
         t.cmp(
             &[
                 "unique",
@@ -324,7 +324,7 @@ fn map_out() {
             fa,
             unique_fa,
         );
-        assert_eq!(&read_file(), wide);
+        assert_eq!(&read_output(), wide);
         t.cmp(
             &[
                 "unique",
@@ -337,7 +337,7 @@ fn map_out() {
             fa,
             unique_fa,
         );
-        assert_eq!(&read_file(), wide_comma);
+        assert_eq!(&read_output(), wide_comma);
         t.cmp(
             &[
                 "unique",
@@ -350,6 +350,6 @@ fn map_out() {
             fa,
             unique_fa,
         );
-        assert_eq!(&read_file(), wide_key);
+        assert_eq!(&read_output(), wide_key);
     })
 }

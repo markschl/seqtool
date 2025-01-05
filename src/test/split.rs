@@ -5,7 +5,7 @@ use std::fs::File;
 use std::str;
 
 #[test]
-fn split_n() {
+fn chunks() {
     let t = Tester::new();
 
     for size in 1..5 {
@@ -46,13 +46,12 @@ fn split_n() {
 }
 
 #[test]
-fn split_key() {
+fn key() {
     let t = Tester::new();
 
     t.temp_dir("split_key", |tmp_dir| {
         let subdir = tmp_dir.path().join("subdir");
         let expected: &[&str] = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
-
         let key = &subdir.join("{id}_{attr(p)}.fa");
 
         t.succeeds(&["split", "-po", &key.to_string_lossy()], *FASTA);
@@ -77,13 +76,14 @@ fn split_key() {
 }
 
 #[test]
-fn split_key_seqlen() {
+fn seqlen_count() {
     let t = Tester::new();
     t.temp_dir("split_key_seqlen", |tmp_dir| {
         let p = tmp_dir.path().join("{seqlen}.fa");
-        t.succeeds(&["split", "-po", p.to_str().unwrap()], *FASTA);
-
-        let mut f = File::open(tmp_dir.path().join("25.fa")).unwrap();
+        let outfile = tmp_dir.path().join("25.fa");
+        let counts = format!("{}\t4\n", outfile.to_string_lossy());
+        t.cmp(&["split", "-po", p.to_str().unwrap(), "-c", "-"], *FASTA, &counts);
+        let mut f = File::open(outfile).unwrap();
         let mut s = String::new();
         f.read_to_string(&mut s).unwrap();
         assert_eq!(&s, &FASTA as &str);
@@ -92,7 +92,7 @@ fn split_key_seqlen() {
 
 #[cfg(feature = "gz")]
 #[test]
-fn split_compression() {
+fn compression() {
     let t = Tester::new();
 
     t.temp_dir("split_compression", |tmp_dir| {

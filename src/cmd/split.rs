@@ -9,7 +9,7 @@ use variable_enum_macro::variable_enum;
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::helpers::DefaultHashMap as HashMap;
-use crate::io::output::{FormatWriter, OutputKind};
+use crate::io::output::{general_io_writer, FormatWriter, OutputKind};
 use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuilder};
 use crate::CliResult;
 
@@ -46,6 +46,11 @@ pub struct SplitCommand {
     #[arg(short, long)]
     parents: bool,
 
+    /// Write a tab-separated list of file path + record count to the given
+    /// file (or STDOUT if `-` is specified).
+    #[arg(short, long)]
+    counts: Option<String>,
+
     #[command(flatten)]
     pub common: CommonArgs,
 }
@@ -62,6 +67,9 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
         }
         None => None,
     };
+
+    // stats file
+    let counts_file = args.counts.as_ref().map(general_io_writer).transpose()?;
 
     // output path (or default) and chunk size
     let out_key = if num_seqs.is_some() {
@@ -88,7 +96,7 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
     let mut format_writer = cfg.get_format_writer()?;
 
     cfg.read(|record, ctx| {
-        // update chunk ndyn_var_provider!umber variable
+        // update chunk number variable
         if num_seqs.is_some() {
             ctx.custom_vars(|opt_mod: Option<&mut SplitVars>, sym| {
                 opt_mod.map(|m| m.increment(sym)).transpose()
@@ -101,8 +109,11 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
 
         // cannot use Entry API
         // https://github.com/rust-lang/rfcs/pull/1769 ??
-        if let Some(io_writer) = outfiles.get_mut(&path) {
+        if let Some((io_writer, count)) = outfiles.get_mut(&path) {
             format_writer.write(&record, io_writer, ctx)?;
+            if counts_file.is_some() {
+                *count += 1;
+            }
             return Ok(true);
         }
 
@@ -121,15 +132,24 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
             create_dir_all(par)?;
         }
 
-        outfiles.insert(path.clone(), ctx.io_writer_from_path(path_str)?);
-        let io_writer = outfiles.get_mut(&path).unwrap();
+        let io_writer = ctx.io_writer_from_path(path_str)?;
+        outfiles.insert(path.clone(), (io_writer, 1usize));
+        let (io_writer, _) = outfiles.get_mut(&path).unwrap();
         format_writer.write(&record, io_writer, ctx)?;
         Ok(true)
     })?;
 
-    // file handles from Config::io_writer_other() have to be finished
-    for (_, f) in outfiles {
-        f.finish()?.flush()?;
+    // write file stats
+    if let Some(mut f) = counts_file {
+        for (path, (_, count)) in &outfiles {
+            f.write_all(path)?;
+            writeln!(f, "\t{}", count)?;
+        }
+        f.finish()?;
+    }
+    // finish/flush the output streams
+    for (_, (f, _)) in outfiles {
+        f.finish()?;
     }
     Ok(())
 }
