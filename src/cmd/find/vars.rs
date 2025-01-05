@@ -493,7 +493,7 @@ impl VarProvider for FindVars {
             };
 
             // pattern rank:
-            debug_assert!(self.patterns.len() > 0);
+            debug_assert!(!self.patterns.is_empty());
             if pattern_rank > self.patterns.len() {
                 return fail!(format!(
                     "Pattern rank {} requested, but there are only {} patterns",

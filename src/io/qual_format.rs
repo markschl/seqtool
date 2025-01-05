@@ -39,7 +39,7 @@ pub struct PhredScores<'a> {
     phred: &'a [u8],
 }
 
-impl<'a> PhredScores<'a> {
+impl PhredScores<'_> {
     pub fn scores(&self) -> &[u8] {
         self.phred
     }
@@ -130,7 +130,7 @@ impl QualConverter {
         &'a mut self,
         qual: &'a [u8],
         format: QualFormat,
-    ) -> Result<&[u8], String> {
+    ) -> Result<&'a [u8], String> {
         if self.fmt == format {
             // no conversion needed
             return Ok(qual);

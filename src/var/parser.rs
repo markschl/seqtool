@@ -324,7 +324,7 @@ fn varstring<'a, S: LocatedStream<'a>>(
             let res = alt((
                 terminated(
                     delimited(multispace0, var_or_func, multispace0)
-                        .with_recognized()
+                        .with_taken()
                         .map(|(func, text)| vec![ParsedVarStringSegment::VarOrText { func, text }]),
                     // ensure that the next char is either a separator (stop_at) or EOF
                     peek(alt((
@@ -332,7 +332,7 @@ fn varstring<'a, S: LocatedStream<'a>>(
                         //       and verify() makes sure that the parser fails if stop_at is None
                         cond(stop_at.is_some(), stop_at.unwrap_or('\0'))
                             .verify(|o| o.is_some())
-                            .recognize(),
+                            .take(),
                         eof,
                     ))),
                 ),
@@ -389,7 +389,7 @@ pub fn var_or_func<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<VarFunc<'
     (
         name,
         alt((
-            not((multispace0, "(")).recognize().map(|_| None),
+            not((multispace0, "(")).take().map(|_| None),
             delimited('(', arg_list, ')').map(Some),
         )),
     )
@@ -407,7 +407,7 @@ pub(crate) fn name<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
         take_while(1, |c: char| c.is_alphabetic() || c == '_' || c == '$'), // must not start with number
         take_while(0.., |c: char| c.is_alphanumeric() || c == '_' || c == '$'),
     )
-        .recognize()
+        .take()
         .parse_next(input)
 }
 
@@ -482,10 +482,10 @@ pub fn string_fragment<'a, S: StrStream<'a>>(
             // ignore escaped quotes
             alt((
                 // remove backslashes in case of escaped quotes or double escapes
-                preceded('\\', alt((one_of(stop).recognize(), "\\"))),
+                preceded('\\', alt((one_of(stop).take(), "\\"))),
                 // any other type of character escape: just leave as-is
                 // important: the string should not end with an escape char, so we have to consume the next character
-                ('\\', any).recognize(),
+                ('\\', any).take(),
             )),
         ))
         .parse_next(input)

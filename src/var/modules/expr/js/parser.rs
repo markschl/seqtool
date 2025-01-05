@@ -101,7 +101,7 @@ pub enum Expression<'a> {
     SourceFile(String),
 }
 
-impl<'a> fmt::Display for Expression<'a> {
+impl fmt::Display for Expression<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::Expr(expr) => write!(f, "{}", expr.script),
@@ -265,7 +265,7 @@ pub fn expression<'a, S: StrStream<'a>>(input: &mut S) -> PResult<Expression<'a>
 /// Returns Err(rest) if only part of the script was parsed.
 pub fn expr<'a, S: StrStream<'a>>(input: &mut S) -> PResult<SimpleAst<'a>> {
     let mut located = Located::new(input.clone());
-    let (mut frags, script) = statements.with_recognized().parse_next(&mut located)?;
+    let (mut frags, script) = statements.with_taken().parse_next(&mut located)?;
     input.next_slice(located.location());
     let tree = if frags.len() == 1 {
         frags.pop().unwrap()
@@ -348,7 +348,7 @@ fn item<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>
             index_list.map(Nested),
             parens_list.map(Nested),
             operator.map(Operator),
-            string.recognize().map(Literal),
+            string.take().map(Literal),
             template_string.map(Nested),
             var_or_func.verify(|f| !BUILTINS.contains(f.name)).map(Func),
             func.map(|(name, args)| FuncLike { name, args }),

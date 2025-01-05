@@ -13,7 +13,7 @@ use crate::var::symbols::{OptValue, SymbolTable, Value};
 
 use super::{ExprContext, Expression, Var};
 
-#[derive(Trace, Default)]
+#[derive(Trace, Default, rquickjs::JsLifetime)]
 #[rquickjs::class(rename = "Interval")]
 pub struct JsInterval {
     #[qjs(get, set)]
@@ -51,7 +51,7 @@ include!("_js_include.rs");
 fn register_globals(ctx: &Ctx) {
     // classes/functions in Rust
     ctx.globals().set("bin", js_bin).unwrap();
-    Class::<JsInterval>::register(ctx).unwrap();
+    Class::<JsInterval>::create_constructor(ctx).unwrap();
     Class::<JsInterval>::define(&ctx.globals()).unwrap();
     // "standard library written in JS"
     let _: () = ctx.eval(JS_INCLUDE.as_bytes()).unwrap();
@@ -105,7 +105,7 @@ fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> Result<(), String> {
         ),
         Type::Undefined | Type::Null => out.set_none(),
         Type::Object => {
-            if let Ok(obj) = Class::<JsInterval>::from_value(v.clone()) {
+            if let Ok(obj) = Class::<JsInterval>::from_value(v) {
                 let int = obj.borrow();
                 out.inner_mut()
                     .set_interval(Interval::new(int.start, int.end));
@@ -134,12 +134,10 @@ impl Default for Context {
     fn default() -> Self {
         let rt = Runtime::new().unwrap();
         let context = RContext::custom::<(
-            BaseObjects,
             Eval,
             Json,
             RegExp,
             RegExpCompiler,
-            StringNormalize,
             MapSet,
             Date,
             TypedArrays,
@@ -161,7 +159,7 @@ impl ExprContext for Context {
             register_globals(&ctx);
             // initialization code
             if let Some(code) = init_code {
-                ctx.eval(code.as_bytes())
+                let _: () = ctx.eval(code.as_bytes())
                     .map_err(|e| obtain_exception(e, ctx.clone()))?;
             }
             Ok::<_, String>(())

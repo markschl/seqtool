@@ -136,7 +136,7 @@ pub struct FaQualRecord<'a> {
     qual: &'a [u8],
 }
 
-impl<'a> Record for FaQualRecord<'a> {
+impl Record for FaQualRecord<'_> {
     fn id(&self) -> &[u8] {
         self.fa_rec.id()
     }

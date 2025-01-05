@@ -245,4 +245,4 @@ impl Record {
     }
 }
 
-impl<'a> Archivable<'a> for Record {}
+impl Archivable<'_> for Record {}

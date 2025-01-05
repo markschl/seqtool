@@ -25,9 +25,9 @@ pub trait Archivable<'a>:
 {
 }
 
-impl<'a> Archivable<'a> for Vec<u8> {}
-impl<'a> Archivable<'a> for Box<[u8]> {}
-impl<'a> Archivable<'a> for SimpleValue {}
+impl Archivable<'_> for Vec<u8> {}
+impl Archivable<'_> for Box<[u8]> {}
+impl Archivable<'_> for SimpleValue {}
 
 #[derive(Debug)]
 pub struct TmpStore {

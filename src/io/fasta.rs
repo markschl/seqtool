@@ -55,7 +55,7 @@ impl<'a> FastaRecord<'a> {
     }
 }
 
-impl<'a> Record for FastaRecord<'a> {
+impl Record for FastaRecord<'_> {
     fn id(&self) -> &[u8] {
         self.header_parser.id_desc(self.rec.head()).0
     }

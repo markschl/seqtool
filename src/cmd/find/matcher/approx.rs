@@ -163,7 +163,7 @@ impl MyersMatcherInner {
     ///
     /// `sort_vec`: if not None, collect matches into Some(vec) and sort them by distance.
     /// If None, iterate in order of occurrence.
-
+    ///
     // while the Myers algorithm always reports all possible distinct end positions,
     // several hits usually share the same start position due to
     // insertions/deletions. The grouping makes sure that for each start position,

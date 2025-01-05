@@ -119,7 +119,7 @@ pub enum RecordAttr {
     Seq,
 }
 
-impl<'b, R: Record + ?Sized> Record for &'b R {
+impl<R: Record + ?Sized> Record for &R {
     fn id(&self) -> &[u8] {
         (**self).id()
     }
@@ -203,7 +203,7 @@ impl<'a, R: Record + 'a> HeaderRecord<'a, R> {
     }
 }
 
-impl<'b, R: Record> Record for HeaderRecord<'b, R> {
+impl<R: Record> Record for HeaderRecord<'_, R> {
     fn id(&self) -> &[u8] {
         self.id
     }
@@ -266,7 +266,7 @@ impl<'a, R: Record + 'a> SeqQualRecord<'a, R> {
     }
 }
 
-impl<'b, R: Record> Record for SeqQualRecord<'b, R> {
+impl<R: Record> Record for SeqQualRecord<'_, R> {
     fn id(&self) -> &[u8] {
         self.rec.id()
     }
@@ -447,7 +447,7 @@ pub struct EditedRecord<'a> {
     rec: &'a dyn Record,
 }
 
-impl<'r> Record for EditedRecord<'r> {
+impl Record for EditedRecord<'_> {
     fn id(&self) -> &[u8] {
         self.editor.id.as_deref().unwrap_or_else(|| self.rec.id())
     }

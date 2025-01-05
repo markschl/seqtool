@@ -257,24 +257,20 @@ impl VarProvider for MetaVars {
                                         col=*i + 1, id=String::from_utf8_lossy(id), na=NA
                                     );
                                 }
-                            } else {
-                                if !allow_missing {
-                                    return fail!(
-                                        "Column no. {} not found in metadata entry for record '{}'",
-                                        *i + 1,
-                                        String::from_utf8_lossy(id)
-                                    );
-                                }
-                            }
-                        } else {
-                            if !allow_missing {
+                            } else if !allow_missing {
                                 return fail!(
-                                    "ID '{}' not found in metadata file '{}'. Use `opt_meta(field)` \
-                                    instead of `meta(field)` if you expect missing entries.",
-                                    String::from_utf8_lossy(id),
-                                    rdr.path
+                                    "Column no. {} not found in metadata entry for record '{}'",
+                                    *i + 1,
+                                    String::from_utf8_lossy(id)
                                 );
                             }
+                        } else if !allow_missing {
+                            return fail!(
+                                "ID '{}' not found in metadata file '{}'. Use `opt_meta(field)` \
+                                instead of `meta(field)` if you expect missing entries.",
+                                String::from_utf8_lossy(id),
+                                rdr.path
+                            );
                         }
                         sym.set_none();
                     }
