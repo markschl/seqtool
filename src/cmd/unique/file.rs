@@ -51,8 +51,19 @@ impl FileDeduplicator {
             Records::Records {
                 has_placeholders, ..
             } => has_placeholders,
-            Records::KeySet(..) => unreachable!(),
+            _ => unreachable!(),
         };
+        // check defer_writing
+        let defer_writing = match records {
+            Records::Records { defer_writing, .. } => defer_writing,
+            _ => unreachable!(),
+        };
+        if !defer_writing {
+            return fail!(
+                "The internal data store (used for --map-out) is too large. \
+                Please raise the memory limit (-M/--max-mem)."
+            )
+        }
         Ok(Self {
             mem_dedup: MemDeduplicator::from_records(records, max_mem),
             handles: vec![handle],
