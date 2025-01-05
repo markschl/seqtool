@@ -128,7 +128,7 @@ path = "src/main.rs"
 name = "st"
 
 [profile.release]
-lto = true
+lto = "thin"
 codegen-units = 1
 panic = "abort"
 strip = true
