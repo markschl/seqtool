@@ -326,7 +326,7 @@ fn parse_mod_desc(description: &str) -> (String, String, Vec<(String, String, Op
         title.starts_with("# "),
         "Module description must start with '# <Title>'"
     );
-    let parts = lines.group_by(|l| l.trim_start().starts_with("# Examples"));
+    let parts = lines.chunk_by(|l| l.trim_start().starts_with("# Examples"));
     let mut parts = parts.into_iter().map(|(_, g)| g);
     let description = join_desc_lines(parts.next().unwrap());
     // examples
@@ -358,7 +358,7 @@ fn parse_mod_desc(description: &str) -> (String, String, Vec<(String, String, Op
 fn join_desc_lines<'a, L: IntoIterator<Item = &'a str>>(lines: L) -> String {
     lines
         .into_iter()
-        .group_by(|l| l.is_empty())
+        .chunk_by(|l| l.is_empty())
         .into_iter()
         .map(|(_, chunk)| chunk.into_iter().map(|l| l.trim()).join(" "))
         .filter(|chunk| !chunk.is_empty())

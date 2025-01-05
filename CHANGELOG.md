@@ -1,5 +1,14 @@
+## v0.4.0-beta.3 (2025-01-05)
 
-## v0.4.0 (pre-release)
+Besides dependency updates, the release includes:
+
+* The ability to append records to the output file(s) instead of overwriting
+  (`--append`) (7fe1893). This is especially useful for the `split` command.
+* A new `--counts` option in the `split` command, which returns the record counts
+  for each file (565b42c). This saves an extra `st count` command.
+* Added some error messages to prevent panics (d91b1fc, 8156c45)
+
+## v0.4.0-beta.2 (2024-07-08)
 
 This release comes with substantial improvements and lots of internal code improvements.
 
