@@ -2,7 +2,7 @@
 large amounts of biological sequences.
 It provides different [subcommands](#commands) for *converting*, *inspecting*
 and *modifying* sequences.
-The standalone binary (~6 MB) is simply named `st` to save some typing.
+The standalone binary (5-7 MB) is simply named `st` to save some typing.
 
 [![CI](https://github.com/markschl/seqtool/actions/workflows/ci.yaml/badge.svg)](https://github.com/markschl/seqtool/actions/workflows/ci.yaml)
 
@@ -17,17 +17,16 @@ The standalone binary (~6 MB) is simply named `st` to save some typing.
 
 ## Downloads
 
+**[📥 download beta release (v0.4.0-beta.3)](https://github.com/markschl/seqtool/releases/tag/v0.4.0-beta.3)**
+
+> Should be pretty safe to use despite the considerable refactoring.
+> Approximate matching ([find](https://markschl.github.io/seqtool-docs/find) command) is yet to be fully tested.
+
 **[📥 download stable release (v0.3.0)](https://github.com/markschl/seqtool/releases/latest)**
 
 > **⚠ Note**: there are a few **unfixed bugs in v0.3.0** (currently)
 > when reading GZIP files or searching/replacing;
 > see [CHANGELOG for v0.4.0-beta](https://github.com/markschl/seqtool/blob/main/CHANGELOG.md#important-bugfixes-).
-> Alternatively, consider using v0.4.0-beta.
-
-**[📥 download beta release (v0.4.0-beta)](https://github.com/markschl/seqtool/releases/tag/0.4.0-beta.2)**
-
-> Should be pretty safe to use despite considerable refactoring.
-> Approximate matching ([find](https://markschl.github.io/seqtool-docs/find) command) is yet to be fully tested.
 
 
 ## Feature overview
