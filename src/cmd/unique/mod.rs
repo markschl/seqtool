@@ -1,6 +1,6 @@
 use std::env::temp_dir;
 use std::io;
-use std::path::Path;
+use std::path::PathBuf;
 
 use deepsize::DeepSizeOf;
 use rkyv::{Archive, Deserialize, Serialize};
@@ -64,7 +64,14 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
             required_info = Some(RequiredInformation::Ids);
         }
 
-        let mut dedup = Deduplicator::new(max_mem, has_placeholders, args.sort, required_info);
+        let mut dedup = Deduplicator::new(
+            max_mem,
+            has_placeholders,
+            args.sort,
+            required_info,
+            tmp_path,
+            args.temp_file_limit,
+        );
 
         cfg.read(|record, ctx| {
             // assemble key
@@ -76,15 +83,13 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
                 Ok(())
             })?;
 
-            // add formatted record to hash set (if doensn't exist)
+            // add record
             dedup.add(
                 &keys,
                 || record.id(),
                 &mut record_buf_factory,
                 |out| format_writer.write(&record, out, ctx),
                 io_writer,
-                &tmp_path,
-                args.temp_file_limit,
                 quiet,
             )?;
             Ok(true)
@@ -100,6 +105,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     })
 }
 
+#[allow(clippy::doc_overindented_list_items)]
 /// Object handling the de-duplication, either in memory or using temporary files.
 ///
 /// There are several modes of operation:
@@ -108,18 +114,18 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
 ///    In case duplicate IDs should be written to a file later, lists of IDs are
 ///    collected along with the unique keys.
 /// 2) In case the memory limit is reached:
-///     a) sort the keys [with associated inforamation] and write them to a temporary
-///        file
-///     b) start a new in-memory de-duplication process, whereby along each key
-///        the formatted sequence records are kept instead of immediately writing
-///        them to the output
-///     c) once the memory limit is reached again, write the unique pairs of
-///        (key, formatted record) to another temporary file,
-///     d) keep going with (b)-(c) until all records are processed
-///     e) merge the sorted file batches using a binary heap and at each occurrence of
-///        a new unique key write the associated pre-formatted record to the output.
-///        Records are unique within each file batch, but duplicates can occur across
-///        the different batches, which is why the sorting is necessary.
+///    a) sort by keys [with associated information] and write records to a temporary
+///       file
+///    b) start a new in-memory de-duplication process, whereby along each key,
+///       the formatted sequence records are kept instead of immediately writing
+///       them to the output
+///    c) once the memory limit is reached again, write the unique pairs of
+///       (key, formatted record) to another temporary file,
+///    d) keep going with (b)-(c) until all records are processed
+///    e) merge the sorted file batches using a binary heap and at each occurrence of
+///       a new unique key write the associated pre-formatted record to the output.
+///       Records are unique within each file batch, but duplicates can occur across
+///       the different batches, which is why the sorting is necessary.
 ///    In this mode, the order of records is not consistent: initially (before writing
 ///    to temporary files), unique records are returned as they occur in the input.
 ///    After the memory limit is reached, the remaining unique records are written
@@ -148,7 +154,14 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
 /// way possible. Hower as a result, the output order is not always the same unless using
 /// the `--sort` option.
 #[derive(Debug)]
-enum Deduplicator {
+struct Deduplicator {
+    inner: DeduplicatorInner,
+    tmp_path: Option<PathBuf>,
+    file_limit: usize,
+}
+
+#[derive(Debug)]
+enum DeduplicatorInner {
     Mem(MemDeduplicator),
     File(FileDeduplicator),
 }
@@ -159,13 +172,15 @@ impl Deduplicator {
         has_placeholders: bool,
         sort: bool,
         required_info: Option<RequiredInformation>,
+        tmp_path: PathBuf,
+        file_limit: usize,
     ) -> Self {
-        Self::Mem(MemDeduplicator::new(
-            max_mem,
-            has_placeholders,
-            sort,
-            required_info,
-        ))
+        let mem_dedup = MemDeduplicator::new(max_mem, has_placeholders, sort, required_info);
+        Self {
+            inner: DeduplicatorInner::Mem(mem_dedup),
+            tmp_path: Some(tmp_path),
+            file_limit,
+        }
     }
 
     // add a key/record and either directly write to output or keep the formatted record for later
@@ -176,16 +191,14 @@ impl Deduplicator {
         vec_factory: &mut VecFactory,
         mut write_fn: F,
         output: &mut dyn io::Write,
-        tmp_path: &Path,
-        file_limit: usize,
         quiet: bool,
     ) -> CliResult<()>
     where
         I: Fn() -> &'a [u8],
         F: FnMut(&mut dyn io::Write) -> CliResult<()>,
     {
-        match self {
-            Self::Mem(m) => {
+        match &mut self.inner {
+            DeduplicatorInner::Mem(m) => {
                 if !m.add(key, id_fn, vec_factory, &mut write_fn, Some(output))? {
                     if !quiet {
                         eprintln!(
@@ -195,11 +208,12 @@ impl Deduplicator {
                             m.len()
                         );
                     }
-                    let f = m.get_file_sorter(tmp_path.to_owned(), file_limit, quiet)?;
-                    *self = Self::File(f);
+                    let f =
+                        m.get_file_sorter(self.tmp_path.take().unwrap(), self.file_limit, quiet)?;
+                    self.inner = DeduplicatorInner::File(f);
                 }
             }
-            Self::File(f) => {
+            DeduplicatorInner::File(f) => {
                 f.add(key, id_fn, vec_factory, &mut write_fn, quiet)?;
             }
         }
@@ -213,9 +227,9 @@ impl Deduplicator {
         quiet: bool,
         verbose: bool,
     ) -> CliResult<()> {
-        match self {
-            Self::Mem(m) => m.write_deferred(io_writer, map_writer),
-            Self::File(f) => f.write_records(io_writer, map_writer, quiet, verbose),
+        match &mut self.inner {
+            DeduplicatorInner::Mem(m) => m.write_deferred(io_writer, map_writer),
+            DeduplicatorInner::File(f) => f.write_records(io_writer, map_writer, quiet, verbose),
         }
     }
 }

@@ -60,9 +60,9 @@ impl FileDeduplicator {
         };
         if !defer_writing {
             return fail!(
-                "The internal data store (used for --map-out) is too large. \
-                Please raise the memory limit (-M/--max-mem)."
-            )
+                "The internal data store (used for --map-out) reached the memory limit \
+                Please raise the limit with -M/--max-mem."
+            );
         }
         Ok(Self {
             mem_dedup: MemDeduplicator::from_records(records, max_mem),
