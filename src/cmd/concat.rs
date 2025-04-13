@@ -1,4 +1,4 @@
-use std::iter::repeat;
+use std::iter::repeat_n;
 
 use clap::Parser;
 
@@ -93,9 +93,9 @@ pub fn run(mut cfg: Config, args: &ConcatCommand) -> CliResult<()> {
             // spacer
             if let Some(n) = spacer_n {
                 if i < max_idx {
-                    record.seq.extend(repeat(s_char).take(n));
+                    record.seq.extend(repeat_n(s_char, n));
                     if let Some(q) = record.qual.as_mut() {
-                        q.extend(repeat(q_char).take(n));
+                        q.extend(repeat_n(q_char, n));
                     }
                 }
             }

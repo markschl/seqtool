@@ -10,9 +10,9 @@ use std::fs::read_to_string;
 use phf::{phf_set, Set};
 use winnow::ascii::{multispace0, multispace1};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat};
-use winnow::stream::Location;
+use winnow::error::Result as WResult;
 use winnow::token::{one_of, take_till, take_until};
-use winnow::{Located, PResult, Parser};
+use winnow::{LocatingSlice, Parser};
 
 use crate::var::parser::{
     name, some_value, string, string_fragment, var_or_func, Arg, LocatedStream, StrStream, VarFunc,
@@ -112,7 +112,7 @@ impl fmt::Display for Expression<'_> {
 
 impl<'a> Expression<'a> {
     pub fn parse(script: &'a str) -> Result<Self, VarStringParseErr> {
-        let mut located = Located::new(script);
+        let mut located = LocatingSlice::new(script);
         let expr = expression
             .parse_next(&mut located)
             .map_err(|_| VarStringParseErr(located.to_string()))?;
@@ -156,7 +156,13 @@ impl<'a> Expression<'a> {
 /// this will lead to confusion.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimpleAst<'a> {
+    /// the underlying script (which can be part of a larger string)
     pub script: &'a str,
+    /// offset of 'script' in the original string
+    pub script_offset: usize,
+    /// The simplified AST; all range coordinates are relative to the full
+    /// original string, so to obtain coordinates relative to 'script',
+    /// 'script_offset' must be subtracted.
     pub tree: Fragment<'a>,
 }
 
@@ -166,11 +172,10 @@ impl<'a> SimpleAst<'a> {
     /// Does *not* recognize /regex notation/, since it is difficult to parse.
     /// Returns Err(rest) if only part of the script was parsed.
     pub fn from_script(script: &'a str) -> Result<Self, VarStringParseErr> {
-        let mut input = script;
+        let mut input = LocatingSlice::new(script);
         let ast = expr
             .parse_next(&mut input)
             .map_err(|_| VarStringParseErr(input.to_string()))?;
-        // dbg!(input, &ast);
         if !input.is_empty() {
             return Err(VarStringParseErr(input.to_string()));
         }
@@ -198,9 +203,9 @@ impl<'a> SimpleAst<'a> {
         // TODO: cannot use `replace_iter` because the replacements would not be accessible
         for (func, replacement) in vars {
             debug_assert!(func.range.start >= prev_end);
-            out.push_str(&self.script[prev_end..func.range.start]);
+            out.push_str(&self.script[prev_end..func.range.start - self.script_offset]);
             out.push_str(&replacement);
-            prev_end = func.range.end;
+            prev_end = func.range.end - self.script_offset;
         }
         out.push_str(&self.script[prev_end..]);
         Ok(out)
@@ -242,7 +247,7 @@ where
 }
 
 /// Variable/function string parser
-pub fn expression<'a, S: StrStream<'a>>(input: &mut S) -> PResult<Expression<'a>> {
+pub fn expression<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Expression<'a>> {
     alt((
         // { file:path/to/script.js }
         preceded(
@@ -263,16 +268,19 @@ pub fn expression<'a, S: StrStream<'a>>(input: &mut S) -> PResult<Expression<'a>
 /// than speed or complex syntax recognition.
 /// Does *not* recognize /regex notation/, since it is difficult to parse.
 /// Returns Err(rest) if only part of the script was parsed.
-pub fn expr<'a, S: StrStream<'a>>(input: &mut S) -> PResult<SimpleAst<'a>> {
-    let mut located = Located::new(input.clone());
-    let (mut frags, script) = statements.with_taken().parse_next(&mut located)?;
-    input.next_slice(located.location());
+pub fn expr<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<SimpleAst<'a>> {
+    let offset = input.current_token_start();
+    let (mut frags, script) = statements.with_taken().parse_next(input)?;
     let tree = if frags.len() == 1 {
         frags.pop().unwrap()
     } else {
         Fragment::Nested(frags)
     };
-    Ok(SimpleAst { script, tree })
+    Ok(SimpleAst {
+        script_offset: offset,
+        script,
+        tree,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -300,13 +308,13 @@ pub enum Fragment<'a> {
 
 /// "statement" (sequence of 'item' terminated by semicolon or comma;
 /// even though these are not generally interchangeable
-fn stmt<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>> {
+fn stmt<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Option<Fragment<'a>>> {
     item_terminated(&[';', ',']).parse_next(input)
 }
 
 /// List of "statements" (without ignored parts)
 #[inline(never)]
-fn statements<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+fn statements<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Vec<Fragment<'a>>> {
     repeat(.., stmt)
         .fold(Vec::new, |mut acc: Vec<_>, frag| {
             if let Some(f) = frag {
@@ -319,7 +327,7 @@ fn statements<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'
 
 fn item_terminated<'a, S: LocatedStream<'a>>(
     delim: &[char],
-) -> impl FnMut(&mut S) -> PResult<Option<Fragment<'a>>> + '_ {
+) -> impl FnMut(&mut S) -> WResult<Option<Fragment<'a>>> + '_ {
     move |input: &mut S| {
         let o = input.eof_offset();
         let e = opt_item.parse_next(input)?;
@@ -333,13 +341,13 @@ fn item_terminated<'a, S: LocatedStream<'a>>(
     }
 }
 
-fn opt_item<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>> {
+fn opt_item<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Option<Fragment<'a>>> {
     alt((item, multispace0.map(|_| None))).parse_next(input)
 }
 
 /// Javascript "items" (keywords, variables, operators, blocks, function calls, arrays, etc)
 #[inline(never)]
-fn item<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>> {
+fn item<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Option<Fragment<'a>>> {
     use Fragment::*;
     alt((
         alt((multispace1, comment, inline_comment)).map(|_| None),
@@ -363,23 +371,23 @@ fn item<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Option<Fragment<'a>>
 }
 
 // block scopes (function body, class definition, etc.), object notation
-fn block<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+fn block<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Vec<Fragment<'a>>> {
     delimited('{', statements, '}').parse_next(input)
 }
 
 // arrays: [a, b, c], array indexing, etc.
 // For simplicity, we allow semicolons as well, even though they are invalid in JS
-fn index_list<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+fn index_list<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Vec<Fragment<'a>>> {
     delimited('[', statements, ']').parse_next(input)
 }
 
 // parens in math expressions, function arguments, etc.
-fn parens_list<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+fn parens_list<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Vec<Fragment<'a>>> {
     delimited('(', statements, ')').parse_next(input)
 }
 
 // .member or .member_fn()
-fn member_access<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Fragment<'a>> {
+fn member_access<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Fragment<'a>> {
     preceded(
         ".",
         alt((
@@ -395,14 +403,14 @@ fn member_access<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Fragment<'a
 
 // func_name(a, b) or if/for/while, etc.
 #[inline(never)]
-fn func<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<(&'a str, Vec<Fragment<'a>>)> {
+fn func<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<(&'a str, Vec<Fragment<'a>>)> {
     (name, parens_list).parse_next(input)
 }
 
 /// Operators and operator-like characters (including => arrow function definition).
 /// We only match single characters, thus operators such as '!=' and '>>>' will just
 /// result in a sequence of single operators
-fn operator<'a, S: StrStream<'a>>(input: &mut S) -> PResult<char> {
+fn operator<'a, S: StrStream<'a>>(input: &mut S) -> WResult<char> {
     one_of([
         '=', '!', '?', ':', '&', '|', '<', '>', '+', '-', '*', '/', '%', '^', '~',
     ])
@@ -410,14 +418,14 @@ fn operator<'a, S: StrStream<'a>>(input: &mut S) -> PResult<char> {
 }
 
 // // comment
-fn comment<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
+fn comment<'a, S: StrStream<'a>>(input: &mut S) -> WResult<&'a str> {
     ("//", take_till(1.., ['\n', '\r']))
         .map(|(_, s)| s)
         .parse_next(input)
 }
 
 // /* inline / multi-line comments */
-fn inline_comment<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
+fn inline_comment<'a, S: StrStream<'a>>(input: &mut S) -> WResult<&'a str> {
     ("/*", take_until(.., "*/"), "*/")
         .map(|(_, s, _)| s)
         .parse_next(input)
@@ -426,11 +434,11 @@ fn inline_comment<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
 // `template string with ${vars}, or \${escaped}`
 // note: these are *not* valid as seqtool string arguments, and may contain
 // of several 'nested' parts
-fn template_string<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Fragment<'a>>> {
+fn template_string<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Vec<Fragment<'a>>> {
     delimited('`', repeat(.., template_fragment), '`').parse_next(input)
 }
 
-fn template_fragment<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Fragment<'a>> {
+fn template_fragment<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Fragment<'a>> {
     alt((
         preceded('$', block).map(Fragment::Nested),
         "$".map(Fragment::Literal),
@@ -441,7 +449,7 @@ fn template_fragment<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Fragmen
 
 // /// /regex/: not supported since not easy to distinguish from division and comments
 // /// without knowing the context
-// fn regex<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
+// fn regex<'a, S: StrStream<'a>>(input: &mut S) -> WResult<&'a str> {
 //     delimited(
 //         '/',
 //         repeat::<_, _, (), _, _>(.., |i: &mut S| string_fragment(i, &['/', '\n', '\r'])).recognize(),
@@ -582,21 +590,22 @@ mod tests {
         let res = parse_varstring_list(vs, true);
         // JS expression within the variable string
         let num_ast = SimpleAst {
+            script_offset: 77,
             script: " num(g)/h(i, 'j')+f(['ab']) ",
             tree: Fragment::Nested(vec![
                 Fragment::Func(VarFunc::new(
                     "num",
-                    Some(vec![Arg::Func(VarFunc::new("g", None, 5..6))]),
-                    1..7,
+                    Some(vec![Arg::Func(VarFunc::new("g", None, 82..83))]),
+                    78..84,
                 )),
                 Fragment::Operator('/'),
                 Fragment::Func(VarFunc::new(
                     "h",
                     Some(vec![
-                        Arg::Func(VarFunc::new("i", None, 10..11)),
+                        Arg::Func(VarFunc::new("i", None, 87..88)),
                         Arg::Str("j".into()),
                     ]),
-                    8..17,
+                    85..94,
                 )),
                 Fragment::Operator('+'),
                 Fragment::FuncLike {

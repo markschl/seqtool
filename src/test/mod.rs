@@ -117,22 +117,25 @@ impl Tester {
     }
 
     fn pipe(&self, args1: &[&str], input: &str, args2: &[&str], expected_out: &str) -> &Self {
-        let p1 = StdCommand::new(cargo_bin("st"))
+        let mut p1 = StdCommand::new(cargo_bin("st"))
             .args(args1)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
             .expect("could not run 1");
         p1.stdin
+            .take()
             .unwrap()
             .write_all(input.as_bytes())
             .expect("write error");
 
         let p2 = StdCommand::new(cargo_bin("st"))
             .args(args2)
-            .stdin(p1.stdout.unwrap())
+            .stdin(p1.stdout.take().unwrap())
             .output()
             .expect("could not run 2");
+
+        assert!(p1.wait().unwrap().success());
 
         assert_eq!(&String::from_utf8_lossy(&p2.stdout), expected_out);
 

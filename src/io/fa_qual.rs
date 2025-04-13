@@ -200,14 +200,11 @@ impl FaQualWriter {
         Q: AsRef<Path>,
     {
         let q_handle = File::create(&qual_path).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "Error creating '{}': {}",
-                    qual_path.as_ref().to_string_lossy(),
-                    e
-                ),
-            )
+            io::Error::other(format!(
+                "Error creating '{}': {}",
+                qual_path.as_ref().to_string_lossy(),
+                e
+            ))
         })?;
 
         Ok(FaQualWriter {

@@ -155,7 +155,8 @@ pub struct SearchArgs {
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Search range")]
 pub struct SearchRangeArgs {
-    /// Search within the given range ('start:end', 'start:' or ':end'). Using variables is not possible.
+    /// Search within the given range ('start:end', 'start:' or ':end').
+    /// Using variables is not possible.
     #[arg(long, value_name = "RANGE", allow_hyphen_values = true)]
     pub rng: Option<Range>,
 

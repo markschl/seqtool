@@ -1,5 +1,5 @@
 extern crate rand;
-use rand::{distributions::Uniform, prelude::*, seq::IteratorRandom};
+use rand::{distr::Uniform, prelude::*, seq::IteratorRandom};
 
 use crate::cmd::sample::DefaultRng;
 
@@ -79,7 +79,7 @@ fn large() {
             }
 
             // test probability sampling (-p)
-            let distr = Uniform::new(0f32, 1.);
+            let distr = Uniform::new(0f32, 1.).unwrap();
             for &p in &[0., 0.1, 0.3, 0.5, 0.7, 0.95] {
                 let mut rng = get_rng();
                 let expected = seqs

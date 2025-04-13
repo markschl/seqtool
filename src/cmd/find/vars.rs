@@ -219,7 +219,7 @@ impl FindVars {
     }
 
     fn add_group(&mut self, group: usize) {
-        if !self.groups.iter().any(|g| *g == group) {
+        if !self.groups.contains(&group) {
             self.groups.push(group);
         }
     }
@@ -424,7 +424,6 @@ impl VarProvider for FindVars {
     ) -> Result<Option<(usize, Option<VarType>)>, String> {
         if let Some((var, out_type)) = FindVar::from_func(name, args)? {
             use FindVar::*;
-            use FindVarType::*;
             let (var_type, hit, pattern_rank, match_group) = match var {
                 FindVar::Match { hit, pattern } => (FindVarType::Match, hit, pattern, None),
                 FindVar::AlignedMatch { hit, rank } => (FindVarType::AlignedMatch, hit, rank, None),
@@ -433,48 +432,48 @@ impl VarProvider for FindVars {
                     hit,
                     pattern,
                     group,
-                } => (Match, hit, pattern, Some(group)),
-                MatchDiffs { hit, pattern } => (Diffs, hit, pattern, None),
-                MatchIns { hit, pattern } => (Ins, hit, pattern, None),
-                MatchDel { hit, pattern } => (Del, hit, pattern, None),
-                MatchSubst { hit, pattern } => (Subst, hit, pattern, None),
-                MatchDiffRate { hit, pattern } => (DiffRate, hit, pattern, None),
-                MatchStart { hit, pattern } => (Start, hit, pattern, None),
-                MatchEnd { hit, pattern } => (End, hit, pattern, None),
-                MatchNegStart { hit, pattern } => (NegStart, hit, pattern, None),
-                MatchNegEnd { hit, pattern } => (NegEnd, hit, pattern, None),
+                } => (FindVarType::Match, hit, pattern, Some(group)),
+                MatchDiffs { hit, pattern } => (FindVarType::Diffs, hit, pattern, None),
+                MatchIns { hit, pattern } => (FindVarType::Ins, hit, pattern, None),
+                MatchDel { hit, pattern } => (FindVarType::Del, hit, pattern, None),
+                MatchSubst { hit, pattern } => (FindVarType::Subst, hit, pattern, None),
+                MatchDiffRate { hit, pattern } => (FindVarType::DiffRate, hit, pattern, None),
+                MatchStart { hit, pattern } => (FindVarType::Start, hit, pattern, None),
+                MatchEnd { hit, pattern } => (FindVarType::End, hit, pattern, None),
+                MatchNegStart { hit, pattern } => (FindVarType::NegStart, hit, pattern, None),
+                MatchNegEnd { hit, pattern } => (FindVarType::NegEnd, hit, pattern, None),
                 MatchRange {
                     hit,
                     pattern,
                     ref delim,
-                } => (Range(delim.clone()), hit, pattern, None),
+                } => (FindVarType::Range(delim.clone()), hit, pattern, None),
                 MatchGrpStart {
                     hit,
                     pattern,
                     group,
-                } => (Start, hit, pattern, Some(group)),
+                } => (FindVarType::Start, hit, pattern, Some(group)),
                 MatchGrpEnd {
                     hit,
                     pattern,
                     group,
-                } => (End, hit, pattern, Some(group)),
+                } => (FindVarType::End, hit, pattern, Some(group)),
                 MatchGrpNegStart {
                     hit,
                     pattern,
                     group,
-                } => (NegStart, hit, pattern, Some(group)),
+                } => (FindVarType::NegStart, hit, pattern, Some(group)),
                 MatchGrpNegEnd {
                     hit,
                     pattern,
                     group,
-                } => (NegEnd, hit, pattern, Some(group)),
+                } => (FindVarType::NegEnd, hit, pattern, Some(group)),
                 MatchGrpRange {
                     hit,
                     pattern,
                     group,
                     ref delim,
-                } => (Range(delim.clone()), hit, pattern, Some(group)),
-                PatternName { rank } => (Name, "1".into(), rank, None),
+                } => (FindVarType::Range(delim.clone()), hit, pattern, Some(group)),
+                PatternName { rank } => (FindVarType::Name, "1".into(), rank, None),
                 FindVar::Pattern { rank } => (FindVarType::Pattern, "1".into(), rank, None),
                 FindVar::AlignedPattern { hit, rank } => {
                     (FindVarType::AlignedPattern, hit, rank, None)
@@ -539,8 +538,14 @@ impl VarProvider for FindVars {
             // update required_info if this variable needs more information than
             // already configured (passed on to `Matcher` objects)
             let required_info = match var_type {
-                Diffs | DiffRate | Name => RequiredInfo::Distance,
-                Ins | Del | Subst | AlignedPattern | AlignedMatch => RequiredInfo::Alignment,
+                FindVarType::Diffs | FindVarType::DiffRate | FindVarType::Name => {
+                    RequiredInfo::Distance
+                }
+                FindVarType::Ins
+                | FindVarType::Del
+                | FindVarType::Subst
+                | FindVarType::AlignedPattern
+                | FindVarType::AlignedMatch => RequiredInfo::Alignment,
                 _ => RequiredInfo::Range,
             };
             if required_info > self.required_info {

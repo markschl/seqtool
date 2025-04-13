@@ -3,7 +3,8 @@ use std::mem::{size_of, size_of_val};
 
 use clap::{value_parser, Parser};
 use deepsize::DeepSizeOf;
-use rand::{distributions::Uniform, prelude::*};
+use rand::distr::Uniform;
+use rand::prelude::*;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::{Config, SeqContext};
@@ -85,7 +86,7 @@ pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
     let rng = match args.seed {
         Some(Seed::Number(s)) => DefaultRng::seed_from_u64(s),
         Some(Seed::Array(s)) => DefaultRng::from_seed(s),
-        None => DefaultRng::from_entropy(),
+        None => DefaultRng::from_os_rng(),
     };
     if let Some(amount) = args.num_seqs {
         let amount = amount as usize;
@@ -128,9 +129,9 @@ fn sample_n<R: Rng + Clone>(
 #[inline]
 fn gen_index<R: Rng + ?Sized>(rng: &mut R, ubound: usize) -> usize {
     if ubound <= (u32::MAX as usize) {
-        rng.gen_range(0..ubound as u32) as usize
+        rng.random_range(0..ubound as u32) as usize
     } else {
-        rng.gen_range(0..ubound)
+        rng.random_range(0..ubound)
     }
 }
 
@@ -369,7 +370,7 @@ fn sample_prob<R: Rng>(mut cfg: Config, prob: f32, mut rng: R) -> CliResult<()> 
     if !(0f32..1.).contains(&prob) {
         return fail!("Fractions should be between 0 and 1 (but still < 1)");
     }
-    let distr = Uniform::new(0f32, 1f32);
+    let distr = Uniform::new(0f32, 1f32).unwrap();
 
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {

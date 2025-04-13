@@ -295,12 +295,7 @@ pub fn io_writer_from_kind(kind: &OutputKind, append: bool) -> io::Result<Box<dy
                 .truncate(!append)
                 .append(append)
                 .open(p)
-                .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("Error creating '{}': {}", p, e),
-                    )
-                })?;
+                .map_err(|e| io::Error::other(format!("Error creating '{}': {}", p, e)))?;
             Box::new(io::BufWriter::new(f))
         }
     })

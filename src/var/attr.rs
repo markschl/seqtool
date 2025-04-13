@@ -3,9 +3,9 @@ use std::ops::Range;
 use std::str::FromStr;
 
 use memchr::memmem::{find, find_iter};
-use winnow::combinator::{alt, rest, terminated};
-use winnow::token::{take, take_until};
-use winnow::{Located, PResult, Parser as _};
+use winnow::combinator::{alt, terminated};
+use winnow::token::{rest, take, take_until};
+use winnow::{LocatingSlice, Parser as _};
 
 use crate::helpers::NA;
 use crate::io::{MaybeModified, Record, RecordAttr};
@@ -44,7 +44,7 @@ impl FromStr for AttrFormat {
     }
 }
 
-pub fn _parse_attr_format<'a>(s: &mut &'a str) -> PResult<(&'a str, &'a str)> {
+pub fn _parse_attr_format<'a>(s: &mut &'a str) -> winnow::error::Result<(&'a str, &'a str)> {
     let key = "key";
     let value = "value";
     let sep = take_until(1.., key).parse_next(s)?;
@@ -345,7 +345,7 @@ impl Parser {
     /// Multiple incompatible actions for the same attribute name will cause an error.
     /// - 'delete' conflicts with any other action to prevent inconsistent use
     /// - 'append' conflicts with any other action as well: if used in any other way (reading or writing),
-    ///    appending is not a good idea. The attribute has to be searched, but will then be duplicated.
+    ///   appending is not a good idea. The attribute has to be searched, but will then be duplicated.
     pub fn register_attr(
         &mut self,
         name: &str,
@@ -679,7 +679,7 @@ fn parse_key_value<'a>(
     offset: usize,
     format: &AttrFormat,
 ) -> Option<(&'a [u8], &'a [u8], AttrPosition)> {
-    _parse_key_value(&mut Located::new(&text[offset..]), format)
+    _parse_key_value(&mut LocatingSlice::new(&text[offset..]), format)
         .ok()
         .map(|(k, v)| {
             (
@@ -696,9 +696,9 @@ fn parse_key_value<'a>(
 
 /// winnow::Parser searching for key=value pairs
 fn _parse_key_value(
-    s: &mut Located<&'_ [u8]>,
+    s: &mut LocatingSlice<&'_ [u8]>,
     format: &AttrFormat,
-) -> PResult<(Range<usize>, Range<usize>)> {
+) -> winnow::error::Result<(Range<usize>, Range<usize>)> {
     (
         terminated(
             take_until(1.., format.value_delim.as_slice())

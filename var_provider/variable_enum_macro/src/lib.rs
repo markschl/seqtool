@@ -317,6 +317,8 @@ fn extract_docstring(attrs: &[Attribute]) -> Option<String> {
     }
 }
 
+// TODO: address clippy warning
+#[allow(clippy::type_complexity)]
 fn parse_mod_desc(description: &str) -> (String, String, Vec<(String, String, Option<String>)>) {
     // title/description
     let mut lines = description.lines();

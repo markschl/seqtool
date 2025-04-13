@@ -18,9 +18,10 @@ use winnow::ascii::{multispace0, space0};
 use winnow::combinator::{
     alt, cond, delimited, eof, not, opt, peek, preceded, repeat, separated, terminated,
 };
+use winnow::error::Result as WResult;
 use winnow::stream::{AsChar, Compare, FindSlice, Location, Offset, Stream, StreamIsPartial};
 use winnow::token::{any, one_of, take_till, take_while};
-use winnow::{Located, PResult, Parser};
+use winnow::{LocatingSlice, Parser};
 
 use crate::CliError;
 
@@ -281,11 +282,11 @@ pub trait StrStream<'a>:
 pub trait LocatedStream<'a>: StrStream<'a> + Location {}
 
 impl<'a> StrStream<'a> for &'a str {}
-impl<'a, S: StrStream<'a>> StrStream<'a> for Located<S> {}
-impl<'a, S: StrStream<'a>> LocatedStream<'a> for Located<S> {}
+impl<'a, S: StrStream<'a>> StrStream<'a> for LocatingSlice<S> {}
+impl<'a, S: StrStream<'a>> LocatedStream<'a> for LocatingSlice<S> {}
 
 pub fn parse_varstring(text: &str, raw_var: bool) -> Result<Vec<ParsedVarStringSegment>, String> {
-    let mut input = Located::new(text);
+    let mut input = LocatingSlice::new(text);
     let frags = varstring(raw_var, None).parse_next(&mut input).unwrap();
     if input.len() > 0 {
         return Err(VarStringParseErr::new(&input).to_string());
@@ -298,7 +299,7 @@ pub fn parse_varstring_list(
     text: &str,
     raw_var: bool,
 ) -> Result<Vec<Vec<ParsedVarStringSegment>>, String> {
-    let mut input = Located::new(text);
+    let mut input = LocatingSlice::new(text);
     let frags = varstring_list(raw_var).parse_next(&mut input).unwrap();
     if input.len() > 0 {
         return Err(VarStringParseErr::new(&input).to_string());
@@ -309,14 +310,14 @@ pub fn parse_varstring_list(
 
 fn varstring_list<'a, S: LocatedStream<'a>>(
     raw_var: bool,
-) -> impl FnMut(&mut S) -> PResult<Vec<Vec<ParsedVarStringSegment<'a>>>> {
+) -> impl FnMut(&mut S) -> WResult<Vec<Vec<ParsedVarStringSegment<'a>>>> {
     move |input: &mut S| separated(1.., varstring(raw_var, Some(',')), ',').parse_next(input)
 }
 
 fn varstring<'a, S: LocatedStream<'a>>(
     raw_var: bool,
     stop_at: Option<char>,
-) -> impl FnMut(&mut S) -> PResult<Vec<ParsedVarStringSegment<'a>>> {
+) -> impl FnMut(&mut S) -> WResult<Vec<ParsedVarStringSegment<'a>>> {
     move |input: &mut S| {
         if !raw_var {
             _varstring(stop_at).parse_next(input)
@@ -346,14 +347,14 @@ fn varstring<'a, S: LocatedStream<'a>>(
 
 fn _varstring<'a, S: LocatedStream<'a>>(
     stop_at: Option<char>,
-) -> impl FnMut(&mut S) -> PResult<Vec<ParsedVarStringSegment<'a>>> {
+) -> impl FnMut(&mut S) -> WResult<Vec<ParsedVarStringSegment<'a>>> {
     move |input: &mut S| repeat(.., varstring_fragment(stop_at)).parse_next(input)
 }
 
 /// Variable/function string parser
 fn varstring_fragment<'a, S: LocatedStream<'a>>(
     stop_at: Option<char>,
-) -> impl FnMut(&mut S) -> PResult<ParsedVarStringSegment<'a>> {
+) -> impl FnMut(&mut S) -> WResult<ParsedVarStringSegment<'a>> {
     move |input: &mut S| {
         alt((
             // { var } or { func(a, b) }
@@ -379,13 +380,13 @@ fn varstring_fragment<'a, S: LocatedStream<'a>>(
 
 // /// Succeeds only if variable (generally identifier) or function-like syntax encountered
 // #[inline(never)]
-// fn var_or_expr<'a, S: StrStream<'a>>(input: &mut S) -> PResult<Function<'a>> {
+// fn var_or_expr<'a, S: StrStream<'a>>(input: &mut S) -> WResult<Function<'a>> {
 //     alt((var_or_func, expression))
 // }
 
 /// Succeeds only if variable (generally identifier) or function-like syntax encountered
 #[inline(never)]
-pub fn var_or_func<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<VarFunc<'a>> {
+pub fn var_or_func<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<VarFunc<'a>> {
     (
         name,
         alt((
@@ -402,7 +403,7 @@ pub fn var_or_func<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<VarFunc<'
 /// compatible with JS identifiers, except for \u escape sequences
 /// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#identifiers
 #[inline(never)]
-pub(crate) fn name<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
+pub(crate) fn name<'a, S: StrStream<'a>>(input: &mut S) -> WResult<&'a str> {
     (
         take_while(1, |c: char| c.is_alphabetic() || c == '_' || c == '$'), // must not start with number
         take_while(0.., |c: char| c.is_alphanumeric() || c == '_' || c == '$'),
@@ -412,7 +413,7 @@ pub(crate) fn name<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
 }
 
 // parens in math expressions, function arguments, etc.
-fn arg_list<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Arg<'a>>> {
+fn arg_list<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Vec<Arg<'a>>> {
     terminated(
         separated(.., delimited(multispace0, arg, multispace0), ','),
         opt((',', multispace0)),
@@ -421,7 +422,7 @@ fn arg_list<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Vec<Arg<'a>>> {
 }
 
 // parens in math expressions, function arguments, etc.
-fn arg<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Arg<'a>> {
+fn arg<'a, S: LocatedStream<'a>>(input: &mut S) -> WResult<Arg<'a>> {
     alt((
         var_or_func.map(Arg::Func),
         string.map(Arg::Str),
@@ -434,7 +435,7 @@ fn arg<'a, S: LocatedStream<'a>>(input: &mut S) -> PResult<Arg<'a>> {
 /// To be precise: values that don't qualify as "names", e.g. start
 /// with number or contain '-' or '.'.
 /// TODO: allow more special characters in unquoted strings?
-pub(crate) fn some_value<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str> {
+pub(crate) fn some_value<'a, S: StrStream<'a>>(input: &mut S) -> WResult<&'a str> {
     take_while(1.., |c: char| {
         c.is_alphanum() || c == '_' || c == '-' || c == '.'
     })
@@ -442,11 +443,11 @@ pub(crate) fn some_value<'a, S: StrStream<'a>>(input: &mut S) -> PResult<&'a str
 }
 
 // 'string' or "string" (quote escapes possible)
-pub(crate) fn string<'a, S: StrStream<'a>>(input: &mut S) -> PResult<Cow<'a, str>> {
+pub(crate) fn string<'a, S: StrStream<'a>>(input: &mut S) -> WResult<Cow<'a, str>> {
     alt((quoted('"'), quoted('\''))).parse_next(input)
 }
 
-fn quoted<'a, S: StrStream<'a>>(quote: char) -> impl FnMut(&mut S) -> PResult<Cow<'a, str>> {
+fn quoted<'a, S: StrStream<'a>>(quote: char) -> impl FnMut(&mut S) -> WResult<Cow<'a, str>> {
     move |input: &mut S| {
         delimited(
             quote,
@@ -474,7 +475,7 @@ fn quoted<'a, S: StrStream<'a>>(quote: char) -> impl FnMut(&mut S) -> PResult<Co
 
 pub fn string_fragment<'a, S: StrStream<'a>>(
     stop: &[char],
-) -> impl FnMut(&mut S) -> PResult<&'a str> + '_ {
+) -> impl FnMut(&mut S) -> WResult<&'a str> + '_ {
     move |input: &mut S| {
         alt((
             // regular non-escaped string
