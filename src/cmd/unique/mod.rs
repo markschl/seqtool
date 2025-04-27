@@ -8,7 +8,6 @@ use rkyv::{Archive, Deserialize, Serialize};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::vec::VecFactory;
-use crate::io::output::general_io_writer;
 use crate::var::varstring::register_var_list;
 use crate::CliError;
 
@@ -41,7 +40,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
     let mut map_writer = args
         .map_out
         .as_ref()
-        .map(|path| Ok::<_, CliError>(MapWriter::new(general_io_writer(path)?, args.map_fmt)))
+        .map(|path| Ok::<_, CliError>(MapWriter::new(cfg.io_writer(path)?, args.map_fmt)))
         .transpose()?;
 
     cfg.set_custom_varmodule(Box::<UniqueVars>::default())?;

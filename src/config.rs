@@ -1,17 +1,18 @@
 use std::any::TypeId;
 use std::cell::Cell;
 use std::io;
+use std::path::Path;
 
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
 use crate::helpers::seqtype::SeqType;
 use crate::io::{
-    input::{self, InFormat, InputKind, InputOptions},
+    input::{self, with_io_reader, InFormat, InputConfig, InputKind, SeqReaderConfig},
     output::{
-        compr_writer, from_format, io_writer_from_kind, with_io_writer, FormatWriter, OutputKind,
-        OutputOptions, WriteFinish,
+        io_writer_from_path, FormatWriter, OutFormat, OutputKind, OutputOpts, SeqWriterOpts,
+        WriteFinish,
     },
-    Compression, QualConverter, QualFormat, Record,
+    QualConverter, QualFormat, Record,
 };
 use crate::var::{
     attr::{AttrFormat, Attributes},
@@ -23,8 +24,11 @@ use crate::var::{
 
 #[derive(Debug)]
 pub struct Config {
-    input_opts: Vec<InputOptions>,
-    output_opts: OutputOptions,
+    input_opts: Vec<(InputConfig, SeqReaderConfig)>,
+    output_kind: OutputKind,
+    output_opts: OutputOpts,
+    out_format_opts: SeqWriterOpts,
+    out_format: OutFormat,
     var_opts: VarOpts,
     // context provided along with individual sequence records,
     // contains the symbol table
@@ -37,29 +41,34 @@ pub struct Config {
 
 impl Config {
     pub fn new(args: &CommonArgs) -> CliResult<Self> {
-        let input_opts = args.get_input_opts()?;
-        let output_opts = args.get_output_opts(Some(&input_opts[0].format))?;
+        let input_opts = args.get_input_cfg()?;
+
+        let (output_kind, output_opts, out_format_opts) = args.get_output_opts()?;
+        let out_format = OutFormat::from_opts(&out_format_opts, &input_opts[0].1.format)?;
+
         let var_opts: VarOpts = args.get_var_opts()?;
 
         // quality score format
-        let qual_format = match input_opts[0].format {
+        let qual_format = match input_opts[0].1.format {
             InFormat::Fastq { format } => format,
             InFormat::FaQual { .. } => QualFormat::Phred,
             _ => QualFormat::Sanger,
         };
 
         // context used while reading
-        let mut ctx = SeqContext::new(
-            args.attr.attr_fmt.clone(),
-            qual_format,
-            (output_opts.compression, output_opts.compression_level),
-            output_opts.append,
-        );
-        ctx.init_vars(&var_opts, input_opts[0].seqtype, &output_opts)?;
+        let mut ctx = SeqContext::new(args.attr.attr_fmt.clone(), qual_format, output_opts.clone());
+        ctx.init_vars(
+            &var_opts,
+            input_opts[0].1.seqtype,
+            (&output_opts, &out_format_opts, &out_format),
+        )?;
 
         Ok(Self {
-            output_opts,
             input_opts,
+            output_kind,
+            output_opts,
+            out_format_opts,
+            out_format,
             var_opts,
             ctx,
             n_vars: 0,
@@ -67,12 +76,8 @@ impl Config {
         })
     }
 
-    pub fn input_opts(&self) -> &[InputOptions] {
+    pub fn input_opts(&self) -> &[(InputConfig, SeqReaderConfig)] {
         &self.input_opts
-    }
-
-    pub fn get_seqtype(&self) -> Option<SeqType> {
-        self.input_opts[0].seqtype
     }
 
     // pub fn output_opts(&self) -> &OutputOptions {
@@ -80,8 +85,11 @@ impl Config {
     // }
 
     pub fn set_custom_varmodule(&mut self, provider: Box<dyn VarProvider>) -> CliResult<()> {
-        self.ctx
-            .set_custom_varmodule(provider, &self.var_opts, &self.output_opts)
+        self.ctx.set_custom_varmodule(
+            provider,
+            &self.var_opts,
+            (&self.output_opts, &self.out_format_opts, &self.out_format),
+        )
     }
 
     pub fn build_vars<F, O, E>(&mut self, mut action: F) -> Result<O, E>
@@ -119,8 +127,19 @@ impl Config {
     /// This function can be used to obtain a `FormatWriter` within a
     /// `Config::build()` closure.
     pub fn get_format_writer(&mut self) -> CliResult<Box<dyn FormatWriter>> {
-        let fmt = self.output_opts.format.clone();
-        self.build_vars(|b| from_format(&fmt, b))
+        // TODO: need to clone due to borrowing issues
+        let fmt = self.out_format.clone();
+        self.build_vars(|b| fmt.get_writer(b))
+    }
+
+    /// Returns an I/O writer (of type WriteFinish) directly without any scope
+    /// taking care of cleanup.
+    /// The caller is responsible for invoking finish() on the writer when done.
+    pub fn io_writer<P>(&self, path: P) -> CliResult<Box<dyn WriteFinish>>
+    where
+        P: AsRef<Path>,
+    {
+        io_writer_from_path(path, self.output_opts.clone())
     }
 
     /// Provides an io Writer and `Vars` in a scope and takes care of cleanup (flushing)
@@ -129,7 +148,10 @@ impl Config {
     where
         F: FnOnce(&mut dyn io::Write, Config) -> CliResult<O>,
     {
-        with_io_writer(&self.output_opts.clone(), |writer| func(writer, self))
+        // TODO: cloning output_kind
+        self.output_kind
+            .clone()
+            .with_io_writer(&self.output_opts.clone(), |writer| func(writer, self))
     }
 
     /// Provides a reader (reading input sequentially) within a context,
@@ -140,13 +162,15 @@ impl Config {
         F: FnMut(&dyn Record, &mut SeqContext) -> CliResult<bool>,
     {
         self.init_reader()?;
-        input::with_io_readers(&self.input_opts, |o, rdr| {
-            self.ctx.init_input(o)?;
-            input::run_reader(rdr, &o.format, o.cap, o.max_mem, &mut |rec| {
-                self.ctx.set_record(&rec)?;
-                func(rec, &mut self.ctx)
-            })
-        })?;
+        for (in_opts, seq_opts) in &self.input_opts {
+            with_io_reader(in_opts, |io_rdr| {
+                self.ctx.init_input(in_opts, seq_opts)?;
+                input::read(io_rdr, seq_opts, &mut |rec| {
+                    self.ctx.set_record(&rec)?;
+                    func(rec, &mut self.ctx)
+                })
+            })?;
+        }
         Ok(())
     }
 
@@ -156,12 +180,17 @@ impl Config {
     /// instead they are provided sequentially (cycling through the readers).
     /// The first argument is the reader number (0-based index),
     /// from which the record originates.
-    pub fn read_alongside<F>(&mut self, mut func: F) -> CliResult<()>
+    ///
+    /// `SeqContext::set_record()` needs to be called manually to handle
+    /// variables in the output.
+    pub fn read_alongside<F>(&mut self, id_check: bool, mut func: F) -> CliResult<()>
     where
-        F: FnMut(usize, &dyn Record, &mut SeqContext) -> CliResult<()>,
+        F: FnMut(usize, &dyn Record, &mut SeqContext) -> CliResult<bool>,
     {
         self.init_reader()?;
-        input::read_alongside(&self.input_opts, |i, rec| func(i, rec, &mut self.ctx))
+        input::read_alongside(&self.input_opts, id_check, |i, rec| {
+            func(i, rec, &mut self.ctx)
+        })
     }
 
     /// Does some final preparation tasks regarding variables/functions before
@@ -186,7 +215,7 @@ impl Config {
         data_init: Di,
         work: W,
         mut func: F,
-    ) -> CliResult<Vec<()>>
+    ) -> CliResult<()>
     where
         W: Fn(&dyn Record, &mut O, &mut D) -> CliResult<()> + Send + Sync,
         F: FnMut(&dyn Record, &mut O, &mut SeqContext) -> CliResult<bool>,
@@ -196,24 +225,27 @@ impl Config {
         Si: Fn() -> CliResult<D> + Send + Sync,
     {
         self.init_reader()?;
-        input::with_io_readers(&self.input_opts, |in_opts, rdr| {
-            self.ctx.init_input(in_opts)?;
-            input::read_parallel(
-                in_opts,
-                rdr,
-                n_threads,
-                &rset_init,
-                &data_init,
-                &work,
-                |rec, out| {
-                    self.ctx.set_record(rec)?;
-                    func(rec, out, &mut self.ctx)
-                },
-            )
-        })
+        for (in_opts, seq_opts) in &self.input_opts {
+            with_io_reader(in_opts, |io_rdr| {
+                self.ctx.init_input(in_opts, seq_opts)?;
+                input::read_parallel(
+                    io_rdr,
+                    n_threads,
+                    seq_opts,
+                    &rset_init,
+                    &data_init,
+                    &work,
+                    |rec, out| {
+                        self.ctx.set_record(rec)?;
+                        func(rec, out, &mut self.ctx)
+                    },
+                )
+            })?;
+        }
+        Ok(())
     }
 
-    pub fn read_parallel<W, F, O>(&mut self, n_threads: u32, work: W, func: F) -> CliResult<Vec<()>>
+    pub fn read_parallel<W, F, O>(&mut self, n_threads: u32, work: W, func: F) -> CliResult<()>
     where
         W: Fn(&dyn Record, &mut O) -> CliResult<()> + Send + Sync,
         F: FnMut(&dyn Record, &mut O, &mut SeqContext) -> CliResult<bool>,
@@ -236,7 +268,9 @@ impl Config {
     }
 
     pub fn has_stdin(&self) -> bool {
-        self.input_opts.iter().any(|o| o.kind == InputKind::Stdin)
+        self.input_opts
+            .iter()
+            .any(|(o, _)| o.kind == InputKind::Stdin)
     }
 }
 
@@ -257,26 +291,19 @@ pub struct SeqContext {
     pub attrs: Attributes,
     pub qual_converter: QualConverter,
     // needed by `io_writer_from_path`
-    // TODO: this is duplicated data
-    out_compression: (Compression, Option<u8>),
-    append_out: bool,
+    // TODO: another copy is in `Config` due to borrowing issues
+    pub output_opts: OutputOpts,
 }
 
 impl SeqContext {
-    pub fn new(
-        attr_format: AttrFormat,
-        qual_format: QualFormat,
-        out_compression: (Compression, Option<u8>),
-        append_out: bool,
-    ) -> Self {
+    pub fn new(attr_format: AttrFormat, qual_format: QualFormat, output_opts: OutputOpts) -> Self {
         Self {
             var_modules: Vec::new(),
             custom_module: None,
             symbols: SymbolTable::new(0),
             attrs: Attributes::new(attr_format),
             qual_converter: QualConverter::new(qual_format),
-            out_compression,
-            append_out,
+            output_opts,
         }
     }
 
@@ -284,7 +311,7 @@ impl SeqContext {
         &mut self,
         opts: &VarOpts,
         seqtype_hint: Option<SeqType>,
-        out_opts: &OutputOptions,
+        out_opts: (&OutputOpts, &SeqWriterOpts, &OutFormat),
     ) -> CliResult<()> {
         use crate::var::modules::*;
         // metadata lists
@@ -295,7 +322,7 @@ impl SeqContext {
                 opts.meta_dup_ids,
             )?
             .set_id_col(opts.meta_id_col)
-            .set_has_header(opts.has_header),
+            .set_has_header(opts.meta_has_header),
         ));
 
         // other modules
@@ -312,7 +339,7 @@ impl SeqContext {
 
         // make modules aware of output options
         for m in &mut self.var_modules {
-            m.init_output(out_opts)?;
+            m.init_output(out_opts.0, out_opts.1, out_opts.2)?;
         }
         Ok(())
     }
@@ -328,7 +355,7 @@ impl SeqContext {
         &mut self,
         module: Box<dyn VarProvider>,
         opts: &VarOpts,
-        out_opts: &OutputOptions,
+        out_opts: (&OutputOpts, &SeqWriterOpts, &OutFormat),
     ) -> CliResult<()> {
         debug_assert!(self.custom_module.is_none());
         use crate::var::modules::*;
@@ -345,7 +372,7 @@ impl SeqContext {
         self.var_modules.push(Box::new(cnv::CnvVars::new()));
         // finally, also run 'init' for the newly added modules
         for m in self.var_modules.iter_mut().skip(n) {
-            m.init_output(out_opts)?;
+            m.init_output(out_opts.0, out_opts.1, out_opts.2)?;
         }
         Ok(())
     }
@@ -403,18 +430,22 @@ impl SeqContext {
     // TODO: this is mostly useful for the 'split' command, which always has the
     // same output format and compression settings. It may not be flexible enough
     // for all future uses.
-    pub fn io_writer_from_path(&self, path: &str) -> CliResult<Box<dyn WriteFinish>> {
-        let io_writer = io_writer_from_kind(&OutputKind::File(path.into()), self.append_out)?;
-        let (compr, level) = self.out_compression;
-        let out = compr_writer(io_writer, compr, level)?;
-        Ok(out)
+    pub fn io_writer<P>(&self, path: P) -> CliResult<Box<dyn WriteFinish>>
+    where
+        P: AsRef<Path>,
+    {
+        io_writer_from_path(path, self.output_opts.clone())
     }
 
     /// Initialize context with a new input
     /// (done in Config while reading)
-    pub fn init_input(&mut self, in_opts: &InputOptions) -> CliResult<()> {
+    pub fn init_input(
+        &mut self,
+        in_opts: &InputConfig,
+        seq_opts: &SeqReaderConfig,
+    ) -> CliResult<()> {
         for m in &mut self.var_modules {
-            m.init_input(in_opts)?;
+            m.init_input(in_opts, seq_opts)?;
         }
         Ok(())
     }

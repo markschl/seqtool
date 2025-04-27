@@ -3,6 +3,9 @@ use std::io;
 use std::path::Path;
 use std::str::FromStr;
 
+use csv::TextColumnSpec;
+use itertools::Itertools;
+
 use crate::error::CliResult;
 
 pub use self::qual_format::*;
@@ -18,11 +21,30 @@ pub mod output;
 mod qual_format;
 mod record;
 
-pub trait SeqReader<O> {
-    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>>;
+pub const DEFAULT_INFIELDS: [(&str, TextColumnSpec); 3] = [
+    ("id", TextColumnSpec::Index(0)),
+    ("desc", TextColumnSpec::Index(1)),
+    ("seq", TextColumnSpec::Index(2)),
+];
+
+pub const DEFAULT_OUTFIELDS: &str = "id,desc,seq";
+
+pub const DEFAULT_IO_READER_BUFSIZE: usize = 1 << 22;
+pub const DEFAULT_IO_WRITER_BUFSIZE: usize = 1 << 22;
+
+pub const DEFAULT_FORMAT: FormatVariant = FormatVariant::Fasta;
+
+/// Trait for reading sequence records
+pub trait SeqReader {
+    /// Reads the next record and provides it in a closure
+    /// The functions may return `false` to indicate that reading should stop.
+    fn read_next(
+        &mut self,
+        func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
+    ) -> Option<CliResult<bool>>;
 }
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum FormatVariant {
     Fasta,
     Fastq(QualFormat),
@@ -62,8 +84,7 @@ impl FromStr for FormatVariant {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
-pub enum Compression {
-    None,
+pub enum CompressionFormat {
     #[cfg(feature = "gz")]
     Gzip,
     #[cfg(feature = "bz2")]
@@ -74,50 +95,74 @@ pub enum Compression {
     Zstd,
 }
 
-impl Compression {
-    pub fn best_read_bufsize(self) -> usize {
+impl CompressionFormat {
+    const FORMAT_MAP: &[(&[&str], CompressionFormat)] = &[
+        #[cfg(feature = "gz")]
+        (&["gz", "gzip"], CompressionFormat::Gzip),
+        #[cfg(feature = "bz2")]
+        (&["bz2", "bzip2"], CompressionFormat::Bzip2),
+        #[cfg(feature = "lz4")]
+        (&["lz4"], CompressionFormat::Lz4),
+        #[cfg(feature = "zstd")]
+        (&["zst", "zstd", "zstandard"], CompressionFormat::Zstd),
+    ];
+
+    pub fn str_match(s: &str) -> Option<CompressionFormat> {
+        let s = s.to_ascii_lowercase();
+        for (names, format) in Self::FORMAT_MAP {
+            if names.contains(&s.as_str()) {
+                return Some(*format);
+            }
+        }
+        None
+    }
+
+    pub fn recommended_read_bufsize(self) -> usize {
         match self {
             #[cfg(feature = "zstd")]
-            Compression::Zstd => zstd::Decoder::<io::Empty>::recommended_output_size(),
-            _ => 1 << 22,
+            CompressionFormat::Zstd => zstd::Decoder::<io::Empty>::recommended_output_size(),
+            _ => DEFAULT_IO_READER_BUFSIZE,
         }
     }
 
-    pub fn best_write_bufsize(self) -> usize {
+    pub fn recommended_write_bufsize(self) -> usize {
         match self {
             #[cfg(feature = "zstd")]
-            Compression::Zstd => zstd::Encoder::<io::Sink>::recommended_input_size(),
-            _ => 1 << 22,
+            CompressionFormat::Zstd => zstd::Encoder::<io::Sink>::recommended_input_size(),
+            _ => DEFAULT_IO_WRITER_BUFSIZE,
         }
     }
 }
 
-impl FromStr for Compression {
+impl FromStr for CompressionFormat {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            #[cfg(feature = "gz")]
-            "gz" | "gzip" => Ok(Compression::Gzip),
-            #[cfg(feature = "bz2")]
-            "bz2" | "bzip2" => Ok(Compression::Bzip2),
-            #[cfg(feature = "lz4")]
-            "lz4" => Ok(Compression::Lz4),
-            #[cfg(feature = "zstd")]
-            "zst" | "zstd" | "zstandard" => Ok(Compression::Zstd),
-            _ => Err(format!("Unknown compression format: {}. Valid formats are gz (gzip), bz2 (bzip2), lz4 and zst (zstd, zstandard).", s)),
+        if let Some(format) = CompressionFormat::str_match(s) {
+            Ok(format)
+        } else {
+            let fmt_list = CompressionFormat::FORMAT_MAP
+                .iter()
+                .map(|(names, _)| names.join("/"))
+                .join(", ");
+            Err(format!(
+                "Unknown compression format: {}. Valid formats are: {}.",
+                s, fmt_list
+            ))
         }
     }
 }
 
+/// Information on the sequence format and compression
+/// which can be inferred from the file extensions
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct FileInfo {
     pub format: FormatVariant,
-    pub compression: Compression,
+    pub compression: Option<CompressionFormat>,
 }
 
 impl FileInfo {
-    pub fn new(format: FormatVariant, compression: Compression) -> Self {
+    pub fn new(format: FormatVariant, compression: Option<CompressionFormat>) -> Self {
         Self {
             format,
             compression,
@@ -132,14 +177,14 @@ impl FileInfo {
         let mut _path = path.as_ref().to_owned();
 
         let compression = match _path.extension() {
-            Some(ext) => match Compression::from_str(ext.to_str().unwrap_or("")) {
+            Some(ext) => match CompressionFormat::from_str(ext.to_str().unwrap_or("")) {
                 Ok(c) => {
                     _path = _path.file_stem().unwrap().into();
-                    c
+                    Some(c)
                 }
-                Err(_) => Compression::None,
+                Err(_) => None,
             },
-            None => Compression::None,
+            None => None,
         };
 
         let format = match _path.extension() {
@@ -183,9 +228,9 @@ impl FromStr for FileInfo {
         let mut parts = s.splitn(2, '.');
         let format = FormatVariant::from_str(parts.next().unwrap())?;
         let compression = if let Some(comp_str) = parts.next() {
-            Compression::from_str(comp_str)?
+            Some(CompressionFormat::from_str(comp_str)?)
         } else {
-            Compression::None
+            None
         };
         Ok(FileInfo {
             format,

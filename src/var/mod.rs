@@ -17,7 +17,7 @@ pub struct VarOpts {
     // metadata
     pub metadata_sources: Vec<String>,
     pub meta_delim_override: Option<u8>,
-    pub has_header: bool,
+    pub meta_has_header: bool,
     pub meta_id_col: u32,
     pub meta_dup_ids: bool,
     // expressions

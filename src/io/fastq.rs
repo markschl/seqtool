@@ -25,15 +25,18 @@ where
     }
 }
 
-impl<R, P, O> SeqReader<O> for FastqReader<R, P>
+impl<R, P> SeqReader for FastqReader<R, P>
 where
     R: io::Read,
     P: BufPolicy,
 {
-    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>> {
+    fn read_next(
+        &mut self,
+        func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
+    ) -> Option<CliResult<bool>> {
         self.0.next().map(|r| {
             let r = FastqRecord::new(r?);
-            Ok(func(&r))
+            func(&r)
         })
     }
 }

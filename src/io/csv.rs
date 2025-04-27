@@ -1,12 +1,18 @@
-use std::borrow::ToOwned;
-use std::convert::AsRef;
 use std::io;
 
-use crate::error::CliResult;
+use crate::error::{CliError, CliResult};
 use crate::helpers::DefaultHashMap as HashMap;
 use csv;
 
 use super::{MaybeModified, Record, RecordHeader, SeqReader};
+
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub enum TextColumnSpec {
+    Index(usize),
+    Name(String),
+}
+
+pub type ColumnMapping = (String, TextColumnSpec);
 
 // Reader
 
@@ -16,22 +22,22 @@ pub struct CsvReader<R: io::Read> {
 }
 
 impl<R: io::Read> CsvReader<R> {
-    pub fn new<I, S>(rdr: R, delim: u8, fields: I, has_header: bool) -> CliResult<CsvReader<R>>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let fields: Vec<_> = fields
-            .into_iter()
-            .map(|f| {
-                f.as_ref()
-                    .splitn(2, ':')
-                    .map(ToOwned::to_owned)
-                    .collect::<Vec<_>>()
-            })
-            .collect();
+    pub fn new(
+        rdr: R,
+        delim: u8,
+        fields: &[(String, TextColumnSpec)],
+        mut has_header: bool,
+    ) -> CliResult<CsvReader<R>> {
         if fields.is_empty() {
-            return fail!("At least one CSV field must be defined");
+            return fail!("At least one delimited text column must be defined");
+        }
+
+        // assume headers in case of any named (non-integer) column
+        if fields
+            .iter()
+            .any(|(_, f)| matches!(f, TextColumnSpec::Name(_)))
+        {
+            has_header = true;
         }
 
         let mut builder = csv::ReaderBuilder::new();
@@ -42,58 +48,29 @@ impl<R: io::Read> CsvReader<R> {
             .flexible(true)
             .from_reader(rdr);
 
-        // check for consistency
-        let n = fields[0].len();
-        if fields.iter().any(|f| f.len() != n) {
-            return fail!(
-                "Inconsistent CSV column description. Either use colons everywhere or nowhere."
-            );
-        }
-
-        let mut fieldmap: HashMap<_, _> = if n == 1 {
-            // id,desc,seq
-            fields
-                .into_iter()
-                .enumerate()
-                .map(|(i, mut f)| (f.swap_remove(0), i))
-                .collect()
+        let header = if has_header {
+            Some(rdr.headers()?)
         } else {
-            // id:2,desc:6,seq:9
-            // OR
-            // id:id,seq:sequence,desc:description
-            let (seq_names, columns): (Vec<String>, Vec<String>) = fields
-                .into_iter()
-                .map(|mut f| {
-                    let f1 = f.remove(1);
-                    (f.remove(0), f1)
-                })
-                .unzip();
-
-            let idx: Result<Vec<_>, _> = columns.iter().map(|c| c.parse::<usize>()).collect();
-
-            let indices: CliResult<Vec<usize>> = match idx {
-                Ok(indices) => indices
-                    .into_iter()
-                    .map(|i| {
-                        if i == 0 {
-                            fail!("List column numbers should be > 1")
-                        } else {
-                            Ok(i - 1)
-                        }
-                    })
-                    .collect(),
-                Err(_) => {
-                    // need to look up the indices
-                    if !has_header {
-                        rdr.read_byte_record(&mut csv::ByteRecord::new())?;
-                    }
-                    let header: Vec<_> = rdr.headers()?.iter().collect();
-                    match_fields(&columns, &header)
-                        .map_err(|f| format!("Did not find '{}' in header.", f).into())
-                }
-            };
-            seq_names.into_iter().zip(indices?).collect()
+            None
         };
+
+        // field -> column index
+        let mut fieldmap: HashMap<&str, usize> = fields
+            .iter()
+            .map(|(field, col)| {
+                let idx = match *col {
+                    TextColumnSpec::Index(idx) => idx,
+                    TextColumnSpec::Name(ref name) => {
+                        if let Some(idx) = header.as_ref().unwrap().iter().position(|h| h == name) {
+                            idx
+                        } else {
+                            return fail!("Did not find field '{}' in header.", name);
+                        }
+                    }
+                };
+                Ok((field.as_str(), idx))
+            })
+            .collect::<Result<_, CliError>>()?;
 
         Ok(CsvReader {
             rdr,
@@ -134,12 +111,15 @@ pub struct Columns {
     // other_cols: Vec<(String, usize)>,
 }
 
-impl<R, O> SeqReader<O> for CsvReader<R>
+impl<R> SeqReader for CsvReader<R>
 where
     R: io::Read,
 {
-    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>> {
-        self.next().map(|r| r.map(|r| func(&r)))
+    fn read_next(
+        &mut self,
+        func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
+    ) -> Option<CliResult<bool>> {
+        self.next().map(|r| r.and_then(|r| func(&r)))
     }
 }
 
@@ -202,24 +182,4 @@ impl Record for CsvRecord {
     fn qual(&self) -> Option<&[u8]> {
         self.cols.qual_col.map(|i| self.data.get(i).unwrap_or(b""))
     }
-}
-
-pub fn match_fields<'a, S1, S2>(fields: &'a [S1], other: &'a [S2]) -> Result<Vec<usize>, &'a str>
-where
-    S1: AsRef<str>,
-    S2: AsRef<str>,
-{
-    let other: HashMap<_, _> = other
-        .iter()
-        .enumerate()
-        .map(|(i, f)| (f.as_ref(), i))
-        .collect();
-
-    fields
-        .iter()
-        .map(|field| match other.get(field.as_ref()) {
-            Some(i) => Ok(*i),
-            None => Err(field.as_ref()),
-        })
-        .collect()
 }

@@ -9,16 +9,15 @@ use variable_enum_macro::variable_enum;
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::helpers::DefaultHashMap as HashMap;
-use crate::io::output::{general_io_writer, FormatWriter, OutputKind};
+use crate::io::output::{FormatWriter, OutputKind};
 use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuilder};
 use crate::CliResult;
 
 pub const DESC: &str = "\
-or advanced expressions specified in the output path (`-o/--output`).
-See `--help` and `--help-vars` for more information.
-In contrast to other commands, the output argument (`-o`) of the
-'split' command can contain variables/functions to determine the
-file path for each sequence.\
+In contrast to other commands, the output argument (`-o/--output`) of the
+'split' command can contain variables and advanced expressions to determine the
+file path for each sequence. However, the output format will not be automatically
+determined from file extensions containing variables.\
 ";
 
 lazy_static::lazy_static! {
@@ -69,7 +68,11 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
     };
 
     // stats file
-    let counts_file = args.counts.as_ref().map(general_io_writer).transpose()?;
+    let counts_file = args
+        .counts
+        .as_ref()
+        .map(|path| cfg.io_writer(path))
+        .transpose()?;
 
     // output path (or default) and chunk size
     let out_key = if num_seqs.is_some() {
@@ -132,7 +135,7 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
             create_dir_all(par)?;
         }
 
-        let io_writer = ctx.io_writer_from_path(path_str)?;
+        let io_writer = ctx.io_writer(path_str)?;
         outfiles.insert(path.clone(), (io_writer, 1usize));
         let (io_writer, _) = outfiles.get_mut(&path).unwrap();
         format_writer.write(&record, io_writer, ctx)?;

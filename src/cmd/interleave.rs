@@ -24,27 +24,11 @@ pub fn run(mut cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
 
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
-        let mut id = vec![];
-
-        cfg.read_alongside(|i, rec, ctx| {
-            if id_check {
-                let rec_id = rec.id();
-                if i == 0 {
-                    id.clear();
-                    id.extend(rec_id);
-                } else if rec_id != id.as_slice() {
-                    return fail!(format!(
-                        "ID of record #{} ({}) does not match the ID of the first one ({})",
-                        i + 1,
-                        String::from_utf8_lossy(rec_id),
-                        String::from_utf8_lossy(&id)
-                    ));
-                }
-            }
+        cfg.read_alongside(id_check, |_, rec, ctx| {
             // handle variables (read_alongside requires this to be done manually)
             ctx.set_record(&rec)?;
-
-            format_writer.write(rec, io_writer, ctx)
+            format_writer.write(rec, io_writer, ctx)?;
+            Ok(true)
         })
     })
 }

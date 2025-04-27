@@ -54,7 +54,7 @@ pub fn run(mut cfg: Config, args: &ConcatCommand) -> CliResult<()> {
         }
         let max_idx = num_readers - 1;
 
-        cfg.read_alongside(|i, rec, ctx| {
+        cfg.read_alongside(false, |i, rec, ctx| {
             let rec_id = rec.id();
 
             if i == 0 {
@@ -100,14 +100,13 @@ pub fn run(mut cfg: Config, args: &ConcatCommand) -> CliResult<()> {
                 }
             }
 
-            // handle variables (read_alongside requires this to be done manually)
-            ctx.set_record(&record)?;
-
             // write at last
             if i == max_idx {
+                // handle variables (read_alongside requires this to be done manually)
+                ctx.set_record(&record)?;
                 format_writer.write(&record, io_writer, ctx)?;
             }
-            Ok(())
+            Ok(true)
         })
     })
 }

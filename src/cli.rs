@@ -13,9 +13,10 @@ use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, seqtype::SeqType};
 use crate::io::{
-    input::{InFormat, InputKind, InputOptions},
-    output::{OutFormat, OutputKind, OutputOptions},
-    Attribute, Compression, FileInfo, FormatVariant, QualFormat,
+    csv::{ColumnMapping, TextColumnSpec},
+    input::{InFormat, InputConfig, InputKind, SeqReaderConfig},
+    output::{OutputKind, OutputOpts, SeqWriterOpts},
+    Attribute, FileInfo, FormatVariant, QualFormat,
 };
 use crate::var::{attr::AttrFormat, VarOpts};
 
@@ -131,113 +132,98 @@ impl Cli {
 }
 
 impl CommonArgs {
-    pub fn get_input_opts(&self) -> CliResult<Vec<InputOptions>> {
-        let opts = &self.input;
-        // TODO: ST_FORMAT removed
+    pub fn get_input_cfg(&self) -> CliResult<Vec<(InputConfig, SeqReaderConfig)>> {
+        let args = &self.input;
 
         // get format settings from args
-        let mut delim = opts.delim;
-        let mut fields = opts.fields.clone();
-        let info = opts.fmt.clone();
+        let mut info = args.fmt.clone();
+        let mut delim = args.delim;
+        let mut fields = args.fields.clone();
 
-        let input: Vec<_> = opts
+        // --fa/--fq/--tsv, etc have a higher priority
+        if args.fa {
+            info = Some(FileInfo::new(FormatVariant::Fasta, None));
+        } else if args.fq {
+            info = Some(FileInfo::new(
+                FormatVariant::Fastq(QualFormat::Sanger),
+                None,
+            ));
+        } else if args.fq_illumina {
+            info = Some(FileInfo::new(
+                FormatVariant::Fastq(QualFormat::Illumina),
+                None,
+            ));
+        } else if args.csv.is_some() {
+            info = Some(FileInfo::new(FormatVariant::Csv, None));
+            delim = Some(',');
+            fields.clone_from(&args.csv);
+        } else if args.tsv.is_some() {
+            info = Some(FileInfo::new(FormatVariant::Tsv, None));
+            delim = Some('\t');
+            fields.clone_from(&args.tsv);
+        }
+
+        let input: Vec<_> = args
             .input
             .iter()
             .map(|kind| {
                 // if no format from args, infer from path
-                let mut _info = info.clone().unwrap_or_else(|| match kind {
-                    InputKind::Stdin => FileInfo::new(FormatVariant::Fasta, Compression::None),
-                    InputKind::File(path) => FileInfo::from_path(path, FormatVariant::Fasta, true),
-                });
-
-                // --fa/--fq/--tsv, etc have highest priority
-                let compr = _info.compression;
-                if opts.fa {
-                    _info = FileInfo::new(FormatVariant::Fasta, compr);
-                } else if opts.fq {
-                    _info = FileInfo::new(FormatVariant::Fastq(QualFormat::Sanger), compr);
-                } else if opts.fq_illumina {
-                    _info = FileInfo::new(FormatVariant::Fastq(QualFormat::Illumina), compr);
-                } else if let Some(f) = opts.csv.as_ref() {
-                    _info = FileInfo::new(FormatVariant::Csv, compr);
-                    delim = Some(',');
-                    fields.clone_from(f);
-                } else if let Some(f) = opts.tsv.as_ref() {
-                    _info = FileInfo::new(FormatVariant::Tsv, compr);
-                    delim = Some('\t');
-                    fields.clone_from(f);
-                }
+                let mut _info = info.clone().unwrap_or_else(|| kind.get_info());
 
                 let format = InFormat::from_opts(
                     _info.format,
                     delim,
-                    &fields,
-                    opts.header,
-                    opts.qual.as_deref(),
+                    fields.as_deref(),
+                    args.header,
+                    args.qual.as_deref(),
                 )?;
 
-                let opts = InputOptions::new(kind.clone(), format, _info.compression, opts.seqtype)
-                    .thread_opts(self.advanced.read_thread, self.advanced.read_tbufsize)
-                    .reader_opts(self.advanced.buf_cap, self.advanced.max_read_mem);
-                Ok(opts)
+                let input_cfg = InputConfig {
+                    kind: kind.clone(),
+                    compression: _info.compression,
+                    threaded: self.advanced.read_thread,
+                    thread_bufsize: self.advanced.read_tbufsize,
+                };
+                let seq_cfg = SeqReaderConfig {
+                    format,
+                    seqtype: args.seqtype,
+                    cap: self.advanced.buf_cap,
+                    max_mem: self.advanced.max_read_mem,
+                };
+                Ok((input_cfg, seq_cfg))
             })
             .collect::<CliResult<_>>()?;
         Ok(input)
     }
 
-    pub fn get_output_opts(&self, informat: Option<&InFormat>) -> CliResult<OutputOptions> {
-        let opts = &self.output;
-        let (infmt, infields, indelim) = match informat {
-            Some(f) => f.decompose(),
-            None => (FormatVariant::Fasta, None, None),
-        };
-        // TODO: ST_FORMAT removed
+    pub fn get_output_opts(&self) -> CliResult<(OutputKind, OutputOpts, SeqWriterOpts)> {
+        let args = &self.output;
 
-        // output
-        let output = opts.output.clone().unwrap_or(OutputKind::Stdout);
+        // format
+        let mut info = args.to.clone();
+        let mut delim = args.out_delim;
+        let mut fields = args.outfields.clone();
 
-        // get format settings from args
-        let mut delim = opts.out_delim;
-        let mut fields = opts.outfields.clone();
-        let info = opts.to.clone();
-        if let Some(i) = info.as_ref() {
-            // delimiters need to be defined correctly
-            match i.format {
-                FormatVariant::Csv => delim = delim.or(Some(',')),
-                FormatVariant::Tsv => delim = delim.or(Some('\t')),
-                _ => {}
-            }
-        }
-
-        // if no format specified, infer from path or input format (in that order)
-        let mut info = info.unwrap_or_else(|| match &output {
-            OutputKind::Stdout => FileInfo::new(infmt.clone(), Compression::None),
-            OutputKind::File(path) => FileInfo::from_path(path, infmt.clone(), true),
-        });
-
-        // furthermore, --fa/--fq/--tsv, etc. have highest priority
-        let compr = info.compression;
-        if opts.to_fa {
-            info = FileInfo::new(FormatVariant::Fasta, compr);
-        } else if opts.to_fq {
-            info = FileInfo::new(FormatVariant::Fastq(QualFormat::Sanger), compr);
-        } else if let Some(f) = opts.to_csv.as_ref() {
-            info = FileInfo::new(FormatVariant::Csv, compr);
+        // furthermore, --fa/--fq/--tsv, etc. override --to <format>
+        // (no compression possible)
+        if args.to_fa {
+            info = Some(FileInfo::new(FormatVariant::Fasta, None));
+        } else if args.to_fq {
+            info = Some(FileInfo::new(
+                FormatVariant::Fastq(QualFormat::Sanger),
+                None,
+            ));
+        } else if let Some(f) = args.to_csv.as_ref() {
+            info = Some(FileInfo::new(FormatVariant::Csv, None));
             delim = Some(',');
             fields = Some(f.clone());
-        } else if let Some(f) = opts.to_tsv.as_ref() {
-            info = FileInfo::new(FormatVariant::Tsv, compr);
+        } else if let Some(f) = args.to_tsv.as_ref() {
+            info = Some(FileInfo::new(FormatVariant::Tsv, None));
             delim = Some('\t');
             fields = Some(f.clone());
         }
 
-        // use input CSV fields and delimiter if not specified otherwise
-        let fields = fields
-            .or(infields.map(|f| f.join(",")))
-            .unwrap_or_else(|| "id,desc,seq".to_string());
-        let delim = delim.or(indelim);
-
-        // assemble
+        // assemble attributes
         let mut attrs = Vec::with_capacity(self.attr.attr.len() + self.attr.attr_append.len());
         for a in &self.attr.attr {
             attrs.push((a.clone(), true));
@@ -245,34 +231,34 @@ impl CommonArgs {
         for a in &self.attr.attr_append {
             attrs.push((a.clone(), false));
         }
-        if !attrs.is_empty()
-            && !matches!(info.format, FormatVariant::Fasta | FormatVariant::Fastq(_))
-        {
-            return Err(
-                "Header attributes were specified using `-a/--attr` or `-A/--attr-append`, \
-                but the output format is not FASTA or FASTQ."
-                    .into(),
-            );
-        }
-        let format = OutFormat::from_opts(
-            info.format,
-            &attrs,
-            opts.wrap.map(|w| w as usize),
-            delim,
-            &fields,
-            opts.qual_out.as_deref(),
-        )?;
 
-        let opts = OutputOptions::new(output, format, info.compression, opts.append)
-            .thread_opts(self.advanced.write_thread, self.advanced.write_tbufsize);
-        Ok(opts)
+        let output_opts = OutputOpts {
+            append: args.append,
+            compression_format: info.as_ref().and_then(|f| f.compression),
+            compression_level: args.compr_level,
+            threaded: self.advanced.write_thread,
+            thread_bufsize: self.advanced.write_tbufsize,
+        };
+
+        let format_opts = SeqWriterOpts {
+            format: info.map(|f| f.format),
+            attrs,
+            wrap_fasta: args.wrap.map(|w| w as usize),
+            fields,
+            delim,
+            qfile: args.qual_out.clone(),
+        };
+
+        let kind = args.output.clone().unwrap_or(OutputKind::Stdout);
+
+        Ok((kind, output_opts, format_opts))
     }
 
     pub fn get_var_opts(&self) -> CliResult<VarOpts> {
         Ok(VarOpts {
             metadata_sources: self.meta.meta.clone(),
             meta_delim_override: self.meta.meta_delim.map(|d| d as u8),
-            has_header: self.meta.meta_header,
+            meta_has_header: self.meta.meta_header,
             meta_id_col: self.meta.meta_idcol.checked_sub(1).unwrap(),
             meta_dup_ids: self.meta.dup_ids,
             expr_init: self.expr.js_init.clone(),
@@ -438,7 +424,7 @@ pub struct InputArgs {
     /// (e.g. if reading from STDIN). 'fasta' is assumed as default
     /// (can be configured with ST_FORMAT). Possible choices:
     /// fasta (default), fastq (fastq-illumina, fastq-solexa),
-    /// csv or tsv
+    /// csv or tsv.
     /// Compression: <format>.<compression> (.gz, .bz2 or .lz4).
     pub fmt: Option<FileInfo>,
 
@@ -451,35 +437,37 @@ pub struct InputArgs {
     pub fq: bool,
 
     #[arg(long)]
-    /// FASTQ input in Illumina 1.3-1.7 format (alias to --fmt fastq-illumina)
+    /// FASTQ input in legacy Illumina 1.3-1.7 format (alias to --fmt fastq-illumina)
     pub fq_illumina: bool,
 
     #[arg(
         long,
         value_name = "FIELDS",
-        default_value = "id,desc,seq",
-        value_delimiter = ','
+        value_parser = parse_infields,
     )]
-    /// CSV fields: 'id,seq,desc' (in order) or 'id:2,desc:6,seq:9' (col. num.)
-    /// or headers: 'id:id,seq:sequence,desc:some_description'
-    pub fields: Vec<String>,
+    /// Delimited text fields:
+    /// 'id,seq,desc' (in order) or
+    /// 'id:2,desc:6,seq:9' (col. num.) or
+    /// 'id:ID,seq:Sequence,desc:Comment' (names in header)
+    /// [default: 'id,seq,desc']
+    pub fields: Option<Vec<ColumnMapping>>,
 
     #[arg(long, value_name = "CHAR")]
     /// TSV/CSV delimiter. Defaults: '\t' for tsv/txt; ',' for csv
     pub delim: Option<char>,
 
     #[arg(long)]
-    /// Specify if CSV file has a header. Auto-enabled depending on the format
-    /// of --fields, --csv or --tsv
+    /// Specify if CSV file has a header. Auto-enabled if a 'field:column name'
+    /// mapping is provided with --fields, --csv or --tsv
     pub header: bool,
 
-    #[arg(long, value_name = "FIELDS", value_delimiter = ',')]
+    #[arg(long, value_name = "FIELDS", value_parser = parse_infields)]
     /// CSV input. Short for '--fmt csv --fields <fields>'
-    pub csv: Option<Vec<String>>,
+    pub csv: Option<Vec<ColumnMapping>>,
 
-    #[arg(long, value_name = "FIELDS", value_delimiter = ',')]
+    #[arg(long, value_name = "FIELDS", value_parser = parse_infields)]
     /// TSV input. Short for '--fmt tsv --fields <fields>'
-    pub tsv: Option<Vec<String>>,
+    pub tsv: Option<Vec<ColumnMapping>>,
 
     #[arg(long, value_name = "FILE")]
     /// Path to QUAL file with quality scores (Roche 454 style)
@@ -522,7 +510,7 @@ pub struct OutputArgs {
 
     #[arg(long, value_name = "FIELDS")]
     /// Comma delimited list of CSV/TSV fields, which can be
-    /// variables/functions or contain variables/expressions.
+    /// variables/functions or contain {variables}/{expressions}.
     /// [default: input fields or 'id,desc,seq']
     pub outfields: Option<String>,
 
@@ -537,13 +525,13 @@ pub struct OutputArgs {
     /// CSV output with comma delimited list of fields, which can be
     /// variables/functions or contain variables/expressions.
     /// Short for '--to csv --outfields <f>'
-    #[arg(long, value_name = "FIELDS")]
+    #[arg(long, value_name = "FIELDS", value_delimiter = ',')]
     pub to_csv: Option<String>,
 
     /// TSV output with comma delimited list of fields, which can be
     /// variables/functions or contain variables/expressions.
     /// Short for '--to tsv --outfields <f>'
-    #[arg(long, value_name = "FIELDS")]
+    #[arg(long, value_name = "FIELDS", value_delimiter = ',')]
     pub to_tsv: Option<String>,
 
     /// Level for compressed output. 1-9 for GZIP/BZIP2 (default=6) and
@@ -633,12 +621,12 @@ pub struct ExprArgs {
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Advanced (all commands)")]
 pub struct AdvancedArgs {
-    /// Initial capacity of internal reader buffer. Either a plain number (bytes)
+    /// Initial capacity of internal FASTA/FASTQ reader buffer. Either a plain number (bytes)
     /// a number with unit (K, M, G, T) based on powers of 2.
     #[arg(long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "64K", hide = true)]
     pub buf_cap: usize,
 
-    /// Buffer size limit for the internal reader. Larger sequence records will
+    /// Buffer size limit for the internal FASTA/FASTQ reader. Larger sequence records will
     /// cause an error. Note, that some commands such as 'sort', 'unique'
     /// and 'sample' still use more memory and have their own additional
     /// memory limit setting.
@@ -666,6 +654,64 @@ pub struct AdvancedArgs {
     /// The default is 4 MiB or the optimal size depending on the compression format.
     #[arg(long, value_name = "N", value_parser = parse_bytesize, hide = true)]
     pub write_tbufsize: Option<usize>,
+}
+
+pub fn parse_infields(field_str: &str) -> CliResult<Vec<ColumnMapping>> {
+    let fields: Vec<_> = field_str
+        .split(',')
+        .map(|field| {
+            let mut it = field.splitn(2, ':');
+            (it.next().unwrap().trim(), it.next().map(|f| f.trim()))
+        })
+        .collect();
+
+    let has_colmapping = fields[0].1.is_some();
+    if fields.iter().any(|(_, f)| has_colmapping != f.is_some()) {
+        return fail!(
+            "Inconsistent text column description: '{}'. \
+            Either use 'field1,field2,...' (in-order) or 'field1:column1,field2:column2,...', \
+            but do not mix the two.",
+            field_str
+        );
+    }
+
+    if has_colmapping {
+        let maybe_pos: Result<Vec<_>, _> = fields
+            .iter()
+            .map(|(_, f)| f.unwrap().parse::<usize>())
+            .collect();
+        if let Ok(pos) = maybe_pos {
+            pos.into_iter()
+                .zip(&fields)
+                .map(|(pos, (attr, _))| {
+                    if pos == 0 {
+                        fail!(
+                            "Invalid column number for '{}': numbers should be > 0",
+                            attr
+                        )
+                    } else {
+                        Ok((attr.to_string(), TextColumnSpec::Index(pos - 1)))
+                    }
+                })
+                .collect()
+        } else {
+            Ok(fields
+                .into_iter()
+                .map(|(attr, field)| {
+                    (
+                        attr.to_string(),
+                        TextColumnSpec::Name(field.unwrap().to_string()),
+                    )
+                })
+                .collect())
+        }
+    } else {
+        Ok(fields
+            .into_iter()
+            .enumerate()
+            .map(|(i, (attr, _))| (attr.to_string(), TextColumnSpec::Index(i)))
+            .collect())
+    }
 }
 
 pub fn get_styles() -> Styles {

@@ -48,12 +48,15 @@ where
     }
 }
 
-impl<R, P, O> SeqReader<O> for FaQualReader<R, P>
+impl<R, P> SeqReader for FaQualReader<R, P>
 where
     R: io::Read,
     P: BufPolicy,
 {
-    fn read_next(&mut self, func: &mut dyn FnMut(&dyn Record) -> O) -> Option<CliResult<O>> {
+    fn read_next(
+        &mut self,
+        func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
+    ) -> Option<CliResult<bool>> {
         let quals = &mut self.quals;
         let qual_rdr = &mut self.qual_rdr;
 
@@ -97,7 +100,7 @@ where
                 fa_rec: super::fasta::FastaRecord::new(rec),
                 qual: quals,
             };
-            Ok(func(&r))
+            func(&r)
         })
     }
 }

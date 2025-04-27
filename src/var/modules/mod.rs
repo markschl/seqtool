@@ -4,7 +4,11 @@ use std::fmt::Debug;
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 
 use crate::helpers::any::AsAnyMut;
-use crate::io::{input::InputOptions, output::OutputOptions, QualConverter, Record};
+use crate::io::{
+    input::{InputConfig, SeqReaderConfig},
+    output::{OutFormat, OutputOpts, SeqWriterOpts},
+    QualConverter, Record,
+};
 
 use super::attr::Attributes;
 use super::parser::Arg;
@@ -61,13 +65,20 @@ pub trait VarProvider: Debug + AsAnyMut {
 
     /// Called on every new output stream (STDOUT or file).
     /// Some variable providers may need the information.
-    fn init_output(&mut self, _: &OutputOptions) -> Result<(), String> {
+    /// This does *not* include additional output files
+    /// created by commands.
+    fn init_output(
+        &mut self,
+        _: &OutputOpts,
+        _: &SeqWriterOpts,
+        _: &OutFormat,
+    ) -> Result<(), String> {
         Ok(())
     }
 
     /// Called on every new input (STDIN or file).
     /// Some variable providers may need the information.
-    fn init_input(&mut self, _: &InputOptions) -> Result<(), String> {
+    fn init_input(&mut self, _: &InputConfig, _: &SeqReaderConfig) -> Result<(), String> {
         Ok(())
     }
 

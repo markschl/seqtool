@@ -81,6 +81,8 @@ fn txt_input() {
             &csv,
             &csv,
         )
+        .cmp(&[".", "--csv", "id,seq,desc", "--to", "csv"], &csv, &csv)
+        .cmp(&[".", "--csv", "id,seq,desc", "--to", "tsv"], &csv, txt)
         .cmp(
             &[".", "--tsv", "id:1,desc:3,seq:2", "--to-tsv", "id,seq,desc"],
             txt,

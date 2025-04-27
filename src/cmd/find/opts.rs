@@ -101,7 +101,8 @@ impl Opts {
 
         // Obtain a sequence type and search algorithm for each pattern
         // (based on heuristic and/or CLI args)
-        let (seqtype, algorithms) = analyse_patterns(args, cfg.get_seqtype(), attr, max_dist)?;
+        let (seqtype, algorithms) =
+            analyse_patterns(args, cfg.input_opts()[0].1.seqtype, attr, max_dist)?;
 
         let (pattern_names, patterns): (Vec<_>, Vec<_>) = args.patterns.iter().cloned().unzip();
 

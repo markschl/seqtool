@@ -11,8 +11,8 @@ use crate::helpers::{
     seqtype::{SeqType, SeqtypeHelper},
 };
 use crate::io::{
-    input::{InputKind, InputOptions},
-    output::OutputOptions,
+    input::{InputConfig, InputKind, SeqReaderConfig},
+    output::{OutFormat, OutputOpts, SeqWriterOpts},
     QualConverter, Record, RecordAttr,
 };
 use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
@@ -245,16 +245,19 @@ impl VarProvider for GeneralVars {
         Ok(())
     }
 
-    fn init_output(&mut self, out_opts: &OutputOptions) -> Result<(), String> {
-        out_opts
-            .format
-            .default_ext()
+    fn init_output(
+        &mut self,
+        _: &OutputOpts,
+        _: &SeqWriterOpts,
+        f: &OutFormat,
+    ) -> Result<(), String> {
+        f.default_ext()
             .as_bytes()
             .clone_into(&mut self.path_info.out_ext);
         Ok(())
     }
 
-    fn init_input(&mut self, in_opts: &InputOptions) -> Result<(), String> {
+    fn init_input(&mut self, in_opts: &InputConfig, _: &SeqReaderConfig) -> Result<(), String> {
         if let Some(ref mut path) = self.path_info.path {
             write_os_str(in_opts, path, |p| Some(p.as_os_str()))
         }
@@ -314,7 +317,7 @@ fn seqhash_both(
     Ok(hash1.wrapping_add(hash2))
 }
 
-fn write_os_str<F>(in_opts: &InputOptions, out: &mut Vec<u8>, func: F)
+fn write_os_str<F>(in_opts: &InputConfig, out: &mut Vec<u8>, func: F)
 where
     F: FnOnce(&Path) -> Option<&OsStr>,
 {

@@ -9,9 +9,10 @@ use thread_io;
 use crate::error::{CliError, CliResult};
 use crate::helpers::seqtype::SeqType;
 
+use super::csv::{ColumnMapping, CsvReader};
 use super::{
-    csv::CsvReader, fa_qual, fasta, fastq, Compression, FormatVariant, QualFormat, Record,
-    SeqReader,
+    fa_qual, fasta, fastq, CompressionFormat, FileInfo, FormatVariant, QualFormat, Record,
+    SeqReader, DEFAULT_FORMAT, DEFAULT_INFIELDS, DEFAULT_IO_WRITER_BUFSIZE,
 };
 
 mod parallel_csv;
@@ -42,48 +43,55 @@ impl fmt::Display for InputKind {
     }
 }
 
+impl InputKind {
+    pub fn get_info(&self) -> FileInfo {
+        match self {
+            InputKind::Stdin => FileInfo::new(DEFAULT_FORMAT, None),
+            InputKind::File(path) => FileInfo::from_path(path, DEFAULT_FORMAT, true),
+        }
+    }
+}
+
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct InputOptions {
+pub struct InputConfig {
     pub kind: InputKind,
-    pub format: InFormat,
-    pub compression: Compression,
-    pub seqtype: Option<SeqType>,
+    pub compression: Option<CompressionFormat>,
     // read in separate thread
     pub threaded: bool,
-    pub cap: usize,
     pub thread_bufsize: Option<usize>,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct SeqReaderConfig {
+    pub format: InFormat,
+    pub seqtype: Option<SeqType>,
+    /// Buffer capacity (for FASTX readers)
+    pub cap: usize,
+    /// Maximum memory to use (for FASTX readers)
     pub max_mem: usize,
 }
 
-impl InputOptions {
-    pub fn new(
-        kind: InputKind,
-        format: InFormat,
-        compression: Compression,
-        seqtype: Option<SeqType>,
-    ) -> Self {
-        Self {
-            kind,
-            format,
-            compression,
-            seqtype,
-            threaded: false,
-            cap: 1 << 16,
-            thread_bufsize: None,
-            max_mem: 1 << 30,
-        }
-    }
-
-    pub fn thread_opts(mut self, threaded: bool, thread_bufsize: Option<usize>) -> Self {
-        self.threaded = threaded;
-        self.thread_bufsize = thread_bufsize;
-        self
-    }
-
-    pub fn reader_opts(mut self, cap: usize, max_mem: usize) -> Self {
-        self.cap = cap;
-        self.max_mem = max_mem;
-        self
+impl SeqReaderConfig {
+    pub fn get_seq_reader<'a, R>(&self, io_rdr: R) -> CliResult<Box<dyn SeqReader + 'a>>
+    where
+        R: io::Read + 'a,
+    {
+        let strategy = LimitedBuffer {
+            double_until: 1 << 23,
+            limit: self.max_mem,
+        };
+        Ok(match self.format {
+            InFormat::Fasta => Box::new(fasta::FastaReader::new(io_rdr, self.cap, strategy)),
+            InFormat::Fastq { .. } => Box::new(fastq::FastqReader::new(io_rdr, self.cap, strategy)),
+            InFormat::FaQual { ref qfile } => Box::new(fa_qual::FaQualReader::new(
+                io_rdr, self.cap, strategy, qfile,
+            )?),
+            InFormat::DelimitedText {
+                ref delim,
+                ref fields,
+                has_header,
+            } => Box::new(CsvReader::new(io_rdr, *delim, fields, has_header)?),
+        })
     }
 }
 
@@ -96,50 +104,48 @@ pub enum InFormat {
     FaQual {
         qfile: PathBuf,
     },
-    Csv {
+    DelimitedText {
         delim: u8,
-        fields: Vec<String>,
+        fields: Vec<ColumnMapping>,
         has_header: bool,
     },
 }
 
 impl InFormat {
-    pub fn decompose(&self) -> (FormatVariant, Option<&[String]>, Option<char>) {
+    /// back-transforms to FormatVariant (used for deriving output format from input format)
+    pub fn format_variant(&self) -> FormatVariant {
         match *self {
-            InFormat::Fasta => (FormatVariant::Fasta, None, None),
-            InFormat::Fastq { format } => (FormatVariant::Fastq(format), None, None),
-            InFormat::Csv {
-                delim, ref fields, ..
-            } => {
-                let fmt = if delim == b'\t' {
+            InFormat::Fasta => FormatVariant::Fasta,
+            InFormat::Fastq { format } => FormatVariant::Fastq(format),
+            InFormat::DelimitedText { delim, .. } => {
+                if delim == b'\t' {
                     FormatVariant::Tsv
                 } else {
                     FormatVariant::Csv
-                };
-                (fmt, Some(fields), Some(delim as char))
+                }
             }
-            InFormat::FaQual { .. } => (FormatVariant::Fasta, None, None),
+            InFormat::FaQual { .. } => FormatVariant::Fasta,
         }
     }
 
     pub fn from_opts(
         format: FormatVariant,
-        csv_delim: Option<char>,
-        csv_fields: &[String],
+        text_delim: Option<char>,
+        text_fields: Option<&[ColumnMapping]>,
         has_header: bool,
         qfile: Option<&str>,
     ) -> CliResult<InFormat> {
         let format = match format {
             FormatVariant::Fasta => InFormat::Fasta,
             FormatVariant::Fastq(format) => InFormat::Fastq { format },
-            FormatVariant::Csv => InFormat::Csv {
-                delim: csv_delim.unwrap_or(',') as u8,
-                fields: csv_fields.to_owned(),
+            FormatVariant::Csv => InFormat::DelimitedText {
+                delim: text_delim.unwrap_or(',') as u8,
+                fields: get_delim_fields(text_fields),
                 has_header,
             },
-            FormatVariant::Tsv => InFormat::Csv {
-                delim: csv_delim.unwrap_or('\t') as u8,
-                fields: csv_fields.to_owned(),
+            FormatVariant::Tsv => InFormat::DelimitedText {
+                delim: text_delim.unwrap_or('\t') as u8,
+                fields: get_delim_fields(text_fields),
                 has_header,
             },
         };
@@ -159,12 +165,21 @@ impl InFormat {
     pub fn has_qual(&self) -> bool {
         match self {
             InFormat::Fastq { .. } | InFormat::FaQual { .. } => true,
-            InFormat::Csv { fields, .. } => {
-                fields.iter().any(|f| f.trim_start().starts_with("qual"))
-            }
+            InFormat::DelimitedText { fields, .. } => fields.iter().any(|(f, _)| f == "qual"),
             _ => false,
         }
     }
+}
+
+pub fn get_delim_fields(
+    fields: Option<&[(String, super::csv::TextColumnSpec)]>,
+) -> Vec<(String, super::csv::TextColumnSpec)> {
+    fields.map(|f| f.to_vec()).unwrap_or_else(|| {
+        DEFAULT_INFIELDS
+            .into_iter()
+            .map(|(f, col)| (f.to_string(), col))
+            .collect()
+    })
 }
 
 #[derive(Clone)]
@@ -187,7 +202,7 @@ impl BufPolicy for LimitedBuffer {
 
 pub fn get_io_reader<'a>(
     kind: &InputKind,
-    compression: Compression,
+    compression: Option<CompressionFormat>,
 ) -> CliResult<Box<dyn io::Read + Send + 'a>> {
     let rdr: Box<dyn io::Read + Send> = match kind {
         InputKind::File(ref path) => Box::new(
@@ -196,56 +211,51 @@ pub fn get_io_reader<'a>(
         ),
         InputKind::Stdin => Box::new(io::stdin()),
     };
-    get_compr_reader(rdr, compression).map_err(From::from)
+    if let Some(fmt) = compression {
+        return Ok(get_compr_reader(rdr, fmt)?);
+    }
+    Ok(rdr)
 }
 
 fn get_compr_reader<'a>(
     rdr: Box<dyn io::Read + Send + 'a>,
-    compression: Compression,
+    compression: CompressionFormat,
 ) -> io::Result<Box<dyn io::Read + Send + 'a>> {
     Ok(match compression {
         #[cfg(feature = "gz")]
-        Compression::Gzip => Box::new(flate2::read::MultiGzDecoder::new(rdr)),
+        CompressionFormat::Gzip => Box::new(flate2::read::MultiGzDecoder::new(rdr)),
         #[cfg(feature = "bz2")]
-        Compression::Bzip2 => Box::new(bzip2::read::MultiBzDecoder::new(rdr)),
+        CompressionFormat::Bzip2 => Box::new(bzip2::read::MultiBzDecoder::new(rdr)),
         #[cfg(feature = "lz4")]
-        Compression::Lz4 => Box::new(lz4::Decoder::new(rdr)?),
+        CompressionFormat::Lz4 => Box::new(lz4::Decoder::new(rdr)?),
         #[cfg(feature = "zstd")]
-        Compression::Zstd => Box::new(zstd::Decoder::new(rdr)?),
-        Compression::None => rdr,
+        CompressionFormat::Zstd => Box::new(zstd::Decoder::new(rdr)?),
     })
 }
 
-fn io_reader<F, O>(o: &InputOptions, func: F) -> CliResult<O>
+pub fn with_io_reader<F, O>(o: &InputConfig, func: F) -> CliResult<O>
 where
     for<'a> F: FnOnce(Box<dyn io::Read + Send + 'a>) -> CliResult<O>,
 {
     let rdr = get_io_reader(&o.kind, o.compression)?;
-    if o.compression != Compression::None || o.threaded {
+    if o.compression.is_some() || o.threaded {
         // read in different thread
-        let thread_bufsize = o
-            .thread_bufsize
-            .unwrap_or_else(|| o.compression.best_read_bufsize());
+        let thread_bufsize = o.thread_bufsize.unwrap_or_else(|| {
+            o.compression
+                .map(|c| c.recommended_read_bufsize())
+                .unwrap_or(DEFAULT_IO_WRITER_BUFSIZE)
+        });
         thread_io::read::reader(thread_bufsize, 2, rdr, |r| func(Box::new(r)))
     } else {
         func(rdr)
     }
 }
 
-pub fn with_io_readers<'a, I, F, O>(opts: I, mut func: F) -> CliResult<Vec<O>>
-where
-    I: IntoIterator<Item = &'a InputOptions>,
-    for<'b> F: FnMut(&InputOptions, Box<dyn io::Read + Send + 'b>) -> CliResult<O>,
-{
-    opts.into_iter()
-        .map(|o| io_reader(o, |rdr| func(o, rdr)))
-        .collect()
-}
 
 pub fn read_parallel<W, S, Si, Di, F, D, R>(
-    o: &InputOptions,
-    rdr: R,
+    io_rdr: R,
     n_threads: u32,
+    opts: &SeqReaderConfig,
     rset_data_init: Si,
     record_data_init: Di,
     work: W,
@@ -263,14 +273,14 @@ where
     if n_threads <= 1 {
         let mut out = record_data_init();
         let mut rset_data = rset_data_init()?;
-        run_reader(rdr, &o.format, o.cap, o.max_mem, &mut |record| {
+        read(io_rdr, opts, &mut |record| {
             work(record, &mut out, &mut rset_data)?;
             func(record, &mut out)
         })
     } else {
         run_reader_parallel(
-            &o.format,
-            rdr,
+            io_rdr,
+            &opts.format,
             n_threads,
             || Ok((record_data_init(), None::<CliError>)),
             &rset_data_init,
@@ -288,77 +298,95 @@ where
 }
 
 // Run reader in single thread
-pub fn run_reader<R>(
-    rdr: R,
-    format: &InFormat,
-    cap: usize,
-    max_mem: usize,
+pub fn read<R>(
+    io_rdr: R,
+    opts: &SeqReaderConfig,
     func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
 ) -> CliResult<()>
 where
     R: io::Read,
 {
-    let mut rdr = get_reader(rdr, format, cap, max_mem)?;
+    let mut rdr = get_seq_reader(io_rdr, opts)?;
     while let Some(res) = rdr.read_next(func) {
-        if !res?? {
+        if !res? {
             break;
         }
     }
     Ok(())
 }
 
-pub fn read_alongside<'a, I, F>(opts: I, mut func: F) -> CliResult<()>
+pub fn read_alongside<'a, I, F>(opts: I, id_check: bool, mut func: F) -> CliResult<()>
 where
-    I: IntoIterator<Item = &'a InputOptions>,
-    F: FnMut(usize, &dyn Record) -> CliResult<()>,
+    I: IntoIterator<Item = &'a (InputConfig, SeqReaderConfig)>,
+    F: FnMut(usize, &dyn Record) -> CliResult<bool>,
 {
     let mut readers: Vec<_> = opts
         .into_iter()
-        .map(|o| {
-            get_reader(
-                get_io_reader(&o.kind, o.compression)?,
-                &o.format,
-                o.cap,
-                o.max_mem,
-            )
+        .map(|(in_opts, seq_opts)| {
+            get_seq_reader(get_io_reader(&in_opts.kind, in_opts.compression)?, seq_opts)
         })
         .collect::<CliResult<_>>()?;
 
-    loop {
+    let mut current_rec_id = Vec::new();
+    'outer: loop {
         for (i, rdr) in readers.iter_mut().enumerate() {
-            if let Some(res) = rdr.read_next(&mut |rec| func(i, rec)) {
-                res??;
+            let res = rdr.read_next(&mut |rec| {
+                if id_check {
+                    let rec_id = rec.id();
+                    if i == 0 {
+                        current_rec_id.clear();
+                        current_rec_id.extend(rec_id);
+                    } else if rec_id != current_rec_id.as_slice() {
+                        return fail!(format!(
+                            "ID of record #{} ({}) does not match the ID of the first one ({})",
+                            i + 1,
+                            String::from_utf8_lossy(rec_id),
+                            String::from_utf8_lossy(&current_rec_id)
+                        ));
+                    }
+                }
+                func(i, rec)
+            });
+            if let Some(res) = res {
+                if !res? {
+                    return Ok(());
+                }
             } else {
-                return Ok(());
+                break 'outer;
             }
         }
     }
+    // check if all readers are exhausted
+    for rdr in readers.iter_mut() {
+        if rdr.read_next(&mut |_| Ok(true)).is_none() {
+            return fail!("");
+        }
+    }
+    Ok(())
 }
 
-pub fn get_reader<'a, O, R>(
-    rdr: R,
-    format: &InFormat,
-    cap: usize,
-    max_mem: usize,
-) -> CliResult<Box<dyn SeqReader<O> + 'a>>
+pub fn get_seq_reader<'a, R>(
+    io_rdr: R,
+    opts: &SeqReaderConfig,
+) -> CliResult<Box<dyn SeqReader + 'a>>
 where
     R: io::Read + 'a,
 {
     let strategy = LimitedBuffer {
         double_until: 1 << 23,
-        limit: max_mem,
+        limit: opts.max_mem,
     };
-    Ok(match *format {
-        InFormat::Fasta => Box::new(fasta::FastaReader::new(rdr, cap, strategy)),
-        InFormat::Fastq { .. } => Box::new(fastq::FastqReader::new(rdr, cap, strategy)),
-        InFormat::FaQual { ref qfile } => {
-            Box::new(fa_qual::FaQualReader::new(rdr, cap, strategy, qfile)?)
-        }
-        InFormat::Csv {
+    Ok(match opts.format {
+        InFormat::Fasta => Box::new(fasta::FastaReader::new(io_rdr, opts.cap, strategy)),
+        InFormat::Fastq { .. } => Box::new(fastq::FastqReader::new(io_rdr, opts.cap, strategy)),
+        InFormat::FaQual { ref qfile } => Box::new(fa_qual::FaQualReader::new(
+            io_rdr, opts.cap, strategy, qfile,
+        )?),
+        InFormat::DelimitedText {
             ref delim,
             ref fields,
             has_header,
-        } => Box::new(CsvReader::new(rdr, *delim, fields, has_header)?),
+        } => Box::new(CsvReader::new(io_rdr, *delim, fields, has_header)?),
     })
 }
 
@@ -367,8 +395,8 @@ where
 // should be nicer once one generic function can be used instead of
 // multiple functions generated by parallel_record_impl!() (seq_io crate)
 fn run_reader_parallel<R, Di, D, Si, S, W, F>(
-    format: &InFormat,
     rdr: R,
+    format: &InFormat,
     n_threads: u32,
     record_data_init: Di,
     rset_data_init: Si,
@@ -445,7 +473,7 @@ where
                 "Multithreaded processing of records with qualities from .qual files implemented"
             )
         }
-        InFormat::Csv {
+        InFormat::DelimitedText {
             ref delim,
             ref fields,
             has_header,
