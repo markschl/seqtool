@@ -8,17 +8,17 @@ use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
 
 use var_provider::{dyn_var_provider, DynVarProviderInfo};
 
-use crate::cmd;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, seqtype::SeqType};
-use crate::io::{
+use crate::io::input::{
     csv::{ColumnMapping, TextColumnSpec},
-    input::{InFormat, InputConfig, InputKind, SeqReaderConfig},
-    output::{OutputKind, OutputOpts, SeqWriterOpts},
-    Attribute, FileInfo, FormatVariant, QualFormat,
+    InFormat, InputConfig, InputKind, SeqReaderConfig,
 };
+use crate::io::output::{OutputKind, OutputOpts, SeqWriterOpts};
+use crate::io::{FileInfo, FormatVariant, QualFormat};
 use crate::var::{attr::AttrFormat, VarOpts};
+use crate::{cmd, io::output::fastx::Attribute};
 
 /// This type only serves as a workaround to allow displaying
 /// custom help page that explains all variables (--help-vars)

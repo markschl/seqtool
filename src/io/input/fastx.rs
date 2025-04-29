@@ -1,5 +1,7 @@
-use memchr::memchr;
 use std::cell::Cell;
+
+use memchr::memchr;
+use seq_io::policy::BufPolicy;
 
 #[derive(Default, Clone, Debug)]
 pub struct FastxHeaderParser {
@@ -34,5 +36,23 @@ impl FastxHeaderParser {
 
     pub fn set_delim_pos(&self, delim_pos: Option<Option<usize>>) {
         self.delim_pos.set(delim_pos);
+    }
+}
+
+#[derive(Clone)]
+pub struct LimitedBuffer {
+    pub double_until: usize,
+    pub limit: usize,
+}
+
+impl BufPolicy for LimitedBuffer {
+    fn grow_to(&mut self, current_size: usize) -> Option<usize> {
+        if current_size < self.double_until {
+            Some(current_size * 2)
+        } else if current_size < self.limit {
+            Some(current_size + self.double_until)
+        } else {
+            None
+        }
     }
 }

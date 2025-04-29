@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::{convert::Infallible, path::Path};
 
+use csv::DEFAULT_OUTFIELDS;
+use fastx::Attribute;
 use itertools::Itertools;
 use thread_io;
 
@@ -11,15 +13,15 @@ use crate::error::CliResult;
 use crate::var::VarBuilder;
 
 use super::input::InFormat;
-use super::{
-    fa_qual, fasta, fastq, Attribute, CompressionFormat, FormatVariant, QualFormat, Record,
-    DEFAULT_IO_WRITER_BUFSIZE, DEFAULT_OUTFIELDS,
-};
+use super::{CompressionFormat, FormatVariant, QualFormat, Record, DEFAULT_IO_WRITER_BUFSIZE};
 
 pub use self::writer::*;
 
-pub mod attr;
 pub mod csv;
+pub mod fa_qual;
+pub mod fasta;
+pub mod fastq;
+pub mod fastx;
 pub mod writer;
 
 /// Format options for creating output streams

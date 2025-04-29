@@ -5,6 +5,8 @@ use crate::config::SeqContext;
 use crate::var::{varstring, VarBuilder};
 use crate::{error::CliResult, var::varstring::register_var_list};
 
+pub const DEFAULT_OUTFIELDS: &str = "id,desc,seq";
+
 pub struct CsvWriter {
     delim: u8,
     fields: Vec<varstring::VarString>,

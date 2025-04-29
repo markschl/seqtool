@@ -3,19 +3,27 @@ use std::io;
 use std::path::PathBuf;
 use std::{fmt, str::FromStr};
 
-use seq_io::policy::BufPolicy;
+use fastx::LimitedBuffer;
 use thread_io;
 
 use crate::error::{CliError, CliResult};
 use crate::helpers::seqtype::SeqType;
 
-use super::csv::{ColumnMapping, CsvReader};
 use super::{
-    fa_qual, fasta, fastq, CompressionFormat, FileInfo, FormatVariant, QualFormat, Record,
-    SeqReader, DEFAULT_FORMAT, DEFAULT_INFIELDS, DEFAULT_IO_WRITER_BUFSIZE,
+    CompressionFormat, FileInfo, FormatVariant, QualFormat, Record, DEFAULT_FORMAT,
+    DEFAULT_IO_READER_BUFSIZE,
 };
 
-mod parallel_csv;
+use self::csv::{parallel_csv_init, ColumnMapping, CsvReader, TextColumnSpec, DEFAULT_INFIELDS};
+
+pub mod csv;
+pub mod fa_qual;
+pub mod fasta;
+pub mod fastq;
+mod fastx;
+mod reader;
+
+pub use self::reader::*;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum InputKind {
@@ -76,15 +84,26 @@ impl SeqReaderConfig {
     where
         R: io::Read + 'a,
     {
-        let strategy = LimitedBuffer {
+        let fastx_buf_strategy = LimitedBuffer {
             double_until: 1 << 23,
             limit: self.max_mem,
         };
         Ok(match self.format {
-            InFormat::Fasta => Box::new(fasta::FastaReader::new(io_rdr, self.cap, strategy)),
-            InFormat::Fastq { .. } => Box::new(fastq::FastqReader::new(io_rdr, self.cap, strategy)),
+            InFormat::Fasta => Box::new(fasta::FastaReader::new(
+                io_rdr,
+                self.cap,
+                fastx_buf_strategy,
+            )),
+            InFormat::Fastq { .. } => Box::new(fastq::FastqReader::new(
+                io_rdr,
+                self.cap,
+                fastx_buf_strategy,
+            )),
             InFormat::FaQual { ref qfile } => Box::new(fa_qual::FaQualReader::new(
-                io_rdr, self.cap, strategy, qfile,
+                io_rdr,
+                self.cap,
+                fastx_buf_strategy,
+                qfile,
             )?),
             InFormat::DelimitedText {
                 ref delim,
@@ -172,32 +191,14 @@ impl InFormat {
 }
 
 pub fn get_delim_fields(
-    fields: Option<&[(String, super::csv::TextColumnSpec)]>,
-) -> Vec<(String, super::csv::TextColumnSpec)> {
+    fields: Option<&[(String, TextColumnSpec)]>,
+) -> Vec<(String, TextColumnSpec)> {
     fields.map(|f| f.to_vec()).unwrap_or_else(|| {
         DEFAULT_INFIELDS
             .into_iter()
             .map(|(f, col)| (f.to_string(), col))
             .collect()
     })
-}
-
-#[derive(Clone)]
-pub struct LimitedBuffer {
-    double_until: usize,
-    limit: usize,
-}
-
-impl BufPolicy for LimitedBuffer {
-    fn grow_to(&mut self, current_size: usize) -> Option<usize> {
-        if current_size < self.double_until {
-            Some(current_size * 2)
-        } else if current_size < self.limit {
-            Some(current_size + self.double_until)
-        } else {
-            None
-        }
-    }
 }
 
 pub fn get_io_reader<'a>(
@@ -243,14 +244,13 @@ where
         let thread_bufsize = o.thread_bufsize.unwrap_or_else(|| {
             o.compression
                 .map(|c| c.recommended_read_bufsize())
-                .unwrap_or(DEFAULT_IO_WRITER_BUFSIZE)
+                .unwrap_or(DEFAULT_IO_READER_BUFSIZE)
         });
         thread_io::read::reader(thread_bufsize, 2, rdr, |r| func(Box::new(r)))
     } else {
         func(rdr)
     }
 }
-
 
 pub fn read_parallel<W, S, Si, Di, F, D, R>(
     io_rdr: R,
@@ -477,7 +477,7 @@ where
             ref delim,
             ref fields,
             has_header,
-        } => parallel_csv::parallel_csv_init(
+        } => parallel_csv_init(
             n_threads,
             queue_len,
             || CsvReader::new(rdr, *delim, fields, has_header),
