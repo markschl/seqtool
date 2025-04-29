@@ -525,13 +525,13 @@ pub struct OutputArgs {
     /// CSV output with comma delimited list of fields, which can be
     /// variables/functions or contain variables/expressions.
     /// Short for '--to csv --outfields <f>'
-    #[arg(long, value_name = "FIELDS", value_delimiter = ',')]
+    #[arg(long, value_name = "FIELDS")]
     pub to_csv: Option<String>,
 
     /// TSV output with comma delimited list of fields, which can be
     /// variables/functions or contain variables/expressions.
     /// Short for '--to tsv --outfields <f>'
-    #[arg(long, value_name = "FIELDS", value_delimiter = ',')]
+    #[arg(long, value_name = "FIELDS")]
     pub to_tsv: Option<String>,
 
     /// Level for compressed output. 1-9 for GZIP/BZIP2 (default=6) and
