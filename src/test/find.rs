@@ -209,7 +209,7 @@ fn drop_file() {
                 &[".", "--fmt", "tsv.gz"],
                 FileInput(cmd.last().unwrap()),
                 &dropped_tsv,
-            );    
+            );
         }
     })
 }

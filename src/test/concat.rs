@@ -61,7 +61,7 @@ fn concat() {
                 p4.to_str().unwrap().to_string(),
             ]),
             "ID of record #2 (id) does not match the ID of the first one (id1)",
-        );        
+        );
 
         // too few records
         let p5 = p.join("f5.fq");
