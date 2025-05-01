@@ -144,4 +144,3 @@ pub fn parse_compr_ext<P: AsRef<Path> + ?Sized>(
     }
     (fmt, ext)
 }
-

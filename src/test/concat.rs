@@ -27,11 +27,6 @@ fn concat() {
             .unwrap();
         f3.flush().unwrap();
 
-        let p4 = p.join("f4.fq");
-        let mut f4 = File::create(&p4).unwrap();
-        f4.write_all(b"@id\n\n+\n\n@id\n\n+\n\n").unwrap();
-        f4.flush().unwrap();
-
         let input = MultiFileInput(vec![
             p1.to_str().unwrap().to_string(),
             p2.to_str().unwrap().to_string(),
@@ -54,6 +49,11 @@ fn concat() {
             "@id1\nAAA--BBB--CCC\n+\nAAA~~BBB~~CCC\n@id2\nAAA--BBB--CCC\n+\nAAA~~BBB~~CCC\n",
         );
 
+        // id mismatch
+        let p4 = p.join("f4.fq");
+        let mut f4 = File::create(&p4).unwrap();
+        f4.write_all(b"@id\n\n+\n\n@id\n\n+\n\n").unwrap();
+        f4.flush().unwrap();
         t.fails(
             &["concat"],
             MultiFileInput(vec![
@@ -61,6 +61,35 @@ fn concat() {
                 p4.to_str().unwrap().to_string(),
             ]),
             "ID of record #2 (id) does not match the ID of the first one (id1)",
+        );        
+
+        // too few records
+        let p5 = p.join("f5.fq");
+        let mut f5 = File::create(&p5).unwrap();
+        f5.write_all(b"@id1\n\n+\n\n").unwrap();
+        f5.flush().unwrap();
+        t.fails(
+            &["concat"],
+            MultiFileInput(vec![
+                p1.to_str().unwrap().to_string(),
+                p5.to_str().unwrap().to_string(),
+            ]),
+            "The number of records in input #2 does not match the number of records in input #1",
+        );
+
+        // too many records
+        let p6 = p.join("f6.fq");
+        let mut f6 = File::create(&p6).unwrap();
+        f6.write_all(b"@id1\n\n+\n\n@id2\n\n+\n\n@id3\n\n+\n\n")
+            .unwrap();
+        f6.flush().unwrap();
+        t.fails(
+            &["concat"],
+            MultiFileInput(vec![
+                p1.to_str().unwrap().to_string(),
+                p6.to_str().unwrap().to_string(),
+            ]),
+            "The number of records in input #2 does not match the number of records in input #1",
         );
     });
 }

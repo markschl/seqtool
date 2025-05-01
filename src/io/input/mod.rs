@@ -348,8 +348,9 @@ where
         .collect::<CliResult<_>>()?;
 
     let mut current_rec_id = Vec::new();
-    'outer: loop {
-        for (i, rdr) in readers.iter_mut().enumerate() {
+    let i = 'err: loop {
+        let mut readers_iter = readers.iter_mut().enumerate();
+        while let Some((i, rdr)) = readers_iter.next() {
             let res = rdr.read_next(&mut |rec| {
                 if id_check {
                     let rec_id = rec.id();
@@ -367,22 +368,25 @@ where
                 }
                 func(i, rec)
             });
-            if let Some(res) = res {
-                if !res? {
-                    return Ok(());
+            let finished = if let Some(res) = res { !res? } else { true };
+            if finished {
+                if i != 0 {
+                    break 'err i;
                 }
-            } else {
-                break 'outer;
+                for (i, rdr) in readers_iter {
+                    if rdr.read_next(&mut |_| Ok(true)).is_some() {
+                        break 'err i;
+                    }
+                }
+                return Ok(());
             }
         }
-    }
-    // check if all readers are exhausted
-    for rdr in readers.iter_mut() {
-        if rdr.read_next(&mut |_| Ok(true)).is_none() {
-            return fail!("");
-        }
-    }
-    Ok(())
+    };
+    fail!(
+        "The number of records in input #{} does not match \
+        the number of records in input #1",
+        i + 1
+    )
 }
 
 pub fn get_seq_reader<'a, R>(
