@@ -61,13 +61,13 @@ fn write_qscores<W: io::Write>(
     ctx: &mut SeqContext,
     wrap: usize,
 ) -> CliResult<()> {
+    let qual = record.qual().ok_or("No quality scores found in input.")?;
     // header
     out.write_all(b">")?;
     ctx.attrs.write_head(record, &mut out, &ctx.symbols)?;
     out.write_all(b"\n")?;
 
     // Phred scores
-    let qual = record.qual().ok_or("No quality scores found in input.")?;
     for qline in qual.chunks(wrap) {
         if !qline.is_empty() {
             let phred_qual = ctx.qual_converter.phred_scores(qline).map_err(|e| {

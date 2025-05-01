@@ -45,6 +45,7 @@ fn write_fastq<W: io::Write>(
     format: QualFormat,
 ) -> CliResult<()> {
     // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
+    let qual = record.qual().ok_or("No quality scores found in input.")?;
 
     // header
     out.write_all(b"@")?;
@@ -58,7 +59,6 @@ fn write_fastq<W: io::Write>(
     out.write_all(b"\n+\n")?;
 
     // quality scores
-    let qual = record.qual().ok_or("No quality scores found in input.")?;
     let qual = ctx.qual_converter.convert_to(qual, format).map_err(|e| {
         format!(
             "Error writing record '{}'. {}",
