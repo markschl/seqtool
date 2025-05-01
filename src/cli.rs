@@ -1,4 +1,5 @@
 use std::process::exit;
+use std::str::FromStr;
 
 use clap::builder::{
     styling::{AnsiColor, Color, Style},
@@ -8,17 +9,17 @@ use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
 
 use var_provider::{dyn_var_provider, DynVarProviderInfo};
 
-use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, seqtype::SeqType};
 use crate::io::input::{
     csv::{ColumnMapping, TextColumnSpec},
-    InFormat, InputConfig, InputKind, SeqReaderConfig,
+    infer_in_format, InFormat, InputConfig, InputKind, SeqReaderConfig,
 };
 use crate::io::output::{OutputKind, OutputOpts, SeqWriterOpts};
-use crate::io::{FileInfo, FormatVariant, QualFormat};
+use crate::io::{FormatVariant, QualFormat, DEFAULT_FORMAT};
 use crate::var::{attr::AttrFormat, VarOpts};
 use crate::{cmd, io::output::fastx::Attribute};
+use crate::{config::Config, io::CompressionFormat};
 
 /// This type only serves as a workaround to allow displaying
 /// custom help page that explains all variables (--help-vars)
@@ -136,30 +137,21 @@ impl CommonArgs {
         let args = &self.input;
 
         // get format settings from args
-        let mut info = args.fmt.clone();
-        let mut delim = args.delim;
+        let mut fmt = args.fmt;
         let mut fields = args.fields.clone();
 
         // --fa/--fq/--tsv, etc have a higher priority
         if args.fa {
-            info = Some(FileInfo::new(FormatVariant::Fasta, None));
+            fmt = Some((FormatVariant::Fasta, None));
         } else if args.fq {
-            info = Some(FileInfo::new(
-                FormatVariant::Fastq(QualFormat::Sanger),
-                None,
-            ));
+            fmt = Some((FormatVariant::Fastq(QualFormat::Sanger), None));
         } else if args.fq_illumina {
-            info = Some(FileInfo::new(
-                FormatVariant::Fastq(QualFormat::Illumina),
-                None,
-            ));
+            fmt = Some((FormatVariant::Fastq(QualFormat::Illumina), None));
         } else if args.csv.is_some() {
-            info = Some(FileInfo::new(FormatVariant::Csv, None));
-            delim = Some(',');
+            fmt = Some((FormatVariant::Csv, None));
             fields.clone_from(&args.csv);
         } else if args.tsv.is_some() {
-            info = Some(FileInfo::new(FormatVariant::Tsv, None));
-            delim = Some('\t');
+            fmt = Some((FormatVariant::Tsv, None));
             fields.clone_from(&args.tsv);
         }
 
@@ -168,11 +160,12 @@ impl CommonArgs {
             .iter()
             .map(|kind| {
                 // if no format from args, infer from path
-                let mut _info = info.clone().unwrap_or_else(|| kind.get_info());
+                let (format, compression) =
+                    fmt.unwrap_or_else(|| infer_in_format(kind, DEFAULT_FORMAT));
 
                 let format = InFormat::from_opts(
-                    _info.format,
-                    delim,
+                    format,
+                    args.delim,
                     fields.as_deref(),
                     args.header,
                     args.qual.as_deref(),
@@ -180,7 +173,7 @@ impl CommonArgs {
 
                 let input_cfg = InputConfig {
                     kind: kind.clone(),
-                    compression: _info.compression,
+                    compression,
                     threaded: self.advanced.read_thread,
                     thread_bufsize: self.advanced.read_tbufsize,
                 };
@@ -200,27 +193,27 @@ impl CommonArgs {
         let args = &self.output;
 
         // format
-        let mut info = args.to.clone();
-        let mut delim = args.out_delim;
+        let mut fmt = args.to;
         let mut fields = args.outfields.clone();
 
         // furthermore, --fa/--fq/--tsv, etc. override --to <format>
         // (no compression possible)
         if args.to_fa {
-            info = Some(FileInfo::new(FormatVariant::Fasta, None));
+            fmt = Some((FormatVariant::Fasta, None));
         } else if args.to_fq {
-            info = Some(FileInfo::new(
-                FormatVariant::Fastq(QualFormat::Sanger),
-                None,
-            ));
+            fmt = Some((FormatVariant::Fastq(QualFormat::Sanger), None));
         } else if let Some(f) = args.to_csv.as_ref() {
-            info = Some(FileInfo::new(FormatVariant::Csv, None));
-            delim = Some(',');
+            fmt = Some((FormatVariant::Csv, None));
             fields = Some(f.clone());
         } else if let Some(f) = args.to_tsv.as_ref() {
-            info = Some(FileInfo::new(FormatVariant::Tsv, None));
-            delim = Some('\t');
+            fmt = Some((FormatVariant::Tsv, None));
             fields = Some(f.clone());
+        }
+
+        // .qual files
+        let qfile = args.qual_out.clone();
+        if qfile.is_some() && fmt.map(|(f, _)| f != FormatVariant::Fasta).unwrap_or(false) {
+            return fail!("Expecting FASTA as output format if combined with QUAL files");
         }
 
         // assemble attributes
@@ -234,19 +227,19 @@ impl CommonArgs {
 
         let output_opts = OutputOpts {
             append: args.append,
-            compression_format: info.as_ref().and_then(|f| f.compression),
+            compression_format: fmt.and_then(|(_, compr)| compr),
             compression_level: args.compr_level,
             threaded: self.advanced.write_thread,
             thread_bufsize: self.advanced.write_tbufsize,
         };
 
         let format_opts = SeqWriterOpts {
-            format: info.map(|f| f.format),
+            format: fmt.map(|(f, _)| f),
             attrs,
             wrap_fasta: args.wrap.map(|w| w as usize),
             fields,
-            delim,
-            qfile: args.qual_out.clone(),
+            delim: args.out_delim,
+            qfile,
         };
 
         let kind = args.output.clone().unwrap_or(OutputKind::Stdout);
@@ -419,14 +412,14 @@ pub struct InputArgs {
     #[arg(default_value = "-")]
     pub input: Vec<InputKind>,
 
-    #[arg(long, env = "ST_FORMAT")]
+    #[arg(long, env = "ST_FORMAT", value_parser = parse_format_spec)]
     /// Input format, only needed if it cannot be guessed from the extension
     /// (e.g. if reading from STDIN). 'fasta' is assumed as default
     /// (can be configured with ST_FORMAT). Possible choices:
     /// fasta (default), fastq (fastq-illumina, fastq-solexa),
     /// csv or tsv.
     /// Compression: <format>.<compression> (.gz, .bz2 or .lz4).
-    pub fmt: Option<FileInfo>,
+    pub fmt: Option<(FormatVariant, Option<CompressionFormat>)>,
 
     #[arg(long)]
     /// FASTA input. Short for '--fmt fasta'.
@@ -450,10 +443,10 @@ pub struct InputArgs {
     /// 'id:2,desc:6,seq:9' (col. num.) or
     /// 'id:ID,seq:Sequence,desc:Comment' (names in header)
     /// [default: 'id,seq,desc']
-    pub fields: Option<Vec<ColumnMapping>>,
+    pub fields: Option<Box<[ColumnMapping]>>,
 
     #[arg(long, value_name = "CHAR")]
-    /// TSV/CSV delimiter. Defaults: '\t' for tsv/txt; ',' for csv
+    /// TSV/CSV delimiter. Defaults: '\t' for tsv/txt and ',' for csv
     pub delim: Option<char>,
 
     #[arg(long)]
@@ -463,11 +456,11 @@ pub struct InputArgs {
 
     #[arg(long, value_name = "FIELDS", value_parser = parse_infields)]
     /// CSV input. Short for '--fmt csv --fields <fields>'
-    pub csv: Option<Vec<ColumnMapping>>,
+    pub csv: Option<Box<[ColumnMapping]>>,
 
     #[arg(long, value_name = "FIELDS", value_parser = parse_infields)]
     /// TSV input. Short for '--fmt tsv --fields <fields>'
-    pub tsv: Option<Vec<ColumnMapping>>,
+    pub tsv: Option<Box<[ColumnMapping]>>,
 
     #[arg(long, value_name = "FILE")]
     /// Path to QUAL file with quality scores (Roche 454 style)
@@ -495,17 +488,17 @@ pub struct OutputArgs {
     #[arg(long)]
     append: bool,
 
-    #[arg(long, value_name = "FORMAT")]
+    #[arg(long, value_name = "FORMAT", value_parser = parse_format_spec)]
     /// Output format and compression. See --fmt.
     /// Only needed if not guessed from the extension (default: input format).
-    pub to: Option<FileInfo>,
+    pub to: Option<(FormatVariant, Option<CompressionFormat>)>,
 
     #[arg(long, value_name = "WIDTH", value_parser = value_parser!(u32).range(1..))]
     /// Wrap FASTA sequences to maximum <width> characters
     pub wrap: Option<u32>,
 
     #[arg(long, value_name = "DELIM")]
-    /// TSV/CSV delimiter. Defaults: '\t' for tsv/txt; ',' for csv
+    /// TSV/CSV delimiter. Defaults: '\t' for tsv/txt and ',' for csv
     pub out_delim: Option<char>,
 
     #[arg(long, value_name = "FIELDS")]
@@ -656,7 +649,15 @@ pub struct AdvancedArgs {
     pub write_tbufsize: Option<usize>,
 }
 
-pub fn parse_infields(field_str: &str) -> CliResult<Vec<ColumnMapping>> {
+pub fn parse_format_spec(spec: &str) -> CliResult<(FormatVariant, Option<CompressionFormat>)> {
+    let mut parts = spec.splitn(2, '.');
+    let format = FormatVariant::from_str(parts.next().unwrap())?;
+    let compression = parts.next().map(CompressionFormat::from_str).transpose()?;
+    Ok((format, compression))
+}
+
+// see also https://users.rust-lang.org/t/clap-fixed-array/91647/4
+pub fn parse_infields(field_str: &str) -> CliResult<Box<[ColumnMapping]>> {
     let fields: Vec<_> = field_str
         .split(',')
         .map(|field| {
@@ -675,7 +676,7 @@ pub fn parse_infields(field_str: &str) -> CliResult<Vec<ColumnMapping>> {
         );
     }
 
-    if has_colmapping {
+    let v: CliResult<Vec<_>> = if has_colmapping {
         let maybe_pos: Result<Vec<_>, _> = fields
             .iter()
             .map(|(_, f)| f.unwrap().parse::<usize>())
@@ -711,7 +712,8 @@ pub fn parse_infields(field_str: &str) -> CliResult<Vec<ColumnMapping>> {
             .enumerate()
             .map(|(i, (attr, _))| (attr.to_string(), TextColumnSpec::Index(i)))
             .collect())
-    }
+    };
+    v.map(|v| v.into_boxed_slice())
 }
 
 pub fn get_styles() -> Styles {

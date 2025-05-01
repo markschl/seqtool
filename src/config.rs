@@ -6,14 +6,12 @@ use std::path::Path;
 use crate::cli::CommonArgs;
 use crate::error::CliResult;
 use crate::helpers::seqtype::SeqType;
-use crate::io::{
-    input::{self, with_io_reader, InFormat, InputConfig, InputKind, SeqReaderConfig},
-    output::{
-        io_writer_from_path, FormatWriter, OutFormat, OutputKind, OutputOpts, SeqWriterOpts,
-        WriteFinish,
-    },
-    QualConverter, QualFormat, Record,
+use crate::io::input::{self, with_io_reader, InFormat, InputConfig, InputKind, SeqReaderConfig};
+use crate::io::output::{
+    infer_out_format, io_writer_from_path, FormatWriter, OutFormat, OutputKind, OutputOpts,
+    SeqWriterOpts, WriteFinish,
 };
+use crate::io::{QualConverter, QualFormat, Record};
 use crate::var::{
     attr::{AttrFormat, Attributes},
     build::VarBuilder,
@@ -43,8 +41,14 @@ impl Config {
     pub fn new(args: &CommonArgs) -> CliResult<Self> {
         let input_opts = args.get_input_cfg()?;
 
-        let (output_kind, output_opts, out_format_opts) = args.get_output_opts()?;
-        let out_format = OutFormat::from_opts(&out_format_opts, &input_opts[0].1.format)?;
+        let (output_kind, mut output_opts, mut out_format_opts) = args.get_output_opts()?;
+        infer_out_format(
+            &output_kind,
+            &input_opts[0].1.format,
+            &mut output_opts,
+            &mut out_format_opts,
+        );
+        let out_format = OutFormat::from_opts(&out_format_opts)?;
 
         let var_opts: VarOpts = args.get_var_opts()?;
 
@@ -148,7 +152,6 @@ impl Config {
     where
         F: FnOnce(&mut dyn io::Write, Config) -> CliResult<O>,
     {
-        // TODO: cloning output_kind
         self.output_kind
             .clone()
             .with_io_writer(&self.output_opts.clone(), |writer| func(writer, self))

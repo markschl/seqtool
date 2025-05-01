@@ -13,7 +13,10 @@ use crate::error::CliResult;
 use crate::var::VarBuilder;
 
 use super::input::InFormat;
-use super::{CompressionFormat, FormatVariant, QualFormat, Record, DEFAULT_IO_WRITER_BUFSIZE};
+use super::{
+    parse_compr_ext, CompressionFormat, FormatVariant, QualFormat, Record, DEFAULT_FORMAT,
+    DEFAULT_IO_WRITER_BUFSIZE,
+};
 
 pub use self::writer::*;
 
@@ -69,13 +72,6 @@ impl FromStr for OutputKind {
 }
 
 impl OutputKind {
-    // pub fn get_info(&self, default_format: FormatVariant) -> FileInfo {
-    //     match self {
-    //         OutputKind::Stdout => FileInfo::new(default_format, None),
-    //         OutputKind::File(path) => FileInfo::from_path(path, default_format, true),
-    //     }
-    // }
-
     /// Returns an I/O writer.
     /// Ignores `threaded` and `thread_bufsize` options.
     /// The caller is responsible for calling `finish()` on the writer when done.
@@ -133,6 +129,56 @@ impl OutputKind {
     }
 }
 
+/// Infers the ouput format compression and sequence format
+/// (1) from the path extension
+/// (2) from the input format
+/// `format_opts.format` is defined after this call
+pub fn infer_out_format(
+    out_kind: &OutputKind,
+    in_format: &InFormat,
+    out_opts: &mut OutputOpts,
+    format_opts: &mut SeqWriterOpts,
+) {
+    if out_opts.compression_format.is_none() || format_opts.format.is_none() {
+        if let OutputKind::File(path) = out_kind {
+            let (compression, ext) = parse_compr_ext(&path);
+            if out_opts.compression_format.is_none() {
+                out_opts.compression_format = compression;
+            }
+            if format_opts.format.is_none() {
+                format_opts.format = ext.and_then(FormatVariant::str_match);
+                if format_opts.format.is_none() && format_opts.qfile.is_none() {
+                    eprintln!(
+                        "Could not infer the output format from the extension of '{}', \
+                        defaulting to the input format",
+                        path
+                    );
+                }
+            }
+        }
+    }
+    if format_opts.format.is_none()
+        || matches!(
+            format_opts.format,
+            Some(FormatVariant::Csv) | Some(FormatVariant::Tsv)
+        )
+    {
+        let (fmt, fields, delim) = in_format.components();
+        if format_opts.format.is_none() {
+            format_opts.format = Some(fmt);
+            // only set the delimiter if the format was previously not set
+            // (since the delimiter is tied to FormatVariant)
+            if format_opts.delim.is_none() {
+                format_opts.delim = delim;
+            }
+        }
+        // infer the fields from the input in any case
+        if format_opts.fields.is_none() {
+            format_opts.fields = fields.map(|f| f.iter().map(|(n, _)| n).join(","));
+        }
+    }
+}
+
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum OutFormat {
     Fasta {
@@ -176,9 +222,20 @@ impl OutFormat {
         }
     }
 
-    pub fn from_opts(opts: &SeqWriterOpts, in_format: &InFormat) -> CliResult<OutFormat> {
-        let format = opts.format.unwrap_or_else(|| in_format.format_variant());
-        let mut format = match format {
+    pub fn from_opts(opts: &SeqWriterOpts) -> CliResult<OutFormat> {
+        // FaQual format: we ignore opts.format
+        // as some validation has been done in CommonArgs::get_output_opts()
+        if let Some(f) = opts.qfile.as_ref() {
+            return Ok(OutFormat::FaQual {
+                attrs: opts.attrs.to_owned(),
+                wrap_width: opts.wrap_fasta,
+                qfile: PathBuf::from(f),
+            });
+        }
+
+        // we assume that opts.format is defined at this point
+        debug_assert!(opts.format.is_some());
+        let format = match opts.format.unwrap_or(DEFAULT_FORMAT) {
             FormatVariant::Fasta => OutFormat::Fasta {
                 attrs: opts.attrs.to_owned(),
                 wrap_width: opts.wrap_fasta,
@@ -187,25 +244,17 @@ impl OutFormat {
                 format: qformat,
                 attrs: opts.attrs.to_owned(),
             },
-            FormatVariant::Csv => get_delim_format(opts.fields.clone(), opts.delim, in_format, ','),
-            FormatVariant::Tsv => {
-                get_delim_format(opts.fields.clone(), opts.delim, in_format, '\t')
-            }
+            f @ (FormatVariant::Csv | FormatVariant::Tsv) => OutFormat::DelimitedText {
+                delim: opts
+                    .delim
+                    .unwrap_or(if f == FormatVariant::Csv { ',' } else { '\t' })
+                    as u8,
+                fields: opts
+                    .fields
+                    .clone()
+                    .unwrap_or_else(|| DEFAULT_OUTFIELDS.to_string()),
+            },
         };
-
-        // FaQual format
-        if let Some(f) = opts.qfile.as_ref() {
-            match format {
-                OutFormat::Fasta { attrs, wrap_width } => {
-                    format = OutFormat::FaQual {
-                        attrs,
-                        wrap_width,
-                        qfile: PathBuf::from(f),
-                    };
-                }
-                _ => return fail!("Expecting FASTA as output format if combined with QUAL files"),
-            }
-        }
         Ok(format)
     }
 
@@ -235,36 +284,6 @@ impl OutFormat {
                 Box::new(csv::CsvWriter::new(fields, *delim, builder)?)
             }
         })
-    }
-}
-
-/// Derives text field list and delimiter from input format if not set
-/// and returns OutFormat::DelimitedText {...}
-#[cold]
-pub fn get_delim_format(
-    mut fields: Option<String>,
-    mut delim: Option<char>,
-    informat: &InFormat,
-    fallback_delimiter: char,
-) -> OutFormat {
-    if fields.is_none() || delim.is_none() {
-        if let InFormat::DelimitedText {
-            delim: d,
-            fields: ref f,
-            ..
-        } = informat
-        {
-            if fields.is_none() {
-                fields = Some(f.iter().map(|(f, _)| f).join(","));
-            }
-            if delim.is_none() {
-                delim = Some(*d as char);
-            }
-        }
-    }
-    OutFormat::DelimitedText {
-        delim: delim.unwrap_or(fallback_delimiter) as u8,
-        fields: fields.unwrap_or_else(|| DEFAULT_OUTFIELDS.to_string()),
     }
 }
 

@@ -11,7 +11,7 @@ use variable_enum_macro::variable_enum;
 use crate::helpers::{DefaultHashMap as HashMap, DefaultHashSet as HashSet, NA};
 use crate::io::{
     input::{get_io_reader, InputKind},
-    FileInfo, FormatVariant, QualConverter, Record,
+    parse_compr_ext, QualConverter, Record,
 };
 use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 use crate::CliResult;
@@ -308,11 +308,12 @@ impl fmt::Debug for MetaReader {
 
 impl MetaReader {
     pub fn new(path: &str, delim: Option<u8>, dup_ids: bool) -> CliResult<Self> {
-        let info = FileInfo::from_path(path, FormatVariant::Tsv, false);
-        let io_reader = get_io_reader(&InputKind::from_str(path)?, info.compression)
+        let (compression, ext) = parse_compr_ext(path);
+        let kind = InputKind::from_str(path).unwrap();
+        let io_reader = get_io_reader(&kind, compression)
             .map_err(|e| format!("Could not open metadata file '{}': {}", path, e))?;
-        let delim = delim.unwrap_or(match info.format {
-            FormatVariant::Csv => b',',
+        let delim = delim.unwrap_or_else(|| match ext.map(|e| e.to_ascii_lowercase()).as_deref() {
+            Some("csv") => b',',
             _ => b'\t',
         });
         Ok(Self {

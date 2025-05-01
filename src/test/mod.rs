@@ -38,7 +38,7 @@ struct MultiFileInput(Vec<String>);
 
 impl Input for MultiFileInput {
     fn set<'a>(&mut self, a: &'a mut Command) -> &'a mut Command {
-        a.args(self.0.iter().map(|s| s.as_str()).collect::<Vec<_>>())
+        a.args(self.0.iter().map(|s| s.as_str()))
     }
 }
 

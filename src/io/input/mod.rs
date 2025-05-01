@@ -10,7 +10,7 @@ use crate::error::{CliError, CliResult};
 use crate::helpers::seqtype::SeqType;
 
 use super::{
-    CompressionFormat, FileInfo, FormatVariant, QualFormat, Record, DEFAULT_FORMAT,
+    parse_compr_ext, CompressionFormat, FormatVariant, QualFormat, Record,
     DEFAULT_IO_READER_BUFSIZE,
 };
 
@@ -51,11 +51,26 @@ impl fmt::Display for InputKind {
     }
 }
 
-impl InputKind {
-    pub fn get_info(&self) -> FileInfo {
-        match self {
-            InputKind::Stdin => FileInfo::new(DEFAULT_FORMAT, None),
-            InputKind::File(path) => FileInfo::from_path(path, DEFAULT_FORMAT, true),
+/// Infers the input compression and sequence format from the path extension.
+/// Applies the default format (along with a message) if the format is unknown.
+pub fn infer_in_format(
+    kind: &InputKind,
+    default_format: FormatVariant,
+) -> (FormatVariant, Option<CompressionFormat>) {
+    match kind {
+        InputKind::Stdin => (default_format, None),
+        InputKind::File(path) => {
+            let (compression, ext) = parse_compr_ext(&path);
+            let format = ext.and_then(FormatVariant::str_match).unwrap_or_else(|| {
+                eprintln!(
+                    "{} extension for file '{}' assuming the '{}' format",
+                    if ext.is_none() { "No" } else { "Unknown" },
+                    path.to_string_lossy(),
+                    default_format
+                );
+                default_format
+            });
+            (format, compression)
         }
     }
 }
@@ -131,19 +146,29 @@ pub enum InFormat {
 }
 
 impl InFormat {
-    /// back-transforms to FormatVariant (used for deriving output format from input format)
-    pub fn format_variant(&self) -> FormatVariant {
+    /// Returns the `FormatVariant` and options relevant for the ouptut format
+    #[allow(clippy::type_complexity)]
+    pub fn components(
+        &self,
+    ) -> (
+        FormatVariant,
+        Option<&[(String, TextColumnSpec)]>,
+        Option<char>,
+    ) {
         match *self {
-            InFormat::Fasta => FormatVariant::Fasta,
-            InFormat::Fastq { format } => FormatVariant::Fastq(format),
-            InFormat::DelimitedText { delim, .. } => {
-                if delim == b'\t' {
+            InFormat::Fasta => (FormatVariant::Fasta, None, None),
+            InFormat::Fastq { format } => (FormatVariant::Fastq(format), None, None),
+            InFormat::DelimitedText {
+                delim, ref fields, ..
+            } => {
+                let fmt = if delim == b'\t' {
                     FormatVariant::Tsv
                 } else {
                     FormatVariant::Csv
-                }
+                };
+                (fmt, Some(fields), Some(delim as char))
             }
-            InFormat::FaQual { .. } => FormatVariant::Fasta,
+            InFormat::FaQual { .. } => (FormatVariant::Fasta, None, None),
         }
     }
 
@@ -157,14 +182,20 @@ impl InFormat {
         let format = match format {
             FormatVariant::Fasta => InFormat::Fasta,
             FormatVariant::Fastq(format) => InFormat::Fastq { format },
-            FormatVariant::Csv => InFormat::DelimitedText {
-                delim: text_delim.unwrap_or(',') as u8,
-                fields: get_delim_fields(text_fields),
-                has_header,
-            },
-            FormatVariant::Tsv => InFormat::DelimitedText {
-                delim: text_delim.unwrap_or('\t') as u8,
-                fields: get_delim_fields(text_fields),
+            FormatVariant::Csv | FormatVariant::Tsv => InFormat::DelimitedText {
+                delim: text_delim.unwrap_or_else(|| {
+                    if format == FormatVariant::Csv {
+                        ','
+                    } else {
+                        '\t'
+                    }
+                }) as u8,
+                fields: text_fields.map(|f| f.to_vec()).unwrap_or_else(|| {
+                    DEFAULT_INFIELDS
+                        .into_iter()
+                        .map(|(f, col)| (f.to_string(), col))
+                        .collect()
+                }),
                 has_header,
             },
         };
@@ -190,21 +221,10 @@ impl InFormat {
     }
 }
 
-pub fn get_delim_fields(
-    fields: Option<&[(String, TextColumnSpec)]>,
-) -> Vec<(String, TextColumnSpec)> {
-    fields.map(|f| f.to_vec()).unwrap_or_else(|| {
-        DEFAULT_INFIELDS
-            .into_iter()
-            .map(|(f, col)| (f.to_string(), col))
-            .collect()
-    })
-}
-
-pub fn get_io_reader<'a>(
+pub fn get_io_reader(
     kind: &InputKind,
     compression: Option<CompressionFormat>,
-) -> CliResult<Box<dyn io::Read + Send + 'a>> {
+) -> CliResult<Box<dyn io::Read + Send>> {
     let rdr: Box<dyn io::Read + Send> = match kind {
         InputKind::File(ref path) => Box::new(
             File::open(path)

@@ -15,6 +15,20 @@ pub enum FormatVariant {
     Tsv,
 }
 
+impl FormatVariant {
+    pub fn str_match(s: &str) -> Option<FormatVariant> {
+        match s.to_ascii_lowercase().as_str() {
+            "fasta" | "fa" | "fna" => Some(FormatVariant::Fasta),
+            "fastq" | "fq" => Some(FormatVariant::Fastq(QualFormat::Sanger)),
+            "fastq-illumina" | "fq-illumina" => Some(FormatVariant::Fastq(QualFormat::Illumina)),
+            "fastq-solexa" | "fq-solexa" => Some(FormatVariant::Fastq(QualFormat::Solexa)),
+            "csv" => Some(FormatVariant::Csv),
+            "tsv" | "txt" => Some(FormatVariant::Tsv),
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Display for FormatVariant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -34,15 +48,7 @@ impl FromStr for FormatVariant {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "fasta" | "fa" | "fna" => Ok(FormatVariant::Fasta),
-            "fastq" | "fq" => Ok(FormatVariant::Fastq(QualFormat::Sanger)),
-            "fastq-illumina" | "fq-illumina" => Ok(FormatVariant::Fastq(QualFormat::Illumina)),
-            "fastq-solexa" | "fq-solexa" => Ok(FormatVariant::Fastq(QualFormat::Solexa)),
-            "csv" => Ok(FormatVariant::Csv),
-            "tsv" | "txt" => Ok(FormatVariant::Tsv),
-            _ => Err(format!("Unknown format: {}", s)),
-        }
+        FormatVariant::str_match(s).ok_or_else(|| format!("Unknown format: {}", s))
     }
 }
 
@@ -116,88 +122,26 @@ impl FromStr for CompressionFormat {
     }
 }
 
-/// Information on the sequence format and compression
-/// which can be inferred from the file extensions
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct FileInfo {
-    pub format: FormatVariant,
-    pub compression: Option<CompressionFormat>,
-}
-
-impl FileInfo {
-    pub fn new(format: FormatVariant, compression: Option<CompressionFormat>) -> Self {
-        Self {
-            format,
-            compression,
-        }
-    }
-
-    pub fn from_path<P: AsRef<Path>>(
-        path: P,
-        default_format: FormatVariant,
-        report_default: bool,
-    ) -> Self {
-        let mut _path = path.as_ref().to_owned();
-
-        let compression = match _path.extension() {
-            Some(ext) => match CompressionFormat::from_str(ext.to_str().unwrap_or("")) {
-                Ok(c) => {
-                    _path = _path.file_stem().unwrap().into();
-                    Some(c)
-                }
-                Err(_) => None,
-            },
-            None => None,
-        };
-
-        let format = match _path.extension() {
-            Some(ext) => match FormatVariant::from_str(ext.to_str().unwrap_or("")) {
-                Ok(f) => f,
-                Err(_) => {
-                    let ext = ext.to_string_lossy();
-                    if ext.find('{').is_none() {
-                        // print message unless extension is a variable/function
-                        eprintln!(
-                            "Unknown extension: '{}', assuming {} format",
-                            ext, default_format
-                        );
-                    }
-                    default_format
-                }
-            },
-            None => {
-                if report_default {
-                    eprintln!(
-                        "No extension for file '{}' assuming {} format",
-                        path.as_ref().to_string_lossy(),
-                        default_format
-                    );
-                }
-                default_format
+/// Parses a single or double extension from a path:
+/// If the extension is recognized as a compression format,
+/// it is returned along with the inner extension.
+/// Otherwise, only the outer extension is returned (no compression assumed).
+pub fn parse_compr_ext<P: AsRef<Path> + ?Sized>(
+    path: &P,
+) -> (Option<CompressionFormat>, Option<&str>) {
+    let path = path.as_ref();
+    let mut fmt = None;
+    let mut ext = None;
+    if let Some(e) = path.extension().and_then(|e| e.to_str()) {
+        if let Some(f) = CompressionFormat::str_match(e) {
+            fmt = Some(f);
+            if let Some(e) = Path::new(path.file_stem().unwrap()).extension() {
+                ext = e.to_str();
             }
-        };
-
-        Self {
-            format,
-            compression,
+        } else {
+            ext = Some(e);
         }
     }
+    (fmt, ext)
 }
 
-impl FromStr for FileInfo {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.splitn(2, '.');
-        let format = FormatVariant::from_str(parts.next().unwrap())?;
-        let compression = if let Some(comp_str) = parts.next() {
-            Some(CompressionFormat::from_str(comp_str)?)
-        } else {
-            None
-        };
-        Ok(FileInfo {
-            format,
-            compression,
-        })
-    }
-}

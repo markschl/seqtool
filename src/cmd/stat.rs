@@ -30,8 +30,10 @@ pub fn run(_cfg: Config, args: &StatCommand) -> CliResult<()> {
         common: args.common.clone(),
     };
     cmd.common.output.to_tsv = Some("id,".to_string() + &args.vars);
-    if let Some(info) = cmd.common.output.to.as_mut() {
-        info.format = FormatVariant::Tsv;
+    // override delimiter
+    // TODO: allow changing delimiter? Then we have to prevent that the delimiter is inferred from the input
+    if let Some((fmt, _)) = cmd.common.output.to.as_mut() {
+        *fmt = FormatVariant::Tsv;
     }
     pass::run(Config::new(&cmd.common)?, &cmd)
 }
