@@ -27,22 +27,21 @@ fn convert() {
         );
 }
 
-// TODO: ST_FORMAT reomved
-// #[test]
-// fn var_format() {
-//     let fa = ">seq\nATGC\n";
-//     let fq = "@seq\nATGC\n+\nXXXX\n";
-//     let tsv = "seq\tATGC\n";
+#[test]
+fn var_format() {
+    let fa = ">seq\nATGC\n";
+    let fq = "@seq\nATGC\n+\nXXXX\n";
+    let tsv = "seq\tATGC\n";
 
-//     let mut t = Tester::new();
+    let mut t = Tester::new();
 
-//     t.var("ST_FORMAT", "fasta").cmp(&["."], fa, fa);
-//     t.var("ST_FORMAT", "fastq").cmp(&["."], fq, fq);
-//     t.var("ST_FORMAT", "tsv:id,seq").cmp(&["."], tsv, tsv);
-//     t.var("ST_FORMAT", "fastq").cmp(&[".", "--to-fa"], fq, fa);
-//     t.var("ST_FORMAT", "fastq")
-//         .cmp(&[".", "--to-tsv", "id,seq"], fq, tsv);
-// }
+    t.env("ST_FORMAT", "fasta").cmp(&["."], fa, fa);
+    t.env("ST_FORMAT", "fastq").cmp(&["."], fq, fq);
+    // t.env("ST_FORMAT", "tsv:id,seq").cmp(&["."], tsv, tsv);
+    t.env("ST_FORMAT", "fastq").cmp(&[".", "--to-fa"], fq, fa);
+    t.env("ST_FORMAT", "fastq")
+        .cmp(&[".", "--to-tsv", "id,seq"], fq, tsv);
+}
 
 #[test]
 fn txt_input() {
