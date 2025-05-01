@@ -41,7 +41,9 @@ pub fn register_var_list(
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum VarStringSegment {
+    /// Plain text
     Text(Vec<u8>),
+    /// Variable symbol ID
     Var(usize),
 }
 

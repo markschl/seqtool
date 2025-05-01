@@ -52,27 +52,25 @@ fn filter() {
 fn drop_file() {
     let t = Tester::new();
     t.temp_dir("find_drop", |d| {
-        let out = d.path().join("dropped.fa");
-        let out_path = out.to_str().expect("invalid path");
-
-        let fa = ">id1\nSEQ\n>id2\nOTHER";
+        let p = d.path().join("dropped.csv");
+        let input = "@id1\nSEQ\n+\nJJJ\n@id2\nOTHER\n+\nJJJJJ\n";
+        let cmd = &[
+            "filter",
+            "seq != 'SEQ'",
+            "-a",
+            "i={seq_num}",
+            "--fq",
+            "--to-fa",
+            "--outfields",
+            "id,seq",
+            "--dropped",
+            p.to_str().unwrap(),
+        ];
+        t.cmp(cmd, input, ">id2 i=2\nOTHER\n");
         t.cmp(
-            &[
-                "filter",
-                "seq != 'SEQ'",
-                "-a",
-                "i={seq_num}",
-                "--dropped",
-                out_path,
-            ],
-            fa,
-            ">id2 i=2\nOTHER\n",
+            &[".", "--fields", "id,seq"],
+            FileInput(cmd.last().unwrap()),
+            "id1,SEQ\n",
         );
-
-        let mut f = File::open(out_path).expect("File not there");
-        let mut s = String::new();
-        f.read_to_string(&mut s).unwrap();
-
-        assert_eq!(&s, ">id1 i=1\nSEQ\n");
     })
 }

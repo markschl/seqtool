@@ -6,7 +6,7 @@ use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use crate::helpers::any::AsAnyMut;
 use crate::io::{
     input::{InputConfig, SeqReaderConfig},
-    output::{OutFormat, OutputOpts, SeqWriterOpts},
+    output::{OutFormat, OutputOpts},
     QualConverter, Record,
 };
 
@@ -65,14 +65,9 @@ pub trait VarProvider: Debug + AsAnyMut {
 
     /// Called on every new output stream (STDOUT or file).
     /// Some variable providers may need the information.
-    /// This does *not* include additional output files
-    /// created by commands.
-    fn init_output(
-        &mut self,
-        _: &OutputOpts,
-        _: &SeqWriterOpts,
-        _: &OutFormat,
-    ) -> Result<(), String> {
+    /// Additional output files created using `Config::new_output()` are
+    /// *not* provided here.
+    fn init_output(&mut self, _: &OutputOpts, _: &OutFormat) -> Result<(), String> {
         Ok(())
     }
 

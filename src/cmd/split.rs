@@ -9,7 +9,7 @@ use variable_enum_macro::variable_enum;
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::helpers::DefaultHashMap as HashMap;
-use crate::io::output::{FormatWriter, OutputKind};
+use crate::io::{output::FormatWriter, IoKind};
 use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuilder};
 use crate::CliResult;
 
@@ -59,12 +59,20 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
     let parents = args.parents;
     let verbose = args.common.general.verbose;
 
-    let out_path = match args.common.output.output.as_ref() {
-        Some(OutputKind::File(p)) => Some(p.as_str()),
-        Some(OutputKind::Stdout) => {
-            return fail!("The split command requires an output path with variables, not STDOUT.")
+    let out_path = match &cfg.output_config().0 {
+        IoKind::File(p) => p
+            .to_str()
+            .ok_or_else(|| format!("Invalid path: '{}'", p.to_string_lossy()))?
+            .to_string(),
+        IoKind::Stdio => {
+            if num_seqs.is_some() {
+                "{filestem}_{chunk}.{default_ext}".to_string()
+            } else {
+                return fail!(
+                    "The split command requires either '-n/--num-seqs' or '-o/--output'."
+                );
+            }
         }
-        None => None,
     };
 
     // stats file
@@ -74,22 +82,13 @@ pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
         .map(|path| cfg.io_writer(path))
         .transpose()?;
 
-    // output path (or default) and chunk size
-    let out_key = if num_seqs.is_some() {
-        out_path.unwrap_or("{filestem}_{chunk}.{default_ext}")
-    } else if let Some(key) = out_path {
-        key
-    } else {
-        return fail!("The split command requires either '-n' or '-o'.");
-    };
-
     // register variable provider
     if let Some(n) = args.num_seqs {
         cfg.set_custom_varmodule(Box::new(SplitVars::new(n)))?;
     }
 
     let (out_key, _) =
-        cfg.build_vars(|b| varstring::VarString::parse_register(out_key, b, false))?;
+        cfg.build_vars(|b| varstring::VarString::parse_register(&out_path, b, false))?;
     // file path -> writer
     let mut outfiles = HashMap::default();
     // path buffer

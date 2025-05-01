@@ -97,6 +97,7 @@ pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
         // write unique output (in case of deferred writing)
         // and/or map output
         dedup.write_deferred(io_writer, map_writer.as_mut(), quiet, verbose)?;
+
         if let Some(writer) = map_writer {
             writer.into_inner().finish()?;
         }

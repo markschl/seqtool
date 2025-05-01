@@ -1,8 +1,6 @@
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::str::FromStr;
-use std::{convert::Infallible, path::Path};
 
 use csv::DEFAULT_OUTFIELDS;
 use fastx::Attribute;
@@ -14,7 +12,7 @@ use crate::var::VarBuilder;
 
 use super::input::InFormat;
 use super::{
-    parse_compr_ext, CompressionFormat, FormatVariant, QualFormat, Record, DEFAULT_FORMAT,
+    parse_compr_ext, CompressionFormat, FormatVariant, IoKind, QualFormat, Record, DEFAULT_FORMAT,
     DEFAULT_IO_WRITER_BUFSIZE,
 };
 
@@ -53,39 +51,23 @@ pub struct OutputOpts {
     pub thread_bufsize: Option<usize>,
 }
 
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub enum OutputKind {
-    Stdout,
-    File(String),
-}
-
-impl FromStr for OutputKind {
-    type Err = Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == "-" {
-            Ok(OutputKind::Stdout)
-        } else {
-            Ok(OutputKind::File(s.to_string()))
-        }
-    }
-}
-
-impl OutputKind {
+impl IoKind {
     /// Returns an I/O writer.
     /// Ignores `threaded` and `thread_bufsize` options.
     /// The caller is responsible for calling `finish()` on the writer when done.
-    pub fn get_io_writer(&self, opts: &OutputOpts) -> io::Result<Box<dyn WriteFinish>> {
+    pub fn io_writer(&self, opts: &OutputOpts) -> io::Result<Box<dyn WriteFinish>> {
         let writer: Box<dyn WriteFinish> = match self {
-            OutputKind::Stdout => Box::new(io::BufWriter::new(io::stdout().lock())),
-            OutputKind::File(ref p) => {
+            IoKind::Stdio => Box::new(io::BufWriter::new(io::stdout().lock())),
+            IoKind::File(ref p) => {
                 let f = File::options()
                     .create(true)
                     .write(true)
                     .truncate(!opts.append)
                     .append(opts.append)
                     .open(p)
-                    .map_err(|e| io::Error::other(format!("Error creating '{}': {}", p, e)))?;
+                    .map_err(|e| {
+                        io::Error::other(format!("Error creating '{}': {}", p.to_string_lossy(), e))
+                    })?;
                 Box::new(io::BufWriter::new(f))
             }
         };
@@ -98,7 +80,7 @@ impl OutputKind {
     /// Creates an I/O writer either in the main thread (no compression)
     /// or in a background thread (if explicitly specified or writing to
     /// compressed format).
-    pub fn with_io_writer<F, O>(&self, opts: &OutputOpts, func: F) -> CliResult<O>
+    pub fn with_thread_writer<F, O>(&self, opts: &OutputOpts, func: F) -> CliResult<O>
     where
         F: FnOnce(&mut dyn io::Write) -> CliResult<O>,
     {
@@ -113,7 +95,7 @@ impl OutputKind {
                 thread_bufsize,
                 4,
                 || {
-                    let writer = self.get_io_writer(opts)?;
+                    let writer = self.io_writer(opts)?;
                     Ok(writer)
                 },
                 |mut w| func(&mut w),
@@ -121,7 +103,7 @@ impl OutputKind {
             )
             .map(|(o, _)| o)
         } else {
-            let mut writer = self.get_io_writer(opts)?;
+            let mut writer = self.io_writer(opts)?;
             let o = func(&mut writer)?;
             writer.finish()?;
             Ok(o)
@@ -134,13 +116,13 @@ impl OutputKind {
 /// (2) from the input format
 /// `format_opts.format` is defined after this call
 pub fn infer_out_format(
-    out_kind: &OutputKind,
+    out_kind: &IoKind,
     in_format: &InFormat,
     out_opts: &mut OutputOpts,
     format_opts: &mut SeqWriterOpts,
 ) {
     if out_opts.compression_format.is_none() || format_opts.format.is_none() {
-        if let OutputKind::File(path) = out_kind {
+        if let IoKind::File(path) = out_kind {
             let (compression, ext) = parse_compr_ext(&path);
             if out_opts.compression_format.is_none() {
                 out_opts.compression_format = compression;
@@ -151,7 +133,7 @@ pub fn infer_out_format(
                     eprintln!(
                         "Could not infer the output format from the extension of '{}', \
                         defaulting to the input format",
-                        path
+                        path.to_string_lossy()
                     );
                 }
             }
@@ -355,42 +337,6 @@ impl<W: io::Write> WriteFinish for bzip2::write::BzEncoder<W> {
         })
     }
 }
-
-/// Returns a general I/O writer (not for sequence writing), given a path
-/// (or '-' for STDOUT), automatically recognizing possible compression
-/// from the extension if `opts.compression_format` is not set.
-/// Ignores `threaded` and `thread_bufsize` options.
-/// The caller is responsible for calling `finish()` on the writer when done.
-pub fn io_writer_from_path<P>(path: P, mut opts: OutputOpts) -> CliResult<Box<dyn WriteFinish>>
-where
-    P: AsRef<Path>,
-{
-    let path = path.as_ref();
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| format!("Invalid path: '{}'", path.to_string_lossy()))?;
-    let kind = OutputKind::from_str(path_str).unwrap();
-    if opts.compression_format.is_none() {
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        opts.compression_format = CompressionFormat::str_match(ext);
-    }
-    let out = kind.get_io_writer(&opts)?;
-    Ok(out)
-}
-
-// /// Provides a scoped general I/O writer (not for sequence writing), taking
-// /// care of cleanup when done.
-// /// See also `general_io_writer`.
-// pub fn with_general_io_writer<P, F>(path: P, func: F) -> CliResult<()>
-// where
-//     P: AsRef<Path>,
-//     F: FnOnce(&mut dyn io::Write) -> CliResult<()>,
-// {
-//     let mut compr_writer = general_io_writer(path)?;
-//     func(&mut compr_writer)?;
-//     compr_writer.finish()?;
-//     Ok(())
-// }
 
 fn compr_writer(
     writer: Box<dyn WriteFinish>,

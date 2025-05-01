@@ -1,6 +1,3 @@
-use std::fs::File;
-use std::io::BufWriter;
-
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::helpers::replace::replace_iter;
@@ -49,8 +46,17 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
         })
         .transpose()?;
 
-    // amongst others, this registers all variables in header attribute / TSV fields
+    // Object that formats the sequence output:
+    // this registers all variables in header attribute / TSV fields
     let mut format_writer = cfg.get_format_writer()?;
+
+    // Output for filtered records:
+    // more variables may be registered here
+    let mut dropped_out = opts
+        .dropped_path
+        .as_ref()
+        .map(|f| cfg.new_output(f))
+        .transpose()?;
 
     cfg.with_command_vars(|match_vars, _| {
         let match_vars: &FindVars = match_vars.unwrap();
@@ -68,15 +74,8 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
     })?;
     // dbg!(&opts);
 
-    // More things needed during the search:
     // intermediate buffer for replacement text
     let mut replacement_text = Vec::new();
-    // buffered writer for dropped records
-    let mut dropped_file = opts
-        .dropped_path
-        .as_ref()
-        .map(|f| Ok::<_, std::io::Error>(BufWriter::new(File::create(f)?)))
-        .transpose()?;
 
     // run the search
     cfg.with_io_writer(|io_writer, mut cfg| {
@@ -124,9 +123,9 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
                 // keep / exclude
                 if let Some(keep) = opts.filter {
                     if matches.has_matches() ^ keep {
-                        if let Some(ref mut f) = dropped_file {
+                        if let Some((d_writer, d_format_writer)) = dropped_out.as_mut() {
                             // we don't write the edited record, since there are no hits to report
-                            format_writer.write(&record, f, ctx)?;
+                            d_format_writer.write(&record, d_writer, ctx)?;
                         }
                         return Ok(true);
                     }
@@ -139,5 +138,9 @@ pub fn run(mut cfg: Config, args: &FindCommand) -> CliResult<()> {
             },
         )?;
         Ok(())
-    })
+    })?;
+    if let Some((io_writer, _)) = dropped_out {
+        io_writer.finish()?;
+    }
+    Ok(())
 }

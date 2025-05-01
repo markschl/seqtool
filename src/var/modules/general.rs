@@ -11,9 +11,9 @@ use crate::helpers::{
     seqtype::{SeqType, SeqtypeHelper},
 };
 use crate::io::{
-    input::{InputConfig, InputKind, SeqReaderConfig},
-    output::{OutFormat, OutputOpts, SeqWriterOpts},
-    QualConverter, Record, RecordAttr,
+    input::{InputConfig, SeqReaderConfig},
+    output::{OutFormat, OutputOpts},
+    IoKind, QualConverter, Record, RecordAttr,
 };
 use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 
@@ -245,12 +245,7 @@ impl VarProvider for GeneralVars {
         Ok(())
     }
 
-    fn init_output(
-        &mut self,
-        _: &OutputOpts,
-        _: &SeqWriterOpts,
-        f: &OutFormat,
-    ) -> Result<(), String> {
+    fn init_output(&mut self, _: &OutputOpts, f: &OutFormat) -> Result<(), String> {
         f.default_ext()
             .as_bytes()
             .clone_into(&mut self.path_info.out_ext);
@@ -323,8 +318,8 @@ where
 {
     out.clear();
     match in_opts.kind {
-        InputKind::Stdin => out.extend_from_slice(b"-"),
-        InputKind::File(ref p) => {
+        IoKind::Stdio => out.extend_from_slice(b"-"),
+        IoKind::File(ref p) => {
             let s = func(p.as_path());
             if let Some(s) = s {
                 out.extend_from_slice(

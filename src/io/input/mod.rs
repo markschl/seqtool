@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io;
 use std::path::PathBuf;
-use std::{fmt, str::FromStr};
 
 use fastx::LimitedBuffer;
 use thread_io;
@@ -10,7 +9,7 @@ use crate::error::{CliError, CliResult};
 use crate::helpers::seqtype::SeqType;
 
 use super::{
-    parse_compr_ext, CompressionFormat, FormatVariant, QualFormat, Record,
+    parse_compr_ext, CompressionFormat, FormatVariant, IoKind, QualFormat, Record,
     DEFAULT_IO_READER_BUFSIZE,
 };
 
@@ -26,58 +25,8 @@ mod reader;
 pub use self::reader::*;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub enum InputKind {
-    Stdin,
-    File(PathBuf),
-}
-
-impl FromStr for InputKind {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "-" => Ok(InputKind::Stdin),
-            _ => Ok(InputKind::File(PathBuf::from(s))),
-        }
-    }
-}
-
-impl fmt::Display for InputKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            InputKind::Stdin => write!(f, "-"),
-            InputKind::File(ref p) => write!(f, "{}", p.as_path().to_string_lossy()),
-        }
-    }
-}
-
-/// Infers the input compression and sequence format from the path extension.
-/// Applies the default format (along with a message) if the format is unknown.
-pub fn infer_in_format(
-    kind: &InputKind,
-    default_format: FormatVariant,
-) -> (FormatVariant, Option<CompressionFormat>) {
-    match kind {
-        InputKind::Stdin => (default_format, None),
-        InputKind::File(path) => {
-            let (compression, ext) = parse_compr_ext(&path);
-            let format = ext.and_then(FormatVariant::str_match).unwrap_or_else(|| {
-                eprintln!(
-                    "{} extension for file '{}' assuming the '{}' format",
-                    if ext.is_none() { "No" } else { "Unknown" },
-                    path.to_string_lossy(),
-                    default_format
-                );
-                default_format
-            });
-            (format, compression)
-        }
-    }
-}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct InputConfig {
-    pub kind: InputKind,
+    pub kind: IoKind,
     pub compression: Option<CompressionFormat>,
     // read in separate thread
     pub threaded: bool,
@@ -221,21 +170,58 @@ impl InFormat {
     }
 }
 
-pub fn get_io_reader(
-    kind: &InputKind,
-    compression: Option<CompressionFormat>,
-) -> CliResult<Box<dyn io::Read + Send>> {
-    let rdr: Box<dyn io::Read + Send> = match kind {
-        InputKind::File(ref path) => Box::new(
-            File::open(path)
-                .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?,
-        ),
-        InputKind::Stdin => Box::new(io::stdin()),
-    };
-    if let Some(fmt) = compression {
-        return Ok(get_compr_reader(rdr, fmt)?);
+impl IoKind {
+    /// Infers the input compression and sequence format from the path extension.
+    /// Applies the default format (along with a message) if the format is unknown.
+    pub fn infer_in_format(
+        &self,
+        default_format: FormatVariant,
+    ) -> (FormatVariant, Option<CompressionFormat>) {
+        match self {
+            IoKind::Stdio => (default_format, None),
+            IoKind::File(path) => {
+                let (compression, ext) = parse_compr_ext(&path);
+                let format = ext.and_then(FormatVariant::str_match).unwrap_or_else(|| {
+                    eprintln!(
+                        "{} extension for file '{}' assuming the '{}' format",
+                        if ext.is_none() { "No" } else { "Unknown" },
+                        path.to_string_lossy(),
+                        default_format
+                    );
+                    default_format
+                });
+                (format, compression)
+            }
+        }
     }
-    Ok(rdr)
+
+    pub fn io_reader_with_compression(
+        &self,
+        compression: Option<CompressionFormat>,
+    ) -> CliResult<Box<dyn io::Read + Send>> {
+        let rdr: Box<dyn io::Read + Send> = match self {
+            IoKind::File(ref path) => Box::new(
+                File::open(path)
+                    .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?,
+            ),
+            IoKind::Stdio => Box::new(io::stdin()),
+        };
+        if let Some(fmt) = compression {
+            return Ok(get_compr_reader(rdr, fmt)?);
+        }
+        Ok(rdr)
+    }
+
+    /// Returns an I/O reader, auto-recognizing compression formats from the file extension.
+    /// Returns the file extension if present.
+    pub fn io_reader(&self) -> CliResult<(Box<dyn io::Read + Send>, Option<String>)> {
+        let (compr, ext) = match self {
+            IoKind::File(ref path) => parse_compr_ext(path),
+            IoKind::Stdio => (None, None),
+        };
+        let rdr = self.io_reader_with_compression(compr)?;
+        Ok((rdr, ext.map(|e| e.to_string())))
+    }
 }
 
 fn get_compr_reader<'a>(
@@ -254,11 +240,11 @@ fn get_compr_reader<'a>(
     })
 }
 
-pub fn with_io_reader<F, O>(o: &InputConfig, func: F) -> CliResult<O>
+pub fn thread_reader<F, O>(o: &InputConfig, func: F) -> CliResult<O>
 where
     for<'a> F: FnOnce(Box<dyn io::Read + Send + 'a>) -> CliResult<O>,
 {
-    let rdr = get_io_reader(&o.kind, o.compression)?;
+    let rdr = o.kind.io_reader_with_compression(o.compression)?;
     if o.compression.is_some() || o.threaded {
         // read in different thread
         let thread_bufsize = o.thread_bufsize.unwrap_or_else(|| {
@@ -343,7 +329,12 @@ where
     let mut readers: Vec<_> = opts
         .into_iter()
         .map(|(in_opts, seq_opts)| {
-            get_seq_reader(get_io_reader(&in_opts.kind, in_opts.compression)?, seq_opts)
+            get_seq_reader(
+                in_opts
+                    .kind
+                    .io_reader_with_compression(in_opts.compression)?,
+                seq_opts,
+            )
         })
         .collect::<CliResult<_>>()?;
 

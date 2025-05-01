@@ -90,11 +90,6 @@ fn attrs() {
             ">ID a=0 b=0 c=0\nSEQ\n",
         )
         .fails(
-            &[".", "--to-tsv", "id", "-a", "a=0"],
-            *FASTA,
-            "output format is not FASTA or FASTQ",
-        )
-        .fails(
             &[".", "-a", "a=0", "-a", "a=1"],
             *FASTA,
             "attribute 'a' is added/edited twice",
@@ -102,12 +97,12 @@ fn attrs() {
         .fails(
             &[".", "-A", "a=0", "-a", "a=1"],
             *FASTA,
-            "attribute 'a' is supposed to be appended",
+            "the 'a' attribute is also used in a different way",
         )
         .fails(
             &[".", "-A", "p={attr(p)}"],
             *FASTA,
-            "attribute 'p' is supposed to be appended",
+            "the 'p' attribute is also used in a different way",
         )
         .fails(
             &[".", "-a", "a={attr_del(a)}"],

@@ -39,6 +39,7 @@ pub struct UniqueCommand {
     pub sort: bool,
 
     /// Write a map of all duplicate sequence IDs to the given file (or '-' for stdout).
+    /// The (optional) compression format is auto-recognized from the extension.
     /// By default, a two-column mapping of sequence ID -> unique reference record ID
     /// is written (`long` format).
     /// More formats can be selected with `--map_format`.

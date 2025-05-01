@@ -61,7 +61,7 @@ pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
             // write formatted record to a buffer
             let record_out =
                 record_buf_factory.get(|out| format_writer.write(&record, out, ctx))?;
-            // add both to the object handing the sorting
+            // add both to the object that handles the sorting
             sorter.add(
                 Item::new(keys.clone(), record_out.into_boxed_slice()),
                 &tmp_path,

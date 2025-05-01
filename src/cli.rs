@@ -9,17 +9,17 @@ use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
 
 use var_provider::{dyn_var_provider, DynVarProviderInfo};
 
-use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, seqtype::SeqType};
 use crate::io::input::{
     csv::{ColumnMapping, TextColumnSpec},
-    infer_in_format, InFormat, InputConfig, InputKind, SeqReaderConfig,
+    InFormat, InputConfig, SeqReaderConfig,
 };
-use crate::io::output::{OutputKind, OutputOpts, SeqWriterOpts};
+use crate::io::output::{OutputOpts, SeqWriterOpts};
 use crate::io::{FormatVariant, QualFormat, DEFAULT_FORMAT};
 use crate::var::{attr::AttrFormat, VarOpts};
 use crate::{cmd, io::output::fastx::Attribute};
 use crate::{config::Config, io::CompressionFormat};
+use crate::{error::CliResult, io::IoKind};
 
 /// This type only serves as a workaround to allow displaying
 /// custom help page that explains all variables (--help-vars)
@@ -161,7 +161,7 @@ impl CommonArgs {
             .map(|kind| {
                 // if no format from args, infer from path
                 let (format, compression) =
-                    fmt.unwrap_or_else(|| infer_in_format(kind, DEFAULT_FORMAT));
+                    fmt.unwrap_or_else(|| kind.infer_in_format(DEFAULT_FORMAT));
 
                 let format = InFormat::from_opts(
                     format,
@@ -189,7 +189,7 @@ impl CommonArgs {
         Ok(input)
     }
 
-    pub fn get_output_opts(&self) -> CliResult<(OutputKind, OutputOpts, SeqWriterOpts)> {
+    pub fn get_output_opts(&self) -> CliResult<(IoKind, OutputOpts, SeqWriterOpts)> {
         let args = &self.output;
 
         // format
@@ -242,7 +242,7 @@ impl CommonArgs {
             qfile,
         };
 
-        let kind = args.output.clone().unwrap_or(OutputKind::Stdout);
+        let kind = args.output.clone().unwrap_or(IoKind::Stdio);
 
         Ok((kind, output_opts, format_opts))
     }
@@ -410,7 +410,7 @@ pub struct GeneralArgs {
 pub struct InputArgs {
     /// Input file(s), multiple possible (use '-' for STDIN)
     #[arg(default_value = "-")]
-    pub input: Vec<InputKind>,
+    pub input: Vec<IoKind>,
 
     #[arg(long, env = "ST_FORMAT", value_parser = parse_format_spec)]
     /// Input format, only needed if it cannot be guessed from the extension
@@ -479,7 +479,7 @@ pub struct InputArgs {
 pub struct OutputArgs {
     #[arg(short, long, value_name = "FILE")]
     /// Write output to <file> instead of STDOUT [Default: STDOUT (-)]
-    pub output: Option<OutputKind>,
+    pub output: Option<IoKind>,
 
     /// Append sequences to the end if the output file(s) already exist instead of
     /// replacing the content. In case writing to standard output

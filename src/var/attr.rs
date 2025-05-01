@@ -337,8 +337,8 @@ impl Parser {
     }
 
     /// Requests an attribute to be searched in sequence headers.
-    /// Returns the corresponding attribute slot ("ID"), which is the index of the data
-    /// in the array and is used to obtain the attribute value.
+    /// Returns the corresponding attribute slot ("ID"), which is the index in the
+    /// `read_edit_attrs` array and is used to obtain the attribute value.
     /// Returns `None` if `write_action` is `Some(AttrWriteAction::Append)`,
     /// (means only writing, no parsing of the existing attribute(s)).
     /// The attribute may already exist, in which case the ID of the existing slot is returned.
@@ -363,36 +363,36 @@ impl Parser {
         }
         for (i, d) in self.read_edit_attrs.iter_mut().enumerate() {
             if d.name == name {
-                if matches!(write_action, Some(AttrWriteAction::Edit(_)))
-                    && matches!(d.write_action, Some(AttrWriteAction::Edit(_)))
-                {
-                    return dup_err(name);
-                }
                 if write_action != d.write_action {
+                    if matches!(write_action, Some(AttrWriteAction::Edit(_)))
+                        && matches!(d.write_action, Some(AttrWriteAction::Edit(_)))
+                    {
+                        return dup_err(name);
+                    }
                     if matches!(d.write_action, Some(AttrWriteAction::Delete))
                         || matches!(write_action, Some(AttrWriteAction::Delete))
                     {
                         return Err(format!(
                             "The FASTA/FASTQ header attribute '{}' is supposed to be deleted \
-                            (e.g. using the `attr_del()` function), \
-                            but the same attribute name is used in a different way. \
+                            but the '{}' attribute is used in a different way. \
                             Make sure to use `attr_del` consistently at all places, \
-                            and not to write this attribute the output using \
-                            `-a/--attr {}=...` at the same time.",
-                            name, name
+                            and not to write this attribute to the output \
+                            (`-a/--attr {}=...`) at the same time.",
+                            name, name, name
                         ));
                     }
                     match write_action {
-                        Some(AttrWriteAction::Append(_)) => return Err(format!(
-                            "The FASTA/FASTQ header attribute '{}' is supposed to be appended \
-                            to the header without first checking for its presence in the headers \
-                            (`-A/--attr-append` argument; for maximum speed). \
-                            However, the same attribute name is used in a different way as well. \
-                            Make sure not to use functions such as `attr()`, `attr_del()` or `has_attr()` \
-                            together with `-A/--attr-append`.", name,
-                        )),
+                        Some(AttrWriteAction::Append(_)) => {
+                            return Err(format!(
+                                "`-A/--attr-append` '{}=...' is used to append a FASTA/FASTQ header, \
+                                but the '{}' attribute is also used in a different way. \
+                                Do not combine `attr()`/`attr_del()`/`has_attr()` functions or '-a/--attr' \
+                                with `-A/--attr-append` for the same attribute name.",
+                                name, name,
+                            ))
+                        }
                         Some(AttrWriteAction::Edit(_)) => {
-                            // replace 'read'-only (action = None) with the write action
+                            // swith from read-only (action = None) to write action
                             d.write_action = write_action;
                             self.n_write_attrs += 1;
                             self.n_edit_attrs += 1;
@@ -417,8 +417,13 @@ impl Parser {
             }
         }
         if let Some(AttrWriteAction::Append(varstring)) = write_action {
-            if self.append_attrs.iter().any(|(n, _)| n == name) {
-                return dup_err(name);
+            for (_name, vs) in &self.append_attrs {
+                if _name == name {
+                    if vs != &varstring {
+                        return dup_err(name);
+                    }
+                    return Ok(None);
+                }
             }
             self.append_attrs.push((name.to_string(), varstring));
             Ok(None)

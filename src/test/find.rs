@@ -162,32 +162,55 @@ fn range() {
 #[test]
 fn drop_file() {
     let t = Tester::new();
-    let fa = ">seq1\nSEQ1\n>seq2\nSEQ2\n>seq3\nSEQ3\n";
+    let input = ">seq1\nSEQ1\n>seq2\nSEQ2\n>seq3\nSEQ3\n";
     t.temp_dir("find_drop", |d| {
-        let out = d.path().join("dropped.fa");
-        let out_path = out.to_str().expect("invalid path");
-
+        // FASTA
+        let out_fa = ">seq2 m=4:4\nSEQ2\n";
+        let dropped_fa = format!(">seq1 m={na}\nSEQ1\n>seq3 m={na}\nSEQ3\n", na = NA);
+        let p = d.path().join("dropped.fa");
+        let cmd = &mut [
+            "find",
+            "-f",
+            "2",
+            "-a",
+            "m={match_range}",
+            "--dropped",
+            p.to_str().unwrap(),
+        ];
+        t.cmp(cmd, input, out_fa);
+        t.cmp(&["."], FileInput(cmd.last().unwrap()), &dropped_fa);
+        let p = d.path().join("dropped.fasta.gz");
+        *cmd.last_mut().unwrap() = p.to_str().unwrap();
+        t.cmp(cmd, input, out_fa);
         t.cmp(
-            &[
+            &[".", "--fmt", "fasta.gz"],
+            FileInput(cmd.last().unwrap()),
+            &dropped_fa,
+        );
+
+        // TSV
+        #[cfg(feature = "gz")]
+        {
+            let dropped_tsv = format!("seq1\t{na}\tSEQ1\nseq3\t{na}\tSEQ3\n", na = NA);
+            let p = d.path().join("dropped.tsv.gz");
+            let cmd = &mut [
                 "find",
                 "-f",
                 "2",
                 "-a",
                 "m={match_range}",
+                "--outfields",
+                "id,match_range,seq",
                 "--dropped",
-                out_path,
-            ],
-            fa,
-            ">seq2 m=4:4\nSEQ2\n",
-        );
-
-        let mut f = File::open(out_path).expect("File not there");
-        let mut s = String::new();
-        f.read_to_string(&mut s).unwrap();
-        assert_eq!(
-            &s,
-            &format!(">seq1 m={na}\nSEQ1\n>seq3 m={na}\nSEQ3\n", na = NA)
-        );
+                p.to_str().unwrap(),
+            ];
+            t.cmp(cmd, input, out_fa);
+            t.cmp(
+                &[".", "--fmt", "tsv.gz"],
+                FileInput(cmd.last().unwrap()),
+                &dropped_tsv,
+            );    
+        }
     })
 }
 
