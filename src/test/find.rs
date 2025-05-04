@@ -206,7 +206,7 @@ fn drop_file() {
             ];
             t.cmp(cmd, input, out_fa);
             t.cmp(
-                &[".", "--fmt", "tsv.gz"],
+                &[".", "--fields", "id,desc,seq"],
                 FileInput(cmd.last().unwrap()),
                 &dropped_tsv,
             );

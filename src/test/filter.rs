@@ -57,20 +57,17 @@ fn drop_file() {
         let cmd = &[
             "filter",
             "seq != 'SEQ'",
-            "-a",
-            "i={seq_num}",
             "--fq",
-            "--to-fa",
-            "--outfields",
-            "id,seq",
+            "--to-csv",
+            "id,seq_num,seq",
             "--dropped",
             p.to_str().unwrap(),
         ];
-        t.cmp(cmd, input, ">id2 i=2\nOTHER\n");
+        t.cmp(cmd, input, "id2,2,OTHER\n");
         t.cmp(
-            &[".", "--fields", "id,seq"],
+            &[".", "--fields", "id,desc,seq"],
             FileInput(cmd.last().unwrap()),
-            "id1,SEQ\n",
+            "id1,1,SEQ\n",
         );
     })
 }
