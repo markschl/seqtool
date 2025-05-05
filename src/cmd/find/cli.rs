@@ -111,7 +111,7 @@ pub struct SearchArgs {
     /// Interpret pattern(s) as regular expression(s).
     /// All *non-overlapping* matches in are searched in headers or sequences.
     /// The regex engine lacks some advanced syntax features such as look-around
-    /// and backreferences (see https://docs.rs/regex).
+    /// and backreferences (see https://docs.rs/regex/#syntax).
     /// Capture groups can be extracted by functions such as `match_group(number)`,
     /// or `match_group(name)` if named: `(?<name>)`
     /// (see also `st find --help-vars`).
@@ -137,18 +137,13 @@ pub struct SearchArgs {
     #[arg(long, value_name = "NAME", default_value = "auto", value_parser = algorithm_from_name)]
     pub algo: std::option::Option<Algorithm>,
 
-    /// Gap penalty to use for selecting the the optimal alignment among multiple
-    /// alignments with the same starting position and the same edit distance.
-    /// The default penalty of 2 selects hits that don't have too InDels in the
-    /// alignment.
-    /// A penalty of 0 is not recommended; due to how the algorithm works,
-    /// the alignment with the leftmost end position is chosen among the candidates,
-    /// which often shows deletions in the pattern.
-    /// Penalties >2 will further shift the preference towards hits with substitutions
-    /// instead of InDels, but the selection is always done among hits with the
-    /// same (lowest) edit distance, so raising the gap penalty will not help in
-    /// trying to enfoce ungapped alignments (there is currently no way to do that).
-    #[arg(long, value_name = "N", default_value_t = 2)]
+    /// Gap penalty used for prioritizing among multiple matches with the
+    /// same starting position and an equally small edit distance.
+    /// While substitutions have a fixed penalty of 1, the gap penalty can be
+    /// modified to take values >1. The default of 2 prefers more concise alignments.
+    /// A high gap penalty does *not* enforce ungapped alignments.
+    /// Only perfect matches (`-D/--max-diffs 0`) are ungapped.
+    #[arg(long, value_name = "N", default_value_t = 2, value_parser = value_parser!(u32).range(1..))]
     pub gap_penalty: u32,
 }
 

@@ -311,58 +311,67 @@ fn fuzzy_gaps() {
     // same sequence repeated twice (with a TTTTT spacer) to test multi-hit reporting
     let fa = ">i\nAACGCACTTTTTTAACGCACT\n";
     let pattern = "ACGTGC";
-    // alignment is:
+    // There are two possible alignments with the same edit distance:
+    //
+    // (1) alignment with lowest possible end coordinate:
     //
     // AACG--CCACT  [diffs = 2]
     //  |||xx|
     //  ACGTGC
     //
-    // or
+    // (2) optimal alignment if gaps are penalized (--gap-penalty >= 2)
     //
     // AACGCACT  [diffs = 2]
     //  |||\\|
     //  ACGTGC
     //
     // with gap penalty of > 0, the second alignment will be chosen,
-    // with penalty of 0 it will be the first one since the end position
+    // with penalty of 0 it will be the first one
     let v = "match,aligned_match,aligned_pattern,match_range,match_len,match_diffs";
 
     Tester::new()
+        // don't penalize gaps more than substitutions
+        // -> alignment (1) is chosen since it has the lowest end coordinate (= 2 insertions in text)
         .cmp(
-            &[
-                "find",
-                "-f",
-                "-D2",
-                "--gap-penalty",
-                "0",
-                "--to-csv",
-                v,
-                pattern,
-            ],
+            &["find", "-D2", "--gap-penalty", "1", "--to-csv", v, pattern],
             fa,
             "ACGC,ACG--C,ACGTGC,2:5,4,2\n",
         )
+        // penalize gaps (--gap-penalty 2 is the default)
+        // -> ungapped alignment is chosen
         .cmp(
-            &[
-                "find",
-                "-f",
-                "-D2",
-                "--gap-penalty",
-                "2",
-                "--to-csv",
-                v,
-                pattern,
-            ],
+            &["find", "-D2", "--to-csv", v, pattern],
             fa,
             "ACGCAC,ACGCAC,ACGTGC,2:7,6,2\n",
         )
+        // no alignment, only coordinates and edit distance
+        // (internally this switches to another `Hit` implementation, see src/cmd/find/matcher/approx.rs)
         .cmp(
             &[
                 "find",
-                "-f",
+                "-D2",
+                "--to-csv",
+                "match_range,match_diffs",
+                pattern,
+            ],
+            fa,
+            "2:7,2\n",
+        )
+        // edit distance only
+        // (this is the fastest implementation)
+        .cmp(
+            &["find", "-D2", "--to-csv", "match_diffs", pattern],
+            fa,
+            "2\n",
+        )
+        // report *all* hits with edit distance <= 2
+        // (again switches to another implementation)
+        .cmp(
+            &[
+                "find",
                 "-D2",
                 "--gap-penalty",
-                "0",
+                "1",
                 "--to-tsv",
                 "match_range(all),aligned_match(all)",
                 pattern,
@@ -370,19 +379,29 @@ fn fuzzy_gaps() {
             fa,
             "2:5,15:18\tACG--C,ACG--C\n",
         )
+        // ungapped alignment
         .cmp(
             &[
                 "find",
-                "-f",
                 "-D2",
-                "--gap-penalty",
-                "1000",
                 "--to-tsv",
                 "match_range(all),aligned_match(all)",
                 pattern,
             ],
             fa,
             "2:7,15:20\tACGCAC,ACGCAC\n",
+        )
+        // no alignment, only coordinates / edit distance
+        .cmp(
+            &[
+                "find",
+                "-D2",
+                "--to-tsv",
+                "match_range(all),match_diffs(all)",
+                pattern,
+            ],
+            fa,
+            "2:7,15:20\t2,2\n",
         );
 }
 
