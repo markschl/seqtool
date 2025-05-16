@@ -1,6 +1,6 @@
 use std::io::Write as _;
 
-use enterpolation::{linear::Linear, Generator, Merge};
+use enterpolation::{linear::Linear, Merge, Signal};
 use palette::convert::FromColorUnclamped;
 use palette::rgb::{self, Rgb};
 use palette::{FromColor, Hsv, Mix, Srgb};
@@ -131,7 +131,7 @@ impl PaletteType for QualPaletteType {
             .build()
             .unwrap();
         for qual in 0..96 {
-            let col = gradient.gen(qual as f32);
+            let col = gradient.eval(qual as f32);
             let col = Rgb::from_color_unclamped(col.0);
             out.insert(qual, Color::from_rgb(col.into()));
         }

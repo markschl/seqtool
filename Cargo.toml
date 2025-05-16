@@ -52,7 +52,7 @@ regex-lite = { version = "0.1", optional = true }
 regex = { version = "1.11", optional = true }
 # view command
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"], optional = true }
-enterpolation = { version = "0.2", default-features = false, features = ["std", "linear"], optional = true }
+enterpolation = { version = "0.3", default-features = false, features = ["std", "linear"], optional = true }
 termcolor = { version = "1.4", optional = true }
 ansi_colours = { version = "1.2", optional = true }
 # sample command
@@ -63,7 +63,7 @@ indexmap = { version = "2.9", optional = true }
 # TODO: v0.8 update blocked by https://github.com/reem/rust-ordered-float/issues/163
 rkyv = { version = "0.7", optional = true}
 byteorder = { version = "1.5", optional = true }
-tempfile = { version = "3.19", optional = true }
+tempfile = { version = "3.20", optional = true }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies.flate2]
 version = "1.1"
