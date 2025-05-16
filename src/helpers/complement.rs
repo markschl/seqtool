@@ -11,8 +11,8 @@ where
     S: Iterator<Item = &'a [u8]> + DoubleEndedIterator,
 {
     let complement = match seqtype {
-        SeqType::Dna => bio::alphabets::dna::complement,
-        SeqType::Rna => bio::alphabets::rna::complement,
+        SeqType::DNA => bio::alphabets::dna::complement,
+        SeqType::RNA => bio::alphabets::rna::complement,
         _ => {
             return Err(format!(
                 "Only DNA/RNA sequences can be reverse-complemented, but the sequence type \

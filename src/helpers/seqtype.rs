@@ -7,10 +7,11 @@ use strum_macros::{Display, EnumString};
 use SeqType::*;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Display, EnumString, ValueEnum)]
-#[strum(serialize_all = "snake_case")]
 pub enum SeqType {
-    Dna,
-    Rna,
+    #[allow(clippy::upper_case_acronyms)]
+    DNA,
+    #[allow(clippy::upper_case_acronyms)]
+    RNA,
     Protein,
     Other,
 }
@@ -45,8 +46,8 @@ fn filter_iter(text: &[u8]) -> impl Iterator<Item = &u8> {
 /// Returns Err(typehint) if the type hint does not match the actual sequence.
 pub fn guess_seqtype(text: &[u8], hint: Option<SeqType>) -> Result<SeqTypeInfo, SeqType> {
     match hint {
-        Some(Dna) => guess_dna(text).ok_or(Dna),
-        Some(Rna) => guess_rna(text).ok_or(Rna),
+        Some(DNA) => guess_dna(text).ok_or(DNA),
+        Some(RNA) => guess_rna(text).ok_or(RNA),
         Some(Protein) => guess_protein(text).ok_or(Protein),
         Some(Other) => Ok(SeqTypeInfo::new(Other, false, false)),
         None => Ok(guess_dna(text)
@@ -78,11 +79,11 @@ pub fn guess_seqtype_or_fail(
 
 pub fn guess_dna(text: &[u8]) -> Option<SeqTypeInfo> {
     if dna::alphabet().is_word(filter_iter(text)) {
-        Some(SeqTypeInfo::new(Dna, false, false))
+        Some(SeqTypeInfo::new(DNA, false, false))
     } else if dna::n_alphabet().is_word(filter_iter(text)) {
-        Some(SeqTypeInfo::new(Dna, true, false))
+        Some(SeqTypeInfo::new(DNA, true, false))
     } else if dna::iupac_alphabet().is_word(filter_iter(text)) {
-        Some(SeqTypeInfo::new(Dna, true, true))
+        Some(SeqTypeInfo::new(DNA, true, true))
     } else {
         None
     }
@@ -90,11 +91,11 @@ pub fn guess_dna(text: &[u8]) -> Option<SeqTypeInfo> {
 
 pub fn guess_rna(text: &[u8]) -> Option<SeqTypeInfo> {
     if rna::alphabet().is_word(filter_iter(text)) {
-        Some(SeqTypeInfo::new(Rna, false, false))
+        Some(SeqTypeInfo::new(RNA, false, false))
     } else if rna::n_alphabet().is_word(filter_iter(text)) {
-        Some(SeqTypeInfo::new(Rna, true, false))
+        Some(SeqTypeInfo::new(RNA, true, false))
     } else if rna::iupac_alphabet().is_word(filter_iter(text)) {
-        Some(SeqTypeInfo::new(Rna, true, true))
+        Some(SeqTypeInfo::new(RNA, true, true))
     } else {
         None
     }

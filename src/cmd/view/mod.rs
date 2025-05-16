@@ -274,7 +274,7 @@ impl ColorWriter {
                     guess_seqtype(seq, None)
                         .ok()
                         .and_then(|info| match info.seqtype {
-                            SeqType::Dna | SeqType::Rna => Some((dna_pal.clone(), false)),
+                            SeqType::DNA | SeqType::RNA => Some((dna_pal.clone(), false)),
                             SeqType::Protein => Some((protein_pal.clone(), false)),
                             _ => None,
                         })

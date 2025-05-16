@@ -50,8 +50,8 @@ pub fn get_matcher(pattern: &str, ambig: bool, opts: &Opts) -> CliResult<Box<dyn
     let ambig_map = if ambig {
         use crate::helpers::seqtype::SeqType::*;
         match opts.seqtype {
-            Dna => Some(AMBIG_DNA),
-            Rna => Some(AMBIG_RNA),
+            DNA => Some(AMBIG_DNA),
+            RNA => Some(AMBIG_RNA),
             Protein => Some(AMBIG_PROTEIN),
             Other => None,
         }
