@@ -7,12 +7,10 @@ use super::{Hit, Match, Matcher};
 pub fn get_matcher(
     pattern: &str,
     single_hit: bool,
-    needs_groups: bool,
+    has_groups: bool,
 ) -> CliResult<Box<dyn Matcher + Send>> {
     Ok(Box::new(RegexMatcher::new(
-        pattern,
-        single_hit,
-        needs_groups,
+        pattern, single_hit, has_groups,
     )?))
 }
 
@@ -22,14 +20,14 @@ macro_rules! matcher_impl {
         pub struct RegexMatcher {
             capture_locations: Option<$re_mod::CaptureLocations>,
             inner: $re_mod::Regex,
-            needs_groups: bool,
+            has_groups: bool,
         }
 
         impl RegexMatcher {
             pub fn new(
                 pattern: &str,
                 single_hit: bool,
-                needs_groups: bool,
+                has_groups: bool,
             ) -> CliResult<RegexMatcher> {
                 let inner = $re_mod::Regex::new(pattern)?;
                 Ok(RegexMatcher {
@@ -39,7 +37,7 @@ macro_rules! matcher_impl {
                         None
                     },
                     inner,
-                    needs_groups,
+                    has_groups,
                 })
             }
         }
@@ -49,13 +47,13 @@ macro_rules! matcher_impl {
                 Ok(self.inner.is_match($text_fn(text)?))
             }
 
-            fn iter_matches(
+            fn do_search(
                 &mut self,
                 text: &[u8],
                 func: &mut dyn FnMut(&dyn Hit) -> Result<bool, String>,
             ) -> Result<(), String> {
                 let text = $text_fn(text)?;
-                if !self.needs_groups {
+                if !self.has_groups {
                     // no allocations
                     for h in self.inner.find_iter(text) {
                         if !func(&h)? {
@@ -116,7 +114,7 @@ macro_rules! matcher_impl {
         /// (capture_names() is in order of group indices).
         ///
         // TODO: this function is always called first and RegexMatcher is created in a later step, so the regex is parsed twice!
-        // However, this seems acceptable
+        //       Still, this seems acceptable as only groups > 0 require the parsing
         pub fn resolve_group(pattern: &str, group: &str) -> Result<usize, String> {
             if let Ok(num) = group.parse() {
                 Ok(num)

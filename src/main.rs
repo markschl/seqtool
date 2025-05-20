@@ -31,7 +31,7 @@ mod var;
 mod test;
 
 fn main() {
-    let res = Cli::new().and_then(|mut cli| cli.run());
+    let res = Cli::new().and_then(|cli| cli.run());
     match res {
         // normal exit
         Ok(()) => {}

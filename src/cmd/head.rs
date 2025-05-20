@@ -15,7 +15,7 @@ pub struct HeadCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &HeadCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: HeadCommand) -> CliResult<()> {
     let n = args.num_seqs;
 
     let mut format_writer = cfg.get_format_writer()?;

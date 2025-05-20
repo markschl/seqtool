@@ -134,7 +134,7 @@ fn range() {
             &format!("{}\n", NA),
         )
         .cmp(
-            &["find", "G", "--max-shift-start", "2", "--to-csv", v],
+            &["find", "G", "--anchor-start", "2", "--to-csv", v],
             fa,
             "3:3\n",
         )
@@ -144,7 +144,7 @@ fn range() {
                 "G",
                 "--rng",
                 "2:",
-                "--max-shift-start",
+                "--anchor-start",
                 "1",
                 "--to-csv",
                 v,
@@ -153,7 +153,7 @@ fn range() {
             "3:3\n",
         )
         .cmp(
-            &["find", "G", "--max-shift-start", "1", "--to-csv", v],
+            &["find", "G", "--anchor-start", "1", "--to-csv", v],
             fa,
             &format!("{}\n", NA),
         );
@@ -319,25 +319,33 @@ fn fuzzy_gaps() {
     //  |||xx|
     //  ACGTGC
     //
-    // (2) optimal alignment if gaps are penalized (--gap-penalty >= 2)
+    // (2) optimal alignment if gaps are penalized
     //
     // AACGCACT  [diffs = 2]
     //  |||\\|
     //  ACGTGC
     //
-    // with gap penalty of > 0, the second alignment will be chosen,
-    // with penalty of 0 it will be the first one
+    // with gap penalty of < -1, the second alignment will be chosen,
+    // with penalty of -1 it will be the first one
     let v = "match,aligned_match,aligned_pattern,match_range,match_len,match_diffs";
 
     Tester::new()
         // don't penalize gaps more than substitutions
         // -> alignment (1) is chosen since it has the lowest end coordinate (= 2 insertions in text)
         .cmp(
-            &["find", "-D2", "--gap-penalty", "1", "--to-csv", v, pattern],
+            &[
+                "find",
+                "-D2",
+                "--hit-scoring",
+                "1,-1,-1",
+                "--to-csv",
+                v,
+                pattern,
+            ],
             fa,
             "ACGC,ACG--C,ACGTGC,2:5,4,2\n",
         )
-        // penalize gaps (--gap-penalty 2 is the default)
+        // penalize gaps (gap penalty of -2 is the default)
         // -> ungapped alignment is chosen
         .cmp(
             &["find", "-D2", "--to-csv", v, pattern],
@@ -370,8 +378,8 @@ fn fuzzy_gaps() {
             &[
                 "find",
                 "-D2",
-                "--gap-penalty",
-                "1",
+                "--hit-scoring",
+                "1,-1,-1",
                 "--to-tsv",
                 "match_range(all),aligned_match(all)",
                 pattern,

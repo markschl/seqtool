@@ -12,7 +12,7 @@ pub struct UpperCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, _args: &UpperCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, _args: UpperCommand) -> CliResult<()> {
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
         let mut seq = vec![];

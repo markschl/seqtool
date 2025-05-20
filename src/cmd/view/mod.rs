@@ -21,7 +21,7 @@ pub use self::cli::*;
 pub use self::color::*;
 pub use self::pal::*;
 
-pub fn run(mut cfg: Config, args: &ViewCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: ViewCommand) -> CliResult<()> {
     let truecolor = args.color.truecolor.unwrap_or_else(has_truecolor);
     if args.color.list_pal {
         print_palettes(&args.color.textcols, truecolor)?;

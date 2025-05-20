@@ -26,7 +26,7 @@ pub use self::vars::*;
 /// (factor found by memory profiling on Linux)
 static MEM_OVERHEAD: f32 = 1.1;
 
-pub fn run(mut cfg: Config, args: &SortCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<()> {
     let verbose = args.common.general.verbose;
     let quiet = args.common.general.quiet;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;

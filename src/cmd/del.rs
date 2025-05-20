@@ -21,7 +21,7 @@ pub struct DelCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &DelCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: DelCommand) -> CliResult<()> {
     let del_desc = args.desc;
     let del_attrs = args.attrs.as_deref();
 

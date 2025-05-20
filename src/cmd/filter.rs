@@ -19,7 +19,7 @@ pub struct FilterCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &FilterCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<()> {
     let expr = args.expression.trim();
     if expr.starts_with('{') && expr.ends_with('}') {
         eprintln!(

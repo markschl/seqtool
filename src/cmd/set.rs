@@ -25,7 +25,7 @@ pub struct SetCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &SetCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: SetCommand) -> CliResult<()> {
     let mut replacements = vec![];
     if let Some(string) = args.id.as_ref() {
         replacements.push((string, RecordAttr::Id));

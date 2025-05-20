@@ -22,7 +22,7 @@ pub struct TailCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &TailCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: TailCommand) -> CliResult<()> {
     let n_select = args.num_seqs;
 
     if cfg.has_stdin() {

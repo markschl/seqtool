@@ -54,7 +54,7 @@ pub struct SplitCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &SplitCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
     let num_seqs = args.num_seqs;
     let parents = args.parents;
     let verbose = args.common.general.verbose;

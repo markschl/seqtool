@@ -35,7 +35,7 @@ struct RevCompRecord {
     seqtype: Option<SeqType>,
 }
 
-pub fn run(mut cfg: Config, args: &RevcompCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: RevcompCommand) -> CliResult<()> {
     let num_threads = args.threads;
 
     let mut format_writer = cfg.get_format_writer()?;

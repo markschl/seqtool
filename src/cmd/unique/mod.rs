@@ -31,7 +31,7 @@ pub use self::vars::*;
 /// the hash map, sorting and other allocations unaccounted for.
 static MEM_OVERHEAD: f32 = 1.2;
 
-pub fn run(mut cfg: Config, args: &UniqueCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
     let verbose = args.common.general.verbose;
     let quiet = args.common.general.quiet;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;

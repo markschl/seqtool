@@ -82,7 +82,7 @@ fn read_seed(seed_str: &str) -> Seed {
 // TODO: examine performance on 32-bit platforms
 pub type DefaultRng = rand_xoshiro::Xoshiro256PlusPlus;
 
-pub fn run(cfg: Config, args: &SampleCommand) -> CliResult<()> {
+pub fn run(cfg: Config, args: SampleCommand) -> CliResult<()> {
     let rng = match args.seed {
         Some(Seed::Number(s)) => DefaultRng::seed_from_u64(s),
         Some(Seed::Array(s)) => DefaultRng::from_seed(s),

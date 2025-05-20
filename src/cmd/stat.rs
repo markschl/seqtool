@@ -25,7 +25,7 @@ pub struct StatCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(_cfg: Config, args: &StatCommand) -> CliResult<()> {
+pub fn run(_cfg: Config, args: StatCommand) -> CliResult<()> {
     let mut cmd = PassCommand {
         common: args.common.clone(),
     };
@@ -35,5 +35,5 @@ pub fn run(_cfg: Config, args: &StatCommand) -> CliResult<()> {
     if let Some((fmt, _)) = cmd.common.output.to.as_mut() {
         *fmt = FormatVariant::Tsv;
     }
-    pass::run(Config::new(&cmd.common)?, &cmd)
+    pass::run(Config::new(&cmd.common)?, cmd)
 }

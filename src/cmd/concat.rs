@@ -39,7 +39,7 @@ pub struct ConcatCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &ConcatCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: ConcatCommand) -> CliResult<()> {
     let id_check = !args.no_id_check;
     let spacer_n = args.spacer;
     let s_char = args.s_char as u8;

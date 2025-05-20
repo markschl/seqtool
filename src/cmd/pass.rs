@@ -10,7 +10,7 @@ pub struct PassCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, _args: &PassCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, _args: PassCommand) -> CliResult<()> {
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read(|record, ctx| {

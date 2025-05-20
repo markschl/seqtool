@@ -30,7 +30,7 @@ pub struct SliceCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &SliceCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: SliceCommand) -> CliResult<()> {
     let range = args.range;
 
     let mut format_writer = cfg.get_format_writer()?;

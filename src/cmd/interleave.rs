@@ -19,7 +19,7 @@ pub struct InterleaveCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &InterleaveCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: InterleaveCommand) -> CliResult<()> {
     let id_check = !args.no_id_check;
 
     let mut format_writer = cfg.get_format_writer()?;

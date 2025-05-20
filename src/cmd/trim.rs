@@ -36,7 +36,7 @@ pub struct TrimCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &TrimCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: TrimCommand) -> CliResult<()> {
     let ranges = &args.ranges;
     let rng0 = args.zero_based;
     let exclusive = args.exclusive;

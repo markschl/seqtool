@@ -71,7 +71,7 @@ impl Cli {
         Ok(Self(ClapCli::parse()))
     }
 
-    pub fn run(&mut self) -> CliResult<()> {
+    pub fn run(self) -> CliResult<()> {
         use SubCommand::*;
         macro_rules! run {
             ($cmdmod:ident, $opts:expr) => {
@@ -80,54 +80,54 @@ impl Cli {
         }
         match self.0.command {
             #[cfg(any(feature = "all-commands", feature = "pass"))]
-            Pass(ref opts) => run!(pass, opts),
+            Pass(opts) => run!(pass, opts),
             #[cfg(any(feature = "all-commands", feature = "view"))]
-            View(ref opts) => run!(view, opts),
+            View(opts) => run!(view, opts),
             #[cfg(any(feature = "all-commands", feature = "count"))]
-            Count(ref opts) => run!(count, opts),
+            Count(opts) => run!(count, opts),
             #[cfg(any(feature = "all-commands", feature = "stat"))]
-            Stat(ref opts) => run!(stat, opts),
+            Stat(opts) => run!(stat, opts),
             #[cfg(any(feature = "all-commands", feature = "head"))]
-            Head(ref opts) => run!(head, opts),
+            Head(opts) => run!(head, opts),
             #[cfg(any(feature = "all-commands", feature = "tail"))]
-            Tail(ref opts) => run!(tail, opts),
+            Tail(opts) => run!(tail, opts),
             #[cfg(any(feature = "all-commands", feature = "slice"))]
-            Slice(ref opts) => run!(slice, opts),
+            Slice(opts) => run!(slice, opts),
             #[cfg(any(feature = "all-commands", feature = "sample"))]
-            Sample(ref opts) => run!(sample, opts),
+            Sample(opts) => run!(sample, opts),
             #[cfg(any(feature = "all-commands", feature = "sort"))]
-            Sort(ref opts) => run!(sort, opts),
+            Sort(opts) => run!(sort, opts),
             #[cfg(any(feature = "all-commands", feature = "unique"))]
-            Unique(ref opts) => run!(unique, opts),
+            Unique(opts) => run!(unique, opts),
             #[cfg(any(
                 all(feature = "expr", feature = "all-commands"),
                 all(feature = "expr", feature = "filter")
             ))]
-            Filter(ref opts) => run!(filter, opts),
+            Filter(opts) => run!(filter, opts),
             #[cfg(any(feature = "all-commands", feature = "split"))]
-            Split(ref opts) => run!(split, opts),
+            Split(opts) => run!(split, opts),
             #[cfg(any(feature = "all-commands", feature = "interleave"))]
-            Interleave(ref opts) => run!(interleave, opts),
+            Interleave(opts) => run!(interleave, opts),
             #[cfg(any(feature = "all-commands", feature = "find"))]
-            Find(ref opts) => run!(find, opts),
+            Find(opts) => run!(find, opts),
             #[cfg(any(feature = "all-commands", feature = "replace"))]
-            Replace(ref opts) => run!(replace, opts),
+            Replace(opts) => run!(replace, opts),
             #[cfg(any(feature = "all-commands", feature = "set"))]
-            Set(ref opts) => run!(set, opts),
+            Set(opts) => run!(set, opts),
             #[cfg(any(feature = "all-commands", feature = "del"))]
-            Del(ref opts) => run!(del, opts),
+            Del(opts) => run!(del, opts),
             #[cfg(any(feature = "all-commands", feature = "trim"))]
-            Trim(ref opts) => run!(trim, opts),
+            Trim(opts) => run!(trim, opts),
             #[cfg(any(feature = "all-commands", feature = "mask"))]
-            Mask(ref opts) => run!(mask, opts),
+            Mask(opts) => run!(mask, opts),
             #[cfg(any(feature = "all-commands", feature = "upper"))]
-            Upper(ref opts) => run!(upper, opts),
+            Upper(opts) => run!(upper, opts),
             #[cfg(any(feature = "all-commands", feature = "lower"))]
-            Lower(ref opts) => run!(lower, opts),
+            Lower(opts) => run!(lower, opts),
             #[cfg(any(feature = "all-commands", feature = "revcomp"))]
-            Revcomp(ref opts) => run!(revcomp, opts),
+            Revcomp(opts) => run!(revcomp, opts),
             #[cfg(any(feature = "all-commands", feature = "concat"))]
-            Concat(ref opts) => run!(concat, opts),
+            Concat(opts) => run!(concat, opts),
         }
     }
 }

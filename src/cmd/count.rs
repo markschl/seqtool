@@ -56,7 +56,7 @@ pub struct CountCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: &CountCommand) -> CliResult<()> {
+pub fn run(cfg: Config, args: CountCommand) -> CliResult<()> {
     if args.key.is_empty() {
         count_simple(cfg)
     } else {

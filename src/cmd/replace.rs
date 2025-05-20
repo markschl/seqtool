@@ -41,7 +41,7 @@ pub struct ReplaceCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &ReplaceCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: ReplaceCommand) -> CliResult<()> {
     // what should be replaced?
     let attr = if args.id {
         RecordAttr::Id

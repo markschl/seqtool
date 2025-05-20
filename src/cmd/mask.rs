@@ -44,7 +44,7 @@ pub struct MaskCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: &MaskCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: MaskCommand) -> CliResult<()> {
     let ranges = &args.ranges;
     let hard_mask = args.hard;
     let rng0 = args.zero_based;

@@ -1,159 +1,27 @@
-use itertools::Itertools;
 use strum_macros::Display;
+use vec_map::VecMap;
 
-use crate::config::Config;
-use crate::helpers::{
-    rng::Range,
-    seqtype::{guess_seqtype_or_fail, SeqType, SeqTypeInfo},
-    DefaultHashSet as HashSet,
-};
+use crate::helpers::{rng::Range, seqtype::SeqType};
 use crate::io::RecordAttr;
-use crate::CliResult;
 
-use super::cli::FindCommand;
-use super::matcher::{get_matcher, Matcher};
+use super::cli::{HitScoring, Pattern};
+use super::matcher::{regex::resolve_group, Match};
 use super::matches::Matches;
 
-/// General options/properties derived from CLI options
-#[derive(Debug)]
-pub struct Opts {
-    // pattern-related information
-    pub patterns: Vec<String>,
-    pub pattern_names: Vec<Option<String>>,
-    pub algorithms: Vec<(Algorithm, bool)>,
-    // required information
-    // (group 0 = full hit)
-    pub groups: Vec<usize>,
-    pub required_info: RequiredInfo,
-    pub max_hits: usize, // specify usize::MAX for unlimited
-    // where and how to search
-    pub attr: RecordAttr,
-    pub in_order: bool,
-    pub max_dist: Option<DistanceThreshold>,
-    pub seqtype: SeqType,
-    pub bounds: Option<Range>,
-    pub max_shift: Option<Shift>,
-    pub gap_penalty: u32,
-    // actions
-    pub filter: Option<bool>,
-    pub dropped_path: Option<String>,
-}
-
-impl Opts {
-    pub fn new(cfg: &mut Config, args: &FindCommand) -> CliResult<Self> {
-        // search options
-        let max_dist = if let Some(d) = args.search.max_diffs {
-            Some(DistanceThreshold::Diffs(d))
-        } else if let Some(d) = args.search.max_diff_rate {
-            if !(0.0..=1.0).contains(&d) {
-                return fail!(
-                    "The maximum fraction of diverging letters (`-R/--max-diff-rate`) \
-                    must be between 0 and 1"
-                );
-            }
-            Some(DistanceThreshold::DiffRate(d))
-        } else {
-            None
-        };
-        // required information: will be updated later based on CLI/variables,
-        // default if only filtering is 'exists'
-        let mut required_info = RequiredInfo::Exists;
-        let mut max_hits = 0;
-        let mut groups = Vec::new();
-
-        // search range
-        let bounds = args
-            .search_range
-            .rng
-            .map(|rng| rng.adjust(false, false))
-            .transpose()?;
-
-        let max_shift = if let Some(n) = args.search_range.max_shift_start {
-            Some(Shift::Start(n))
-        } else {
-            args.search_range.max_shift_end.map(Shift::End)
-        };
-        if max_shift.is_some() {
-            required_info = RequiredInfo::Range;
-            groups.push(0);
-            max_hits = 1;
-        }
-
-        // what should be searched?
-        let attr = if args.attr.id {
-            RecordAttr::Id
-        } else if args.attr.desc {
-            RecordAttr::Desc
-        } else {
-            RecordAttr::Seq
-        };
-        // search "actions"
-        let filter = if args.action.filter {
-            Some(true)
-        } else if args.action.exclude {
-            if args.action.filter {
-                return fail!("-f/--filter and -e/--exclude cannot both be specified");
-            }
-            Some(false)
-        } else {
-            None
-        };
-
-        // Obtain a sequence type and search algorithm for each pattern
-        // (based on heuristic and/or CLI args)
-        let (seqtype, algorithms) =
-            analyse_patterns(args, cfg.input_config()[0].1.seqtype, attr, max_dist)?;
-
-        let (pattern_names, patterns): (Vec<_>, Vec<_>) = args.patterns.iter().cloned().unzip();
-
-        Ok(Self {
-            patterns,
-            pattern_names,
-            algorithms,
-            groups,
-            required_info,
-            max_hits,
-            attr,
-            in_order: args.search.in_order,
-            max_dist,
-            seqtype,
-            bounds,
-            max_shift,
-            gap_penalty: args.search.gap_penalty,
-            filter,
-            dropped_path: args.action.dropped.clone(),
-        })
-    }
-
-    pub fn has_groups(&self) -> bool {
-        self.groups.iter().any(|g| *g > 0)
-    }
-
-    pub fn get_matchers(&self) -> CliResult<Vec<Box<dyn Matcher + Send>>> {
-        self.algorithms
-            .iter()
-            .zip(&self.patterns)
-            .map(|(&(algo, is_ambig), patt)| get_matcher(patt, algo, is_ambig, self))
-            .collect::<CliResult<Vec<_>>>()
-    }
-
-    pub fn init_matches(&self) -> Matches {
-        Matches::new(
-            self.pattern_names.clone(),
-            self.patterns.clone(),
-            self.groups.clone(),
-            self.max_hits,
-            self.max_shift,
-            self.bounds,
-        )
-    }
+#[derive(Debug, Clone)]
+pub struct PatternConfig {
+    pub pattern: Pattern,
+    pub max_dist: usize,
+    pub has_ambigs: bool,
+    pub algorithm: Algorithm,
 }
 
 /// Required information based on CLI options / variables (functions).
-/// Each additional variant includes all earlier ones
-/// (`Alignment` requires range, edit distance and presence of a hit).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum RequiredInfo {
+/// Each additional variant requires that more information is collected,
+/// and all the information required by earlier variants is also present.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RequiredDetail {
+    #[default]
     Exists,
     Distance,
     Range,
@@ -177,23 +45,17 @@ pub fn algorithm_from_name(s: &str) -> Result<Option<Algorithm>, String> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum DistanceThreshold {
-    Diffs(usize),
-    DiffRate(f64),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Shift {
+pub enum Anchor {
     Start(usize),
     End(usize),
 }
 
-impl Shift {
+impl Anchor {
     pub fn in_range(&self, rng: (usize, usize), len: usize) -> bool {
         match *self {
-            Shift::Start(n) => rng.0 <= n,
-            Shift::End(n) => {
+            Anchor::Start(n) => rng.0 <= n,
+            Anchor::End(n) => {
                 if let Some(diff) = len.checked_sub(rng.1) {
                     diff <= n
                 } else {
@@ -204,118 +66,209 @@ impl Shift {
     }
 }
 
-fn analyse_patterns(
-    args: &FindCommand,
-    typehint: Option<SeqType>,
-    search_attr: RecordAttr,
-    max_dist: Option<DistanceThreshold>,
-) -> CliResult<(SeqType, Vec<(Algorithm, bool)>)> {
-    let mut ambig_seqs = vec![];
-    let quiet = args.common.general.quiet;
+/// General options/properties derived from CLI args
+#[derive(Debug)]
+pub struct SearchOpts {
+    pub in_order: bool,
+    pub seqtype: SeqType,
+    pub hit_scoring: HitScoring,
+    pub attr: RecordAttr,
+    pub replacement: Option<String>,
+    pub threads: u32,
+}
 
-    let (unique_seqtypes, out): (HashSet<SeqType>, Vec<(Algorithm, bool)>) = args
-        .patterns
-        .iter()
-        .map(|(name, pattern)| {
-            let info = if args.search.regex {
-                SeqTypeInfo::new(SeqType::Other, false, false)
+/// Options related to filtering
+#[derive(Debug, Clone)]
+pub struct FilterOpts {
+    pub filter: Option<bool>,
+    pub dropped_path: Option<String>,
+}
+
+/// Options on how much information is required
+/// (derived from `SearchConfig` once configuration is finished)
+#[derive(Debug, Clone)]
+pub struct SearchRequirements {
+    pub required_detail: RequiredDetail,
+    pub max_hits: usize,
+    pub has_regex_groups: bool,
+}
+
+/// Main configuration object holding the patterns, and search settings
+#[derive(Debug, Default)]
+pub struct SearchConfig {
+    patterns: Vec<PatternConfig>,
+    search_range: Option<Range>,
+    anchor: Option<Anchor>,
+    /// group numbers (0 = full match);
+    /// may be empty if max_hits == 0 and required_info == RequiredInfo::Exists
+    required_groups: Vec<usize>,
+    /// group number -> index in groups vector;
+    /// only defined if regex groups should be located (not just group 0 = full match)
+    group_idx: VecMap<usize>,
+    // overall required level of detail
+    detail: RequiredDetail,
+    /// maximum number of required hits
+    /// 0 = RequiredInfo::Exsists only
+    /// usize::MAX for all hits
+    required_hits: usize,
+}
+
+impl SearchConfig {
+    pub fn new(patterns: Vec<PatternConfig>) -> Self {
+        Self {
+            patterns,
+            ..Default::default()
+        }
+    }
+
+    pub fn patterns(&self) -> &[PatternConfig] {
+        &self.patterns
+    }
+
+    pub fn set_search_range(&mut self, range: Range) {
+        self.search_range = Some(range);
+    }
+
+    pub fn get_search_range(&self) -> Option<Range> {
+        self.search_range
+    }
+
+    /// Sets the required level of detail
+    fn set_detail(&mut self, detail: RequiredDetail) {
+        self.detail = self.detail.max(detail);
+    }
+
+    pub fn get_required_detail(&self) -> RequiredDetail {
+        self.detail
+    }
+
+    /// Sets the number of required hits
+    pub fn require_n_hits(&mut self, max_hits: usize, detail: RequiredDetail) {
+        self.required_hits = self.required_hits.max(max_hits);
+        self.set_detail(detail);
+        if detail >= RequiredDetail::Range {
+            self.require_group(0);
+        }
+    }
+
+    /// Returns the number of required hits (usize::MAX = all hits)
+    pub fn get_required_hits(&self) -> usize {
+        self.required_hits
+    }
+
+    /// Requires the search of a specific (regex) group
+    /// (group 0 = full match)
+    pub fn require_group(&mut self, group: usize) {
+        // if group == 0 {
+        //     if self.groups.is_empty() {
+        //         self.groups.push(0);
+        //     }
+        //     assert!(&self.groups == &[0]);
+        // } else {
+        // let group_idx = self.group_idx.get_or_insert_with(VecMap::new);
+        self.group_idx.entry(group).or_insert_with(|| {
+            let l = self.required_groups.len();
+            self.required_groups.push(group);
+            l
+        });
+        // }
+    }
+
+    /// Returns a slice of all requested group numbers
+    /// (full hit = 0, regex groups = 1..)
+    pub fn get_required_groups(&self) -> &[usize] {
+        &self.required_groups
+    }
+
+    /// Returns the index of the group in `self.groups`
+    pub fn get_group_idx(&self, group: usize) -> Option<usize> {
+        self.group_idx.get(group).cloned()
+        // if let Some(group_idx) = &self.group_idx {
+        //     group_idx.get(group).cloned()
+        // } else if group == 0 {
+        //     Some(0)
+        // } else {
+        //     None
+        // }
+    }
+
+    /// Returns the group number corresponding to the group name,
+    /// also verifying that all supplied patterns are consistent
+    /// (no variable order of named groups)
+    pub fn resolve_named_group(&self, group: &str) -> Result<usize, String> {
+        let mut num = None;
+        for p in &self.patterns {
+            assert_eq!(p.algorithm, Algorithm::Regex);
+            let _n = resolve_group(&p.pattern.seq, group)?;
+            if let Some(n) = num {
+                if n != _n {
+                    return Err(format!(
+                        "Named group '{}' does not resolve to the same group number in all patterns.\
+                        This is a requirement in the case of multiple regex patterns. \
+                        Consider using simple group numbers instead.",
+                        group,
+                    ));
+                }
             } else {
-                guess_seqtype_or_fail(pattern.as_bytes(), typehint, true).map_err(|e| {
-                    format!(
-                        "Error in search pattern{}: {}",
-                        name.as_ref()
-                            .map(|n| format!(" '{}'", n))
-                            .unwrap_or_default(),
-                        e
-                    )
-                })?
-            };
-            // no discrimination here
-            let mut has_ambig = info.has_wildcard || info.has_ambiguities;
-            if has_ambig {
-                ambig_seqs.push(name);
+                num = Some(_n);
             }
-            // override if no_ambig was set
-            if args.search.no_ambig {
-                has_ambig = false;
-            }
-
-            // decide which algorithm should be used
-            let mut algorithm = if args.search.regex {
-                Algorithm::Regex
-            } else if max_dist.is_some() || has_ambig {
-                Algorithm::Myers
-            } else {
-                Algorithm::Exact
-            };
-
-            // override with user choice
-            if let Some(a) = args.search.algo {
-                algorithm = a;
-                if a != Algorithm::Myers && has_ambig {
-                    eprintln!("Warning: `--ambig` ignored with search algorithm '{}'.", a);
-                    has_ambig = false;
-                }
-            }
-
-            if search_attr == RecordAttr::Seq
-                && typehint.is_none()
-                && algorithm != Algorithm::Regex
-                && !quiet
-            {
-                // unless 'regex' was specified, we must know the correct sequence type,
-                // or there could be unexpected behaviour
-                eprint!("Note: the sequence type of the pattern ",);
-                if let Some(n) = name {
-                    eprint!("'{}' ", n);
-                }
-                eprint!("was determined as '{}'", info.seqtype);
-                if has_ambig {
-                    eprint!(" (with ambiguous letters)");
-                }
-                eprintln!(
-                    ". If incorrect, please provide the correct type with `--seqtype`. \
-                    Use `-q/--quiet` to suppress this message."
-                );
-            }
-
-            Ok((info.seqtype, (algorithm, has_ambig)))
-        })
-        .collect::<CliResult<Vec<_>>>()?
-        .into_iter()
-        .unzip();
-
-    if args.search.no_ambig && !ambig_seqs.is_empty() && !quiet {
-        eprintln!(
-            "Warning: Ambiguous matching is deactivated (--no-ambig), but there are patterns \
-            with ambiguous letters ({}). Use `-q/--quiet` to suppress this message.",
-            ambig_seqs.iter().map(|s| s.as_ref().unwrap()).join(", ") // unwrap: >1 patterns means they are all named
-        );
+        }
+        Ok(num.unwrap())
     }
 
-    if out
-        .iter()
-        .any(|&(a, _)| a == Algorithm::Regex || a == Algorithm::Exact)
-        && max_dist.is_some()
-        && !quiet
-    {
-        eprintln!(
-            "Warning: `-D/--max-diffs` option ignored with exact/regex matching. \
-            Use `-q/--quiet` to suppress this message."
-        );
+    pub fn set_anchor(&mut self, anchor: Anchor) {
+        self.anchor = Some(anchor);
+        self.require_group(0);
+        self.require_n_hits(1, RequiredDetail::Range);
     }
 
-    if unique_seqtypes.len() > 1 {
-        return fail!(format!(
-            "Autorecognition of pattern sequence types suggests that there are \
-            several different types ({}). Please specify the correct type with --seqtype",
-            unique_seqtypes
-                .iter()
-                .map(|t| format!("{:?}", t))
-                .join(", ")
-        ));
+    pub fn get_anchor(&self) -> Option<Anchor> {
+        self.anchor
     }
 
-    let t = unique_seqtypes.into_iter().next().unwrap();
-    Ok((t, out))
+    pub fn get_search_requirements(&self) -> SearchRequirements {
+        SearchRequirements {
+            required_detail: self.detail,
+            max_hits: self.required_hits,
+            has_regex_groups: self.required_groups.iter().any(|g| *g > 0), // self.group_idx.is_some(),
+        }
+    }
+
+    pub fn init_matches(&self) -> Matches {
+        Matches::new(self.patterns.len(), self.required_groups.len())
+    }
+
+    /// Returns hit no. `hit_i` (0-based index) of given group for `pattern_rank` best-matching pattern
+    pub fn get_hit<'a>(
+        &self,
+        matches: &'a Matches,
+        hit_i: usize,
+        pattern_rank: usize,
+        group: usize,
+    ) -> Option<&'a Match> {
+        let group_i = self.get_group_idx(group).unwrap();
+        matches.get_hit(hit_i, pattern_rank, group_i)
+    }
+
+    /// Iterates across all hits of a specific group index
+    pub fn hits_iter<'a>(
+        &self,
+        matches: &'a Matches,
+        pattern_rank: usize,
+        group: usize,
+    ) -> impl Iterator<Item = &'a Match> {
+        let group_i = self.get_group_idx(group).unwrap();
+        matches.hits_iter(pattern_rank, group_i)
+    }
+
+    /// Returns the pattern with the given rank (given a `Matches` object) or `None`
+    /// if the pattern was not found
+    pub fn matched_pattern(
+        &self,
+        pattern_rank: usize,
+        matches: &Matches,
+    ) -> Option<&PatternConfig> {
+        let pattern_idx = matches.get_pattern_idx(pattern_rank)?;
+        self.patterns.get(pattern_idx)
+    }
 }

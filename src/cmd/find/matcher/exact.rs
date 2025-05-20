@@ -22,7 +22,7 @@ impl Matcher for ExactMatcher {
         Ok(self.finder.find_iter(text).next().is_some())
     }
 
-    fn iter_matches(
+    fn do_search(
         &mut self,
         text: &[u8],
         func: &mut dyn FnMut(&dyn Hit) -> Result<bool, String>,

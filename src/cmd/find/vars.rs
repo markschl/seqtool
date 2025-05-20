@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::io::Write;
 
 use bio::alignment::AlignmentOperation;
@@ -9,9 +8,8 @@ use crate::helpers::write_list::write_list_with;
 use crate::io::Record;
 use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 
-use super::matcher::regex::resolve_group;
 use super::matches::Matches;
-use super::opts::{Opts, RequiredInfo};
+use super::opts::{Algorithm, RequiredDetail, SearchConfig};
 
 variable_enum! {
     /// # Variables/functions provided by the 'find' command
@@ -184,6 +182,18 @@ pub enum FindVarType {
     PatternLen,
 }
 
+impl FindVarType {
+    pub fn required_detail(&self) -> RequiredDetail {
+        use FindVarType::*;
+        match self {
+            Diffs | DiffRate | Name => RequiredDetail::Distance,
+            Ins | Del | Subst | AlignedPattern | AlignedMatch => RequiredDetail::Alignment,
+            Start | End | NegStart | NegEnd | Range(_) | MatchLen | Match | Pattern
+            | PatternLen => RequiredDetail::Range,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestedHit {
     var_type: FindVarType,
@@ -198,70 +208,40 @@ pub struct RequestedHit {
 #[derive(Debug)]
 pub struct FindVars {
     vars: VarStore<RequestedHit>,
-    // we need a copy of the patterns here to check for regex groups
-    patterns: Vec<String>,
-    max_hits: usize, // usize::MAX for all hits
-    regex: bool,
-    groups: Vec<usize>, // match group numbers (0 = full hit)
-    required_info: RequiredInfo,
+    /// this config object is present while registering variables/functions,
+    /// but then moved out and provided to `set_with` as immutable object
+    config: Option<SearchConfig>,
 }
 
 impl FindVars {
-    pub fn new(patterns: Vec<String>, regex: bool) -> FindVars {
+    pub fn new(config: SearchConfig) -> FindVars {
         FindVars {
             vars: VarStore::default(),
-            patterns,
-            max_hits: 0,
-            groups: Vec::new(),
-            regex,
-            required_info: RequiredInfo::Exists,
+            config: Some(config),
         }
     }
 
-    fn add_group(&mut self, group: usize) {
-        if !self.groups.contains(&group) {
-            self.groups.push(group);
-        }
-    }
-
-    pub fn _register_pos(&mut self, pos: usize, group: usize) {
-        if pos >= self.max_hits {
-            self.max_hits = pos + 1;
-        }
-        self.add_group(group);
-    }
-
-    pub fn _register_all(&mut self, group: usize) {
-        self.max_hits = usize::MAX;
-        self.add_group(group);
-    }
-
-    pub fn update_opts(&self, out: &mut Opts) {
-        for g in &self.groups {
-            if !out.groups.contains(g) {
-                out.groups.push(*g);
-            }
-        }
-        out.required_info = max(out.required_info, self.required_info);
-        out.max_hits = max(out.max_hits, self.max_hits);
+    pub fn take_config(&mut self) -> SearchConfig {
+        self.config.take().unwrap()
     }
 
     fn register_match(&mut self, h: &RequestedHit) -> Result<(), String> {
-        if let Some(p) = h.hit_pos {
-            self._register_pos(p, h.match_group);
-        } else {
-            self._register_all(h.match_group);
-        }
+        let cfg = self.config.as_mut().unwrap();
+        cfg.require_n_hits(
+            h.hit_pos.unwrap_or(usize::MAX),
+            h.var_type.required_detail(),
+        );
+        cfg.require_group(h.match_group);
         Ok(())
     }
 
-    pub fn register_all(&mut self, group: usize) {
-        self._register_all(group);
-    }
-
-    pub fn set_with(
+    /// Copies over the relevant information from the `Matches` to the
+    /// symbol table. Takes a `SearchConfig` object, which has previously
+    /// been moved out using `FindVars::take_config()`.
+    pub fn set_matches(
         &mut self,
         rec: &dyn Record,
+        config: &SearchConfig,
         matches: &Matches,
         symbols: &mut SymbolTable,
         text: &[u8],
@@ -303,7 +283,7 @@ impl FindVars {
                 (($m:ident), $($variant:pat => $arg:tt),*) => {
                     if let Some(p) = req_hit.hit_pos.as_ref() {
                         // specific hits requested
-                        if let Some($m) = matches.get_match(*p, req_hit.pattern_rank, req_hit.match_group) {
+                        if let Some($m) = config.get_hit(matches, *p, req_hit.pattern_rank, req_hit.match_group) {
                             match req_hit.var_type {
                                 $($variant => set_single!($m, $arg)),*,
                             }
@@ -314,7 +294,7 @@ impl FindVars {
                         // This is different from above by requiring a string type
                         // in all cases instead of integers.
                         let not_empty = write_list_with(
-                            matches.matches_iter(req_hit.pattern_rank, req_hit.match_group),
+                            config.hits_iter(matches, req_hit.pattern_rank, req_hit.match_group),
                             b",",
                             out.inner_mut().mut_text(),
                             |$m, o| match req_hit.var_type {
@@ -340,7 +320,7 @@ impl FindVars {
                 NegEnd => (set_int(m.neg_end1(rec.seq_len()))),
                 Diffs => (set_int(m.dist as i64)),
                 DiffRate => (set_float(
-                    m.dist as f64 / matches.pattern(req_hit.pattern_rank).unwrap().len() as f64
+                    m.dist as f64 / config.matched_pattern(req_hit.pattern_rank, matches).unwrap().pattern.seq.len() as f64
                 )),
                 Range(ref delim) => ("{}{}{}", m.start + 1, delim, m.end),
                 Ins => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Del) as i64)),
@@ -349,17 +329,15 @@ impl FindVars {
                 Match => (set_text(&text[m.start..m.end])),
                 MatchLen => (set_int((m.end - m.start) as i64)),
                 Name => (set_text(
-                    matches
-                        .pattern_name(req_hit.pattern_rank)
-                        .unwrap()
+                    config.matched_pattern(req_hit.pattern_rank, matches).unwrap().pattern.name.as_deref()
                         .unwrap_or("<pattern>")
                         .as_bytes())
                 ),
-                Pattern => (set_text(matches.pattern(req_hit.pattern_rank).unwrap().as_bytes())),
-                PatternLen => (set_int(matches.pattern(req_hit.pattern_rank).unwrap().len() as i64)),
+                Pattern => (set_text(config.matched_pattern(req_hit.pattern_rank, matches).unwrap().pattern.seq.as_bytes())),
+                PatternLen => (set_int(config.matched_pattern(req_hit.pattern_rank, matches).unwrap().pattern.seq.len() as i64)),
                 AlignedPattern => (with_text(
                     |t| align_pattern(
-                        matches.pattern(req_hit.pattern_rank).unwrap().as_bytes(),
+                        config.matched_pattern(req_hit.pattern_rank, matches).unwrap().pattern.seq.as_bytes(),
                         &m.alignment_path,
                         t
                     )
@@ -491,24 +469,24 @@ impl VarProvider for FindVars {
                 Some(num.checked_sub(1).ok_or("The hit number must be > 0")?)
             };
 
+            let cfg = self.config.as_mut().unwrap();
             // pattern rank:
-            debug_assert!(!self.patterns.is_empty());
-            if pattern_rank > self.patterns.len() {
-                return fail!(format!(
-                    "Pattern rank {} requested, but there are only {} patterns",
-                    pattern_rank,
-                    self.patterns.len()
-                ));
-            }
             let pattern_rank = pattern_rank
                 .checked_sub(1)
                 .ok_or("The pattern rank must be > 0")?;
+            let pattern_cfg = cfg.patterns().get(pattern_rank).ok_or_else(|| {
+                format!(
+                    "Pattern rank {} requested, but there are only {} patterns",
+                    pattern_rank + 1,
+                    cfg.patterns().len()
+                )
+            })?;
 
             // resolve match group
             let match_group = match_group.as_deref().unwrap_or("0");
             let match_group = if match_group == "0" {
                 0
-            } else if !self.regex {
+            } else if pattern_cfg.algorithm != Algorithm::Regex {
                 return Err(format!(
                     "Regex group '{}' was requested, but groups other than '0' (the whole hit) \
                     are not supported for non-regex patterns. Did you forget to enable regex \
@@ -516,41 +494,8 @@ impl VarProvider for FindVars {
                     match_group
                 ));
             } else {
-                let mut num = None;
-                for pattern in &self.patterns {
-                    let _n = resolve_group(pattern, match_group)?;
-                    if let Some(n) = num {
-                        if n != _n {
-                            return Err(format!(
-                                "Named group '{}' does not resolve to the same group number in all patterns.\
-                                This is a requirement in the case of multiple regex patterns. \
-                                Consider using simple group numbers instead.",
-                                match_group,
-                            ));
-                        }
-                    } else {
-                        num = Some(_n);
-                    }
-                }
-                num.unwrap()
+                cfg.resolve_named_group(match_group)?
             };
-
-            // update required_info if this variable needs more information than
-            // already configured (passed on to `Matcher` objects)
-            let required_info = match var_type {
-                FindVarType::Diffs | FindVarType::DiffRate | FindVarType::Name => {
-                    RequiredInfo::Distance
-                }
-                FindVarType::Ins
-                | FindVarType::Del
-                | FindVarType::Subst
-                | FindVarType::AlignedPattern
-                | FindVarType::AlignedMatch => RequiredInfo::Alignment,
-                _ => RequiredInfo::Range,
-            };
-            if required_info > self.required_info {
-                self.required_info = required_info;
-            }
 
             let req_hit = RequestedHit {
                 var_type,
