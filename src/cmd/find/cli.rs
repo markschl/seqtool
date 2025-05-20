@@ -42,10 +42,7 @@ pub fn parse_patterns(pattern: &str) -> CliResult<Vec<Pattern>> {
             });
         }
         if patterns.is_empty() {
-            return fail!(
-                "Pattern file is empty: {}. Patterns should be in FASTA format.",
-                path
-            );
+            return fail!("Pattern file is empty. Patterns should be in FASTA format.",);
         }
     };
     if patterns.iter().any(|p| p.seq.is_empty()) {
@@ -83,10 +80,7 @@ impl FromStr for HitScoring {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let elements: Vec<_> = s.split(',').collect();
         if elements.len() != 3 {
-            return fail!(
-                "Invalid hit scoring: {}, should be in the form: 'match,mismatch,gap'",
-                s
-            );
+            return fail!("The scoring should be in the form: 'match,mismatch,gap'",);
         }
         #[cold]
         fn cnv_err(s: &str) -> String {
@@ -98,7 +92,10 @@ impl FromStr for HitScoring {
             gap: elements[2].parse().map_err(|_| cnv_err(elements[2]))?,
         };
         if out.match_ < 0 || out.mismatch >= 0 || out.gap >= 0 {
-            return fail!("Invalid scoring: {}. Match scores not be negative and mismatch/gap score should be positive", s);
+            return fail!(
+                "Match scores should not be negative and \
+                mismatch/gap score should be positive",
+            );
         }
         Ok(out)
     }
