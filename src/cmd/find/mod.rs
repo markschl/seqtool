@@ -13,7 +13,6 @@ pub mod vars;
 
 pub use cli::FindCommand;
 use matcher::get_matchers;
-use matches::do_search;
 use opts::RequiredDetail;
 pub use vars::FindVar;
 use vars::FindVars;
@@ -89,7 +88,9 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
                 // do the searching in the worker threads
                 let text = editor.get(search_opts.attr, &record, false);
                 // update the `Matches` object with the results reported by every `Matcher`
-                do_search(text, matchers, &search_config, matches).map_err(From::from)
+                matches
+                    .collect_hits(text, matchers, &search_config)
+                    .map_err(From::from)
             },
             |record, &mut (ref mut editor, ref matches), ctx| {
                 // handle results in main thread, write output

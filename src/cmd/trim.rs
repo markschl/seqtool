@@ -86,7 +86,7 @@ fn trim<'r>(
         let seq = record.raw_seq();
         out_qual.clear();
         for rng in ranges {
-            let (start, end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
+            let (start, end) = rng.adjust(rng0, exclusive)?.resolve(seqlen);
             out_seq.extend_from_slice(&seq[start..end]);
             out_qual.extend_from_slice(&qual[start..end]);
         }
@@ -97,7 +97,7 @@ fn trim<'r>(
         let mut seq = seq_iter.next();
         let mut offset = 0;
         'outer: for rng in ranges {
-            let (mut start, mut end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
+            let (mut start, mut end) = rng.adjust(rng0, exclusive)?.resolve(seqlen);
             if start < offset {
                 return fail!(
                     "Unsorted/overlapping trim ranges encountered. This is only \

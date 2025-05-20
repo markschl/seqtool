@@ -52,14 +52,29 @@ pub enum Anchor {
 }
 
 impl Anchor {
-    pub fn in_range(&self, rng: (usize, usize), len: usize) -> bool {
+    /// Returns the possible search range for a pattern of given length in a text of given length.
+    /// `pattern_len` should include the whole range that can be covered by the pattern
+    /// (the longest possible gapped alignment in case of approximate matching).
+    pub fn get_search_range(&self, pattern_len: usize, text_len: usize) -> (usize, usize) {
+        match self {
+            Anchor::Start(tolerance) => (0, text_len.min(*tolerance + pattern_len)),
+            Anchor::End(tolerance) => (text_len.saturating_sub(pattern_len + *tolerance), text_len),
+        }
+    }
+
+    /// Returns whether the range of a match falls within the specified anchor tolerance
+    /// given the length of the text
+    pub fn is_anchored(&self, match_rng: (usize, usize), text_len: usize) -> bool {
         match *self {
-            Anchor::Start(n) => rng.0 <= n,
-            Anchor::End(n) => {
-                if let Some(diff) = len.checked_sub(rng.1) {
-                    diff <= n
+            Anchor::Start(tolerance) => match_rng.0 <= tolerance,
+            Anchor::End(tolerance) => {
+                if let Some(diff) = text_len.checked_sub(match_rng.1) {
+                    diff <= tolerance
                 } else {
-                    panic!("Range end greater than len ({} > {})", rng.1, len);
+                    panic!(
+                        "Bug: range end greater than len ({} > {})",
+                        match_rng.1, text_len
+                    );
                 }
             }
         }
@@ -270,5 +285,25 @@ impl SearchConfig {
     ) -> Option<&PatternConfig> {
         let pattern_idx = matches.get_pattern_idx(pattern_rank)?;
         self.patterns.get(pattern_idx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn anchor() {
+        assert!(Anchor::Start(1).is_anchored((1, 2), 10));
+        assert!(!Anchor::Start(1).is_anchored((2, 3), 10));
+        assert!(Anchor::End(0).is_anchored((5, 10), 10));
+        assert!(Anchor::End(1).is_anchored((5, 9), 10));
+        assert!(Anchor::End(2).is_anchored((5, 9), 10));
+        assert_eq!(Anchor::Start(2).get_search_range(2, 10), (0, 4));
+        assert_eq!(Anchor::Start(2).get_search_range(5, 10), (0, 7));
+        assert_eq!(Anchor::Start(5).get_search_range(10, 10), (0, 10));
+        assert_eq!(Anchor::End(0).get_search_range(3, 10), (7, 10));
+        assert_eq!(Anchor::End(2).get_search_range(3, 10), (5, 10));
+        assert_eq!(Anchor::End(9).get_search_range(3, 10), (0, 10));
     }
 }

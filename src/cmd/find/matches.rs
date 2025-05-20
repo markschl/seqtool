@@ -1,22 +1,5 @@
 use super::matcher::{Match, Matcher};
-use super::opts::{RequiredDetail, SearchConfig};
-
-pub fn do_search(
-    text: &[u8],
-    matchers: &mut [Box<dyn Matcher + Send>],
-    cfg: &SearchConfig,
-    out: &mut Matches,
-) -> Result<(), String> {
-    // restrict search range if necessary
-    let (text, offset) = if let Some(bounds) = cfg.get_search_range() {
-        let (s, e) = bounds.obtain(text.len());
-        (&text[s..e], s)
-    } else {
-        (text, 0)
-    };
-    // do the searching
-    out.collect_hits(text, matchers, cfg, offset)
-}
+use super::opts::{Anchor, RequiredDetail, SearchConfig};
 
 /// Holds information about the hits found by `Matcher`.
 /// *Each* sequence record has a `Matches` object associated with it, which
@@ -52,8 +35,15 @@ impl Matches {
         text: &[u8],
         matchers: &mut [Box<dyn Matcher + Send>],
         cfg: &SearchConfig,
-        seq_offset: usize,
     ) -> Result<(), String> {
+        // restrict search range if necessary
+        let (text, offset) = if let Some(rng) = cfg.get_search_range() {
+            let (s, e) = rng.resolve(text.len());
+            (&text[s..e], s)
+        } else {
+            (text, 0)
+        };
+
         // simple filtering: return successfully at first match by any pattern
         if cfg.get_required_detail() == RequiredDetail::Exists {
             for m in matchers {
@@ -77,25 +67,44 @@ impl Matches {
             data.clear();
             let mut num_found = 0;
 
-            matcher.do_search(text, &mut |h| {
+            // in case of anchoring, we can further restrict the search range
+            let (text_adj, offset_adj) = if let Some(anchor) = cfg.get_anchor() {
+                let pattern_cfg = &cfg.patterns()[pattern_i];
+                // longest possible range covered by pattern
+                let pattern_rng = pattern_cfg.pattern.seq.len() + pattern_cfg.max_dist;
+                let (start, end) = anchor.get_search_range(pattern_rng, text.len());
+                (&text[start..end], offset + start)
+            } else {
+                (text, offset)
+            };
+
+            matcher.do_search(text_adj, &mut |hit| {
                 // set matches
                 let out = data.next_mut();
                 assert!(cfg.get_required_groups().len() == out.len());
-                for (group, m) in cfg.get_required_groups().iter().zip(out.iter_mut()) {
-                    h.get_group(*group, m)?;
-                    m.start += seq_offset;
-                    m.end += seq_offset;
+                for (group, match_) in cfg.get_required_groups().iter().zip(out.iter_mut()) {
+                    hit.get_group(*group, match_)?;
                 }
 
                 // check anchoring (assuming group 0 (= full hit) to be present)
-                if let Some(a) = cfg.get_anchor() {
-                    let full_pos = &out[0];
-                    if !a.in_range(
-                        (full_pos.start - seq_offset, full_pos.end - seq_offset),
-                        text.len(),
-                    ) {
+                if let Some(anchor) = cfg.get_anchor() {
+                    // use first or last hit depending on anchor type
+                    // -> an anchored match is always found (if there is one)
+                    let pos = match anchor {
+                        Anchor::Start(_) => out.first().unwrap(),
+                        Anchor::End(_) => out.last().unwrap(),
+                    };
+                    if !anchor.is_anchored((pos.start, pos.end), text_adj.len()) {
                         data.step_back();
                         return Ok(false);
+                    }
+                }
+
+                // adjust coordinates by introduced offset
+                if offset_adj != 0 {
+                    for match_ in out {
+                        match_.start += offset_adj;
+                        match_.end += offset_adj;
                     }
                 }
 

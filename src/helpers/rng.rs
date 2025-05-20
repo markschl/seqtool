@@ -99,7 +99,7 @@ impl Range {
     /// Resolves a range with respect to a given sequence length,
     /// converting negative coordinates to standard 0-based coordinates.
     /// Coordinates outside of the sequence range are silently adjusted
-    pub fn obtain(&self, length: usize) -> (usize, usize) {
+    pub fn resolve(&self, length: usize) -> (usize, usize) {
         // resolve negative bounds
         let mut start = self.start.unwrap_or(0);
         if start < 0 {
@@ -174,22 +174,22 @@ mod tests {
     #[test]
     fn test_rng() {
         // 0-based range as input
-        assert_eq!(Range::new0(Some(3), Some(10)).obtain(10), (3, 10));
+        assert_eq!(Range::new0(Some(3), Some(10)).resolve(10), (3, 10));
         // start > end -> range adjusted
-        assert_eq!(Range::new0(Some(5), Some(4)).obtain(10), (5, 5));
+        assert_eq!(Range::new0(Some(5), Some(4)).resolve(10), (5, 5));
         // 1-based range as input
-        assert_eq!(Range::new1(Some(4), Some(10)).unwrap().obtain(10), (3, 10));
-        assert_eq!(Range::new1(Some(4), Some(-1)).unwrap().obtain(10), (3, 10));
+        assert_eq!(Range::new1(Some(4), Some(10)).unwrap().resolve(10), (3, 10));
+        assert_eq!(Range::new1(Some(4), Some(-1)).unwrap().resolve(10), (3, 10));
         assert_eq!(
-            Range::new1(Some(-10), Some(-1)).unwrap().obtain(10),
+            Range::new1(Some(-10), Some(-1)).unwrap().resolve(10),
             (0, 10)
         );
-        assert_eq!(Range::new1(Some(4), Some(10)).unwrap().obtain(10), (3, 10));
-        assert_eq!(Range::new1(Some(0), Some(10)).unwrap().obtain(10), (0, 10));
-        assert_eq!(Range::new1(Some(6), Some(6)).unwrap().obtain(10), (5, 6));
+        assert_eq!(Range::new1(Some(4), Some(10)).unwrap().resolve(10), (3, 10));
+        assert_eq!(Range::new1(Some(0), Some(10)).unwrap().resolve(10), (0, 10));
+        assert_eq!(Range::new1(Some(6), Some(6)).unwrap().resolve(10), (5, 6));
         // end < start
-        assert_eq!(Range::new1(Some(6), Some(5)).unwrap().obtain(10), (5, 5));
-        assert_eq!(Range::new1(Some(6), Some(4)).unwrap().obtain(10), (5, 5));
+        assert_eq!(Range::new1(Some(6), Some(5)).unwrap().resolve(10), (5, 5));
+        assert_eq!(Range::new1(Some(6), Some(4)).unwrap().resolve(10), (5, 5));
     }
 
     #[test]
@@ -198,21 +198,21 @@ mod tests {
             Range::new(Some(0), Some(10))
                 .adjust(true, false)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (0, 10)
         );
         assert_eq!(
             Range::new(Some(3), Some(6))
                 .adjust(true, false)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (3, 6)
         );
         assert_eq!(
             Range::new(Some(3), Some(3))
                 .adjust(true, false)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (3, 3)
         );
         // start > length -> empty range
@@ -220,7 +220,7 @@ mod tests {
             Range::new(Some(12), Some(13))
                 .adjust(true, false)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (10, 10)
         );
         // exclusive
@@ -228,14 +228,14 @@ mod tests {
             Range::new(Some(0), Some(10))
                 .adjust(true, true)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (1, 9)
         );
         assert_eq!(
             Range::new(Some(4), Some(5))
                 .adjust(true, true)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (5, 5)
         );
         // open ranges are not changed (ends not trimmed)
@@ -243,14 +243,14 @@ mod tests {
             Range::new(None, Some(10))
                 .adjust(true, true)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (0, 9)
         );
         assert_eq!(
             Range::new(None, None)
                 .adjust(true, true)
                 .unwrap()
-                .obtain(10),
+                .resolve(10),
             (0, 10)
         );
     }

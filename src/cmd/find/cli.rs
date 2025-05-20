@@ -231,12 +231,16 @@ pub struct SearchRangeArgs {
     /// Consider only matches anchored to the start of the sequence
     /// (or the search range `--rng`), whereby a the start of the match may be
     /// shifted towards the right by a maximum of <TOLERANCE> letters.
+    /// Additional approximate matches further towards the end are not considered
+    /// (even if better).
     #[arg(long, value_name = "TOLERANCE")]
     pub anchor_start: Option<usize>,
 
     /// Consider only matches anchored to the end of the sequence
     /// (or the search range `--rng`), whereby a the end of the match may be
     /// shifted towards the left by a maximum of <TOLERANCE> letters.
+    /// Additional approximate matches further towards the start are not considered
+    /// (even if better).
     #[arg(long, value_name = "TOLERANCE")]
     pub anchor_end: Option<usize>,
 }

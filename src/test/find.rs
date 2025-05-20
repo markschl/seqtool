@@ -132,30 +132,141 @@ fn range() {
             &["find", "A", "--rng", ":1", "--to-csv", v],
             fa,
             &format!("{}\n", NA),
+        );
+}
+
+#[test]
+fn anchor() {
+    let fa = ">id\nTATGCAGCA\n";
+    let v = "match_range";
+    Tester::new()
+        .cmp(
+            &["find", "TG", "--anchor-start", "1", "--to-csv", v],
+            fa,
+            &format!("{NA}\n"),
         )
         .cmp(
-            &["find", "G", "--anchor-start", "2", "--to-csv", v],
+            &["find", "TG", "--anchor-start", "2", "--to-csv", v],
             fa,
-            "3:3\n",
+            "3:4\n",
         )
         .cmp(
             &[
                 "find",
-                "G",
+                "TG",
                 "--rng",
-                "2:",
+                "3:",
                 "--anchor-start",
+                "0",
+                "--to-csv",
+                v,
+            ],
+            fa,
+            "3:4\n",
+        )
+        .cmp(
+            &["find", "TG", "--anchor-end", "4", "--to-csv", v],
+            fa,
+            &format!("{NA}\n"),
+        )
+        .cmp(
+            &["find", "TG", "--anchor-end", "5", "--to-csv", v],
+            fa,
+            "3:4\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "TG",
+                "--rng",
+                "1:5",
+                "--anchor-end",
+                "0",
+                "--to-csv",
+                v,
+            ],
+            fa,
+            &format!("{NA}\n"),
+        )
+        .cmp(
+            &[
+                "find",
+                "TG",
+                "--rng",
+                "1:5",
+                "--anchor-end",
                 "1",
                 "--to-csv",
                 v,
             ],
             fa,
-            "3:3\n",
+            "3:4\n",
+        );
+
+    Tester::new()
+        // TATGCAGCA
+        //   TGCG
+        .cmp(
+            &[
+                "find",
+                "TGCG",
+                "-D",
+                "1",
+                "--anchor-start",
+                "2",
+                "--to-csv",
+                "match_range,aligned_pattern",
+            ],
+            fa,
+            "3:6,TGCG\n",
         )
         .cmp(
-            &["find", "G", "--anchor-start", "1", "--to-csv", v],
+            &[
+                "find",
+                "TGCG",
+                "-D",
+                "1",
+                "--anchor-end",
+                "2",
+                "--to-csv",
+                "match_range",
+            ],
             fa,
-            &format!("{}\n", NA),
+            &format!("{NA}\n"),
+        )
+        // TATGCAGCA
+        //   TGC-G
+        .cmp(
+            &[
+                "find",
+                "TGCG",
+                "-D",
+                "1",
+                "--hit-scoring",
+                "2,-1,-1",
+                "--anchor-start",
+                "2",
+                "--to-csv",
+                "match_range,aligned_pattern",
+            ],
+            fa,
+            "3:7,TGC-G\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "TGCG",
+                "-D",
+                "1",
+                "--hit-scoring",
+                "2,-1,-1",
+                "--anchor-end",
+                "2",
+                "--to-csv",
+                "match_range,aligned_pattern",
+            ],
+            fa,
+            "3:7,TGC-G\n",
         );
 }
 

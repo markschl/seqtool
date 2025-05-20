@@ -70,14 +70,14 @@ pub fn run(mut cfg: Config, args: MaskCommand) -> CliResult<()> {
 
             if let Some(h) = hard_mask {
                 for rng in calc_ranges {
-                    let (start, end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
+                    let (start, end) = rng.adjust(rng0, exclusive)?.resolve(seqlen);
                     for c in &mut seq[start..end] {
                         *c = h as u8;
                     }
                 }
             } else {
                 for rng in calc_ranges {
-                    let (start, end) = rng.adjust(rng0, exclusive)?.obtain(seqlen);
+                    let (start, end) = rng.adjust(rng0, exclusive)?.resolve(seqlen);
                     for c in &mut seq[start..end] {
                         if unmask {
                             c.make_ascii_uppercase()
