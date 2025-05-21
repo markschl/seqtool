@@ -1,12 +1,15 @@
+use std::sync::OnceLock;
+
 use clap::Parser;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::complement::reverse_complement;
+use crate::helpers::{
+    complement::reverse_complement,
+    seqtype::{SeqType, SeqtypeHelper},
+};
 use crate::io::SeqQualRecord;
-
-use crate::helpers::seqtype::{SeqType, SeqtypeHelper};
 
 pub const DESC: &str = "\
 The sequence type is automatically detected based on the first record,
@@ -35,6 +38,9 @@ struct RevCompRecord {
     seqtype: Option<SeqType>,
 }
 
+// TODO: wait for https://doc.rust-lang.org/std/sync/struct.OnceLock.html#method.get_or_try_init stabilization
+static SEQTYPE: OnceLock<Result<SeqType, String>> = OnceLock::new();
+
 pub fn run(mut cfg: Config, args: RevcompCommand) -> CliResult<()> {
     let num_threads = args.threads;
 
@@ -44,11 +50,13 @@ pub fn run(mut cfg: Config, args: RevcompCommand) -> CliResult<()> {
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_parallel_init(
             num_threads - 1,
-            || Ok(SeqtypeHelper::new(typehint)),
             Default::default,
-            |record, out: &mut Box<RevCompRecord>, st_helper| {
+            |record, out: &mut Box<RevCompRecord>| {
                 if out.seqtype.is_none() {
-                    out.seqtype = Some(st_helper.get_or_guess(record)?);
+                    let seqtype = SEQTYPE.get_or_init(|| {
+                        SeqtypeHelper::new(typehint).get_or_guess(record)
+                    }).clone()?;
+                    out.seqtype = Some(seqtype);
                 }
                 reverse_complement(record.seq_segments(), &mut out.seq, out.seqtype.unwrap())?;
                 if let Some(q) = record.qual() {

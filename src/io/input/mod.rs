@@ -258,29 +258,25 @@ where
     }
 }
 
-pub fn read_parallel<W, S, Si, Di, F, D, R>(
+pub fn read_parallel<W, Di, F, D, R>(
     io_rdr: R,
     n_threads: u32,
     opts: &SeqReaderConfig,
-    rset_data_init: Si,
     record_data_init: Di,
     work: W,
     mut func: F,
 ) -> CliResult<()>
 where
-    W: Fn(&dyn Record, &mut D, &mut S) -> CliResult<()> + Send + Sync,
+    W: Fn(&dyn Record, &mut D) -> CliResult<()> + Send + Sync,
     F: FnMut(&dyn Record, &mut D) -> CliResult<bool>,
     R: io::Read + Send,
     Di: Fn() -> D + Send + Sync,
     D: Send,
-    S: Send,
-    Si: Fn() -> CliResult<S> + Send + Sync,
 {
     if n_threads <= 1 {
         let mut out = record_data_init();
-        let mut rset_data = rset_data_init()?;
         read(io_rdr, opts, &mut |record| {
-            work(record, &mut out, &mut rset_data)?;
+            work(record, &mut out)?;
             func(record, &mut out)
         })
     } else {
@@ -289,9 +285,9 @@ where
             &opts.format,
             n_threads,
             || Ok((record_data_init(), None::<CliError>)),
-            &rset_data_init,
-            |rec, &mut (ref mut out, ref mut res), l| {
-                *res = work(rec, out, l).err();
+            || Ok(()),
+            |rec, &mut (ref mut out, ref mut res), _| {
+                *res = work(rec, out).err();
             },
             |rec, &mut (ref mut out, ref mut res), _| {
                 if let Some(e) = res.take() {

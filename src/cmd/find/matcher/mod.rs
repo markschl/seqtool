@@ -10,7 +10,7 @@ pub mod approx;
 pub mod exact;
 pub mod regex;
 
-pub trait Matcher: Debug {
+pub trait Matcher: Debug + MatcherBoxClone {
     fn has_matches(&self, text: &[u8]) -> Result<bool, String>;
 
     /// This method iterates over all hits and provides these to the
@@ -22,6 +22,25 @@ pub trait Matcher: Debug {
         text: &[u8],
         func: &mut dyn FnMut(&dyn Hit) -> Result<bool, String>,
     ) -> Result<(), String>;
+}
+
+pub trait MatcherBoxClone {
+    fn clone_box(&self) -> Box<dyn Matcher + Send + Sync>;
+}
+
+impl<T> MatcherBoxClone for T
+where
+    T: 'static + Matcher + Clone + Send + Sync,
+{
+    fn clone_box(&self) -> Box<dyn Matcher + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Matcher + Send + Sync> {
+    fn clone(&self) -> Box<dyn Matcher + Send + Sync> {
+        self.clone_box()
+    }
 }
 
 pub trait Hit {
@@ -51,14 +70,14 @@ pub fn get_matcher(
     cfg: &PatternConfig,
     search_opts: &SearchOpts,
     requirements: &SearchRequirements,
-) -> CliResult<Box<dyn Matcher + Send>> {
+) -> CliResult<Box<dyn Matcher + Send + Sync>> {
     use Algorithm::*;
     if cfg.algorithm != Regex && requirements.has_regex_groups {
         return fail!(
             "Match groups > 0 can only be used with regular expression searches (-r/--regex or --regex-unicode)."
         );
     }
-    let matcher: Box<dyn Matcher + Send> = match cfg.algorithm {
+    let matcher: Box<dyn Matcher + Send + Sync> = match cfg.algorithm {
         Exact => Box::new(exact::ExactMatcher::new(cfg.pattern.seq.as_bytes())),
         Regex => regex::get_matcher(
             &cfg.pattern.seq,
@@ -79,7 +98,7 @@ pub fn get_matcher(
 pub fn get_matchers(
     cfg: &SearchConfig,
     opts: &SearchOpts,
-) -> CliResult<Vec<Box<dyn Matcher + Send>>> {
+) -> CliResult<Vec<Box<dyn Matcher + Send + Sync>>> {
     let req = cfg.get_search_requirements();
     cfg.patterns()
         .iter()

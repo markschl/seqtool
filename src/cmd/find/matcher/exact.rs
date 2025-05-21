@@ -2,7 +2,7 @@ use memchr::memmem::Finder;
 
 use super::{Hit, Match, Matcher};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExactMatcher {
     finder: Finder<'static>,
     len: usize,

@@ -33,7 +33,7 @@ impl Matches {
     pub fn collect_hits(
         &mut self,
         text: &[u8],
-        matchers: &mut [Box<dyn Matcher + Send>],
+        matchers: &mut [Box<dyn Matcher + Send + Sync>],
         cfg: &SearchConfig,
     ) -> Result<(), String> {
         // restrict search range if necessary

@@ -1,6 +1,8 @@
+use std::cell::RefCell;
+
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
-use crate::helpers::replace::replace_iter;
+use crate::helpers::{replace::replace_iter, thread_local::with_mut_thread_local};
 use crate::io::RecordEditor;
 use crate::var::{modules::VarProvider, varstring::VarString};
 
@@ -16,6 +18,10 @@ use matcher::get_matchers;
 use opts::RequiredDetail;
 pub use vars::FindVar;
 use vars::FindVars;
+
+thread_local! {
+    static MATCHERS: RefCell<Option<Vec<Box<dyn matcher::Matcher + Send + Sync>>>> = RefCell::new(None);
+}
 
 pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
     // parse all CLI options and initialize replacements
@@ -70,27 +76,35 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
         search_config.require_group(0); // full hit
     }
 
+    let matchers = get_matchers(&search_config, &search_opts)?;
+    let matches = search_config.init_matches();
+
     // dbg!(&search_config, &search_opts, &filter_opts);
 
     // run the search
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_parallel_init(
             search_opts.threads,
-            // initialize matchers (one per record set)
-            || get_matchers(&search_config, &search_opts),
             || {
                 // initialize per-record data
                 let editor: Box<RecordEditor> = Default::default();
-                let matches = search_config.init_matches();
-                (editor, matches)
+                (editor, matches.clone())
             },
-            |record, &mut (ref mut editor, ref mut matches), ref mut matchers| {
+            |record, &mut (ref mut editor, ref mut matches)| {
                 // do the searching in the worker threads
                 let text = editor.get(search_opts.attr, &record, false);
                 // update the `Matches` object with the results reported by every `Matcher`
-                matches
-                    .collect_hits(text, matchers, &search_config)
-                    .map_err(From::from)
+                // TODO: thread local even used in single-threaded searching...
+                //       however, this appears to have no measurable performance impact
+                with_mut_thread_local(
+                    &MATCHERS,
+                    || matchers.clone(),
+                    |_matchers| {
+                        matches
+                            .collect_hits(text, _matchers, &search_config)
+                            .map_err(From::from)
+                    },
+                )
             },
             |record, &mut (ref mut editor, ref matches), ctx| {
                 // handle results in main thread, write output

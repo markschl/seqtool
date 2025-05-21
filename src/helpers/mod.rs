@@ -24,6 +24,7 @@ pub mod replace;
 pub mod rng;
 pub mod seqtype;
 pub mod slice;
+pub mod thread_local;
 pub mod value;
 pub mod var_range;
 pub mod vec;

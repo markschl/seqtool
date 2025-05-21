@@ -53,7 +53,7 @@ pub fn get_matcher(
     ambig: bool,
     search_opts: &SearchOpts,
     requirements: &SearchRequirements,
-) -> CliResult<Box<dyn Matcher + Send>> {
+) -> CliResult<Box<dyn Matcher + Send + Sync>> {
     let ambig_map = if ambig {
         use crate::helpers::seqtype::SeqType::*;
         match search_opts.seqtype {
@@ -74,7 +74,7 @@ pub fn get_matcher(
     )?))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MyersMatcher {
     myers: MyersMatcherInner,
     // pattern: Vec<u8>,  // only for debugging
@@ -129,7 +129,7 @@ impl Matcher for MyersMatcher {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum MyersMatcherInner {
     Simple(myers::Myers<u64>),
     Long(myers::long::Myers<u64>),

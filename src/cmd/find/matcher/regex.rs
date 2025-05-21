@@ -8,7 +8,7 @@ pub fn get_matcher(
     pattern: &str,
     single_hit: bool,
     has_groups: bool,
-) -> CliResult<Box<dyn Matcher + Send>> {
+) -> CliResult<Box<dyn Matcher + Send + Sync>> {
     Ok(Box::new(RegexMatcher::new(
         pattern, single_hit, has_groups,
     )?))
@@ -16,7 +16,7 @@ pub fn get_matcher(
 
 macro_rules! matcher_impl {
     ($re_mod:ident, $text_fn:expr) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone)]
         pub struct RegexMatcher {
             capture_locations: Option<$re_mod::CaptureLocations>,
             inner: $re_mod::Regex,

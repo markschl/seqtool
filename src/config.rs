@@ -265,21 +265,18 @@ impl Config {
         Ok(())
     }
 
-    pub fn read_parallel_init<Si, D, Di, W, F, O>(
+    pub fn read_parallel_init<Di, W, F, O>(
         &mut self,
         n_threads: u32,
-        rset_init: Si,
         data_init: Di,
         work: W,
         mut func: F,
     ) -> CliResult<()>
     where
-        W: Fn(&dyn Record, &mut O, &mut D) -> CliResult<()> + Send + Sync,
+        W: Fn(&dyn Record, &mut O) -> CliResult<()> + Send + Sync,
         F: FnMut(&dyn Record, &mut O, &mut SeqContext) -> CliResult<bool>,
         Di: Fn() -> O + Send + Sync,
         O: Send,
-        D: Send,
-        Si: Fn() -> CliResult<D> + Send + Sync,
     {
         self.init_reader()?;
         for (in_opts, seq_opts) in &self.input_config {
@@ -289,7 +286,6 @@ impl Config {
                     io_rdr,
                     n_threads,
                     seq_opts,
-                    &rset_init,
                     &data_init,
                     &work,
                     |rec, out| {
@@ -308,13 +304,7 @@ impl Config {
         F: FnMut(&dyn Record, &mut O, &mut SeqContext) -> CliResult<bool>,
         O: Send + Default,
     {
-        self.read_parallel_init(
-            n_threads,
-            || Ok(()),
-            Default::default,
-            |rec, out, _| work(rec, out),
-            func,
-        )
+        self.read_parallel_init(n_threads, Default::default, |rec, out| work(rec, out), func)
     }
 
     /// Returns the number of readers provided. Records are read
