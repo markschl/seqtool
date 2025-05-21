@@ -188,6 +188,12 @@ pub struct SearchArgs {
     #[arg(short, long)]
     pub regex: bool,
 
+    /// Ignore case in patterns and text.
+    /// By default, pattern and text case must match exactly; soft-masked text
+    /// is thus not matched by an uppercase pattern unless `-c` is specified.
+    #[arg(short = 'c', long)]
+    pub case_insensitive: bool,
+
     /// Report hits in the order of their occurrence instead of sorting by distance.
     /// Note that this option only has an effect with `-D/--max-dist` > 0, otherwise
     /// matches are always reported in the order of their occurrence.
@@ -401,6 +407,7 @@ impl FindCommand {
             in_order: self.search.in_order,
             seqtype,
             hit_scoring: self.search.hit_scoring,
+            case_insensitive: self.search.case_insensitive,
             attr,
             replacement: self.action.rep.take(),
             threads: self.search.threads,
@@ -443,7 +450,7 @@ fn analyse_pattern(
     // decide which algorithm should be used
     let mut algorithm = if search_args.regex {
         Algorithm::Regex
-    } else if max_dist > 0 || has_ambigs {
+    } else if max_dist > 0 || has_ambigs || search_args.case_insensitive {
         Algorithm::Myers
     } else {
         Algorithm::Exact
@@ -454,6 +461,13 @@ fn analyse_pattern(
         algorithm = a;
         if a != Algorithm::Myers && has_ambigs {
             eprintln!("Warning: `--ambig` ignored with search algorithm '{}'.", a);
+            has_ambigs = false;
+        }
+        if a == Algorithm::Exact && search_args.case_insensitive {
+            eprintln!(
+                "Warning: `-c/--case-insensitive` ignored with search algorithm '{}'.",
+                a
+            );
             has_ambigs = false;
         }
     }
@@ -471,7 +485,7 @@ fn analyse_pattern(
         }
         eprint!("was determined as '{}'", info.seqtype);
         if has_ambigs {
-            eprint!(" (with ambiguous letters)");
+            eprint!(" with ambiguous letters");
         }
         eprintln!(
             ". If incorrect, please provide the correct type with `--seqtype`. \

@@ -47,7 +47,7 @@ variable_enum_macro = { path = "var_provider/variable_enum_macro" }
 rquickjs = { version = "0.9", features=["classes", "properties", "bindgen", "rust-alloc", "macro"], optional=true }
 phf = { version = "0.11", features = ["macros"], optional = true }
 # find, replace, revcomp, view commands
-bio = { version = "2.2", default-features = false }
+bio = { git = "https://github.com/markschl/rust-bio.git", default-features = false }
 regex-lite = { version = "0.1", optional = true }
 regex = { version = "1.11", optional = true }
 # view command

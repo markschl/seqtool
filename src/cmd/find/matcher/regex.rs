@@ -8,9 +8,13 @@ pub fn get_matcher(
     pattern: &str,
     single_hit: bool,
     has_groups: bool,
+    case_insensitive: bool,
 ) -> CliResult<Box<dyn Matcher + Send + Sync>> {
     Ok(Box::new(RegexMatcher::new(
-        pattern, single_hit, has_groups,
+        pattern,
+        single_hit,
+        has_groups,
+        case_insensitive,
     )?))
 }
 
@@ -28,8 +32,11 @@ macro_rules! matcher_impl {
                 pattern: &str,
                 single_hit: bool,
                 has_groups: bool,
+                case_insensitive: bool,
             ) -> CliResult<RegexMatcher> {
-                let inner = $re_mod::Regex::new(pattern)?;
+                let inner = $re_mod::RegexBuilder::new(pattern)
+                    .case_insensitive(case_insensitive)
+                    .build()?;
                 Ok(RegexMatcher {
                     capture_locations: if single_hit {
                         Some(inner.capture_locations())

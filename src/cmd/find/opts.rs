@@ -87,6 +87,7 @@ pub struct SearchOpts {
     pub in_order: bool,
     pub seqtype: SeqType,
     pub hit_scoring: HitScoring,
+    pub case_insensitive: bool,
     pub attr: RecordAttr,
     pub replacement: Option<String>,
     pub threads: u32,

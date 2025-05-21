@@ -54,6 +54,9 @@ fn regex() {
     let t = Tester::new();
     t.cmp(&["find", "-drf", r"p=\d$"], *FASTA, records!(0, 1))
         .cmp(&["find", "-rf", "C[AT]GGCAGG"], *FASTA, records!(1, 2))
+        // case-sensitivity
+        .cmp(&["find", "-rf", "C[aT]GGcAGG"], *FASTA, "")
+        .cmp(&["find", "-crf", "C[aT]GGcAGG"], *FASTA, records!(1, 2))
         // UTF-8
         .cmp(&["find", "-rif", "^.$"], ">ä\nSEQ\n", ">ä\nSEQ\n");
 
@@ -576,6 +579,85 @@ fn ambig() {
             ],
             &*format!(">seq\n{}\n", seq_ambig),
             "seq,2:16\n",
+        );
+}
+
+#[test]
+fn case_insensitive() {
+    let fasta = ">id\nAACaCacTGTGGAGTTTTCAT\n";
+
+    Tester::new()
+        .cmp(
+            &["find", "--to-csv", "match_range", "CaCacT"],
+            fasta,
+            "3:8\n",
+        )
+        .cmp(
+            &["find", "--to-csv", "match_range", "CACACT"],
+            fasta,
+            &format!("{NA}\n"),
+        )
+        .cmp(
+            &["find", "-c", "--to-csv", "match_range,match", "CACACt"],
+            fasta,
+            "3:8,CaCacT\n",
+        )
+        .cmp(
+            &["find", "-c", "--to-csv", "match_range,match", "cAcact"],
+            fasta,
+            "3:8,CaCacT\n",
+        )
+        .cmp(
+            &["find", "--to-csv", "match_range,match", "CrCacY"],
+            fasta,
+            "3:8,CaCacT\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "--no-ambig",
+                "--to-csv",
+                "match_range,match",
+                "CrCacY",
+            ],
+            fasta,
+            &format!("{NA},{NA}\n"),
+        )
+        .cmp(
+            &["find", "--to-csv", "match_range,match", "cRcAYT"],
+            fasta,
+            &format!("{NA},{NA}\n"),
+        )
+        .cmp(
+            &["find", "-c", "--to-csv", "match_range,match", "cRcAYT"],
+            fasta,
+            "3:8,CaCacT\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "-c",
+                "-D",
+                "1",
+                "--to-csv",
+                "match_range,match_ins",
+                "acrCTGGGagnttTC",
+            ],
+            ">id\nACRCTGTGGAGNTTTC\n",
+            "1:16,1\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "-c",
+                "--to-csv",
+                "match_range",
+                "--seqtype",
+                "other",
+                "AbCdEfGhIjKlMnOpQrStUvWxYz",
+            ],
+            ">id\naBcDeFgHiJkLmNoPqRsTuVwXyZ\n",
+            "1:26\n",
         );
 }
 

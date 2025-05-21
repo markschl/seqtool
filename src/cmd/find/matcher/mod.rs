@@ -83,6 +83,7 @@ pub fn get_matcher(
             &cfg.pattern.seq,
             requirements.max_hits <= 1,
             requirements.has_regex_groups,
+            search_opts.case_insensitive,
         )?,
         Myers => approx::get_matcher(
             &cfg.pattern.seq,

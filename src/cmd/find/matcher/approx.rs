@@ -21,6 +21,8 @@ struct MyersOpts {
     best_dist_only: bool,
     /// alignment path needed?
     needs_alignment: bool,
+    /// pattern length (needed for exact matches)
+    pattern_len: usize,
     /// scoring to use for selecting among multiple best hits with the same edit distance
     hit_scoring: HitScoring,
 }
@@ -30,6 +32,7 @@ impl MyersOpts {
         max_dist: usize,
         sort_by_dist: bool,
         max_hits: usize,
+        pattern_len: usize,
         required_detail: RequiredDetail,
         hit_scoring: HitScoring,
     ) -> Self {
@@ -42,6 +45,7 @@ impl MyersOpts {
             best_only: max_hits == 1,
             best_dist_only: max_hits == 1 && required_detail == RequiredDetail::Distance,
             needs_alignment: required_detail == RequiredDetail::Alignment,
+            pattern_len,
             hit_scoring,
         }
     }
@@ -92,12 +96,13 @@ impl MyersMatcher {
         ambig_trans: Option<&[(u8, &[u8])]>,
     ) -> CliResult<Self> {
         Ok(MyersMatcher {
-            myers: MyersMatcherInner::new(pattern, ambig_trans),
+            myers: MyersMatcherInner::new(pattern, ambig_trans, search_opts.case_insensitive),
             // pattern: pattern.to_vec(),
             opts: MyersOpts::new(
                 max_dist,
                 !search_opts.in_order,
                 requirements.max_hits,
+                pattern.len(),
                 requirements.required_detail,
                 search_opts.hit_scoring,
             ),
@@ -136,11 +141,40 @@ enum MyersMatcherInner {
 }
 
 impl MyersMatcherInner {
-    fn new(pattern: &[u8], ambig_trans: Option<&[(u8, &[u8])]>) -> Self {
+    fn new(pattern: &[u8], ambig_trans: Option<&[(u8, &[u8])]>, case_insensitive: bool) -> Self {
         let mut builder = myers::MyersBuilder::new();
         if let Some(trans) = ambig_trans {
             for (symbol, equivalents) in trans {
-                builder.ambig(*symbol, *equivalents);
+                // A-Z -> A-Z
+                builder.ambig(
+                    symbol.to_ascii_uppercase(),
+                    equivalents.iter().map(|c| c.to_ascii_uppercase()),
+                );
+                // a-z -> a-z
+                builder.ambig(
+                    symbol.to_ascii_lowercase(),
+                    equivalents.iter().map(|c| c.to_ascii_lowercase()),
+                );
+                if case_insensitive {
+                    // A-Z -> a-z
+                    builder.ambig(
+                        symbol.to_ascii_uppercase(),
+                        equivalents.iter().map(|&c| c.to_ascii_lowercase()),
+                    );
+                    // a-z -> A-Z
+                    builder.ambig(
+                        symbol.to_ascii_lowercase(),
+                        equivalents.iter().map(|&c| c.to_ascii_uppercase()),
+                    );
+                }
+            }
+        }
+        if case_insensitive {
+            for uc in b'A'..=b'Z' {
+                builder.ambig(uc, &[uc.to_ascii_lowercase()]);
+            }
+            for lc in b'a'..=b'z' {
+                builder.ambig(lc, &[lc.to_ascii_uppercase()]);
             }
         }
         if pattern.len() <= 64 {
@@ -193,6 +227,16 @@ impl MyersMatcherInner {
             if opts.best_dist_only {
                 if let Some((_, dist)) = $myers.find_all_end(text, opts.max_dist as $dist_ty).min_by_key(|&(_, dist)| dist) {
                     func(&mut (0, 0, dist as usize))?;
+                }
+                return Ok(());
+            }
+
+            // Exact matches (max_dist == 0) in case of ambiguous / case insensitive matching
+            // TODO: may not be the fastest algorithm out there
+            if opts.max_dist == 0 {
+                if let Some((end, dist)) = $myers.find_all_end(text, 0).next() {
+                    assert_eq!(dist, 0);
+                    func(&(end + 1 - opts.pattern_len, end, 0))?;
                 }
                 return Ok(());
             }
@@ -342,6 +386,7 @@ impl MyersMatcherInner {
                     // eprintln!("final\n{}", aln.pretty(pattern, text, 120));
 
                     let do_continue = report_hit!(hit)?;
+                    // onle one hit should have been requested (otherwise, we should have used the code below)
                     assert!(!do_continue);
                 }
             } else {
