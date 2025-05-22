@@ -193,8 +193,7 @@ impl<'a> FromArg<&'a Arg<'a>> for VarFunc<'a> {
         match value {
             Arg::Func(f) => Ok(f.clone()),
             _ => Err(format!(
-                "Cannot convert the argument '{}' of '{}' a function",
-                func_name, value
+                "Cannot convert the argument '{func_name}' of '{value}' a function"
             )),
         }
     }

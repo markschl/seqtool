@@ -157,7 +157,7 @@ fn key_var() {
     use crate::helpers::NA;
 
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
-    let out = &format!(">s3 k=-3\nS3\n>s1 k={na}\nS1\n>s2 k={na}\nS2\n", na = NA);
+    let out = &format!(">s3 k=-3\nS3\n>s1 k={NA}\nS1\n>s2 k={NA}\nS2\n");
     let expr = "{ if (seq_num <= 2) return undefined; return -parseInt(id.substring(1, 2)); }";
     Tester::new().cmp(&["sort", expr, "-a", "k={key}"], fa, out);
 }
@@ -175,12 +175,12 @@ fn large() {
     let seqs: Vec<_> = indices
         .into_iter()
         .enumerate()
-        .map(|(i, idx)| (idx, format!(">{} {}\nSEQ\n", idx, i)))
+        .map(|(i, idx)| (idx, format!(">{idx} {i}\nSEQ\n")))
         .collect();
     let mut text_sorted = seqs.clone();
-    text_sorted.sort_by_key(|(i, _)| format!("{}", i));
+    text_sorted.sort_by_key(|(i, _)| format!("{i}"));
     let mut rev_sorted = seqs.clone();
-    rev_sorted.sort_by_key(|(i, _)| Reverse(format!("{}", i)));
+    rev_sorted.sort_by_key(|(i, _)| Reverse(format!("{i}")));
     let mut num_sorted = seqs.clone();
     num_sorted.sort_by_key(|(i, _)| *i);
     let fasta = seqs.iter().map(|(_, s)| s).join("");

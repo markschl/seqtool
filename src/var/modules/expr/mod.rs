@@ -56,7 +56,7 @@ pub fn code_or_file(expr: &str) -> Result<Cow<str>, String> {
         let path = expr[prefix.len()..].trim_start();
         return read_to_string(path)
             .map(String::into)
-            .map_err(|e| format!("Unable to read script file '{}': {}", path, e));
+            .map_err(|e| format!("Unable to read script file '{path}': {e}"));
     }
     Ok(expr.into())
 }

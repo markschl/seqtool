@@ -162,7 +162,7 @@ fn key_var() {
     use crate::helpers::NA;
 
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
-    let out = &format!(">s1 k=-1\nS1\n>s2 k={}\nS2\n", NA);
+    let out = &format!(">s1 k=-1\nS1\n>s2 k={NA}\nS2\n");
     let formula = "{ if (seq_num <= 1) return -parseInt(id.substring(1, 2)); return undefined; }";
     Tester::new().cmp(&["unique", formula, "-a", "k={key}"], fa, out);
 }
@@ -228,7 +228,7 @@ fn large() {
     // get the formatted FASTA records
     let unique_rec_sorted: Vec<_> = unique_idx_sorted
         .iter()
-        .map(|i| format!(">{}\nSEQ\n", i))
+        .map(|i| format!(">{i}\nSEQ\n"))
         .collect();
     let unique_fasta_sorted = unique_rec_sorted.join("");
     let all_fasta = all_idx

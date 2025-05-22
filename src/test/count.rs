@@ -23,7 +23,7 @@ fn fixed() {
         .cmp(
             &["count", "-k", "opt_attr(non_existent)"],
             *FASTA,
-            &format!("{}\t4\n", NA),
+            &format!("{NA}\t4\n"),
         );
 }
 
@@ -79,12 +79,12 @@ fn missing() {
     t.cmp(
         &["count", "-k", "{opt_attr(missing)}"],
         *FASTA,
-        &format!("{}\t4\n", NA),
+        &format!("{NA}\t4\n"),
     )
     .cmp(
         &["count", "-k", "{num(opt_attr(missing))}"],
         *FASTA,
-        &format!("{}\t4\n", NA),
+        &format!("{NA}\t4\n"),
     )
     .fails(
         &["count", "-k", "{attr(missing)}"],

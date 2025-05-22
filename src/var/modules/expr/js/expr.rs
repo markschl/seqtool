@@ -86,10 +86,7 @@ fn to_js_value<'a>(
 fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> Result<(), String> {
     #[inline(never)]
     fn write_err(ty: &Type) -> String {
-        format!(
-            "Expression returned a type that cannot be interpreted: {}",
-            ty
-        )
+        format!("Expression returned a type that cannot be interpreted: {ty}")
     }
     let ty = v.type_of();
     match ty {
@@ -100,7 +97,7 @@ fn write_value(v: &rquickjs::Value, out: &mut OptValue) -> Result<(), String> {
             v.as_string()
                 .unwrap()
                 .to_string()
-                .map_err(|_| format!("Expression error: Could not convert {:?} to string", v))?
+                .map_err(|_| format!("Expression error: Could not convert {v:?} to string"))?
                 .as_bytes(),
         ),
         Type::Undefined | Type::Null => out.set_none(),
@@ -217,15 +214,15 @@ impl Expression for JsExpr {
         engine: &mut Self::Context,
     ) -> Result<(), String> {
         // println!("register js {}", expr);
-        let fn_name = format!("____eval_{}", expr_id);
+        let fn_name = format!("____eval_{expr_id}");
         let func = engine.context.with(|ctx| {
-            let arrow_script = format!("{} => ({})", fn_name, expr);
+            let arrow_script = format!("{fn_name} => ({expr})");
             // println!("arrow: {:?}", arrow_script);
             let func: Function = match ctx.eval(arrow_script) {
                 Ok(rv) => rv,
                 Err(_) => {
                     // not a valid arrow function, try regular function (assumes a return statement to be present)
-                    let fn_script = format!("var {} = function() {{ {} }}", fn_name, expr);
+                    let fn_script = format!("var {fn_name} = function() {{ {expr} }}");
                     // println!("fn: {:?}", fn_script);
                     ctx.eval::<(), _>(fn_script)
                         .map_err(|e| obtain_exception(e, ctx.clone()))?;
@@ -263,11 +260,11 @@ fn obtain_exception(e: Error, ctx: Ctx<'_>) -> String {
                 .as_string()
                 .unwrap()
                 .to_string()
-                .unwrap_or_else(|_| format!("{:?}", v)),
-            _ => format!("{:?}", v),
+                .unwrap_or_else(|_| format!("{v:?}")),
+            _ => format!("{v:?}"),
         }
     } else {
         e.to_string()
     };
-    format!("JavaScript error: {}", msg)
+    format!("JavaScript error: {msg}")
 }

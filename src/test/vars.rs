@@ -117,17 +117,17 @@ fn attrs() {
         // undefined
         .cmp(
             &[".", "-a", "b={opt_attr('a')}"],
-            &format!(">seq a={}\nSEQ\n", NA),
-            &format!(">seq a={na} b={na}\nSEQ\n", na = NA),
+            &format!(">seq a={NA}\nSEQ\n"),
+            &format!(">seq a={NA} b={NA}\nSEQ\n"),
         )
         .cmp(
             &[".", "-a", "b={has_attr('a')}"],
-            &format!(">seq a={}\nSEQ\n", NA),
-            &format!(">seq a={} b=false\nSEQ\n", NA),
+            &format!(">seq a={NA}\nSEQ\n"),
+            &format!(">seq a={NA} b=false\nSEQ\n"),
         )
         .fails(
             &[".", "-a", "b={attr('a')}"],
-            &format!(">seq a={}\nSEQ\n", NA),
+            &format!(">seq a={NA}\nSEQ\n"),
             &format!(
                 "value for attribute 'a' is '{}', which is reserved for missing values",
                 NA
@@ -154,7 +154,7 @@ fn attrs_missing() {
     t.cmp(
         &[".", "--to-tsv", "opt_attr(a)"],
         ATTR_FA,
-        &format!("{}\n", NA),
+        &format!("{NA}\n"),
     )
     .cmp(&[".", "--to-tsv", "has_attr(a)"], ATTR_FA, "false\n")
     .fails(
@@ -184,7 +184,7 @@ fn attr_format() {
         fa,
         "true\n",
     )
-    .cmp(&[".", "--to-tsv", "opt_attr(a)"], fa, &format!("{}\n", NA))
+    .cmp(&[".", "--to-tsv", "opt_attr(a)"], fa, &format!("{NA}\n"))
     .fails(
         &[".", "--to-tsv", "attr(b)", "--attr-fmt", ";key=value"],
         fa,
@@ -348,7 +348,7 @@ fn meta_missing() {
     let t = Tester::new();
     t.temp_file("meta", Some(META_MISSING), |p, _| {
         // opt_meta
-        let out = &format!("2\n{}\n10\n11\n", NA);
+        let out = &format!("2\n{NA}\n10\n11\n");
         t.cmp(&[".", "-m", p, "--to-tsv", "{opt_meta(2)}"], *FASTA, out);
         // has_meta
         let out = "true\nfalse\ntrue\ntrue\n";
@@ -359,19 +359,16 @@ fn meta_missing() {
     });
     // undefined value
     use crate::helpers::NA;
-    t.temp_file("meta", Some(&format!("id1\t{}\n", NA)), |p, _| {
+    t.temp_file("meta", Some(&format!("id1\t{NA}\n")), |p, _| {
         t.cmp(
             &[".", "-m", p, "--to-csv", "id,opt_meta(2)"],
             ">id1\nSEQ\n",
-            &format!("id1,{}\n", NA),
+            &format!("id1,{NA}\n"),
         )
         .fails(
             &[".", "-m", p, "--to-csv", "id,meta(2)"],
             ">id1\nSEQ\n",
-            &format!(
-                "field no. 2 in record 'id1' is '{}', which is reserved for missing values",
-                NA
-            ),
+            &format!("field no. 2 in record 'id1' is '{NA}', which is reserved for missing values"),
         );
     });
 }
@@ -407,7 +404,7 @@ fn meta_multi_file() {
             t.temp_file("meta", Some(META_MISSING), |f3, _| {
                 // three files
                 let fields = "meta(2, 1),meta(2, 2),opt_meta(2, 3)";
-                let out = &format!("2\t2\t2\n1\t1\t{}\n10\t10\t10\n11\t11\t11\n", NA);
+                let out = &format!("2\t2\t2\n1\t1\t{NA}\n10\t10\t10\n11\t11\t11\n");
                 t.cmp(
                     &[".", "-m", f1, "-m", f2, "-m", f3, "--to-tsv", fields],
                     *FASTA,
@@ -448,8 +445,8 @@ fn meta_larger() {
         "3\t3",
         "4\t4",
         "7\t7",
-        &format!("2\t{}", NA),
-        &format!("5\t{}", NA),
+        &format!("2\t{NA}"),
+        &format!("5\t{NA}"),
         "6\t6",
     ]
     .join("\n")
@@ -463,16 +460,13 @@ fn meta_larger() {
         "4\t4",
         "7\t7",
         "2\t2",
-        &format!("5\t{}", NA),
+        &format!("5\t{NA}"),
         "6\t6",
     ]
     .join("\n")
         + "\n";
-    let fasta = ids.iter().map(|i| format!(">{}\nSEQ\n", i)).join("");
-    let meta = _meta
-        .iter()
-        .map(|(i, m)| format!("{}\t{}\n", i, m))
-        .join("");
+    let fasta = ids.iter().map(|i| format!(">{i}\nSEQ\n")).join("");
+    let meta = _meta.iter().map(|(i, m)| format!("{i}\t{m}\n")).join("");
 
     let t = Tester::new();
     let fields = "id,opt_meta(2)";
@@ -493,10 +487,10 @@ fn meta_larger() {
         // adding another sequence with ID=5 fails without --dup-ids
         // *note*: adding ID=7 would not fail, since the entry that breaks the
         // 'sync reading' is not checked for duplication.
-        let fasta2 = format!("{}>5\nSEQ\n", fasta);
+        let fasta2 = format!("{fasta}>5\nSEQ\n");
         let dup_err = "Found duplicate sequence ID: '5'.";
         t.fails(&[".", "-m", path, "--to-tsv", fields], &fasta2, dup_err);
-        let exp = format!("{}5\t{}\n", idx_out, NA);
+        let exp = format!("{idx_out}5\t{NA}\n");
         t.cmp(
             &[".", "-m", path, "--to-tsv", fields, "--dup-ids"],
             &fasta2,
@@ -505,7 +499,7 @@ fn meta_larger() {
     });
     // adding a duplicate metadata entry with ID=7 yields a message
     // even without --dup-ids
-    let meta2 = format!("{}7\t700\n", meta);
+    let meta2 = format!("{meta}7\t700\n");
     t.temp_file("meta", Some(&meta2), |path, _| {
         // in this case, the duplicate ID = 7 is recognized even without --dup-ids
         // (previous entry with ID = 7 was read while in 'hash map mode')

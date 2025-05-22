@@ -52,7 +52,7 @@ impl From<Srgb<u8>> for AnsiColor {
 
 pub fn parse_color(s: &str) -> Result<Srgb<u8>, String> {
     named::from_str(s).or_else(|| Srgb::from_str(s).ok())
-        .ok_or_else(|| format!("Invalid color code: '{}'. The colors must be in Hex format (rrggbb) or a name (e.g. 'cyan')", s))
+        .ok_or_else(|| format!("Invalid color code: '{s}'. The colors must be in Hex format (rrggbb) or a name (e.g. 'cyan')"))
 }
 
 /// chooses the optimal text color based on the brightness/darkness of the background color

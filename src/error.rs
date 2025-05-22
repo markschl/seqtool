@@ -44,14 +44,14 @@ impl<'a> From<&'a str> for CliError {
 
 impl<W> From<csv::IntoInnerError<W>> for CliError {
     fn from(err: csv::IntoInnerError<W>) -> CliError {
-        CliError::Other(format!("{}", err))
+        CliError::Other(format!("{err}"))
     }
 }
 
 macro_rules! from_err(($e:ty) => (
     impl From<$e> for CliError {
         fn from(err: $e) -> CliError {
-            CliError::Other(format!("{}", err))
+            CliError::Other(format!("{err}"))
         }
     }
 ));

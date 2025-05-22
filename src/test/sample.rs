@@ -35,7 +35,7 @@ fn large() {
     (&mut seed2_array[..]).write_all(seed2.as_bytes()).unwrap();
     let rngs: Vec<(String, Box<dyn Fn() -> DefaultRng>)> = vec![
         (
-            format!("{}", seed1),
+            format!("{seed1}"),
             Box::new(|| DefaultRng::seed_from_u64(seed1)),
         ),
         (
@@ -46,7 +46,7 @@ fn large() {
 
     // input
     let n_records = 1000;
-    let seqs: Vec<_> = (0..n_records).map(|i| format!(">{}\nSEQ\n", i)).collect();
+    let seqs: Vec<_> = (0..n_records).map(|i| format!(">{i}\nSEQ\n")).collect();
     let fasta = seqs.join("");
 
     let t = Tester::new();
@@ -67,8 +67,8 @@ fn large() {
                         let expected = indices.into_iter().map(|i| seqs[i].clone()).join("");
                         // run sample command
                         let mem_limit = rec_limit * n * 12;
-                        let n = format!("{}", n);
-                        let mem = format!("{}", mem_limit);
+                        let n = format!("{n}");
+                        let mem = format!("{mem_limit}");
                         let mut args = vec!["sample", "-n", &n, "-s", seed, "--max-mem", &mem];
                         if two_pass {
                             args.push("-2");
@@ -89,7 +89,7 @@ fn large() {
                     .join("");
 
                 t.cmp(
-                    &["sample", "-p", &format!("{}", p), "-s", seed],
+                    &["sample", "-p", &format!("{p}"), "-s", seed],
                     FileInput(path),
                     &expected,
                 );

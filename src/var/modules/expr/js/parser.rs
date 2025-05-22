@@ -130,7 +130,7 @@ impl<'a> Expression<'a> {
             Expression::Expr(t) => Ok(func(t)),
             Expression::SourceFile(path) => {
                 let script =
-                    read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+                    read_to_string(path).map_err(|e| format!("Failed to read file: {e}"))?;
                 let ast = SimpleAst::from_script(&script).map_err(|e| e.to_string())?;
                 Ok(func(&ast))
             }

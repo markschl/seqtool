@@ -81,7 +81,7 @@ impl fmt::Display for Float {
         const FMT: u128 = lexical::format::STANDARD;
         let formatted = lexical::to_string_with_options::<_, FMT>(self.inner(), &opts);
         // ryu::Buffer::new().format($f)};
-        write!(f, "{}", formatted)
+        write!(f, "{formatted}")
     }
 }
 

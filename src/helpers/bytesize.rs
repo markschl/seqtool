@@ -19,10 +19,10 @@ pub fn parse_bytesize(size: &str) -> Result<usize, String> {
                 if let Ok(s) = unit_size.trim().parse::<f64>() {
                     Ok((s * (1024_f64).powi(pow as i32)).round() as usize)
                 } else {
-                    Err(format!("Invalid size string: '{}'", size))
+                    Err(format!("Invalid size string: '{size}'"))
                 }
             } else {
-                Err(format!("Unknown size unit: '{}'", unit))
+                Err(format!("Unknown size unit: '{unit}'"))
             }
         }
     }

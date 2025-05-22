@@ -37,14 +37,14 @@ fn main() {
         Ok(()) => {}
         Err(CliError::Io(e)) => {
             if e.kind() != std::io::ErrorKind::BrokenPipe {
-                exit(&format!("{}", e), 1)
+                exit(&format!("{e}"), 1)
             }
         }
-        Err(e) => exit(&format!("{}", e), 1),
+        Err(e) => exit(&format!("{e}"), 1),
     }
 }
 
 fn exit(msg: &str, code: i32) {
-    eprintln!("{}", msg);
+    eprintln!("{msg}");
     process::exit(code);
 }

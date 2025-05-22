@@ -90,7 +90,7 @@ where
                     if code == b'd' {
                         n -= 1;
                     }
-                    write!(o, "{}", n)?;
+                    write!(o, "{n}")?;
                 }
                 b'L' | b'l' => match data {
                     DuplicateInfo::Ids(i) => {

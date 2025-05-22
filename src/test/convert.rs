@@ -47,7 +47,7 @@ fn var_format() {
 fn txt_input() {
     let txt = "seq1\tATGC\tdesc1\nseq2\tATGC\tdesc2\n";
     let csv = txt.replace('\t', ",");
-    let txt_header = format!("i\ts\td\n{}", txt);
+    let txt_header = format!("i\ts\td\n{txt}");
 
     Tester::new()
         .cmp(

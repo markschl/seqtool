@@ -75,7 +75,7 @@ impl<R: io::Read> CsvReader<R> {
                         if let Some(idx) = header.as_ref().unwrap().iter().position(|h| h == name) {
                             idx
                         } else {
-                            return fail!("Did not find field '{}' in header.", name);
+                            return fail!("Did not find field '{name}' in header.");
                         }
                     }
                 };

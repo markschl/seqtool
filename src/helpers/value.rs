@@ -36,9 +36,9 @@ impl SimpleValue {
         use SimpleValue::*;
         match self {
             Text(v) => writer.write_all(v),
-            Number(v) => write!(writer, "{}", v),
-            Boolean(v) => write!(writer, "{}", v),
-            Interval(i) => write!(writer, "{}", i),
+            Number(v) => write!(writer, "{v}"),
+            Boolean(v) => write!(writer, "{v}"),
+            Interval(i) => write!(writer, "{i}"),
             None => writer.write_all(NA.as_bytes()),
         }
     }

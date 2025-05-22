@@ -24,7 +24,7 @@ impl FromStr for QualFormat {
             "illumina" => Ok(QualFormat::Illumina),
             "solexa" => Ok(QualFormat::Solexa),
             // minor inconsistency: phred should not be constructed from CLI
-            _ => Err(format!("Unknown quality format: {}", s)),
+            _ => Err(format!("Unknown quality format: {s}")),
         }
     }
 }
@@ -237,10 +237,7 @@ fn guess_format(q: u8) -> Option<String> {
         _ => None,
     };
     s.map(|(name, usage)| {
-        format!(
-            " It seems that the file is in the {} format. If so, use the option {}.",
-            name, usage
-        )
+        format!(" It seems that the file is in the {name} format. If so, use the option {usage}.")
     })
 }
 

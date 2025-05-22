@@ -127,9 +127,9 @@ pub fn run(mut cfg: Config, args: ViewCommand) -> CliResult<()> {
             let prob = phred.total_error();
             let rate = prob / seqlen as f64;
             if prob < 0.001 {
-                write!(writer, " err: {:>3.2e} ({:.4e} / pos.)", prob, rate)?;
+                write!(writer, " err: {prob:>3.2e} ({rate:.4e} / pos.)")?;
             } else {
-                write!(writer, " err: {:>2.3} ({:.4} / pos.)", prob, rate)?;
+                write!(writer, " err: {prob:>2.3} ({rate:.4} / pos.)")?;
             }
         } else {
             // if no quality scores present, color by sequence

@@ -19,8 +19,7 @@ impl FromStr for Attribute {
             Some(p) => p.to_string(),
             None => {
                 return Err(format!(
-                    "Invalid attribute: '{}'. Attributes need to be in the format: name=value",
-                    name
+                    "Invalid attribute: '{name}'. Attributes need to be in the format: name=value"
                 ))
             }
         };

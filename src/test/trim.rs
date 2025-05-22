@@ -44,8 +44,8 @@ fn trim_qual() {
 #[test]
 fn trim_vars() {
     let id = "id start=2 end=3 range=2:3";
-    let fa = format!(">{}\nATGC\n", id);
-    let trimmed = format!(">{}\nTG\n", id);
+    let fa = format!(">{id}\nATGC\n");
+    let trimmed = format!(">{id}\nTG\n");
     Tester::new()
         .cmp(&["trim", "{attr(start)}:{attr(end)}"], &fa, &trimmed)
         .cmp(&["trim", "{attr(range)}"], &fa, &trimmed)
@@ -63,12 +63,12 @@ fn trim_multiline() {
     let fa = ">id\nAB\nCDE\nFGHI\nJ";
     let seq = "ABCDEFGHIJ";
     let t = Tester::new();
-    t.cmp(&["trim", ":"], &fa, &format!(">id\n{}\n", seq));
+    t.cmp(&["trim", ":"], &fa, &format!(">id\n{seq}\n"));
 
     for start in 0..seq.len() - 1 {
         for end in start..seq.len() {
             t.cmp(
-                &["trim", "-0", &format!("{}:{}", start, end)],
+                &["trim", "-0", &format!("{start}:{end}")],
                 &fa,
                 &format!(">id\n{}\n", &seq[start..end]),
             );
@@ -87,24 +87,20 @@ fn trim_multiline_multirange() {
 #[test]
 fn trim_na() {
     Tester::new()
+        .cmp(&["trim", &format!("{NA}:")], ">id\nABCDE\n", ">id\nABCDE\n")
         .cmp(
-            &["trim", &format!("{}:", NA)],
-            ">id\nABCDE\n",
-            ">id\nABCDE\n",
-        )
-        .cmp(
-            &["trim", &format!("{na}:{na}", na = NA)],
+            &["trim", &format!("{NA}:{NA}")],
             ">id\nABCDE\n",
             ">id\nABCDE\n",
         )
         .cmp(
             &["trim", "{opt_attr(s)}:{attr(e)}"],
-            &format!(">id s={} e=3\nABCDE\n", NA),
-            &format!(">id s={} e=3\nABC\n", NA),
+            &format!(">id s={NA} e=3\nABCDE\n"),
+            &format!(">id s={NA} e=3\nABC\n"),
         )
         .fails(
             &["trim", "{attr(s)}:{attr(e)}"],
-            &format!(">id s={} e=3\nABCDE\n", NA),
+            &format!(">id s={NA} e=3\nABCDE\n"),
             "reserved for missing values",
         )
         .cmp(

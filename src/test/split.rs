@@ -16,7 +16,7 @@ fn chunks() {
                 &[
                     "split",
                     "-n",
-                    &format!("{}", size),
+                    &format!("{size}"),
                     "-po",
                     (key.to_str().unwrap()),
                 ],
@@ -25,8 +25,8 @@ fn chunks() {
 
             for (i, seqs) in SEQS.iter().chunks(size).into_iter().enumerate() {
                 let p = tmp_dir.path().join(format!("f_{}.fasta", i + 1));
-                let mut reader = fasta::Reader::from_path(&p)
-                    .unwrap_or_else(|_| panic!("file {:?} not found", p));
+                let mut reader =
+                    fasta::Reader::from_path(&p).unwrap_or_else(|_| panic!("file {p:?} not found"));
                 for seq in seqs {
                     let rec = reader.next().expect("Not enough records").unwrap();
                     assert_eq!(
@@ -57,9 +57,9 @@ fn key() {
         t.succeeds(&["split", "-po", &key.to_string_lossy()], *FASTA);
 
         for (i, k) in expected.iter().enumerate() {
-            let p = subdir.join(format!("{}.fa", k));
+            let p = subdir.join(format!("{k}.fa"));
             let mut reader =
-                fasta::Reader::from_path(&p).unwrap_or_else(|_| panic!("file {:?} not found", p));
+                fasta::Reader::from_path(&p).unwrap_or_else(|_| panic!("file {p:?} not found"));
             let rec = reader.next().unwrap().unwrap().to_owned_record();
             assert_eq!(
                 &format!(

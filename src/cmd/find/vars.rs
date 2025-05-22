@@ -465,7 +465,7 @@ impl VarProvider for FindVars {
             } else {
                 let num: usize = hit
                     .parse()
-                    .map_err(|_| format!("Invalid hit number: {}", hit))?;
+                    .map_err(|_| format!("Invalid hit number: {hit}"))?;
                 Some(num.checked_sub(1).ok_or("The hit number must be > 0")?)
             };
 

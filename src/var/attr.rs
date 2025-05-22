@@ -35,7 +35,7 @@ impl FromStr for AttrFormat {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut s = s;
         let (delim, value_delim) =
-            _parse_attr_format(&mut s).map_err(|_| format!("Invalid attribute format: {:?}", s))?;
+            _parse_attr_format(&mut s).map_err(|_| format!("Invalid attribute format: {s:?}"))?;
         assert!(s.is_empty());
         Ok(AttrFormat {
             delim: delim.as_bytes().to_vec(),
@@ -357,8 +357,7 @@ impl Parser {
         #[inline(never)]
         fn dup_err<T>(name: &str) -> Result<T, String> {
             Err(format!(
-                "The FASTA/FASTQ header attribute '{}' is added/edited twice",
-                name
+                "The FASTA/FASTQ header attribute '{name}' is added/edited twice"
             ))
         }
         for (i, d) in self.read_edit_attrs.iter_mut().enumerate() {

@@ -173,8 +173,7 @@ pub fn parse_textcols(text: &str) -> Result<(Color, Color), String> {
         }
     }
     Err(format!(
-        "Invalid text color specification: '{}'. Must be '<dark>,<bright>'",
-        text
+        "Invalid text color specification: '{text}'. Must be '<dark>,<bright>'"
     ))
 }
 

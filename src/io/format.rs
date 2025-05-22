@@ -48,7 +48,7 @@ impl FromStr for FormatVariant {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        FormatVariant::str_match(s).ok_or_else(|| format!("Unknown format: {}", s))
+        FormatVariant::str_match(s).ok_or_else(|| format!("Unknown format: {s}"))
     }
 }
 

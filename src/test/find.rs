@@ -85,7 +85,7 @@ fn regex() {
     let fa = concat!(">s1\nSEQ\n", ">2\nSEQ\n", ">s\nSEQ\n");
     let pat = concat!(">a\n(?<s>.)(?<n>\\d+)\n", ">b\n^(?<n>\\d+)$\n");
     t.temp_file("patterns.fasta", Some(pat), |p, _| {
-        let f = format!("file:{}", p);
+        let f = format!("file:{p}");
         t.cmp(
             &[
                 "find",
@@ -95,7 +95,7 @@ fn regex() {
                 "id,pattern_name,match_group(1)",
             ],
             fa,
-            &format!("s1,a,s\n2,b,2\ns,{na},{na}\n", na = NA),
+            &format!("s1,a,s\n2,b,2\ns,{NA},{NA}\n"),
         )
         .fails(
             &["find", "-ri", &f, "--to-csv", "id,match_group(s)"],
@@ -120,7 +120,7 @@ fn missing() {
     Tester::new().cmp(
         &["find", "ATGC", "-a", "pos={match_start}"],
         ">id\n\n",
-        &format!(">id pos={}\n\n", NA),
+        &format!(">id pos={NA}\n\n"),
     );
 }
 
@@ -134,7 +134,7 @@ fn range() {
         .cmp(
             &["find", "A", "--rng", ":1", "--to-csv", v],
             fa,
-            &format!("{}\n", NA),
+            &format!("{NA}\n"),
         );
 }
 
@@ -280,7 +280,7 @@ fn drop_file() {
     t.temp_dir("find_drop", |d| {
         // FASTA
         let out_fa = ">seq2 m=4:4\nSEQ2\n";
-        let dropped_fa = format!(">seq1 m={na}\nSEQ1\n>seq3 m={na}\nSEQ3\n", na = NA);
+        let dropped_fa = format!(">seq1 m={NA}\nSEQ1\n>seq3 m={NA}\nSEQ3\n");
         let p = d.path().join("dropped.fa");
         let cmd = &mut [
             "find",
@@ -305,7 +305,7 @@ fn drop_file() {
         // TSV
         #[cfg(feature = "gz")]
         {
-            let dropped_tsv = format!("seq1\t{na}\tSEQ1\nseq3\t{na}\tSEQ3\n", na = NA);
+            let dropped_tsv = format!("seq1\t{NA}\tSEQ1\nseq3\t{NA}\tSEQ3\n");
             let p = d.path().join("dropped.tsv.gz");
             let cmd = &mut [
                 "find",
@@ -355,8 +355,7 @@ fn vars() {
             ],
             fasta,
             &format!(
-                "seq,C[GC](A[AT]),CCAA,CCAA,CCAA,CGAT,{},CCAA,CGAT,9:12,16:19,12,19,AA,AT\n",
-                NA
+                "seq,C[GC](A[AT]),CCAA,CCAA,CCAA,CGAT,{NA},CCAA,CGAT,9:12,16:19,12,19,AA,AT\n"
             ),
         )
         .cmp(
@@ -413,7 +412,7 @@ fn fuzzy() {
             "s3,b,ACGT,ACGT,4,AGGT,AGGT,4,1,0,0,1\n",
         );
         t.cmp(
-            &["find", "-D2", &format!("file:{}", p), "--to-csv", v],
+            &["find", "-D2", &format!("file:{p}"), "--to-csv", v],
             fa,
             exp,
         );
@@ -535,7 +534,7 @@ fn ambig() {
     let subseq_indel = "ACRCTG-GGAGNTTTC".replace('-', "");
     let vars = "match_range,match";
     let expected = "4:19,ACACTGTGGAGTTTTC\n";
-    let fasta = format!(">seq\n{}\n", seq);
+    let fasta = format!(">seq\n{seq}\n");
 
     Tester::new()
         .cmp(&["find", "--to-csv", vars, subseq], &fasta, expected)
@@ -543,7 +542,7 @@ fn ambig() {
         .cmp(
             &["find", "--to-csv", vars, "-D", "0", &subseq_indel],
             &fasta,
-            &format!("{na},{na}\n", na = NA),
+            &format!("{NA},{NA}\n"),
         )
         .cmp(
             &["find", "--to-csv", vars, "-D", "1", &subseq_indel],
@@ -559,13 +558,13 @@ fn ambig() {
     Tester::new()
         .cmp(
             &["find", "--to-csv", "id,match_range", &seq_ambig[1..]],
-            &*format!(">seq\n{}\n", seq_orig_),
+            &*format!(">seq\n{seq_orig_}\n"),
             "seq,2:16\n",
         )
         .cmp(
             &["find", "--to-csv", "id,match_range", &seq_orig_[1..]],
-            &*format!(">seq\n{}\n", seq_ambig),
-            &format!("seq,{}\n", NA),
+            &*format!(">seq\n{seq_ambig}\n"),
+            &format!("seq,{NA}\n"),
         )
         // fuzzy matching however will work
         .cmp(
@@ -577,7 +576,7 @@ fn ambig() {
                 "2",
                 &seq_orig_[1..],
             ],
-            &*format!(">seq\n{}\n", seq_ambig),
+            &*format!(">seq\n{seq_ambig}\n"),
             "seq,2:16\n",
         );
 }
@@ -675,9 +674,9 @@ fn threaded() {
                         "--to-tsv",
                         "id",
                         "-t",
-                        &format!("{}", t),
+                        &format!("{t}"),
                         "--buf-cap",
-                        &format!("{}", cap),
+                        &format!("{cap}"),
                         "seq",
                     ],
                     *FASTA,
@@ -702,15 +701,15 @@ fn multiple() {
         b"ACACACTGAGGAGTTTTCGA", // p2: 1 mismatches at end
                                  //            A
     ];
-    let fasta = format!(">seq\n{}\n", seq);
+    let fasta = format!(">seq\n{seq}\n");
 
     let t = Tester::new();
 
     t.temp_file("patterns.fa", None, |p, mut f| {
-        let patt_path = format!("file:{}", p);
+        let patt_path = format!("file:{p}");
 
         for (i, p) in patterns.iter().enumerate() {
-            fasta::write_parts(&mut f, format!("p{}", i).as_bytes(), None, *p as &[u8]).unwrap();
+            fasta::write_parts(&mut f, format!("p{i}").as_bytes(), None, *p as &[u8]).unwrap();
         }
 
         let vars =

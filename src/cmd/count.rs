@@ -73,7 +73,7 @@ fn count_simple(cfg: Config) -> CliResult<()> {
             Ok(true)
         })?;
         // TODO: line terminator?
-        writeln!(writer, "{}", n)?;
+        writeln!(writer, "{n}")?;
         Ok(())
     })?;
     Ok(())
@@ -160,7 +160,7 @@ where
                 // (current one still not written since we don't know if it is
                 // distinct yet) -> assign 'count = n')
                 writer.write_all(&prev_buf)?;
-                writeln!(writer, "{}", count)?;
+                writeln!(writer, "{count}")?;
                 mem::swap(&mut buf, &mut prev_buf);
                 count = n;
             } else {
@@ -170,7 +170,7 @@ where
         }
         // write the last line
         writer.write_all(&prev_buf)?;
-        writeln!(writer, "{}", count)?;
+        writeln!(writer, "{count}")?;
         Ok(())
     })
 }

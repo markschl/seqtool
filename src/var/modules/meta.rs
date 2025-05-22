@@ -160,7 +160,7 @@ impl MetaVars {
         }
         // there should be at least one metadata file
         if self.readers.is_empty() {
-            return fail!("The '{}' function is used, but no metadata source was supplied with -m/--meta <file>.", func_name);
+            return fail!("The '{func_name}' function is used, but no metadata source was supplied with -m/--meta <file>.");
         }
         let n_readers = self.readers.len();
         self.readers
@@ -308,7 +308,7 @@ impl MetaReader {
         let (io_reader, ext) = IoKind::from_str(path)
             .unwrap()
             .io_reader()
-            .map_err(|e| format!("Could not open metadata file '{}': {}", path, e))?;
+            .map_err(|e| format!("Could not open metadata file '{path}': {e}"))?;
         let delim = delim.unwrap_or_else(|| match ext.map(|e| e.to_ascii_lowercase()).as_deref() {
             Some("csv") => b',',
             _ => b'\t',

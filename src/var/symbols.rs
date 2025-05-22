@@ -216,11 +216,11 @@ impl_value!(
 );
 
 fn from_interval_err(val: Interval, what: &str) -> String {
-    format!("Cannot convert the interval {} to {}", val, what)
+    format!("Cannot convert the interval {val} to {what}")
 }
 
 fn to_interval_err<V: fmt::Display>(what: &str, value: V) -> String {
-    format!("Cannot convert the {} '{}' to an interval", what, value)
+    format!("Cannot convert the {what} '{value}' to an interval")
 }
 
 impl_value!(
@@ -513,7 +513,7 @@ impl fmt::Display for OptValue {
         if self.is_some {
             write!(f, "{}", self.value)
         } else {
-            write!(f, "{}", NA)
+            write!(f, "{NA}")
         }
     }
 }

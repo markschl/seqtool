@@ -144,7 +144,7 @@ impl Tester {
 }
 
 fn fasta_record(seq: &str) -> String {
-    format!(">seq \n{}\n", seq)
+    format!(">seq \n{seq}\n")
 }
 
 fn fq_records<Q1, Q2>(q1: Q1, q2: Q2) -> String
@@ -240,7 +240,6 @@ mod slice;
 mod sort;
 #[cfg(any(feature = "all-commands", feature = "split"))]
 mod split;
-#[cfg(any(feature = "all-commands", feature = "stat"))]
 mod stat;
 #[cfg(any(feature = "all-commands", feature = "tail"))]
 mod tail;

@@ -121,7 +121,7 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
 
         // if output file does not exist yet, initialize new one
         let path_str = std::str::from_utf8(&path)?;
-        report!(verbose, "New file: '{}'", path_str);
+        report!(verbose, "New file: '{path_str}'");
         let p = Path::new(path_str);
         if let Some(par) = p.parent() {
             if !par.exists() && !par.as_os_str().is_empty() && !parents {
@@ -145,7 +145,7 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
     if let Some(mut f) = counts_file {
         for (path, (_, count)) in &outfiles {
             f.write_all(path)?;
-            writeln!(f, "\t{}", count)?;
+            writeln!(f, "\t{count}")?;
         }
         f.finish()?;
     }

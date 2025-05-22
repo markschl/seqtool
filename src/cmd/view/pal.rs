@@ -88,7 +88,7 @@ impl PaletteType for SeqPaletteType {
 
         writer.set_color(&default_spec)?;
         for (symbols, color) in Self::parse_pal_mapping(colors_str)? {
-            write!(writer, "{}:", symbols)?;
+            write!(writer, "{symbols}:")?;
             let bg = Color::from_rgb(color);
             let chosen = choose_fg(&textcols.0, &textcols.1, &bg).to_termcolor(rgb);
             colspec.set_fg(Some(chosen));
@@ -157,7 +157,7 @@ impl PaletteType for QualPaletteType {
             colspec.set_fg(Some(chosen));
             colspec.set_bg(Some(bg.to_termcolor(rgb)));
             writer.set_color(&colspec)?;
-            write!(writer, "{} ", qual)?;
+            write!(writer, "{qual} ")?;
         }
         writer.set_color(&default_spec)?;
         write!(writer, "]")?;
@@ -175,7 +175,7 @@ where
     T: PaletteType,
 {
     for (name, colors_str) in pal {
-        write!(writer, "{:<12}", name)?;
+        write!(writer, "{name:<12}")?;
         T::display_palette(colors_str, writer, textcols, rgb)?;
         writeln!(writer)?;
     }

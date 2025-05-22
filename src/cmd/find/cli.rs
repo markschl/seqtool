@@ -84,7 +84,7 @@ impl FromStr for HitScoring {
         }
         #[cold]
         fn cnv_err(s: &str) -> String {
-            format!("Score is not an integer number: {}", s)
+            format!("Score is not an integer number: {s}")
         }
         let out = HitScoring {
             match_: elements[0].parse().map_err(|_| cnv_err(elements[0]))?,
@@ -360,10 +360,7 @@ impl FindCommand {
             return fail!(format!(
                 "Autorecognition of pattern sequence types suggests that there are \
                 several different types ({}). Please specify the correct type with --seqtype",
-                unique_seqtypes
-                    .iter()
-                    .map(|t| format!("{:?}", t))
-                    .join(", ")
+                unique_seqtypes.iter().map(|t| format!("{t:?}")).join(", ")
             ));
         }
 
@@ -432,9 +429,7 @@ fn analyse_pattern(
         guess_seqtype_or_fail(pattern, typehint, true).map_err(|e| {
             format!(
                 "Error in search pattern{}: {}",
-                name.as_ref()
-                    .map(|n| format!(" '{}'", n))
-                    .unwrap_or_default(),
+                name.as_ref().map(|n| format!(" '{n}'")).unwrap_or_default(),
                 e
             )
         })?
@@ -460,14 +455,11 @@ fn analyse_pattern(
     if let Some(a) = search_args.algo {
         algorithm = a;
         if a != Algorithm::Myers && has_ambigs {
-            eprintln!("Warning: `--ambig` ignored with search algorithm '{}'.", a);
+            eprintln!("Warning: `--ambig` ignored with search algorithm '{a}'.");
             has_ambigs = false;
         }
         if a == Algorithm::Exact && search_args.case_insensitive {
-            eprintln!(
-                "Warning: `-c/--case-insensitive` ignored with search algorithm '{}'.",
-                a
-            );
+            eprintln!("Warning: `-c/--case-insensitive` ignored with search algorithm '{a}'.");
             has_ambigs = false;
         }
     }
@@ -481,7 +473,7 @@ fn analyse_pattern(
         // or there could be unexpected behaviour
         eprint!("Note: the sequence type of the pattern ",);
         if let Some(n) = name {
-            eprint!("'{}' ", n);
+            eprint!("'{n}' ");
         }
         eprint!("was determined as '{}'", info.seqtype);
         if has_ambigs {
