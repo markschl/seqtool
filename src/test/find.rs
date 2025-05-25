@@ -552,8 +552,10 @@ fn ambig() {
 
     // matching is asymmetric
     let seq_orig_ = "ACACTGTGGAGTTTTC";
-    //                 R        N
     let seq_ambig = "ACRCTGTGGAGNTTTC";
+    // ACACTGTGGAGTTTTC
+    //   R        N
+    // ACRCTGTGGAGNTTTC
     // TODO: working around Ukkonen bug in rust-bio
     Tester::new()
         .cmp(
@@ -583,7 +585,7 @@ fn ambig() {
 
 #[test]
 fn case_insensitive() {
-    let fasta = ">id\nAACaCacTGTGGAGTTTTCAT\n";
+    let fasta = ">id\nAACaCacTGTGGAGTTTTCATcacact\n";
 
     Tester::new()
         .cmp(
@@ -596,6 +598,7 @@ fn case_insensitive() {
             fasta,
             &format!("{NA}\n"),
         )
+        // case-insensitive
         .cmp(
             &["find", "-c", "--to-csv", "match_range,match", "CACACt"],
             fasta,
@@ -606,6 +609,13 @@ fn case_insensitive() {
             fasta,
             "3:8,CaCacT\n",
         )
+        // match both occurrences
+        .cmp(
+            &["find", "-c", "--to-tsv", "match_range(all),match(all)", "CACACt"],
+            fasta,
+            "3:8,22:27\tCaCacT,cacact\n",
+        )
+        // ambiguous
         .cmp(
             &["find", "--to-csv", "match_range,match", "CrCacY"],
             fasta,

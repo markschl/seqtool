@@ -232,11 +232,12 @@ impl MyersMatcherInner {
             }
 
             // Exact matches (max_dist == 0) in case of ambiguous / case insensitive matching
-            // TODO: may not be the fastest algorithm out there
             if opts.max_dist == 0 {
-                if let Some((end, dist)) = $myers.find_all_end(text, 0).next() {
+                for (end, dist) in $myers.find_all_end(text, 0) {
                     assert_eq!(dist, 0);
-                    func(&(end + 1 - opts.pattern_len, end, 0))?;
+                    if !func(&(end + 1 - opts.pattern_len, end, 0))? {
+                        break;
+                    }
                 }
                 return Ok(());
             }
