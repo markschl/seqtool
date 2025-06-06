@@ -56,23 +56,31 @@ variable_enum! {
     /// (...)
     FindVar {
         /// The text matched by the pattern.
-        /// With approximate matching (`-D/--diffs` > 0), this is the match with the
-        /// smallest edit distance or the leftmost occurrence if `--in-order` was specified.
-        /// With exact/regex matching, the leftmost hit is always returned.
-        /// In case of multiple patterns in a pattern file, the best hit of the
-        /// best-matching pattern is returned (fuzzy matching), or the first
-        /// hit of the first pattern with an exact match.
+        /// With approximate matching (`-D/--diffs` or `-R/--max-diff-rate` > 0),
+        /// this is the best match or the leftmost occurrence (with `--in-order`)
+        /// of the best-matching pattern (in case of multiple).
+        /// With exact or regex matching, this is the leftmost hit of the first
+        /// matching pattern.
         ///
-        /// `match(hit) returns the matched text of the given hit number,
-        /// whereas `match(all)` or `match('all') returns a comma-delimited
-        /// list of all hits. These are either sorted by the edit distance
-        /// (default) or by occurrence (`--in-order` or exact matching).
         ///
-        /// `match(1, 2)`, `match(1, 3)`, etc. references the 2nd, 3rd, etc.
-        /// best matching pattern in case multiple patterns were suplied in a
-        /// file (default: hit=1, pattern=1)."
+        /// Options:
+        ///
+        ///
+        /// * `match(1)`, `match(2)`, etc.: the matched text of hit no. 1, 2, etc.
+        ///
+        /// * `match(all)` or `match('all')`: comma-delimited list of all hits,
+        ///    from best to worst (default for approximate matching) or left to right
+        ///    (`--in-order` or exact matching).
+        ///
+        /// * `match(-1)`: the worst or rightmost match
+        ///   (-1 = last hit, -2 = second last, etc.).
+        ///
+        /// * `match(<hit>, 2)`, `match(<hit>, 3)`, etc. returns the 2nd, 3rd, etc.
+        ///    best matching pattern in case multiple
+        ///    matching patterns (default: hit=1, pattern=1)."
         Match(Text) { hit: String = String::from("1"), pattern: usize = 1 },
-        /// Text match aligned with the pattern, including gaps if needed.
+        /// Text match aligned with the pattern, including gaps if needed;
+        /// for details, see `match`
         AlignedMatch(Text) { hit: String = String::from("1"), rank: usize = 1 },
         /// Start coordinate of the first/best match. Other hits/patterns are selected
         /// with `match_start(hit, [pattern])`, for details see `match`
@@ -197,8 +205,10 @@ impl FindVarType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestedHit {
     var_type: FindVarType,
-    // hit position: None for a list of *all* hits
-    hit_pos: Option<usize>,
+    /// hit position: None for a list of *all* hits,
+    /// 0, 1, ... = zero-based hit index  (isize::MAX = all hits)
+    /// -1, -2, ... = last, second last, etc. hit
+    hit_pos: Option<isize>,
     // match group: 0 for complete hit, 1.. for regex groups
     match_group: usize,
     // nth best matching pattern
@@ -227,11 +237,17 @@ impl FindVars {
 
     fn register_match(&mut self, h: &RequestedHit) -> Result<(), String> {
         let cfg = self.config.as_mut().unwrap();
-        cfg.require_n_hits(
-            h.hit_pos.unwrap_or(usize::MAX),
-            h.var_type.required_detail(),
-        );
-        cfg.require_group(h.match_group);
+        if let Some(i) = h.hit_pos {
+            if cfg.get_anchor().is_some() && i != 0 && i != -1 {
+                return fail!(
+                    "Hit no. {} is undefined with anchoring activated \
+                    (--anchor-start/--anchor-end), since only the hit nearest to the \
+                    start or end is returned",
+                    if i >= 0 { i + 1 } else { i }
+                );
+            }
+        }
+        cfg.require_hit(h.hit_pos, h.match_group, h.var_type.required_detail());
         Ok(())
     }
 
@@ -463,10 +479,19 @@ impl VarProvider for FindVars {
             let hit_pos = if hit == "all" {
                 None
             } else {
-                let num: usize = hit
+                let mut num: isize = hit
                     .parse()
                     .map_err(|_| format!("Invalid hit number: {hit}"))?;
-                Some(num.checked_sub(1).ok_or("The hit number must be > 0")?)
+                if num == 0 {
+                    return fail!(
+                        "The hit number must not be zero. Possible are: \
+                        1, 2, ... or -1, -2, ... (=last, second last, etc.)"
+                    );
+                }
+                if num > 0 {
+                    num -= 1;
+                }
+                Some(num)
             };
 
             let cfg = self.config.as_mut().unwrap();

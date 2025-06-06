@@ -14,7 +14,7 @@ use crate::io::RecordAttr;
 use crate::CliResult;
 
 use super::opts::{
-    algorithm_from_name, Algorithm, Anchor, FilterOpts, PatternConfig, SearchConfig, SearchOpts,
+    algorithm_from_name, Algorithm, Anchor, GeneralOpts, PatternConfig, SearchConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -108,7 +108,7 @@ There are different search modes:
 2. Regular expressions (`-r/--regex`)
 3. DNA or protein patterns with ambiguous letters
 4. Approximate matching up to a given edit distance
-    (`-D/--diffs` or `-R/--max-diff-rate`)
+    (`-D/--max-diffs` or `-R/--max-diff-rate`)
 
 Search results can be used in three different ways:
 
@@ -275,7 +275,7 @@ impl FindCommand {
     pub fn parse(
         mut self,
         seqtype_hint: Option<SeqType>,
-    ) -> CliResult<(SearchConfig, SearchOpts, FilterOpts)> {
+    ) -> CliResult<(SearchConfig, GeneralOpts)> {
         let quiet = self.common.general.quiet;
 
         // what should be searched?
@@ -366,7 +366,13 @@ impl FindCommand {
 
         let seqtype = unique_seqtypes.into_iter().next().unwrap();
 
-        let mut config = SearchConfig::new(pattern_cfg);
+        let mut config = SearchConfig::new(
+            pattern_cfg,
+            seqtype,
+            !self.search.in_order,
+            self.search.case_insensitive,
+            self.search.hit_scoring,
+        );
 
         // hit anchoring
         let anchor = if let Some(n) = self.search_range.anchor_start {
@@ -375,6 +381,12 @@ impl FindCommand {
             self.search_range.anchor_end.map(Anchor::End)
         };
         if let Some(a) = anchor {
+            if self.search.in_order {
+                eprintln!(
+                    "Warning: --in-order is ignored with --anchor-start/--anchor-end, \
+                    since anyway only the first or last anchored hit is returned."
+                );
+            }
             config.set_anchor(a);
         }
 
@@ -395,22 +407,16 @@ impl FindCommand {
         } else {
             None
         };
-        let filter_opts = FilterOpts {
-            filter,
-            dropped_path: self.action.dropped.take(),
-        };
 
-        let search_opts = SearchOpts {
-            in_order: self.search.in_order,
-            seqtype,
-            hit_scoring: self.search.hit_scoring,
-            case_insensitive: self.search.case_insensitive,
+        let general_opts = GeneralOpts {
             attr,
             replacement: self.action.rep.take(),
+            filter,
+            dropped_path: self.action.dropped.take(),
             threads: self.search.threads,
         };
 
-        Ok((config, search_opts, filter_opts))
+        Ok((config, general_opts))
     }
 }
 

@@ -8,6 +8,16 @@ use super::cli::{HitScoring, Pattern};
 use super::matcher::{regex::resolve_group, Match};
 use super::matches::Matches;
 
+/// General options/properties derived from CLI args
+#[derive(Debug)]
+pub struct GeneralOpts {
+    pub attr: RecordAttr,
+    pub replacement: Option<String>,
+    pub filter: Option<bool>,
+    pub dropped_path: Option<String>,
+    pub threads: u32,
+}
+
 #[derive(Debug, Clone)]
 pub struct PatternConfig {
     pub pattern: Pattern,
@@ -19,10 +29,9 @@ pub struct PatternConfig {
 /// Required information based on CLI options / variables (functions).
 /// Each additional variant requires that more information is collected,
 /// and all the information required by earlier variants is also present.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RequiredDetail {
-    #[default]
-    Exists,
+    HasMatch,
     Distance,
     Range,
     Alignment,
@@ -81,38 +90,30 @@ impl Anchor {
     }
 }
 
-/// General options/properties derived from CLI args
-#[derive(Debug)]
+/// Options on which information is required
+#[derive(Debug, Clone)]
 pub struct SearchOpts {
-    pub in_order: bool,
+    /// Sequence type
     pub seqtype: SeqType,
-    pub hit_scoring: HitScoring,
-    pub case_insensitive: bool,
-    pub attr: RecordAttr,
-    pub replacement: Option<String>,
-    pub threads: u32,
-}
-
-/// Options related to filtering
-#[derive(Debug, Clone)]
-pub struct FilterOpts {
-    pub filter: Option<bool>,
-    pub dropped_path: Option<String>,
-}
-
-/// Options on how much information is required
-/// (derived from `SearchConfig` once configuration is finished)
-#[derive(Debug, Clone)]
-pub struct SearchRequirements {
-    pub required_detail: RequiredDetail,
-    pub max_hits: usize,
+    /// search limit (# of hits)
+    pub hit_limit: usize,
+    /// required level of detail
+    pub detail: RequiredDetail,
+    /// the Regex matcher needs to know this
     pub has_regex_groups: bool,
+    /// Sort matches by distance (best hit first)
+    pub sort_by_dist: bool,
+    /// Scoring for prioritizing among hits
+    pub hit_scoring: HitScoring,
+    /// Case insensitive pattern matching?
+    pub case_insensitive: bool,
 }
 
 /// Main configuration object holding the patterns, and search settings
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SearchConfig {
     patterns: Vec<PatternConfig>,
+    opts: SearchOpts,
     search_range: Option<Range>,
     anchor: Option<Anchor>,
     /// group numbers (0 = full match);
@@ -121,19 +122,32 @@ pub struct SearchConfig {
     /// group number -> index in groups vector;
     /// only defined if regex groups should be located (not just group 0 = full match)
     group_idx: VecMap<usize>,
-    // overall required level of detail
-    detail: RequiredDetail,
-    /// maximum number of required hits
-    /// 0 = RequiredInfo::Exsists only
-    /// usize::MAX for all hits
-    required_hits: usize,
 }
 
 impl SearchConfig {
-    pub fn new(patterns: Vec<PatternConfig>) -> Self {
+    pub fn new(
+        patterns: Vec<PatternConfig>,
+        seqtype: SeqType,
+        sort_by_dist: bool,
+        case_insensitive: bool,
+        hit_scoring: HitScoring,
+    ) -> Self {
+        let opts = SearchOpts {
+            seqtype,
+            hit_limit: 0,
+            hit_scoring,
+            detail: RequiredDetail::HasMatch,
+            sort_by_dist,
+            case_insensitive,
+            has_regex_groups: false,
+        };
         Self {
             patterns,
-            ..Default::default()
+            opts,
+            search_range: None,
+            anchor: None,
+            required_groups: Vec::new(),
+            group_idx: VecMap::new(),
         }
     }
 
@@ -149,45 +163,56 @@ impl SearchConfig {
         self.search_range
     }
 
-    /// Sets the required level of detail
-    fn set_detail(&mut self, detail: RequiredDetail) {
-        self.detail = self.detail.max(detail);
+    /// Require the searching of a hit from a given (regex) group and detail level.
+    ///
+    /// `hit`:
+    /// * None = require *all* hits to be found and stored in the `Matches` object
+    /// * Some(0, 1, ...) = require a 0-based hit index
+    /// * Some(-1, -2, ...) = require the last, second last, etc. hit
+    ///
+    /// `group`:
+    /// * 0 = full match
+    /// * 1, 2, ... = regex group number
+    pub fn require_hit(&mut self, hit: Option<isize>, group: usize, detail: RequiredDetail) {
+        // dbg!((hit, group, detail));
+        self._require_hit(hit);
+        self._require_group(group);
+        self._require_detail(detail);
+    }
+
+    fn _require_detail(&mut self, detail: RequiredDetail) {
+        self.opts.detail = self.opts.detail.max(detail);
     }
 
     pub fn get_required_detail(&self) -> RequiredDetail {
-        self.detail
+        self.opts.detail
     }
 
-    /// Sets the number of required hits
-    pub fn require_n_hits(&mut self, max_hits: usize, detail: RequiredDetail) {
-        self.required_hits = self.required_hits.max(max_hits);
-        self.set_detail(detail);
-        if detail >= RequiredDetail::Range {
-            self.require_group(0);
+    fn _require_hit(&mut self, hit: Option<isize>) {
+        let hit = hit.unwrap_or(isize::MAX);
+        self.opts.hit_limit = if hit >= 0 {
+            self.opts.hit_limit.max(hit as usize + 1)
+        } else {
+            // negative = hits at the end (-1 = last)
+            // -> exhaustive search needed
+            usize::MAX
+        };
+    }
+
+    /// Returns the number of required hits
+    pub fn get_hit_limit(&self) -> usize {
+        self.opts.hit_limit
+    }
+
+    fn _require_group(&mut self, group: usize) {
+        if group > 0 {
+            self.opts.has_regex_groups = true;
         }
-    }
-
-    /// Returns the number of required hits (usize::MAX = all hits)
-    pub fn get_required_hits(&self) -> usize {
-        self.required_hits
-    }
-
-    /// Requires the search of a specific (regex) group
-    /// (group 0 = full match)
-    pub fn require_group(&mut self, group: usize) {
-        // if group == 0 {
-        //     if self.groups.is_empty() {
-        //         self.groups.push(0);
-        //     }
-        //     assert!(&self.groups == &[0]);
-        // } else {
-        // let group_idx = self.group_idx.get_or_insert_with(VecMap::new);
         self.group_idx.entry(group).or_insert_with(|| {
             let l = self.required_groups.len();
             self.required_groups.push(group);
             l
         });
-        // }
     }
 
     /// Returns a slice of all requested group numbers
@@ -198,14 +223,14 @@ impl SearchConfig {
 
     /// Returns the index of the group in `self.groups`
     pub fn get_group_idx(&self, group: usize) -> Option<usize> {
+        if !self.opts.has_regex_groups {
+            // *only* the first full hit (position = 0) required
+            debug_assert!(
+                self.required_groups == [0] && self.group_idx.len() == 1 && self.group_idx[0] == 0
+            );
+            return Some(0);
+        }
         self.group_idx.get(group).cloned()
-        // if let Some(group_idx) = &self.group_idx {
-        //     group_idx.get(group).cloned()
-        // } else if group == 0 {
-        //     Some(0)
-        // } else {
-        //     None
-        // }
     }
 
     /// Returns the group number corresponding to the group name,
@@ -234,20 +259,15 @@ impl SearchConfig {
 
     pub fn set_anchor(&mut self, anchor: Anchor) {
         self.anchor = Some(anchor);
-        self.require_group(0);
-        self.require_n_hits(1, RequiredDetail::Range);
+        self.require_hit(None, 0, RequiredDetail::Range);
     }
 
     pub fn get_anchor(&self) -> Option<Anchor> {
         self.anchor
     }
 
-    pub fn get_search_requirements(&self) -> SearchRequirements {
-        SearchRequirements {
-            required_detail: self.detail,
-            max_hits: self.required_hits,
-            has_regex_groups: self.required_groups.iter().any(|g| *g > 0), // self.group_idx.is_some(),
-        }
+    pub fn get_opts(&self) -> &SearchOpts {
+        &self.opts
     }
 
     pub fn init_matches(&self) -> Matches {
@@ -258,7 +278,7 @@ impl SearchConfig {
     pub fn get_hit<'a>(
         &self,
         matches: &'a Matches,
-        hit_i: usize,
+        hit_i: isize,
         pattern_rank: usize,
         group: usize,
     ) -> Option<&'a Match> {
@@ -266,7 +286,7 @@ impl SearchConfig {
         matches.get_hit(hit_i, pattern_rank, group_i)
     }
 
-    /// Iterates across all hits of a specific group index
+    /// Iterates across all hits of a specific group (0 = full match)
     pub fn hits_iter<'a>(
         &self,
         matches: &'a Matches,

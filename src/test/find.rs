@@ -148,11 +148,13 @@ fn anchor() {
             fa,
             &format!("{NA}\n"),
         )
+        .cmp(&["find", "TG", "-f", "--anchor-start", "1"], fa, "")
         .cmp(
             &["find", "TG", "--anchor-start", "2", "--to-csv", v],
             fa,
             "3:4\n",
         )
+        .cmp(&["find", "TG", "-f", "--anchor-start", "2"], fa, fa)
         .cmp(
             &[
                 "find",
@@ -177,6 +179,8 @@ fn anchor() {
             fa,
             "3:4\n",
         )
+        .cmp(&["find", "TG", "-f", "--anchor-end", "4"], fa, "")
+        .cmp(&["find", "TG", "-f", "--anchor-end", "5"], fa, fa)
         .cmp(
             &[
                 "find",
@@ -270,6 +274,68 @@ fn anchor() {
             ],
             fa,
             "3:7,TGC-G\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "A",
+                "--anchor-start",
+                "1",
+                "--to-csv",
+                "match_range(all)",
+            ],
+            ">id\nAAAAAA",
+            "1:1\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "A",
+                "-D",
+                "1",
+                "--anchor-start",
+                "1",
+                "--to-csv",
+                "match_range(all)",
+            ],
+            ">id\nAAAAAA",
+            "1:1\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "A",
+                "--anchor-end",
+                "1",
+                "--to-csv",
+                "match_range(all)",
+            ],
+            ">id\nAAAAAA",
+            "6:6\n",
+        )
+        .cmp(
+            &[
+                "find",
+                "A",
+                "--anchor-end",
+                "0",
+                "--to-csv",
+                "match_range(-1)",
+            ],
+            ">id\nAAAAAA",
+            "6:6\n",
+        )
+        .fails(
+            &[
+                "find",
+                "A",
+                "--anchor-end",
+                "0",
+                "--to-csv",
+                "match_range(-2)",
+            ],
+            ">id\nAAAAAA",
+            "Hit no. -2 is undefined with anchoring activated",
         );
 }
 
@@ -406,13 +472,27 @@ fn fuzzy() {
         let v = "id,pattern_name,pattern,aligned_pattern,pattern_len,\
                  match,aligned_match,match_len,\
                  match_diffs,match_ins,match_del,match_subst";
-        let exp = concat!(
+        let exp_list = [
             "s1,a,CATG,CA-TG,4,CAATG,CAATG,5,1,1,0,0\n",
             "s2,b,ACGT,ACGT,4,ACG,ACG-,3,1,0,1,0\n",
             "s3,b,ACGT,ACGT,4,AGGT,AGGT,4,1,0,0,1\n",
-        );
+        ];
+        let exp = exp_list.join("");
+        let f = format!("file:{p}");
+        t.cmp(&["find", "-D2", &f, "--to-csv", v], fa, &exp);
+        // anchored search
+        let exp = &exp_list[1];
         t.cmp(
-            &["find", "-D2", &format!("file:{p}"), "--to-csv", v],
+            &[
+                "find",
+                "-f",
+                "-D2",
+                "--anchor-start",
+                "0",
+                &f,
+                "--to-csv",
+                v,
+            ],
             fa,
             exp,
         );
@@ -528,8 +608,10 @@ fn fuzzy_gaps() {
 
 #[test]
 fn ambig() {
+    // AACACACTGTGGAGTTTTCAT
+    //   R        N
+    // ACRCTGTGGAGNTTTC
     let seq = "AACACACTGTGGAGTTTTCAT";
-    //              R        N
     let subseq = "ACRCTGTGGAGNTTTC";
     let subseq_indel = "ACRCTG-GGAGNTTTC".replace('-', "");
     let vars = "match_range,match";
@@ -551,11 +633,11 @@ fn ambig() {
         );
 
     // matching is asymmetric
-    let seq_orig_ = "ACACTGTGGAGTTTTC";
-    let seq_ambig = "ACRCTGTGGAGNTTTC";
     // ACACTGTGGAGTTTTC
     //   R        N
     // ACRCTGTGGAGNTTTC
+    let seq_orig_ = "ACACTGTGGAGTTTTC";
+    let seq_ambig = "ACRCTGTGGAGNTTTC";
     // TODO: working around Ukkonen bug in rust-bio
     Tester::new()
         .cmp(
@@ -580,6 +662,79 @@ fn ambig() {
             ],
             &*format!(">seq\n{seq_ambig}\n"),
             "seq,2:16\n",
+        );
+}
+
+#[test]
+fn hit_num() {
+    let fa = ">id\nTAGAGTTTTTTTTTAGAGTTTTTTTAGAG\n";
+    Tester::new()
+        .cmp(&["find", "AGAG", "--to-csv", "match_range"], fa, "2:5\n")
+        .cmp(&["find", "AGAG", "--to-csv", "match_range(1)"], fa, "2:5\n")
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(-3)"],
+            fa,
+            "2:5\n",
+        )
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(2)"],
+            fa,
+            "15:18\n",
+        )
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(-2)"],
+            fa,
+            "15:18\n",
+        )
+        .cmp(
+            &["find", "AGAG", "-D", "1", "--to-csv", "match_range(-2)"],
+            fa,
+            "15:18\n",
+        )
+        .cmp(
+            &["find", "AGAG", "-r", "--to-csv", "match_range(-2)"],
+            fa,
+            "15:18\n",
+        )
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(3)"],
+            fa,
+            "26:29\n",
+        )
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(-1)"],
+            fa,
+            "26:29\n",
+        )
+        .cmp(
+            &["find", "AGAG", "-D", "1", "--to-csv", "match_range(-1)"],
+            fa,
+            "26:29\n",
+        )
+        .cmp(
+            &["find", "AGAG", "-r", "--to-csv", "match_range(-1)"],
+            fa,
+            "26:29\n",
+        )
+        .cmp(
+            &["find", "AGAG", "-D", "1", "--to-csv", "match_range(all)"],
+            fa,
+            "2:5,15:18,26:29\n",
+        )
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(all)"],
+            fa,
+            "2:5,15:18,26:29\n",
+        )
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(-4)"],
+            fa,
+            &format!("{NA}\n"),
+        )
+        .cmp(
+            &["find", "AGAG", "--to-csv", "match_range(4)"],
+            fa,
+            &format!("{NA}\n"),
         );
 }
 
@@ -611,7 +766,13 @@ fn case_insensitive() {
         )
         // match both occurrences
         .cmp(
-            &["find", "-c", "--to-tsv", "match_range(all),match(all)", "CACACt"],
+            &[
+                "find",
+                "-c",
+                "--to-tsv",
+                "match_range(all),match(all)",
+                "CACACt",
+            ],
             fasta,
             "3:8,22:27\tCaCacT,cacact\n",
         )

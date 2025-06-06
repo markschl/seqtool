@@ -5,14 +5,14 @@ use super::{Hit, Match, Matcher};
 #[derive(Debug, Clone)]
 pub struct ExactMatcher {
     finder: Finder<'static>,
-    len: usize,
+    pattern_len: usize,
 }
 
 impl ExactMatcher {
     pub fn new(pattern: &[u8]) -> Self {
         Self {
             finder: Finder::new(pattern).into_owned(),
-            len: pattern.len(),
+            pattern_len: pattern.len(),
         }
     }
 }
@@ -28,7 +28,7 @@ impl Matcher for ExactMatcher {
         func: &mut dyn FnMut(&dyn Hit) -> Result<bool, String>,
     ) -> Result<(), String> {
         for start in self.finder.find_iter(text) {
-            if !func(&(start, start + self.len))? {
+            if !func(&(start, start + self.pattern_len))? {
                 break;
             }
         }

@@ -3,64 +3,44 @@ use bio::{alignment::AlignmentOperation, pattern_matching::myers};
 use crate::cmd::find::{
     ambig::{AMBIG_DNA, AMBIG_PROTEIN, AMBIG_RNA},
     cli::HitScoring,
-    opts::{RequiredDetail, SearchOpts, SearchRequirements},
+    opts::{RequiredDetail, SearchOpts},
 };
 use crate::CliResult;
 
 use super::{Hit, Match, Matcher};
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SearchStrategy {
+    BestDist,
+    BestHit,
+    ExactHits,
+    // multiple hits (sorted by distance or in-order), or leftmost hit
+    General { sort_by_dist: bool },
+}
+
 #[derive(Debug, Clone)]
 struct MyersOpts {
     /// maximum edit distance
     max_dist: usize,
-    /// sort by distance
-    sort_by_dist: bool,
-    /// only the best hit needed
-    best_only: bool,
-    /// only distance of best hit needed?
-    best_dist_only: bool,
+    /// appropriate search stratey for the given output requirements
+    search_strategy: SearchStrategy,
     /// alignment path needed?
-    needs_alignment: bool,
+    needs_alignment_path: bool,
     /// pattern length (needed for exact matches)
     pattern_len: usize,
     /// scoring to use for selecting among multiple best hits with the same edit distance
     hit_scoring: HitScoring,
 }
 
-impl MyersOpts {
-    pub fn new(
-        max_dist: usize,
-        sort_by_dist: bool,
-        max_hits: usize,
-        pattern_len: usize,
-        required_detail: RequiredDetail,
-        hit_scoring: HitScoring,
-    ) -> Self {
-        if required_detail == RequiredDetail::Exists {
-            debug_assert!(max_hits == 0);
-        }
-        Self {
-            max_dist,
-            sort_by_dist,
-            best_only: max_hits == 1,
-            best_dist_only: max_hits == 1 && required_detail == RequiredDetail::Distance,
-            needs_alignment: required_detail == RequiredDetail::Alignment,
-            pattern_len,
-            hit_scoring,
-        }
-    }
-}
-
 pub fn get_matcher(
     pattern: &str,
     max_dist: usize,
     ambig: bool,
-    search_opts: &SearchOpts,
-    requirements: &SearchRequirements,
+    opts: &SearchOpts,
 ) -> CliResult<Box<dyn Matcher + Send + Sync>> {
     let ambig_map = if ambig {
         use crate::helpers::seqtype::SeqType::*;
-        match search_opts.seqtype {
+        match opts.seqtype {
             DNA => Some(AMBIG_DNA),
             RNA => Some(AMBIG_RNA),
             Protein => Some(AMBIG_PROTEIN),
@@ -72,8 +52,7 @@ pub fn get_matcher(
     Ok(Box::new(MyersMatcher::new(
         pattern.as_bytes(),
         max_dist,
-        search_opts,
-        requirements,
+        opts,
         ambig_map,
     )?))
 }
@@ -91,21 +70,32 @@ impl MyersMatcher {
     pub fn new(
         pattern: &[u8],
         max_dist: usize,
-        search_opts: &SearchOpts,
-        requirements: &SearchRequirements,
+        opts: &SearchOpts,
         ambig_trans: Option<&[(u8, &[u8])]>,
     ) -> CliResult<Self> {
+        let search_strategy = if max_dist == 0 {
+            SearchStrategy::ExactHits
+        } else if opts.hit_limit == 0 || opts.hit_limit == 1 && opts.sort_by_dist {
+            if opts.detail == RequiredDetail::Distance {
+                SearchStrategy::BestDist
+            } else {
+                SearchStrategy::BestHit
+            }
+        } else {
+            SearchStrategy::General {
+                sort_by_dist: opts.sort_by_dist,
+            }
+        };
         Ok(MyersMatcher {
-            myers: MyersMatcherInner::new(pattern, ambig_trans, search_opts.case_insensitive),
+            myers: MyersMatcherInner::new(pattern, ambig_trans, opts.case_insensitive),
             // pattern: pattern.to_vec(),
-            opts: MyersOpts::new(
+            opts: MyersOpts {
                 max_dist,
-                !search_opts.in_order,
-                requirements.max_hits,
-                pattern.len(),
-                requirements.required_detail,
-                search_opts.hit_scoring,
-            ),
+                search_strategy,
+                needs_alignment_path: opts.detail == RequiredDetail::Alignment,
+                pattern_len: pattern.len(),
+                hit_scoring: opts.hit_scoring,
+            },
             dist_sort_vec: Vec::new(),
             path_buf: Vec::new(),
         })
@@ -171,10 +161,10 @@ impl MyersMatcherInner {
         }
         if case_insensitive {
             for uc in b'A'..=b'Z' {
-                builder.ambig(uc, &[uc.to_ascii_lowercase()]);
+                builder.ambig(uc, [uc.to_ascii_lowercase()]);
             }
             for lc in b'a'..=b'z' {
-                builder.ambig(lc, &[lc.to_ascii_uppercase()]);
+                builder.ambig(lc, [lc.to_ascii_uppercase()]);
             }
         }
         if pattern.len() <= 64 {
@@ -224,15 +214,17 @@ impl MyersMatcherInner {
         macro_rules! impl_iter_matches { ($myers:expr, $dist_ty:ty) => { {
             // dbg!(&opts);
             // simplest case: only minimum distance is needed (`find_all_end` is very fast)
-            if opts.best_dist_only {
-                if let Some((_, dist)) = $myers.find_all_end(text, opts.max_dist as $dist_ty).min_by_key(|&(_, dist)| dist) {
-                    func(&mut (0, 0, dist as usize))?;
+            if opts.search_strategy == SearchStrategy::BestDist {
+                if let Some((end, dist)) = $myers.find_all_end(text, opts.max_dist as $dist_ty).min_by_key(|&(_, dist)| dist) {
+                    // unknown start position: set to usize::MAX
+                    // usize::MAX..0 will panic if the start is ever used
+                    func(&mut (usize::MAX, end, dist as usize))?;
                 }
                 return Ok(());
             }
 
             // Exact matches (max_dist == 0) in case of ambiguous / case insensitive matching
-            if opts.max_dist == 0 {
+            if opts.search_strategy == SearchStrategy::ExactHits {
                 for (end, dist) in $myers.find_all_end(text, 0) {
                     assert_eq!(dist, 0);
                     if !func(&(end + 1 - opts.pattern_len, end, 0))? {
@@ -252,14 +244,14 @@ impl MyersMatcherInner {
 
             // end position of the hit whose path (in reverse order) is currently
             // present in `path_buf`
-            let mut path_end = usize::MAX;
+            let mut current_path_end = usize::MAX;
 
             // Calculates an alignment path and alignment score
             // used to select the final alignment in case of multiple hits with the same edit distance
             macro_rules! get_aligment {
                 ($pos:expr) => {
                     {
-                        path_end = $pos;
+                        current_path_end = $pos;
                         path_buf.clear();  // TODO: should it be cleared in bio API already?
                         let (start, dist) = matches.path_at_reverse($pos, path_buf).unwrap();
                         let score: isize = path_buf.iter().map(|op| {
@@ -279,15 +271,15 @@ impl MyersMatcherInner {
             macro_rules! report_hit {
                 ($hit:expr) => {
                     // see Hit implementations below
-                    if opts.needs_alignment {
+                    if opts.needs_alignment_path {
                         // (start, end, reverse alignment path)
                         // where start <= i <= end
-                        if $hit.1 != path_end {
+                        if $hit.1 != current_path_end {
                             // re-calculate the alignment, as `path_buf` contains
                             // the path from a different hit
                             path_buf.clear();
                             let (start, dist) = matches.path_at_reverse($hit.1, path_buf).unwrap();
-                            // path_end = $hit.1;  // not needed unless there is a bug below
+                            // current_path_end = $hit.1;  // not needed unless there is a bug below
                             debug_assert_eq!(start, $hit.0);
                             debug_assert_eq!(dist as usize, $hit.2);
                         }
@@ -300,7 +292,7 @@ impl MyersMatcherInner {
                 }
             }
 
-            if opts.best_only {
+            if opts.search_strategy == SearchStrategy::BestHit {
                 // Only the hit with the smallest distance requested:
                 //
                 // (1) Obtain the hit with the smallest edit distance
@@ -308,7 +300,7 @@ impl MyersMatcherInner {
                 //   in case of multiple equally good hits).
                 if let Some((end0, best_dist)) = matches.by_ref().min_by_key(|&(_, dist)| dist) {
                     // (2) Starting from this leftmost hit, we look further ahead for additional
-                    //   hits with the *same start position* and edit distance (`best_dist`).
+                    //   alignments with the *same start position* and edit distance (`best_dist`).
                     //   We need to consider the full range of theoretically possible end positions
                     //   (end0 <= i <= end1).
                     //
@@ -390,21 +382,21 @@ impl MyersMatcherInner {
                     // onle one hit should have been requested (otherwise, we should have used the code below)
                     assert!(!do_continue);
                 }
-            } else {
+            } else if let SearchStrategy::General { sort_by_dist } = opts.search_strategy {
                 // Multiple hits requested, either in-order or sorted by distance.
                 // In both cases, we first collect *all* possible hits,
                 // or at least up to the requested number (if in-order, not sorted by distance).
                 // Hits are grouped by start position, and only the one hit with the
                 // smallest edit distance and the highest alignment score is reported.
 
-                if opts.sort_by_dist {
+                if sort_by_dist {
                     sort_vec.clear();
                 }
 
                 // macro for either directly reporting a hit or adding it to `sort_vec`
                 macro_rules! report_push_hit {
                     ($hit:expr) => {
-                        if opts.sort_by_dist {
+                        if sort_by_dist {
                             // eprintln!("report push {:?}", $hit);
                             sort_vec.push($hit);
                             Ok(true)
@@ -453,7 +445,7 @@ impl MyersMatcherInner {
                 }
 
                 // report hits sorted by distance
-                if opts.sort_by_dist {
+                if sort_by_dist {
                     sort_vec.sort_by_key(|&(_, _, d)| d);
                     for hit in sort_vec {
                         if !report_hit!(*hit)? {
@@ -461,6 +453,8 @@ impl MyersMatcherInner {
                         }
                     }
                 }
+            } else {
+                unreachable!();
             }
             Ok(())
         } } }

@@ -4,7 +4,7 @@ use bio::alignment::AlignmentOperation;
 
 use crate::error::CliResult;
 
-use super::opts::{Algorithm, PatternConfig, SearchConfig, SearchOpts, SearchRequirements};
+use super::opts::{Algorithm, PatternConfig, SearchConfig, SearchOpts};
 
 pub mod approx;
 pub mod exact;
@@ -68,11 +68,10 @@ impl Match {
 
 pub fn get_matcher(
     cfg: &PatternConfig,
-    search_opts: &SearchOpts,
-    requirements: &SearchRequirements,
+    opts: &SearchOpts,
 ) -> CliResult<Box<dyn Matcher + Send + Sync>> {
     use Algorithm::*;
-    if cfg.algorithm != Regex && requirements.has_regex_groups {
+    if cfg.algorithm != Regex && opts.has_regex_groups {
         return fail!(
             "Match groups > 0 can only be used with regular expression searches (-r/--regex or --regex-unicode)."
         );
@@ -81,28 +80,19 @@ pub fn get_matcher(
         Exact => Box::new(exact::ExactMatcher::new(cfg.pattern.seq.as_bytes())),
         Regex => regex::get_matcher(
             &cfg.pattern.seq,
-            requirements.max_hits <= 1,
-            requirements.has_regex_groups,
-            search_opts.case_insensitive,
+            opts.hit_limit <= 1,
+            opts.has_regex_groups,
+            opts.case_insensitive,
         )?,
-        Myers => approx::get_matcher(
-            &cfg.pattern.seq,
-            cfg.max_dist,
-            cfg.has_ambigs,
-            search_opts,
-            requirements,
-        )?,
+        Myers => approx::get_matcher(&cfg.pattern.seq, cfg.max_dist, cfg.has_ambigs, opts)?,
     };
     Ok(matcher)
 }
 
-pub fn get_matchers(
-    cfg: &SearchConfig,
-    opts: &SearchOpts,
-) -> CliResult<Vec<Box<dyn Matcher + Send + Sync>>> {
-    let req = cfg.get_search_requirements();
+pub fn get_matchers(cfg: &SearchConfig) -> CliResult<Vec<Box<dyn Matcher + Send + Sync>>> {
+    let opts = cfg.get_opts();
     cfg.patterns()
         .iter()
-        .map(|p| get_matcher(p, opts, &req))
+        .map(|p| get_matcher(p, opts))
         .collect::<CliResult<Vec<_>>>()
 }
