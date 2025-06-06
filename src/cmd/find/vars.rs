@@ -101,7 +101,14 @@ variable_enum! {
         /// Range (start:end) of the first/best match. Other hits/patterns are selected
         /// with `match_range(hit, [pattern])`, for details see `match`.
         /// The 3rd argument allows changing the range delimiter, e.g. to '-'.
-        MatchRange(Number) {
+        MatchRange(Text) {
+            hit: String = String::from("1"),
+            pattern: usize = 1,
+            delim: String = String::from(":")
+        },
+        /// Like `match_range`, but ranges have negative coordinates relative
+        /// to the end.
+        MatchNegRange(Text) {
             hit: String = String::from("1"),
             pattern: usize = 1,
             delim: String = String::from(":")
@@ -174,6 +181,7 @@ pub enum FindVarType {
     Start,
     End,
     Range(String),
+    NegRange(String),
     NegStart,
     NegEnd,
     Diffs,
@@ -196,8 +204,8 @@ impl FindVarType {
         match self {
             Diffs | DiffRate | Name => RequiredDetail::Distance,
             Ins | Del | Subst | AlignedPattern | AlignedMatch => RequiredDetail::Alignment,
-            Start | End | NegStart | NegEnd | Range(_) | MatchLen | Match | Pattern
-            | PatternLen => RequiredDetail::Range,
+            Start | End | NegStart | NegEnd | Range(_) | NegRange(_) | MatchLen | Match
+            | Pattern | PatternLen => RequiredDetail::Range,
         }
     }
 }
@@ -339,6 +347,7 @@ impl FindVars {
                     m.dist as f64 / config.matched_pattern(req_hit.pattern_rank, matches).unwrap().pattern.seq.len() as f64
                 )),
                 Range(ref delim) => ("{}{}{}", m.start + 1, delim, m.end),
+                NegRange(ref delim) => ("{}{}{}", m.neg_start1(rec.seq_len()), delim, m.neg_end1(rec.seq_len())),
                 Ins => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Del) as i64)),
                 Del => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Ins) as i64)),
                 Subst => (set_int(count_aln_op(&m.alignment_path, AlignmentOperation::Subst) as i64)),
@@ -441,6 +450,11 @@ impl VarProvider for FindVars {
                     pattern,
                     ref delim,
                 } => (FindVarType::Range(delim.clone()), hit, pattern, None),
+                MatchNegRange {
+                    hit,
+                    pattern,
+                    ref delim,
+                } => (FindVarType::NegRange(delim.clone()), hit, pattern, None),
                 MatchGrpStart {
                     hit,
                     pattern,

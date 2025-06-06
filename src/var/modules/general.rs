@@ -70,10 +70,11 @@ variable_enum! {
         LowerSeq(Text),
         /// Calculates a hash value from the sequence using the XXH3 algorithm. A hash
         /// is a integer number representing the sequence. In very rare cases, different
-        /// sequences may lead to the same hash value, but using 'seqhash' instead of 'seq'
+        /// sequences may lead to the same hash value. Using 'seqhash' instead of 'seq'
         /// speeds up de-replication ('unique' command) and requires less memory,
         /// at a very small risk of wrongly recognizing two
-        /// different sequences as duplicates. The returned numbers can be positive or negative.
+        /// different sequences as duplicates.
+        /// The returned numbers can be negative.
         Seqhash(Number) { ignorecase: bool = false },
         /// The hash value of the reverse-complemented sequence
         SeqhashRev(Number) { ignorecase: bool = false },

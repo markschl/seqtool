@@ -32,7 +32,7 @@ pub fn parse_int(text: &[u8]) -> Result<i64, String> {
     })
 }
 
-/// Float wrapper used for float values across this crate.
+/// Wrapper used for float values across this crate.
 /// It can be sorted/hashed and provides a `Display` implementation that
 /// allows to print the numbers in a human-readable way.
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
