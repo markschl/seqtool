@@ -64,6 +64,7 @@ fn drop_file() {
             p.to_str().unwrap(),
         ];
         t.cmp(cmd, input, "id2,2,OTHER\n");
+        #[cfg(any(feature = "all-commands", feature = "pass"))]
         t.cmp(
             &[".", "--fields", "id,desc,seq"],
             FileInput(cmd.last().unwrap()),

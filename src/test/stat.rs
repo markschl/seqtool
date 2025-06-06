@@ -7,11 +7,13 @@ fn stats() {
     let seq = ">seq\nATGC-NYA\n";
     let retval = "seq\t8\t7\t40\t0.4\t2\t3\n";
     let vars = "seqlen,ungapped_seqlen,gc_percent,gc,charcount(A),charcount(AT)";
-    #[cfg(feature = "pass")]
-    Tester::new().cmp(&[".", "--to-tsv", &format!("id,{}", vars)], seq, retval);
+    #[cfg(any(feature = "all-commands", feature = "pass"))]
+    Tester::new().cmp(&[".", "--to-tsv", &format!("id,{vars}")], seq, retval);
+    #[cfg(any(feature = "all-commands", feature = "stat"))]
     Tester::new().cmp(&["stat", vars], seq, retval);
 }
 
+#[cfg(any(feature = "all-commands", feature = "stat"))]
 #[test]
 fn qualstat() {
     Tester::new()

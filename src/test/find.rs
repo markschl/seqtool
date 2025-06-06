@@ -340,6 +340,7 @@ fn anchor() {
 }
 
 #[test]
+#[cfg(any(feature = "all-commands", feature = "pass"))]
 fn drop_file() {
     let t = Tester::new();
     let input = ">seq1\nSEQ1\n>seq2\nSEQ2\n>seq3\nSEQ3\n";
@@ -359,14 +360,19 @@ fn drop_file() {
         ];
         t.cmp(cmd, input, out_fa);
         t.cmp(&["."], FileInput(cmd.last().unwrap()), &dropped_fa);
-        let p = d.path().join("dropped.fasta.gz");
-        *cmd.last_mut().unwrap() = p.to_str().unwrap();
-        t.cmp(cmd, input, out_fa);
-        t.cmp(
-            &[".", "--fmt", "fasta.gz"],
-            FileInput(cmd.last().unwrap()),
-            &dropped_fa,
-        );
+
+        // FASTA.gz
+        #[cfg(feature = "gz")]
+        {
+            let p = d.path().join("dropped.fasta.gz");
+            *cmd.last_mut().unwrap() = p.to_str().unwrap();
+            t.cmp(cmd, input, out_fa);
+            t.cmp(
+                &[".", "--fmt", "fasta.gz"],
+                FileInput(cmd.last().unwrap()),
+                &dropped_fa,
+            );
+        }
 
         // TSV
         #[cfg(feature = "gz")]
