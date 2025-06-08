@@ -205,7 +205,7 @@ impl VarProvider for CnvVars {
         &mut self,
         rec: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attributes,
+        _: &Attributes,
         _: &mut QualConverter,
     ) -> Result<(), String> {
         // set fixed-string numbers (only once)

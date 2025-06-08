@@ -53,7 +53,7 @@ pub trait VarProvider: Debug + AsAnyMut {
         &mut self,
         _rec: &dyn Record,
         _sym: &mut SymbolTable,
-        _attr: &mut Attributes,
+        _attr: &Attributes,
         _qc: &mut QualConverter,
     ) -> Result<(), String> {
         Ok(())

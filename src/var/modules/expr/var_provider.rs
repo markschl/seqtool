@@ -108,7 +108,7 @@ impl VarProvider for ExprVars {
         &mut self,
         record: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attributes,
+        _: &Attributes,
         _: &mut QualConverter,
     ) -> Result<(), String> {
         self.0.eval(symbols, record)

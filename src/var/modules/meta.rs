@@ -223,7 +223,7 @@ impl VarProvider for MetaVars {
         &mut self,
         record: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attributes,
+        _: &Attributes,
         _: &mut QualConverter,
     ) -> Result<(), String> {
         // find the next record for all readers

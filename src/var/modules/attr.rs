@@ -146,7 +146,7 @@ impl VarProvider for AttrVars {
         &mut self,
         rec: &dyn Record,
         symbols: &mut SymbolTable,
-        attrs: &mut Attributes,
+        attrs: &Attributes,
         _: &mut QualConverter,
     ) -> Result<(), String> {
         for (symbol_id, var) in self.vars.iter() {

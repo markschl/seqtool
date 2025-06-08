@@ -82,7 +82,7 @@ impl VarProvider for StatVars {
         &mut self,
         rec: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attributes,
+        _: &Attributes,
         qual_converter: &mut QualConverter,
     ) -> Result<(), String> {
         for &(symbol_id, ref stat) in self.vars.iter() {

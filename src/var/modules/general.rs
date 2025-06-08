@@ -184,7 +184,7 @@ impl VarProvider for GeneralVars {
         &mut self,
         record: &dyn Record,
         symbols: &mut SymbolTable,
-        _: &mut Attributes,
+        _: &Attributes,
         _: &mut QualConverter,
     ) -> Result<(), String> {
         for (id, var) in self.vars.iter() {
