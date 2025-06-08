@@ -9,8 +9,8 @@ use rand::prelude::*;
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::{Config, SeqContext};
 use crate::error::CliResult;
-use crate::helpers::{bytesize::parse_bytesize, vec::VecFactory};
-use crate::io::{output::FormatWriter, Record};
+use crate::helpers::{bytesize::parse_bytesize, vec_buf::VecFactory};
+use crate::io::{output::SeqFormatter, Record};
 
 pub const DESC: &str = " The records are returned in input order.";
 
@@ -156,13 +156,13 @@ impl<R: Rng + Clone> ReservoirSampler<R> {
     fn sample(
         &mut self,
         record: &dyn Record,
-        writer: &mut dyn FormatWriter,
+        fmt: &mut dyn SeqFormatter,
         ctx: &mut SeqContext,
         quiet: bool,
     ) -> CliResult<()> {
         match self {
             ReservoirSampler::Records(ref mut s) => {
-                if !s.sample(record, writer, ctx)? {
+                if !s.sample(record, fmt, ctx)? {
                     let s = s.get_index_sampler()?;
                     if !quiet {
                         eprintln!(
@@ -182,13 +182,13 @@ impl<R: Rng + Clone> ReservoirSampler<R> {
 
     fn write(
         self,
-        writer: &mut dyn FormatWriter,
+        fmt: &mut dyn SeqFormatter,
         cfg: &mut Config,
         io_writer: &mut dyn io::Write,
     ) -> CliResult<()> {
         match self {
             ReservoirSampler::Records(s) => s.write(io_writer),
-            ReservoirSampler::Indices(s) => s.write(cfg, writer, io_writer),
+            ReservoirSampler::Indices(s) => s.write(cfg, fmt, io_writer),
         }
     }
 }
@@ -223,7 +223,7 @@ impl<R: Rng + Clone> RecordsSampler<R> {
     fn sample(
         &mut self,
         record: &dyn Record,
-        format_writer: &mut dyn FormatWriter,
+        fmt: &mut dyn SeqFormatter,
         ctx: &mut SeqContext,
     ) -> CliResult<bool> {
         // simple reservoir sampling
@@ -238,9 +238,7 @@ impl<R: Rng + Clone> RecordsSampler<R> {
         // The actual memory usage can actually be larger than the limit, since
         // the first record exceeding the limit still has to be handled.
         if self.i < self.amount {
-            let fmt_rec = self
-                .vec_factory
-                .get(|out| format_writer.write(&record, out, ctx))?;
+            let fmt_rec = self.vec_factory.get(|out| fmt.write(&record, out, ctx))?;
             self.mem += size_of_val(&self.i) + fmt_rec.deep_size_of();
             self.reservoir.push((self.i, fmt_rec));
             if self.mem >= self.max_mem {
@@ -253,7 +251,7 @@ impl<R: Rng + Clone> RecordsSampler<R> {
                 self.mem -= size_of_val(&*fmt_rec);
                 *idx = self.i;
                 fmt_rec.clear();
-                format_writer.write(&record, fmt_rec, ctx)?;
+                fmt.write(&record, fmt_rec, ctx)?;
                 self.mem += size_of_val(&*fmt_rec);
                 if self.mem >= self.max_mem {
                     self.i += 1;
@@ -338,7 +336,7 @@ impl<R: Rng> IndexSampler<R> {
     fn write(
         mut self,
         cfg: &mut Config,
-        format_writer: &mut dyn FormatWriter,
+        fmt: &mut dyn SeqFormatter,
         io_writer: &mut dyn Write,
     ) -> CliResult<()> {
         // sort by index
@@ -349,7 +347,7 @@ impl<R: Rng> IndexSampler<R> {
         let mut i = 0;
         cfg.read(|record, ctx| {
             if i == next_index {
-                format_writer.write(&record, io_writer, ctx)?;
+                fmt.write(&record, io_writer, ctx)?;
                 next_index = match chosen_iter.next() {
                     Some(i) => i,
                     // done, we can stop parsing

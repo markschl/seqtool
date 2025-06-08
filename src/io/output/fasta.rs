@@ -7,7 +7,7 @@ use crate::error::CliResult;
 use crate::var::VarBuilder;
 
 use crate::io::{
-    output::{fastx::register_attributes, FormatWriter},
+    output::{fastx::register_attributes, SeqFormatter},
     Record,
 };
 
@@ -28,7 +28,7 @@ impl FastaWriter {
     }
 }
 
-impl FormatWriter for FastaWriter {
+impl SeqFormatter for FastaWriter {
     fn write(
         &mut self,
         record: &dyn Record,

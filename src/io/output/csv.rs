@@ -1,6 +1,6 @@
 use std::io;
 
-use super::{FormatWriter, Record};
+use super::{Record, SeqFormatter};
 use crate::config::SeqContext;
 use crate::var::{varstring, VarBuilder};
 use crate::{error::CliResult, var::varstring::register_var_list};
@@ -26,7 +26,7 @@ impl CsvWriter {
     }
 }
 
-impl FormatWriter for CsvWriter {
+impl SeqFormatter for CsvWriter {
     // #[inline]
     // fn has_vars(&self) -> bool {
     //     !self.fields.is_empty()

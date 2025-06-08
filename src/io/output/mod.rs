@@ -25,9 +25,28 @@ pub mod fastq;
 pub mod fastx;
 pub mod writer;
 
-/// Format options for creating output streams
+/// Combined configuration of an output stream
+#[derive(Debug)]
+pub struct OutputConfig {
+    pub kind: Option<IoKind>,
+    pub writer: OutputOpts,
+    pub format: OutFormat,
+}
+
+/// General output options
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct OutputOpts {
+    /// append to files?
+    pub append: bool,
+    pub compression_format: Option<CompressionFormat>,
+    pub compression_level: Option<u8>,
+    pub threaded: bool,
+    pub thread_bufsize: Option<usize>,
+}
+
+/// Formatting options
 #[derive(Clone, Debug)]
-pub struct SeqWriterOpts {
+pub struct FormatOpts {
     /// output file format
     pub format: Option<FormatVariant>,
     /// FASTX head attributes
@@ -39,16 +58,6 @@ pub struct SeqWriterOpts {
     pub fields: Option<String>,
     // .qual file path
     pub qfile: Option<String>,
-}
-
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct OutputOpts {
-    /// append to files?
-    pub append: bool,
-    pub compression_format: Option<CompressionFormat>,
-    pub compression_level: Option<u8>,
-    pub threaded: bool,
-    pub thread_bufsize: Option<usize>,
 }
 
 impl IoKind {
@@ -116,13 +125,13 @@ impl IoKind {
 /// (2) from the input format
 /// `format_opts.format` is defined after this call
 pub fn infer_out_format(
-    out_kind: &IoKind,
+    out_kind: Option<&IoKind>,
     in_format: &InFormat,
     out_opts: &mut OutputOpts,
-    format_opts: &mut SeqWriterOpts,
+    format_opts: &mut FormatOpts,
 ) {
     if out_opts.compression_format.is_none() || format_opts.format.is_none() {
-        if let IoKind::File(path) = out_kind {
+        if let Some(IoKind::File(path)) = out_kind {
             let (compression, ext) = parse_compr_ext(&path);
             if out_opts.compression_format.is_none() {
                 out_opts.compression_format = compression;
@@ -204,7 +213,7 @@ impl OutFormat {
         }
     }
 
-    pub fn from_opts(opts: &SeqWriterOpts) -> CliResult<OutFormat> {
+    pub fn from_opts(opts: &FormatOpts) -> CliResult<OutFormat> {
         // FaQual format: we ignore opts.format
         // as some validation has been done in CommonArgs::get_output_opts()
         if let Some(f) = opts.qfile.as_ref() {
@@ -240,10 +249,10 @@ impl OutFormat {
         Ok(format)
     }
 
-    pub fn get_writer<'a>(
+    pub fn get_formatter<'a>(
         &self,
         builder: &mut VarBuilder,
-    ) -> CliResult<Box<dyn FormatWriter + 'a>> {
+    ) -> CliResult<Box<dyn SeqFormatter + 'a>> {
         Ok(match self {
             OutFormat::Fasta {
                 ref attrs,

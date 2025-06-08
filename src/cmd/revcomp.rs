@@ -45,7 +45,7 @@ pub fn run(mut cfg: Config, args: RevcompCommand) -> CliResult<()> {
     let num_threads = args.threads;
 
     let mut format_writer = cfg.get_format_writer()?;
-    let typehint = cfg.input_config()[0].1.seqtype;
+    let typehint = cfg.input_config[0].format.seqtype;
     let mut final_seqtype = None;
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_parallel_init(

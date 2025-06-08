@@ -25,7 +25,7 @@ thread_local! {
 
 pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
     // parse all CLI options and initialize replacements
-    let (search_config, opts) = args.parse(cfg.input_config()[0].1.seqtype)?;
+    let (search_config, opts) = args.parse(cfg.input_config[0].format.seqtype)?;
 
     // add variable provider
     cfg.set_custom_varmodule(Box::new(FindVars::new(search_config)))?;

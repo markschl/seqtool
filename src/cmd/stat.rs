@@ -1,8 +1,9 @@
 use clap::Parser;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::config::Config;
 use crate::error::CliResult;
-use crate::{config::Config, io::FormatVariant};
+use crate::io::output::OutFormat;
 
 use super::pass::{self, PassCommand};
 
@@ -25,15 +26,14 @@ pub struct StatCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(_cfg: Config, args: StatCommand) -> CliResult<()> {
-    let mut cmd = PassCommand {
-        common: args.common.clone(),
+pub fn run(mut cfg: Config, args: StatCommand) -> CliResult<()> {
+    let cmd = PassCommand {
+        common: args.common,
     };
-    cmd.common.output.to_tsv = Some("id,".to_string() + &args.vars);
-    // override delimiter
-    // TODO: allow changing delimiter? Then we have to prevent that the delimiter is inferred from the input
-    if let Some((fmt, _)) = cmd.common.output.to.as_mut() {
-        *fmt = FormatVariant::Tsv;
-    }
-    pass::run(Config::new(&cmd.common)?, cmd)
+    let fields = "id,".to_string() + &args.vars;
+    cfg.output_config.format = OutFormat::DelimitedText {
+        fields,
+        delim: b'\t',
+    };
+    pass::run(cfg, cmd)
 }

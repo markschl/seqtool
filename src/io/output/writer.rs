@@ -4,7 +4,7 @@ use crate::config::SeqContext;
 use crate::error::CliResult;
 use crate::io::Record;
 
-pub trait FormatWriter {
+pub trait SeqFormatter {
     // fn has_vars(&self) -> bool;
     fn write(
         &mut self,
@@ -14,7 +14,7 @@ pub trait FormatWriter {
     ) -> CliResult<()>;
 }
 
-impl<W: FormatWriter + ?Sized> FormatWriter for Box<W> {
+impl<W: SeqFormatter + ?Sized> SeqFormatter for Box<W> {
     // fn has_vars(&self) -> bool {
     //     (**self).has_vars()
     // }

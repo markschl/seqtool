@@ -9,7 +9,7 @@ use variable_enum_macro::variable_enum;
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::config::Config;
 use crate::helpers::DefaultHashMap as HashMap;
-use crate::io::{output::FormatWriter, IoKind};
+use crate::io::{output::SeqFormatter, IoKind};
 use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuilder};
 use crate::CliResult;
 
@@ -59,12 +59,12 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
     let parents = args.parents;
     let verbose = args.common.general.verbose;
 
-    let out_path = match &cfg.output_config().0 {
-        IoKind::File(p) => p
+    let out_path = match &cfg.output_config.kind {
+        Some(IoKind::File(p)) => p
             .to_str()
             .ok_or_else(|| format!("Invalid path: '{}'", p.to_string_lossy()))?
             .to_string(),
-        IoKind::Stdio => {
+        Some(IoKind::Stdio) | None => {
             if num_seqs.is_some() {
                 "{filestem}_{chunk}.{default_ext}".to_string()
             } else {

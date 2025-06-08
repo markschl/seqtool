@@ -12,9 +12,9 @@ use var_provider::{dyn_var_provider, DynVarProviderInfo};
 use crate::helpers::{bytesize::parse_bytesize, seqtype::SeqType};
 use crate::io::input::{
     csv::{ColumnMapping, TextColumnSpec},
-    InFormat, InputConfig, SeqReaderConfig,
+    FormatConfig, InFormat, InputConfig, ReaderConfig,
 };
-use crate::io::output::{OutputOpts, SeqWriterOpts};
+use crate::io::output::{FormatOpts, OutputOpts};
 use crate::io::{FormatVariant, QualFormat, DEFAULT_FORMAT};
 use crate::var::{attr::AttrFormat, VarOpts};
 use crate::{cmd, io::output::fastx::Attribute};
@@ -75,66 +75,66 @@ impl Cli {
         use SubCommand::*;
         macro_rules! run {
             ($cmdmod:ident, $opts:expr) => {
-                cmd::$cmdmod::run(Config::new(&$opts.common)?, $opts)
+                cmd::$cmdmod::run(Config::new(&mut $opts.common)?, $opts)
             };
         }
         match self.0.command {
             #[cfg(any(feature = "all-commands", feature = "pass"))]
-            Pass(opts) => run!(pass, opts),
+            Pass(mut opts) => run!(pass, opts),
             #[cfg(any(feature = "all-commands", feature = "view"))]
-            View(opts) => run!(view, opts),
+            View(mut opts) => run!(view, opts),
             #[cfg(any(feature = "all-commands", feature = "count"))]
-            Count(opts) => run!(count, opts),
+            Count(mut opts) => run!(count, opts),
             #[cfg(any(feature = "all-commands", feature = "stat"))]
-            Stat(opts) => run!(stat, opts),
+            Stat(mut opts) => run!(stat, opts),
             #[cfg(any(feature = "all-commands", feature = "head"))]
-            Head(opts) => run!(head, opts),
+            Head(mut opts) => run!(head, opts),
             #[cfg(any(feature = "all-commands", feature = "tail"))]
-            Tail(opts) => run!(tail, opts),
+            Tail(mut opts) => run!(tail, opts),
             #[cfg(any(feature = "all-commands", feature = "slice"))]
-            Slice(opts) => run!(slice, opts),
+            Slice(mut opts) => run!(slice, opts),
             #[cfg(any(feature = "all-commands", feature = "sample"))]
-            Sample(opts) => run!(sample, opts),
+            Sample(mut opts) => run!(sample, opts),
             #[cfg(any(feature = "all-commands", feature = "sort"))]
-            Sort(opts) => run!(sort, opts),
+            Sort(mut opts) => run!(sort, opts),
             #[cfg(any(feature = "all-commands", feature = "unique"))]
-            Unique(opts) => run!(unique, opts),
+            Unique(mut opts) => run!(unique, opts),
             #[cfg(any(
                 all(feature = "expr", feature = "all-commands"),
                 all(feature = "expr", feature = "filter")
             ))]
-            Filter(opts) => run!(filter, opts),
+            Filter(mut opts) => run!(filter, opts),
             #[cfg(any(feature = "all-commands", feature = "split"))]
-            Split(opts) => run!(split, opts),
+            Split(mut opts) => run!(split, opts),
             #[cfg(any(feature = "all-commands", feature = "interleave"))]
-            Interleave(opts) => run!(interleave, opts),
+            Interleave(mut opts) => run!(interleave, opts),
             #[cfg(any(feature = "all-commands", feature = "find"))]
-            Find(opts) => run!(find, opts),
+            Find(mut opts) => run!(find, opts),
             #[cfg(any(feature = "all-commands", feature = "replace"))]
-            Replace(opts) => run!(replace, opts),
+            Replace(mut opts) => run!(replace, opts),
             #[cfg(any(feature = "all-commands", feature = "set"))]
-            Set(opts) => run!(set, opts),
+            Set(mut opts) => run!(set, opts),
             #[cfg(any(feature = "all-commands", feature = "del"))]
-            Del(opts) => run!(del, opts),
+            Del(mut opts) => run!(del, opts),
             #[cfg(any(feature = "all-commands", feature = "trim"))]
-            Trim(opts) => run!(trim, opts),
+            Trim(mut opts) => run!(trim, opts),
             #[cfg(any(feature = "all-commands", feature = "mask"))]
-            Mask(opts) => run!(mask, opts),
+            Mask(mut opts) => run!(mask, opts),
             #[cfg(any(feature = "all-commands", feature = "upper"))]
-            Upper(opts) => run!(upper, opts),
+            Upper(mut opts) => run!(upper, opts),
             #[cfg(any(feature = "all-commands", feature = "lower"))]
-            Lower(opts) => run!(lower, opts),
+            Lower(mut opts) => run!(lower, opts),
             #[cfg(any(feature = "all-commands", feature = "revcomp"))]
-            Revcomp(opts) => run!(revcomp, opts),
+            Revcomp(mut opts) => run!(revcomp, opts),
             #[cfg(any(feature = "all-commands", feature = "concat"))]
-            Concat(opts) => run!(concat, opts),
+            Concat(mut opts) => run!(concat, opts),
         }
     }
 }
 
 impl CommonArgs {
-    pub fn get_input_cfg(&self) -> CliResult<Vec<(InputConfig, SeqReaderConfig)>> {
-        let args = &self.input;
+    pub fn get_input_cfg(&mut self) -> CliResult<Vec<InputConfig>> {
+        let args = &mut self.input;
 
         // get format settings from args
         let mut fmt = args.fmt;
@@ -157,7 +157,7 @@ impl CommonArgs {
 
         let input: Vec<_> = args
             .input
-            .iter()
+            .drain(..)
             .map(|kind| {
                 // if no format from args, infer from path
                 let (format, compression) =
@@ -171,25 +171,28 @@ impl CommonArgs {
                     args.qual.as_deref(),
                 )?;
 
-                let input_cfg = InputConfig {
-                    kind: kind.clone(),
+                let reader_cfg = ReaderConfig {
+                    kind,
                     compression,
                     threaded: self.advanced.read_thread,
                     thread_bufsize: self.advanced.read_tbufsize,
                 };
-                let seq_cfg = SeqReaderConfig {
+                let format_cfg = FormatConfig {
                     format,
                     seqtype: args.seqtype,
                     cap: self.advanced.buf_cap,
                     max_mem: self.advanced.max_read_mem,
                 };
-                Ok((input_cfg, seq_cfg))
+                Ok(InputConfig {
+                    reader: reader_cfg,
+                    format: format_cfg,
+                })
             })
             .collect::<CliResult<_>>()?;
         Ok(input)
     }
 
-    pub fn get_output_opts(&self) -> CliResult<(IoKind, OutputOpts, SeqWriterOpts)> {
+    pub fn get_output_opts(&self) -> CliResult<(Option<IoKind>, OutputOpts, FormatOpts)> {
         let args = &self.output;
 
         // format
@@ -233,7 +236,7 @@ impl CommonArgs {
             thread_bufsize: self.advanced.write_tbufsize,
         };
 
-        let format_opts = SeqWriterOpts {
+        let format_opts = FormatOpts {
             format: fmt.map(|(f, _)| f),
             attrs,
             wrap_fasta: args.wrap.map(|w| w as usize),
@@ -242,9 +245,7 @@ impl CommonArgs {
             qfile,
         };
 
-        let kind = args.output.clone().unwrap_or(IoKind::Stdio);
-
-        Ok((kind, output_opts, format_opts))
+        Ok((args.output.clone(), output_opts, format_opts))
     }
 
     pub fn get_var_opts(&self) -> CliResult<VarOpts> {

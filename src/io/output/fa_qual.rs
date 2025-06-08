@@ -6,7 +6,7 @@ use crate::config::SeqContext;
 use crate::error::CliResult;
 use crate::var::VarBuilder;
 
-use super::{Attribute, FormatWriter, Record};
+use super::{Attribute, Record, SeqFormatter};
 
 pub struct FaQualWriter {
     fa_writer: super::fasta::FastaWriter,
@@ -43,7 +43,7 @@ impl FaQualWriter {
     }
 }
 
-impl FormatWriter for FaQualWriter {
+impl SeqFormatter for FaQualWriter {
     fn write(
         &mut self,
         record: &dyn Record,

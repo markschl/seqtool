@@ -51,7 +51,7 @@ pub fn run(mut cfg: Config, args: ViewCommand) -> CliResult<()> {
         .truecolor(truecolor)
         .textcols(args.color.textcols.0.clone(), args.color.textcols.1.clone())?;
 
-    if cfg.input_config()[0].1.format.has_qual() {
+    if cfg.input_config[0].format.format.has_qual() {
         writer.set(ColorSource::Qual, ColorMode::Bg);
         if args.general.foreground {
             writer.set(ColorSource::Symbol, ColorMode::Fg);

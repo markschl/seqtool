@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io;
+use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 
 use fastx::LimitedBuffer;
@@ -24,8 +24,16 @@ mod reader;
 
 pub use self::reader::*;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
+/// Configuration of a single input stream
+#[derive(Debug)]
 pub struct InputConfig {
+    pub reader: ReaderConfig,
+    pub format: FormatConfig,
+}
+
+/// Reader/compression configuration
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct ReaderConfig {
     pub kind: IoKind,
     pub compression: Option<CompressionFormat>,
     // read in separate thread
@@ -33,8 +41,9 @@ pub struct InputConfig {
     pub thread_bufsize: Option<usize>,
 }
 
+/// Sequence reader configuration
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct SeqReaderConfig {
+pub struct FormatConfig {
     pub format: InFormat,
     pub seqtype: Option<SeqType>,
     /// Buffer capacity (for FASTX readers)
@@ -43,7 +52,7 @@ pub struct SeqReaderConfig {
     pub max_mem: usize,
 }
 
-impl SeqReaderConfig {
+impl FormatConfig {
     pub fn get_seq_reader<'a, R>(&self, io_rdr: R) -> CliResult<Box<dyn SeqReader + 'a>>
     where
         R: io::Read + 'a,
@@ -204,7 +213,13 @@ impl IoKind {
                 File::open(path)
                     .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?,
             ),
-            IoKind::Stdio => Box::new(io::stdin()),
+            IoKind::Stdio => {
+                let stdin = io::stdin();
+                if stdin.is_terminal() {
+                    return fail!("No input provided to STDIN");
+                }
+                Box::new(stdin)
+            }
         };
         if let Some(fmt) = compression {
             return Ok(get_compr_reader(rdr, fmt)?);
@@ -240,7 +255,7 @@ fn get_compr_reader<'a>(
     })
 }
 
-pub fn thread_reader<F, O>(o: &InputConfig, func: F) -> CliResult<O>
+pub fn thread_reader<F, O>(o: &ReaderConfig, func: F) -> CliResult<O>
 where
     for<'a> F: FnOnce(Box<dyn io::Read + Send + 'a>) -> CliResult<O>,
 {
@@ -261,7 +276,7 @@ where
 pub fn read_parallel<W, Di, F, D, R>(
     io_rdr: R,
     n_threads: u32,
-    opts: &SeqReaderConfig,
+    opts: &FormatConfig,
     record_data_init: Di,
     work: W,
     mut func: F,
@@ -302,7 +317,7 @@ where
 // Run reader in single thread
 pub fn read<R>(
     io_rdr: R,
-    opts: &SeqReaderConfig,
+    opts: &FormatConfig,
     func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
 ) -> CliResult<()>
 where
@@ -317,19 +332,19 @@ where
     Ok(())
 }
 
-pub fn read_alongside<'a, I, F>(opts: I, id_check: bool, mut func: F) -> CliResult<()>
+pub fn read_alongside<'a, I, F>(config: I, id_check: bool, mut func: F) -> CliResult<()>
 where
-    I: IntoIterator<Item = &'a (InputConfig, SeqReaderConfig)>,
+    I: IntoIterator<Item = &'a InputConfig>,
     F: FnMut(usize, &dyn Record) -> CliResult<bool>,
 {
-    let mut readers: Vec<_> = opts
+    let mut readers: Vec<_> = config
         .into_iter()
-        .map(|(in_opts, seq_opts)| {
+        .map(|cfg| {
             get_seq_reader(
-                in_opts
+                cfg.reader
                     .kind
-                    .io_reader_with_compression(in_opts.compression)?,
-                seq_opts,
+                    .io_reader_with_compression(cfg.reader.compression)?,
+                &cfg.format,
             )
         })
         .collect::<CliResult<_>>()?;
@@ -376,10 +391,7 @@ where
     )
 }
 
-pub fn get_seq_reader<'a, R>(
-    io_rdr: R,
-    opts: &SeqReaderConfig,
-) -> CliResult<Box<dyn SeqReader + 'a>>
+pub fn get_seq_reader<'a, R>(io_rdr: R, opts: &FormatConfig) -> CliResult<Box<dyn SeqReader + 'a>>
 where
     R: io::Read + 'a,
 {

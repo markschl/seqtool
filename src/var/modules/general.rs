@@ -11,8 +11,8 @@ use crate::helpers::{
     seqtype::{SeqType, SeqtypeHelper},
 };
 use crate::io::{
-    input::{InputConfig, SeqReaderConfig},
-    output::{OutFormat, OutputOpts},
+    input::{InputConfig, ReaderConfig},
+    output::OutputConfig,
     IoKind, QualConverter, Record, RecordAttr,
 };
 use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
@@ -246,25 +246,26 @@ impl VarProvider for GeneralVars {
         Ok(())
     }
 
-    fn init_output(&mut self, _: &OutputOpts, f: &OutFormat) -> Result<(), String> {
-        f.default_ext()
+    fn init_output(&mut self, cfg: &OutputConfig) -> Result<(), String> {
+        cfg.format
+            .default_ext()
             .as_bytes()
             .clone_into(&mut self.path_info.out_ext);
         Ok(())
     }
 
-    fn init_input(&mut self, in_opts: &InputConfig, _: &SeqReaderConfig) -> Result<(), String> {
+    fn init_input(&mut self, cfg: &InputConfig) -> Result<(), String> {
         if let Some(ref mut path) = self.path_info.path {
-            write_os_str(in_opts, path, |p| Some(p.as_os_str()))
+            write_os_str(&cfg.reader, path, |p| Some(p.as_os_str()))
         }
         if let Some(ref mut name) = self.path_info.name {
-            write_os_str(in_opts, name, |p| p.file_name())
+            write_os_str(&cfg.reader, name, |p| p.file_name())
         }
         if let Some(ref mut stem) = self.path_info.stem {
-            write_os_str(in_opts, stem, |p| p.file_stem())
+            write_os_str(&cfg.reader, stem, |p| p.file_stem())
         }
         if let Some(ref mut ext) = self.path_info.ext {
-            write_os_str(in_opts, ext, |p| p.extension())
+            write_os_str(&cfg.reader, ext, |p| p.extension())
         }
         if let Some((start_i, i)) = self.idx.as_mut() {
             *start_i = *i;
@@ -313,7 +314,7 @@ fn seqhash_both(
     Ok(hash1.wrapping_add(hash2))
 }
 
-fn write_os_str<F>(in_opts: &InputConfig, out: &mut Vec<u8>, func: F)
+fn write_os_str<F>(in_opts: &ReaderConfig, out: &mut Vec<u8>, func: F)
 where
     F: FnOnce(&Path) -> Option<&OsStr>,
 {

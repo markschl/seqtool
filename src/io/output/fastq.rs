@@ -6,7 +6,7 @@ use crate::io::QualFormat;
 use crate::var::VarBuilder;
 
 use crate::io::{
-    output::{fastx::register_attributes, FormatWriter},
+    output::{fastx::register_attributes, SeqFormatter},
     Record,
 };
 
@@ -27,7 +27,7 @@ impl FastqWriter {
     }
 }
 
-impl FormatWriter for FastqWriter {
+impl SeqFormatter for FastqWriter {
     fn write(
         &mut self,
         record: &dyn Record,
