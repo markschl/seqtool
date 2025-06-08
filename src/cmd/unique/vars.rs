@@ -6,7 +6,7 @@ use memchr::memmem;
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
-use crate::cmd::shared::sort_item::Key;
+use crate::cmd::shared::item::Key;
 use crate::helpers::{replace::replace_iter_custom, write_list::write_list};
 use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 

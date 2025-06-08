@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
+use std::ops::{Deref, DerefMut};
 
 use deepsize::DeepSizeOf;
 use rkyv::{Archive, Deserialize, Serialize};
@@ -102,6 +103,25 @@ impl Key {
                 let text = sym.inner_mut().mut_text();
                 write_list_with(values.iter(), b",", text, |v, o| v.write(o)).unwrap();
             }
+        }
+    }
+}
+
+impl Deref for Key {
+    type Target = [SimpleValue];
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Single(v) => std::slice::from_ref(v),
+            Self::Multiple(v) => v,
+        }
+    }
+}
+
+impl DerefMut for Key {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Single(v) => std::slice::from_mut(v),
+            Self::Multiple(v) => v,
         }
     }
 }

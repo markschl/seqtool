@@ -6,11 +6,11 @@ use indexmap::{IndexMap, IndexSet};
 use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::cmd::shared::{
-    sort_item::{Item, Key},
+    item::{Item, Key},
     tmp_store::{TmpHandle, TmpWriter},
 };
 use crate::error::CliResult;
-use crate::helpers::{vec::VecFactory, DefaultBuildHasher as BuildHasher};
+use crate::helpers::{vec_buf::VecFactory, DefaultBuildHasher as BuildHasher};
 
 use super::{FileDeduplicator, MapWriter, Record, RequiredInformation};
 

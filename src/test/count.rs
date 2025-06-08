@@ -15,7 +15,6 @@ fn simple() {
 fn fixed() {
     Tester::new()
         .cmp(&["count"], *FASTA, "4\n")
-        .cmp(&["count", "-k", "text_key"], *FASTA, "text_key\t4\n")
         .cmp(&["count"], *FASTA, "4\n")
         .cmp(&["count", "-k", "num('2.3')"], *FASTA, "2.3\t4\n")
         .cmp(&["count"], *FASTA, "4\n")
@@ -24,6 +23,18 @@ fn fixed() {
             &["count", "-k", "opt_attr(non_existent)"],
             *FASTA,
             &format!("{NA}\t4\n"),
+        );
+}
+
+#[test]
+fn multi() {
+    let out = "25\t23\t1\n25\t24\t2\n25\t25\t1\n";
+    Tester::new()
+        .cmp(&["count", "-k", "seqlen,ungapped_seqlen"], *FASTA, out)
+        .cmp(
+            &["count", "-k", "seqlen", "-k", "ungapped_seqlen"],
+            *FASTA,
+            out,
         );
 }
 

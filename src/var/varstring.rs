@@ -227,7 +227,7 @@ impl VarString {
         Ok(None)
     }
 
-    /// Returns a SimpleValue (text/numeric/none).
+    /// Updates a SimpleValue (text/numeric/none).
     /// Requires an extra 'text_buf', which allows retaining text allocations
     /// in case values switch between the different types.
     #[inline]

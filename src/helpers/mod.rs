@@ -27,5 +27,5 @@ pub mod slice;
 pub mod thread_local;
 pub mod value;
 pub mod var_range;
-pub mod vec;
+pub mod vec_buf;
 pub mod write_list;

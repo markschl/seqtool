@@ -1,14 +1,14 @@
 use std::io::Write;
 use std::mem;
-use std::ops::{Deref, DerefMut};
 
 use clap::Parser;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cmd::shared::item::Key;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{value::SimpleValue, DefaultHashMap as HashMap};
-use crate::var::varstring::VarString;
+use crate::var::varstring::register_var_list;
 
 pub const DESC: &str = "
 The overall record count is returned for all input files collectively.
@@ -41,6 +41,7 @@ pub struct CountCommand {
     /// or a composed key such as '{filename}_{meta(species)}'.
     /// The `-k/--key` argument can be specified multiple times, in which case
     /// there will be multiple category columns, one per key.
+    /// Alternatively, a comma-delimited list of keys can be provided.
     #[arg(short, long)]
     key: Vec<String>,
 
@@ -85,31 +86,27 @@ where
 {
     // register variables/functions:
     // tuples of (varstring, text buffer)
-    let mut var_keys: Vec<(VarString, Vec<u8>)> = keys
-        .iter()
-        .map(|k| {
-            cfg.build_vars(|b| {
-                let (key, _) = VarString::parse_register(k.as_ref(), b, true)?;
-                Ok((key, Vec::new()))
-            })
-        })
-        .collect::<Result<_, String>>()?;
-    // this is the final hashmap key, only cloned if needed
-    // let mut key = vec![SimpleValue::None; var_keys.len()];
-    let mut key = Key::new(var_keys.len());
+    let mut var_keys = Vec::with_capacity(1);
+    cfg.build_vars(|b| {
+        for key in keys {
+            register_var_list(key.as_ref(), b, &mut var_keys, true, true)?;
+        }
+        Ok::<_, String>(())
+    })?;
+
+    let mut key_values = Key::with_size(var_keys.len());
+    let mut text_buf = vec![Vec::new(); var_keys.len()];
 
     // hashmap holding the counts
     let mut counts = HashMap::default();
 
     // count the records
     cfg.read(|record, ctx| {
-        for ((varstring, text_buf), value) in var_keys.iter_mut().zip(key.iter_mut()) {
-            varstring.simple_value(value, text_buf, &ctx.symbols, record)?
-        }
-        if let Some(v) = counts.get_mut(&key) {
+        key_values.compose_from(&var_keys, &mut text_buf, &ctx.symbols, record)?;
+        if let Some(v) = counts.get_mut(&key_values) {
             *v += 1;
         } else if counts.len() <= category_limit {
-            counts.insert(key.clone(), 1usize);
+            counts.insert(key_values.clone(), 1usize);
         } else {
             return fail!(
                 "Reached the limit of {} categories while counting records, aborting.{} \
@@ -173,44 +170,4 @@ where
         writeln!(writer, "{count}")?;
         Ok(())
     })
-}
-
-/// Hashmap key for categorized counting.
-///
-/// Ther performance improvement if not allocating a single value seems mostly small
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-enum Key {
-    One(SimpleValue),
-    More(Box<[SimpleValue]>),
-}
-
-impl Key {
-    fn new(size: usize) -> Self {
-        use SimpleValue as SV;
-        match size {
-            1 => Self::One(SV::None),
-            _ => Self::More(vec![SV::None; size].into_boxed_slice()),
-        }
-    }
-}
-
-impl Deref for Key {
-    type Target = [SimpleValue];
-    fn deref(&self) -> &Self::Target {
-        use Key::*;
-        match self {
-            One(v) => std::slice::from_ref(v),
-            More(v) => v,
-        }
-    }
-}
-
-impl DerefMut for Key {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        use Key::*;
-        match self {
-            One(v) => std::slice::from_mut(v),
-            More(v) => v,
-        }
-    }
 }

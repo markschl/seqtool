@@ -3,5 +3,5 @@
 
 cfg_if::cfg_if! { if #[cfg(any(feature = "all-commands", feature = "sort", feature = "unique"))] {
     pub mod tmp_store;
-    pub mod sort_item;
+    pub mod item;
 }}

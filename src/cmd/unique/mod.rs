@@ -7,11 +7,11 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::vec::VecFactory;
+use crate::helpers::vec_buf::VecFactory;
 use crate::var::varstring::register_var_list;
 use crate::CliError;
 
-use super::shared::{sort_item::Key, tmp_store::Archivable};
+use super::shared::{item::Key, tmp_store::Archivable};
 
 pub mod cli;
 pub mod file;
@@ -51,7 +51,7 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
         // assemble key
         let mut varstring_keys = Vec::with_capacity(1);
         cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, true, true))?;
-        let mut keys = Key::with_size(varstring_keys.len());
+        let mut key_values = Key::with_size(varstring_keys.len());
         let mut text_buf = vec![Vec::new(); varstring_keys.len()];
         // Depending on the CLI options, different information is needed,
         // which in turn affects how the de-duplicaion is done
@@ -75,16 +75,16 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
         cfg.read(|record, ctx| {
             // assemble key
             ctx.custom_vars::<UniqueVars, _, String>(|key_mod, symbols| {
-                keys.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
+                key_values.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
                 if let Some(m) = key_mod {
-                    m.set(&keys, symbols);
+                    m.set(&key_values, symbols);
                 }
                 Ok(())
             })?;
 
             // add record
             dedup.add(
-                &keys,
+                &key_values,
                 || record.id(),
                 &mut record_buf_factory,
                 |out| format_writer.write(&record, out, ctx),

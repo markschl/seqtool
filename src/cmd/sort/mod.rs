@@ -4,10 +4,10 @@ use std::path::Path;
 
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::vec::VecFactory;
+use crate::helpers::vec_buf::VecFactory;
 use crate::var::varstring::register_var_list;
 
-use super::shared::sort_item::{Item, Key};
+use super::shared::item::{Item, Key};
 
 pub mod cli;
 pub mod file;
@@ -46,15 +46,15 @@ pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<()> {
         // assemble key
         let mut varstring_keys = Vec::with_capacity(1);
         cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, true, true))?;
-        let mut keys = Key::with_size(varstring_keys.len());
+        let mut key_values = Key::with_size(varstring_keys.len());
         let mut text_buf = vec![Vec::new(); varstring_keys.len()];
 
         cfg.read(|record, ctx| {
             // assemble key
             ctx.custom_vars::<SortVars, _, String>(|key_mod, symbols| {
-                keys.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
+                key_values.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
                 if let Some(m) = key_mod {
-                    m.set(&keys, symbols);
+                    m.set(&key_values, symbols);
                 }
                 Ok(())
             })?;
@@ -63,7 +63,7 @@ pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<()> {
                 record_buf_factory.get(|out| format_writer.write(&record, out, ctx))?;
             // add both to the object that handles the sorting
             sorter.add(
-                Item::new(keys.clone(), record_out.into_boxed_slice()),
+                Item::new(key_values.clone(), record_out.into_boxed_slice()),
                 &tmp_path,
                 args.temp_file_limit,
                 quiet,
