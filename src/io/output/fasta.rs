@@ -2,7 +2,7 @@ use std::io;
 
 use seq_io::fasta;
 
-use crate::config::SeqContext;
+use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::var::VarBuilder;
 

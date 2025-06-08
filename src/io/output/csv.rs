@@ -1,7 +1,7 @@
 use std::io;
 
 use super::{Record, SeqFormatter};
-use crate::config::SeqContext;
+use crate::context::SeqContext;
 use crate::var::{varstring, VarBuilder};
 use crate::{error::CliResult, var::varstring::register_var_list};
 

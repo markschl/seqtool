@@ -7,7 +7,8 @@ use rand::distr::Uniform;
 use rand::prelude::*;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
-use crate::config::{Config, SeqContext};
+use crate::config::Config;
+use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, vec_buf::VecFactory};
 use crate::io::{output::SeqFormatter, Record};

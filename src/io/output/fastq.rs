@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::config::SeqContext;
+use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::io::QualFormat;
 use crate::var::VarBuilder;

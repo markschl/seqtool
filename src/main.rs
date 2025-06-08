@@ -23,6 +23,7 @@ mod helpers;
 mod cli;
 mod cmd;
 mod config;
+mod context;
 mod error;
 mod io;
 mod var;

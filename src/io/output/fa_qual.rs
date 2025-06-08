@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io;
 use std::path::Path;
 
-use crate::config::SeqContext;
+use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::var::VarBuilder;
 
