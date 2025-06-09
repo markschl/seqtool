@@ -2,6 +2,7 @@ use std::ops::DerefMut;
 use std::str;
 use std::{borrow::Cow, ops::Deref};
 
+use deepsize::DeepSizeOf;
 use seq_io::fasta;
 use strum_macros::{Display, EnumString};
 
@@ -67,7 +68,7 @@ pub trait Record {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, DeepSizeOf)]
 pub struct MaybeModified<T> {
     pub inner: T,
     pub modified: bool,
@@ -303,12 +304,47 @@ impl<R: Record> Record for SeqQualRecord<'_, R> {
 /// Record that owns all data
 /// The header parts are of type `MaybeModified`, since it is necessary to know,
 /// whether these were modified in some cases (writing header attributes)
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone, DeepSizeOf)]
 pub struct OwnedRecord {
     pub id: MaybeModified<Vec<u8>>,
     pub desc: MaybeModified<Option<Vec<u8>>>,
     pub seq: Vec<u8>,
     pub qual: Option<Vec<u8>>,
+}
+
+impl OwnedRecord {
+    pub fn from(rec: &dyn Record) -> OwnedRecord {
+        let mut r = OwnedRecord::default();
+        r.update_from(rec);
+        r
+    }
+
+    pub fn update_from(&mut self, rec: &dyn Record) {
+        self.update_header_from(rec);
+        self.update_seq_from(rec);
+    }
+
+    pub fn update_header_from(&mut self, rec: &dyn Record) {
+        self.id.clear();
+        self.id.extend(rec.id());
+        if let Some(d) = rec.desc() {
+            let desc = self.desc.get_or_insert_with(Vec::new);
+            desc.clear();
+            desc.extend(d);
+        }
+    }
+
+    pub fn update_seq_from(&mut self, rec: &dyn Record) {
+        self.seq.clear();
+        for s in rec.seq_segments() {
+            self.seq.extend(s);
+        }
+        if let Some(q) = rec.qual() {
+            let qual = self.qual.get_or_insert_with(Vec::new);
+            qual.clear();
+            qual.extend(q);
+        }
+    }
 }
 
 impl Record for OwnedRecord {

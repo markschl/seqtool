@@ -54,9 +54,8 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
 
     // finally, check check if there is anything to do,
     // and take `SearchConfig` back from the variable provider
-    let mut search_config = cfg.with_command_vars(|match_vars, _| {
-        let match_vars: &mut FindVars = match_vars.unwrap();
-        if opts.filter.is_none() && !match_vars.has_vars() && replacement.is_none() {
+    let mut search_config = cfg.with_custom_varmod(|v: &mut FindVars| {
+        if opts.filter.is_none() && !v.has_vars() && replacement.is_none() {
             return fail!(
                 "Find command does nothing. Use -f/-e for filtering, --rep for replacing or \
                     -a for writing attributes."
@@ -64,7 +63,7 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
         }
         // now that all variables are registered, take the `search_config`
         // object back
-        Ok::<_, String>(match_vars.take_config())
+        Ok::<_, String>(v.take_config())
     })?;
 
     // intermediate buffer for replacement text
@@ -110,20 +109,18 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
                 // handle results in main thread, write output
 
                 // update variables (if any) with search results obtained in the 'work' closure
-                ctx.custom_vars(|match_vars: Option<&mut FindVars>, symbols| {
-                    if let Some(_match_vars) = match_vars {
-                        let text = editor.get(opts.attr, &record, true);
-                        _match_vars.set_matches(record, &search_config, matches, symbols, text)?;
-                    }
-                    Ok::<_, String>(())
-                })?;
+                ctx.with_custom_varmod(0, |v: &mut FindVars, sym| {
+                    let text = editor.get(opts.attr, &record, true);
+                    v.set_matches(record, &search_config, matches, sym, text)
+                })
+                .transpose()?;
 
                 // fill in replacements (if necessary)
                 if let Some(rep) = replacement.as_ref() {
                     editor.edit_with_val(opts.attr, &record, true, |text, out| {
                         // assemble replacement text
                         replacement_text.clear();
-                        rep.compose(&mut replacement_text, &ctx.symbols, record)?;
+                        rep.compose(&mut replacement_text, ctx.symbols(), record)?;
                         // replace all occurrences of the pattern
                         let pos = search_config
                             .hits_iter(matches, 0, 0)

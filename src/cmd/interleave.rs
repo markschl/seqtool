@@ -26,7 +26,7 @@ pub fn run(mut cfg: Config, args: InterleaveCommand) -> CliResult<()> {
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_alongside(id_check, |_, rec, ctx| {
             // handle variables (read_alongside requires this to be done manually)
-            ctx.set_record(&rec)?;
+            ctx.set_record(&rec, 0)?;
             format_writer.write(rec, io_writer, ctx)?;
             Ok(true)
         })

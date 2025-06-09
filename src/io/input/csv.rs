@@ -126,7 +126,7 @@ impl<R> SeqReader for CsvReader<R>
 where
     R: io::Read,
 {
-    fn read_next(
+    fn read_next_conditional(
         &mut self,
         func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
     ) -> Option<CliResult<bool>> {

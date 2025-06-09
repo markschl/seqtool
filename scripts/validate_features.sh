@@ -24,6 +24,7 @@ features=( \
     unique \
     filter,expr \
     split \
+    cmp \
     interleave \
     find \
     find,regex-fast \

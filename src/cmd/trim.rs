@@ -50,7 +50,7 @@ pub fn run(mut cfg: Config, args: TrimCommand) -> CliResult<()> {
         let mut num_buf = Vec::new();
 
         cfg.read(|record, ctx| {
-            let ranges = ranges.resolve(&ctx.symbols, record, &mut num_buf)?;
+            let ranges = ranges.resolve(ctx.symbols(), record, &mut num_buf)?;
 
             let rec = trim(
                 &record,

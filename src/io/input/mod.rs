@@ -324,7 +324,7 @@ where
     R: io::Read,
 {
     let mut rdr = get_seq_reader(io_rdr, opts)?;
-    while let Some(res) = rdr.read_next(func) {
+    while let Some(res) = rdr.read_next_conditional(func) {
         if !res? {
             break;
         }
@@ -353,7 +353,7 @@ where
     let i = 'err: loop {
         let mut readers_iter = readers.iter_mut().enumerate();
         while let Some((i, rdr)) = readers_iter.next() {
-            let res = rdr.read_next(&mut |rec| {
+            let res = rdr.read_next_conditional(&mut |rec| {
                 if id_check {
                     let rec_id = rec.id();
                     if i == 0 {
@@ -376,7 +376,7 @@ where
                     break 'err i;
                 }
                 for (i, rdr) in readers_iter {
-                    if rdr.read_next(&mut |_| Ok(true)).is_some() {
+                    if rdr.read_next_conditional(&mut |_| Ok(true)).is_some() {
                         break 'err i;
                     }
                 }

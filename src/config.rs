@@ -10,7 +10,7 @@ use crate::io::output::{
     self, infer_out_format, OutFormat, OutputConfig, OutputOpts, SeqFormatter, WriteFinish,
 };
 use crate::io::{IoKind, QualFormat, Record};
-use crate::var::{build::VarBuilder, modules::VarProvider, symbols::SymbolTable, VarOpts};
+use crate::var::{build::VarBuilder, modules::VarProvider, VarOpts, VarProviders};
 
 #[derive(Debug)]
 pub struct Config {
@@ -27,8 +27,6 @@ pub struct Config {
     // Context provided while reading along with individual sequence records.
     // Contains the symbol table
     pub ctx: SeqContext,
-    // Number of currently registered variables
-    n_vars: usize,
     // used to remember, whether the parsing already started
     started: Cell<bool>,
 }
@@ -66,12 +64,14 @@ impl Config {
         };
 
         // context used while reading
-        let mut ctx = SeqContext::new(
+        let var_providers =
+            VarProviders::new(&var_opts, input_config[0].format.seqtype, &output_config)?;
+        let ctx = SeqContext::new(
             args.attr.attr_fmt.clone(),
             qual_format,
+            var_providers,
             output_config.writer.clone(),
         );
-        ctx.init_vars(&var_opts, input_config[0].format.seqtype, &output_config)?;
 
         Ok(Self {
             input_config,
@@ -79,43 +79,46 @@ impl Config {
             output_opts: (_out_opts, _out_fmt_opts),
             var_opts,
             ctx,
-            n_vars: 0,
             started: Cell::new(false),
         })
     }
 
     pub fn set_custom_varmodule(&mut self, provider: Box<dyn VarProvider>) -> CliResult<()> {
         self.ctx
+            .var_providers
             .set_custom_varmodule(provider, &self.var_opts, &self.output_config)
     }
 
-    pub fn build_vars<F, O, E>(&mut self, mut action: F) -> Result<O, E>
+    pub fn build_vars<F, O>(&mut self, mut action: F) -> O
     where
-        F: FnMut(&mut VarBuilder) -> Result<O, E>,
+        F: FnMut(&mut VarBuilder) -> O,
     {
-        let rv = {
-            let mut builder = VarBuilder::new(
-                &mut self.ctx.var_modules,
-                &mut self.ctx.attrs,
-                &mut self.n_vars,
-            );
-            action(&mut builder)
-        };
-        // done, grow the symbol table
-        self.ctx.symbols.resize(self.n_vars);
-        rv
+        let d = &mut self.ctx.meta[0];
+        self.ctx
+            .var_providers
+            .build(&mut d.attrs, &mut d.symbols, &mut action)
     }
 
-    /// Provides access to the custom `VarProvider` of the given type in a closure,
-    /// if it is found. Panics otherwise.
-    pub fn with_command_vars<M, O, E>(
-        &mut self,
-        func: impl FnOnce(Option<&mut M>, &mut SymbolTable) -> Result<O, E>,
-    ) -> Result<O, E>
+    /// Gives access to the custom (command-specific) variable provider
+    /// (assuming that it has been added),
+    /// along with the mutable symtol table (from slot 0).
+    pub fn with_custom_varmod<M, O>(&mut self, func: impl FnOnce(&mut M) -> O) -> O
     where
         M: VarProvider + 'static,
     {
-        self.ctx.custom_vars(func)
+        self.ctx.with_custom_varmod(0, |v, _| func(v)).unwrap()
+    }
+
+    /// Require a specified number of record metadata slots in `SeqContext::meta`
+    /// (default 1). This may only be called once.
+    ///
+    /// Only specialized reading functions (currently `read2` and `read_alongside`)
+    /// require manual handling of record metadata, for others (`read`, `read_parallel`),
+    /// slot 0 is always used.
+    pub fn require_meta_slots(&mut self, n: usize) {
+        assert_eq!(self.ctx.meta.len(), 1);
+        assert!(n > 1);
+        self.ctx.meta.resize(n, self.ctx.meta[0].clone());
     }
 
     /// Returns a `FormatWriter` for the configured output format
@@ -204,12 +207,35 @@ impl Config {
             thread_reader(&cfg.reader, |io_rdr| {
                 self.ctx.init_input(cfg)?;
                 input::read(io_rdr, &cfg.format, &mut |rec| {
-                    self.ctx.set_record(&rec)?;
+                    self.ctx.set_record(&rec, 0)?;
                     func(rec, &mut self.ctx)
                 })
             })?;
         }
         Ok(())
+    }
+
+    /// Provides two readers, from which the records can be pulled independently
+    ///
+    /// Does not call `SeqContext::init_input()` and `SeqContext::set_record()`
+    pub fn read2<F>(&mut self, mut scope: F) -> CliResult<()>
+    where
+        F: FnMut(&mut dyn SeqReader, &mut dyn SeqReader, &mut SeqContext) -> CliResult<()>,
+    {
+        self.init_reader()?;
+        if self.input_config.len() != 2 {
+            return fail!("Exactly two input files/streams are required",);
+        }
+
+        let cfg1 = &self.input_config[0];
+        let cfg2 = &self.input_config[1];
+        thread_reader(&cfg1.reader, |io_rdr1| {
+            thread_reader(&cfg2.reader, |io_rdr2| {
+                let mut rdr1 = get_seq_reader(io_rdr1, &cfg1.format)?;
+                let mut rdr2 = get_seq_reader(io_rdr2, &cfg2.format)?;
+                scope(&mut rdr1, &mut rdr2, &mut self.ctx)
+            })
+        })
     }
 
     /// Reads records of several readers alongside each other,
@@ -236,7 +262,7 @@ impl Config {
     #[inline(never)]
     fn init_reader(&mut self) -> CliResult<()> {
         // remove unused modules
-        self.ctx.filter_var_providers();
+        self.ctx.var_providers.clean_up();
         // ensure that STDIN cannot be read twice
         // (would result in empty input on second attempt)
         if self.started.get() && self.has_stdin() {
@@ -270,7 +296,7 @@ impl Config {
                     &data_init,
                     &work,
                     |rec, out| {
-                        self.ctx.set_record(rec)?;
+                        self.ctx.set_record(rec, 0)?;
                         func(rec, out, &mut self.ctx)
                     },
                 )

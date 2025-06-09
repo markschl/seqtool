@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 
@@ -104,6 +105,19 @@ impl Key {
                 write_list_with(values.iter(), b",", text, |v, o| v.write(o)).unwrap();
             }
         }
+    }
+}
+
+// for error messages
+impl fmt::Display for Key {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, k) in self.as_slice().iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{}", k)?;
+        }
+        Ok(())
     }
 }
 

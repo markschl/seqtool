@@ -51,7 +51,7 @@ where
     R: io::Read,
     P: BufPolicy,
 {
-    fn read_next(
+    fn read_next_conditional(
         &mut self,
         func: &mut dyn FnMut(&dyn Record) -> CliResult<bool>,
     ) -> Option<CliResult<bool>> {

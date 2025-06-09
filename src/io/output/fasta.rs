@@ -2,8 +2,9 @@ use std::io;
 
 use seq_io::fasta;
 
-use crate::context::SeqContext;
+use crate::context::RecordMeta;
 use crate::error::CliResult;
+use crate::io::QualConverter;
 use crate::var::VarBuilder;
 
 use crate::io::{
@@ -29,24 +30,25 @@ impl FastaWriter {
 }
 
 impl SeqFormatter for FastaWriter {
-    fn write(
+    fn write_with(
         &mut self,
         record: &dyn Record,
+        data: &RecordMeta,
         out: &mut dyn io::Write,
-        ctx: &mut SeqContext,
+        _qc: &mut QualConverter,
     ) -> CliResult<()> {
-        write_fasta(record, out, ctx, self.wrap)
+        write_fasta(record, data, out, self.wrap)
     }
 }
 
 fn write_fasta<W: io::Write>(
     record: &dyn Record,
+    data: &RecordMeta,
     mut out: W,
-    ctx: &mut SeqContext,
     wrap: Option<usize>,
 ) -> CliResult<()> {
     out.write_all(b">")?;
-    ctx.attrs.write_head(record, &mut out, &ctx.symbols)?;
+    data.attrs.write_head(record, &mut out, &data.symbols)?;
     out.write_all(b"\n")?;
     if let Some(w) = wrap {
         fasta::write_wrap_seq_iter(&mut out, record.seq_segments(), w)?;

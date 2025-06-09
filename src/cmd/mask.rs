@@ -66,7 +66,7 @@ pub fn run(mut cfg: Config, args: MaskCommand) -> CliResult<()> {
                 seqlen += s.len();
             }
 
-            let calc_ranges = ranges.resolve(&ctx.symbols, record, &mut num_buf)?;
+            let calc_ranges = ranges.resolve(ctx.symbols(), record, &mut num_buf)?;
 
             if let Some(h) = hard_mask {
                 for rng in calc_ranges {

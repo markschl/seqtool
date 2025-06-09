@@ -62,6 +62,8 @@ impl Cli {
                     "split" => Some(Box::new(dyn_var_provider!(cmd::split::SplitVar))),
                     #[cfg(any(feature = "all-commands", feature = "find"))]
                     "find" => Some(Box::new(dyn_var_provider!(cmd::find::FindVar))),
+                    #[cfg(any(feature = "all-commands", feature = "cmp"))]
+                    "cmp" => Some(Box::new(dyn_var_provider!(cmd::cmp::CmpVar))),
                     _ => None,
                 };
                 crate::var::print_var_help(custom_help, m.help_vars_md, m.help_cmd_vars)?;
@@ -106,6 +108,8 @@ impl Cli {
             Filter(mut opts) => run!(filter, opts),
             #[cfg(any(feature = "all-commands", feature = "split"))]
             Split(mut opts) => run!(split, opts),
+            #[cfg(any(feature = "all-commands", feature = "cmp"))]
+            Cmp(mut opts) => run!(cmp, opts),
             #[cfg(any(feature = "all-commands", feature = "interleave"))]
             Interleave(mut opts) => run!(interleave, opts),
             #[cfg(any(feature = "all-commands", feature = "find"))]
@@ -327,6 +331,9 @@ pub enum SubCommand {
     /// or advanced expression.
     #[cfg(any(feature = "all-commands", feature = "split"))]
     Split(cmd::split::SplitCommand),
+    /// Compare two input files/streams
+    #[cfg(any(feature = "all-commands", feature = "cmp"))]
+    Cmp(cmd::cmp::CmpCommand),
     /// Interleave records of all files in the input.
     #[cfg(any(feature = "all-commands", feature = "interleave"))]
     Interleave(cmd::interleave::InterleaveCommand),

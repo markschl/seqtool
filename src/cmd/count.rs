@@ -102,7 +102,7 @@ where
 
     // count the records
     cfg.read(|record, ctx| {
-        key_values.compose_from(&var_keys, &mut text_buf, &ctx.symbols, record)?;
+        key_values.compose_from(&var_keys, &mut text_buf, ctx.symbols(), record)?;
         if let Some(v) = counts.get_mut(&key_values) {
             *v += 1;
         } else if counts.len() <= category_limit {

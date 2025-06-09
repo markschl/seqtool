@@ -74,7 +74,7 @@ fn low_qual_err(q: u8, min_ascii: u8, fmt: &str) -> String {
     )
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QualConverter {
     fmt: QualFormat,
     // Buffer for quality score conversion

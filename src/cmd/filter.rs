@@ -41,7 +41,7 @@ pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<()> {
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read(|record, ctx| {
-            let v = ctx.symbols.get(symbol_id);
+            let v = ctx.symbols().get(symbol_id);
             let result = match v.inner() {
                 Some(Value::Bool(b)) => *b.get(),
                 _ => {

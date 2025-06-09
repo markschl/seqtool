@@ -51,13 +51,8 @@ pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<()> {
 
         cfg.read(|record, ctx| {
             // assemble key
-            ctx.custom_vars::<SortVars, _, String>(|key_mod, symbols| {
-                key_values.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
-                if let Some(m) = key_mod {
-                    m.set(&key_values, symbols);
-                }
-                Ok(())
-            })?;
+            key_values.compose_from(&varstring_keys, &mut text_buf, ctx.symbols(), record)?;
+            ctx.with_custom_varmod(0, |m: &mut SortVars, sym| m.set(&key_values, sym));
             // write formatted record to a buffer
             let record_out =
                 record_buf_factory.get(|out| format_writer.write(&record, out, ctx))?;

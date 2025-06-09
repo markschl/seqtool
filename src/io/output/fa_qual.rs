@@ -2,8 +2,9 @@ use std::fs::File;
 use std::io;
 use std::path::Path;
 
-use crate::context::SeqContext;
+use crate::context::RecordMeta;
 use crate::error::CliResult;
+use crate::io::QualConverter;
 use crate::var::VarBuilder;
 
 use super::{Attribute, Record, SeqFormatter};
@@ -44,33 +45,35 @@ impl FaQualWriter {
 }
 
 impl SeqFormatter for FaQualWriter {
-    fn write(
+    fn write_with(
         &mut self,
         record: &dyn Record,
+        data: &RecordMeta,
         out: &mut dyn io::Write,
-        ctx: &mut SeqContext,
+        qc: &mut QualConverter,
     ) -> CliResult<()> {
-        self.fa_writer.write(record, out, ctx)?;
-        write_qscores(record, &mut self.qual_out, ctx, self.wrap)
+        self.fa_writer.write_with(record, data, out, qc)?;
+        write_qscores(record, &mut self.qual_out, data, qc, self.wrap)
     }
 }
 
 fn write_qscores<W: io::Write>(
     record: &dyn Record,
     mut out: W,
-    ctx: &mut SeqContext,
+    data: &RecordMeta,
+    qual_converter: &mut QualConverter,
     wrap: usize,
 ) -> CliResult<()> {
     let qual = record.qual().ok_or("No quality scores found in input.")?;
     // header
     out.write_all(b">")?;
-    ctx.attrs.write_head(record, &mut out, &ctx.symbols)?;
+    data.attrs.write_head(record, &mut out, &data.symbols)?;
     out.write_all(b"\n")?;
 
     // Phred scores
     for qline in qual.chunks(wrap) {
         if !qline.is_empty() {
-            let phred_qual = ctx.qual_converter.phred_scores(qline).map_err(|e| {
+            let phred_qual = qual_converter.phred_scores(qline).map_err(|e| {
                 format!(
                     "Error writing record '{}'. {}",
                     String::from_utf8_lossy(record.id()),

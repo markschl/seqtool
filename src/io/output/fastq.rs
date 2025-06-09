@@ -1,8 +1,8 @@
 use std::io;
 
-use crate::context::SeqContext;
+use crate::context::RecordMeta;
 use crate::error::CliResult;
-use crate::io::QualFormat;
+use crate::io::{QualConverter, QualFormat};
 use crate::var::VarBuilder;
 
 use crate::io::{
@@ -28,20 +28,22 @@ impl FastqWriter {
 }
 
 impl SeqFormatter for FastqWriter {
-    fn write(
+    fn write_with(
         &mut self,
         record: &dyn Record,
+        data: &RecordMeta,
         out: &mut dyn io::Write,
-        ctx: &mut SeqContext,
+        qc: &mut QualConverter,
     ) -> CliResult<()> {
-        write_fastq(record, out, ctx, self.format)
+        write_fastq(record, data, out, qc, self.format)
     }
 }
 
 fn write_fastq<W: io::Write>(
     record: &dyn Record,
+    data: &RecordMeta,
     mut out: W,
-    ctx: &mut SeqContext,
+    qual_converter: &mut QualConverter,
     format: QualFormat,
 ) -> CliResult<()> {
     // TODO: could use seq_io::fastq::write_to / write_parts, but the sequence is an iterator of segments
@@ -49,7 +51,7 @@ fn write_fastq<W: io::Write>(
 
     // header
     out.write_all(b"@")?;
-    ctx.attrs.write_head(record, &mut out, &ctx.symbols)?;
+    data.attrs.write_head(record, &mut out, &data.symbols)?;
     out.write_all(b"\n")?;
 
     // sequence
@@ -59,7 +61,7 @@ fn write_fastq<W: io::Write>(
     out.write_all(b"\n+\n")?;
 
     // quality scores
-    let qual = ctx.qual_converter.convert_to(qual, format).map_err(|e| {
+    let qual = qual_converter.convert_to(qual, format).map_err(|e| {
         format!(
             "Error writing record '{}'. {}",
             String::from_utf8_lossy(record.id()),

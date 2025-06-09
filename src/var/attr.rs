@@ -65,7 +65,7 @@ pub enum AttrWriteAction {
     Delete,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Attributes {
     parser: Parser,
     // Since ID and description are parsed separately, we need to know if the delimiter before the attribute
@@ -304,7 +304,7 @@ impl Attributes {
 /// The attributes are stored in a vector, ordered by their attribute ID,
 /// so obtaining values for attributes is a simple indexing operation if the
 /// attribute ID is known.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Parser {
     format: AttrFormat,
     // read and/or replace, delete
@@ -627,7 +627,7 @@ impl Parser {
 
 /// Object holding information about attributes that we want to find,
 /// as well as information about the position of the hit (if found)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AttributeData {
     // attribute name
     name: String,

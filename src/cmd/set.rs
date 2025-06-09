@@ -53,7 +53,7 @@ pub fn run(mut cfg: Config, args: SetCommand) -> CliResult<()> {
         cfg.read(|record, ctx| {
             for &(ref expr, attr) in &replacements {
                 let val = editor.edit(attr);
-                expr.compose(val, &ctx.symbols, record)?;
+                expr.compose(val, ctx.symbols(), record)?;
             }
 
             format_writer.write(&editor.record(&record), io_writer, ctx)?;

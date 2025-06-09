@@ -10,6 +10,8 @@ pub mod count;
 #[cfg(any(feature = "all-commands", feature = "stat"))]
 pub mod stat;
 
+#[cfg(any(feature = "all-commands", feature = "cmp"))]
+pub mod cmp;
 #[cfg(any(
     all(feature = "expr", feature = "all-commands"),
     all(feature = "expr", feature = "filter")

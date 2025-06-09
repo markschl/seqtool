@@ -100,14 +100,12 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
     cfg.read(|record, ctx| {
         // update chunk number variable
         if num_seqs.is_some() {
-            ctx.custom_vars(|opt_mod: Option<&mut SplitVars>, sym| {
-                opt_mod.map(|m| m.increment(sym)).transpose()
-            })?;
+            ctx.with_custom_varmod(0, |var_mod: &mut SplitVars, sym| var_mod.increment(sym));
         }
 
         // compose key
         path.clear();
-        out_key.compose(&mut path, &ctx.symbols, record)?;
+        out_key.compose(&mut path, ctx.symbols(), record)?;
 
         // cannot use Entry API
         // https://github.com/rust-lang/rfcs/pull/1769 ??
@@ -198,7 +196,7 @@ impl SplitVars {
         }
     }
 
-    fn increment(&mut self, symbols: &mut symbols::SymbolTable) -> Result<(), String> {
+    fn increment(&mut self, symbols: &mut symbols::SymbolTable) {
         if let Some(var_id) = self.symbol_id {
             self.seq_num += 1;
             if self.chunk_num == 0 || self.seq_num > self.limit {
@@ -210,7 +208,6 @@ impl SplitVars {
                     .set_int(self.chunk_num as i64);
             }
         }
-        Ok(())
     }
 }
 

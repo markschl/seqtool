@@ -55,9 +55,7 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
         let mut text_buf = vec![Vec::new(); varstring_keys.len()];
         // Depending on the CLI options, different information is needed,
         // which in turn affects how the de-duplicaion is done
-        let mut required_info = cfg
-            .with_command_vars::<UniqueVars, _, String>(|v, _| Ok(v.unwrap().required_info()))
-            .unwrap();
+        let mut required_info = cfg.with_custom_varmod(|v: &mut UniqueVars| v.required_info());
         let has_placeholders = required_info.is_some();
         if args.map_out.is_some() {
             required_info = Some(RequiredInformation::Ids);
@@ -74,13 +72,8 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
 
         cfg.read(|record, ctx| {
             // assemble key
-            ctx.custom_vars::<UniqueVars, _, String>(|key_mod, symbols| {
-                key_values.compose_from(&varstring_keys, &mut text_buf, symbols, record)?;
-                if let Some(m) = key_mod {
-                    m.set(&key_values, symbols);
-                }
-                Ok(())
-            })?;
+            key_values.compose_from(&varstring_keys, &mut text_buf, ctx.symbols(), record)?;
+            ctx.with_custom_varmod(0, |m: &mut UniqueVars, sym| m.set(&key_values, sym));
 
             // add record
             dedup.add(

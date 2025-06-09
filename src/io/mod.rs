@@ -24,6 +24,17 @@ pub enum IoKind {
     File(PathBuf),
 }
 
+impl IoKind {
+    pub fn from_path<P: AsRef<Path>>(p: P) -> Result<Self, String> {
+        let p = p.as_ref();
+        if let Some(s) = p.to_str() {
+            Ok(Self::from_str(s).unwrap())
+        } else {
+            Err(format!("Invalid path: '{}'", p.to_string_lossy()))
+        }
+    }
+}
+
 impl FromStr for IoKind {
     type Err = Infallible;
 
@@ -36,15 +47,12 @@ impl FromStr for IoKind {
     }
 }
 
-impl TryFrom<&Path> for IoKind {
-    type Error = String;
-
-    fn try_from(p: &Path) -> Result<Self, Self::Error> {
-        if let Some(s) = p.to_str() {
-            Ok(Self::from_str(s).unwrap())
-        } else {
-            Err(format!("Invalid path: '{}'", p.to_string_lossy()))
-        }
+impl<S> From<S> for IoKind
+where
+    S: AsRef<str>,
+{
+    fn from(s: S) -> Self {
+        Self::from_str(s.as_ref()).unwrap()
     }
 }
 

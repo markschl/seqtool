@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io;
 use std::mem;
 
@@ -89,6 +90,15 @@ impl SimpleValue {
         } else {
             SimpleValue::None
         };
+    }
+}
+
+// Dispaly implementation only for error messages
+impl fmt::Display for SimpleValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buf = Vec::new();
+        self.write(&mut buf).unwrap();
+        f.write_str(&String::from_utf8_lossy(&buf))
     }
 }
 
