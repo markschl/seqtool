@@ -318,6 +318,8 @@ macro_rules! records {
     }
 }
 
+#[cfg(any(feature = "all-commands", feature = "cmp"))]
+mod cmp;
 #[cfg(any(feature = "gz", feature = "lz4"))]
 mod compress;
 #[cfg(any(feature = "all-commands", feature = "concat"))]
