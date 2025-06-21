@@ -5,11 +5,14 @@ use crate::helpers::bytesize::parse_bytesize;
 use crate::io::IoKind;
 
 pub const DESC: &str = "\
-In the default mode, two files/streams are compared by ID and sequence
-(ignoring descriptions in headers), and common and unique record numbers are
-reported to STDERR, unless `-q/--quiet` is specified.
+In the default mode, two files/streams are compared by *ID* (`id` variable) and
+*sequence hash* (`seqhash` variable), ignoring descriptions in headers.
+The number of common and unique record numbers are reported to STDERR,
+unless `-q/--quiet` is specified.
+
 Note that the comparison key can be completely customized with `-k/--key`
 (see <KEY> help and `st cmp --help-vars`).
+
 If the memory limit is exceeded, two-pass scanning is activated. In this case,
 seekable files must be provided.
 
@@ -31,7 +34,7 @@ pub struct CmpCommand {
     /// or a comma-delimited list of multiple variables/functions,
     /// that are compared separately, e.g. 'id,attr(a)'.
     /// It is also possible to provide `-k/--key` multiple times.
-    #[arg(short, long, default_value = "id,seq")]
+    #[arg(short, long, default_value = "id,seqhash")]
     pub key: Vec<String>,
 
     /// Provide this option if the two input files/streams are in the same order.

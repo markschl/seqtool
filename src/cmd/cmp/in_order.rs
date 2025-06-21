@@ -20,7 +20,7 @@ pub fn cmp_in_order(
     let mut stats = CmpStats::default();
     cfg.require_meta_slots(3);
     cfg.read2(|rdr0, rdr1, ctx| {
-        let mut cmp = in_order::OrderedCmp::new(ctx, &var_key, out, max_mem);
+        let mut cmp = in_order::OrderedCmp::new(ctx, var_key, out, max_mem);
         // buffers storing non-matching OwnedRecord instances
         let mut buf0 = RingMap::default();
         let mut buf1 = RingMap::default();
@@ -48,6 +48,8 @@ pub fn cmp_in_order(
     })?;
     Ok(stats)
 }
+
+pub type RecordMap = RingMap<Key, (OwnedRecord, usize), BuildHasher>;
 
 pub struct OrderedCmp<'a> {
     ctx: &'a mut SeqContext,
@@ -94,10 +96,7 @@ impl<'a> OrderedCmp<'a> {
     pub fn advance(
         &mut self,
         rdr: (&mut dyn SeqReader, &mut dyn SeqReader),
-        buf: (
-            &mut RingMap<Key, (OwnedRecord, usize), BuildHasher>,
-            &mut RingMap<Key, (OwnedRecord, usize), BuildHasher>,
-        ),
+        buf: (&mut RecordMap, &mut RecordMap),
         rev: bool,
     ) -> CliResult<bool> {
         // flags passed on to write functions, indicating whether

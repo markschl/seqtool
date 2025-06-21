@@ -68,7 +68,7 @@ impl Cmp {
                         Use -q/--quiet to silence this message."
                         );
                     }
-                    *self = Cmp::Keys(cmp.into_indexed());
+                    *self = Cmp::Keys(cmp.get_indexed());
                 }
             }
             Cmp::Keys(cmp) => {
@@ -137,7 +137,7 @@ impl RecordCmp {
         Ok(self.mem_size <= self.max_mem)
     }
 
-    fn into_indexed(&mut self) -> KeyCmp {
+    fn get_indexed(&mut self) -> KeyCmp {
         let mut out = KeyCmp::new(&self.var_string, self.max_mem);
         for (key, _) in self.records0.drain(..) {
             out._insert_key_simple(key, false);
@@ -261,7 +261,7 @@ impl KeyCmp {
             // println!("key1 {} cat {:?}", key, cat);
             if !rdr
                 .0
-                .read_next(&mut |rec| write_record(ctx, &key, rec, cat, out, false))?
+                .read_next(&mut |rec| write_record(ctx, key, rec, cat, out, false))?
             {
                 // TODO: not nice
                 return fail!("First input has less records than before");
