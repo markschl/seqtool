@@ -11,7 +11,7 @@ use crate::helpers::vec_buf::VecFactory;
 use crate::var::varstring::register_var_list;
 use crate::CliError;
 
-use super::shared::{item::Key, tmp_store::Archivable};
+use super::shared::tmp_store::{Archivable, Key};
 
 pub mod cli;
 pub mod file;

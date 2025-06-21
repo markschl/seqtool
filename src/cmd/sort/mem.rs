@@ -4,10 +4,10 @@ use std::path::PathBuf;
 
 use deepsize::DeepSizeOf;
 
-use crate::cmd::shared::tmp_store::TmpWriter;
+use crate::cmd::shared::tmp_store::{Item, TmpWriter};
 use crate::error::CliResult;
 
-use super::{FileSorter, Item, SortHandle};
+use super::{FileSorter, SortHandle};
 
 #[derive(Debug, Clone)]
 pub struct MemSorter {

@@ -4,7 +4,7 @@ use std::mem;
 use clap::Parser;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
-use crate::cmd::shared::item::Key;
+use crate::cmd::shared::key::Key;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{value::SimpleValue, DefaultHashMap as HashMap};

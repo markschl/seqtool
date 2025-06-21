@@ -5,10 +5,7 @@ use deepsize::DeepSizeOf;
 use indexmap::{IndexMap, IndexSet};
 use rkyv::{Archive, Deserialize, Serialize};
 
-use crate::cmd::shared::{
-    item::{Item, Key},
-    tmp_store::{TmpHandle, TmpWriter},
-};
+use crate::cmd::shared::tmp_store::{Item, Key, TmpHandle, TmpWriter};
 use crate::error::CliResult;
 use crate::helpers::{vec_buf::VecFactory, DefaultBuildHasher as BuildHasher};
 

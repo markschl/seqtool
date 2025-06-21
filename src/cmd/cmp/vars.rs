@@ -1,13 +1,10 @@
-use crate::cmd::cmp::Category;
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
-use crate::cmd::shared::item::Key;
+use crate::cmd::shared::key::Key;
+use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
 
-use crate::var::modules::VarProvider;
-use crate::var::parser::Arg;
-use crate::var::symbols::SymbolTable;
-use crate::var::{VarBuilder, VarStore};
+use super::Category;
 
 variable_enum! {
     /// # Variables/functions provided by the 'cmp' command

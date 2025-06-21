@@ -1,10 +1,13 @@
+use std::cmp::Ordering;
 use std::fs::{remove_file, File};
+use std::hash::{Hash, Hasher};
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::marker::PhantomData;
 use std::mem::size_of_val;
 use std::path::{Path, PathBuf};
 
 use byteorder::{ReadBytesExt, LE};
+use deepsize::DeepSizeOf;
 use rkyv::{
     ser::{
         serializers::{AlignedSerializer, AllocScratch, CompositeSerializer},
@@ -17,6 +20,8 @@ use tempfile::TempDir;
 use crate::error::{CliError, CliResult};
 use crate::helpers::value::SimpleValue;
 
+pub use super::key::Key;
+
 /// Warning limit for number of temporary files
 const TEMP_FILE_WARN_LIMIT: usize = 50;
 
@@ -28,6 +33,50 @@ pub trait Archivable<'a>:
 impl Archivable<'_> for Vec<u8> {}
 impl Archivable<'_> for Box<[u8]> {}
 impl Archivable<'_> for SimpleValue {}
+
+/// Item used in sort and unique commands:
+/// holds a key and a formatted record,
+/// but only the key is used for comparisons.
+#[derive(Archive, Deserialize, Serialize, DeepSizeOf, Debug, Clone)]
+#[archive(compare(PartialEq), check_bytes)]
+pub struct Item<R: for<'a> Archivable<'a> + DeepSizeOf> {
+    pub key: Key,
+    pub record: R,
+}
+
+impl<R: for<'a> Archivable<'a> + DeepSizeOf> Item<R> {
+    pub fn new(key: Key, record: R) -> Self {
+        Self { key, record }
+    }
+}
+
+impl<R: for<'a> Archivable<'a> + DeepSizeOf> PartialOrd for Item<R> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<R: for<'a> Archivable<'a> + DeepSizeOf> PartialEq for Item<R> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<R: for<'a> Archivable<'a> + DeepSizeOf> Eq for Item<R> {}
+
+impl<R: for<'a> Archivable<'a> + DeepSizeOf> Ord for Item<R> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+
+impl<R: for<'a> Archivable<'a> + DeepSizeOf> Hash for Item<R> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.key.hash(state);
+    }
+}
+
+impl<R: for<'a> Archivable<'a> + DeepSizeOf> Archivable<'_> for Item<R> {}
 
 #[derive(Debug)]
 pub struct TmpStore {

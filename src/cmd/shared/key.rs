@@ -1,10 +1,7 @@
-use std::cmp::Ordering;
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 
 use deepsize::DeepSizeOf;
-use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::helpers::{value::SimpleValue, write_list::write_list_with};
 use crate::io::Record;
@@ -13,22 +10,12 @@ use crate::var::{
     varstring::VarString,
 };
 
-use super::tmp_store::Archivable;
-
-#[derive(
-    DeepSizeOf,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Clone,
-    rkyv::Archive,
-    rkyv::Deserialize,
-    rkyv::Serialize,
+#[derive(DeepSizeOf, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
+#[cfg_attr(
+    any(feature = "all-commands", feature = "sort", feature = "unique"),
+    derive(rkyv::Archive, rkyv::Deserialize, rkyv::Serialize),
+    archive(compare(PartialEq), check_bytes)
 )]
-#[archive(compare(PartialEq), check_bytes)]
 pub enum Key {
     Single(SimpleValue),
     // This saves time with two values per key (but appears to make >2 values slower)
@@ -139,47 +126,3 @@ impl DerefMut for Key {
         }
     }
 }
-
-/// Item used in sort and unique commands:
-/// holds a key and a formatted record,
-/// but only the key is used for comparisons.
-#[derive(Archive, Deserialize, Serialize, DeepSizeOf, Debug, Clone)]
-#[archive(compare(PartialEq), check_bytes)]
-pub struct Item<R: for<'a> Archivable<'a> + DeepSizeOf> {
-    pub key: Key,
-    pub record: R,
-}
-
-impl<R: for<'a> Archivable<'a> + DeepSizeOf> Item<R> {
-    pub fn new(key: Key, record: R) -> Self {
-        Self { key, record }
-    }
-}
-
-impl<R: for<'a> Archivable<'a> + DeepSizeOf> PartialOrd for Item<R> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<R: for<'a> Archivable<'a> + DeepSizeOf> PartialEq for Item<R> {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-}
-
-impl<R: for<'a> Archivable<'a> + DeepSizeOf> Eq for Item<R> {}
-
-impl<R: for<'a> Archivable<'a> + DeepSizeOf> Ord for Item<R> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.key.cmp(&other.key)
-    }
-}
-
-impl<R: for<'a> Archivable<'a> + DeepSizeOf> Hash for Item<R> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.key.hash(state);
-    }
-}
-
-impl<R: for<'a> Archivable<'a> + DeepSizeOf> Archivable<'_> for Item<R> {}

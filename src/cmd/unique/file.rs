@@ -1,11 +1,7 @@
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use crate::cmd::shared::item::Key;
-use crate::cmd::shared::{
-    item::Item,
-    tmp_store::{TmpHandle, TmpStore},
-};
+use crate::cmd::shared::tmp_store::{Item, Key, TmpHandle, TmpStore};
 use crate::error::CliResult;
 use crate::helpers::{heap_merge::HeapMerge, vec_buf::VecFactory};
 

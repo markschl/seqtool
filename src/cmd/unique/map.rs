@@ -2,7 +2,7 @@ use std::io;
 
 use clap::ValueEnum;
 
-use crate::cmd::shared::item::Key;
+use crate::cmd::shared::tmp_store::Key;
 use crate::helpers::write_list::{write_list, write_list_with};
 
 use super::DuplicateInfo;

@@ -1,7 +1,7 @@
 use deepsize::DeepSizeOf;
 use indexmap::{IndexMap, IndexSet};
 
-use crate::cmd::shared::item::Key;
+use crate::cmd::shared::key::Key;
 use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::helpers::DefaultBuildHasher as BuildHasher;

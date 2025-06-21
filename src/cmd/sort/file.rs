@@ -1,11 +1,11 @@
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use crate::cmd::shared::tmp_store::{TmpHandle, TmpStore};
+use crate::cmd::shared::tmp_store::{Item, TmpHandle, TmpStore};
 use crate::error::CliResult;
 use crate::helpers::heap_merge::HeapMerge;
 
-use super::{Item, MemSorter};
+use super::MemSorter;
 
 pub type SortHandle = TmpHandle<Item<Box<[u8]>>>;
 
