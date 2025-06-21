@@ -112,7 +112,7 @@ all-commands = [
 ]
 pass = []
 view = ["palette", "enterpolation", "termcolor", "ansi_colours", "pager"]
-count = []
+count = ["rkyv"]
 stat = []
 head = []
 tail = []

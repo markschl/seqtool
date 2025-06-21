@@ -7,52 +7,52 @@ use super::*;
 
 #[test]
 fn simple() {
-    let t = Tester::new();
-    t.temp_file("sample", Some(&FASTA), |path, _| {
-        // very simple tests
-        t.cmp(&["sample", "-n", "4"], FileInput(path), &FASTA)
-            .fails(
-                &["sample", "-p", "2"],
-                FileInput(path),
-                "Fractions should be between 0 and 1",
-            )
-            .fails(
-                &["sample", "-p", "1"],
-                FileInput(path),
-                "Fractions should be between 0 and 1",
-            );
-    });
+    let input = tmp_file("sample_simple__", ".fasta", &FASTA);
+    // very simple tests
+    cmp(&["sample", "-n", "4"], &input, &FASTA);
+    fails(
+        &["sample", "-p", "2"],
+        &input,
+        "Fractions should be between 0 and 1",
+    );
+    fails(
+        &["sample", "-p", "1"],
+        &input,
+        "Fractions should be between 0 and 1",
+    );
 }
 
 #[test]
 fn large() {
-    // RNGs and seeds
-    // test with integer seed
-    let seed1 = 602993;
-    // string seed
-    let seed2 = "ABCDEFGHIJKLMNOP";
-    let mut seed2_array = [0; 32];
-    (&mut seed2_array[..]).write_all(seed2.as_bytes()).unwrap();
-    let rngs: Vec<(String, Box<dyn Fn() -> DefaultRng>)> = vec![
-        (
-            format!("{seed1}"),
-            Box::new(|| DefaultRng::seed_from_u64(seed1)),
-        ),
-        (
-            seed2.to_string(),
-            Box::new(|| DefaultRng::from_seed(seed2_array)),
-        ),
-    ];
+    with_tmpdir("st_sample_large_", |td| {
+        // RNGs and seeds
+        // test with integer seed
+        let seed1 = 602993;
+        // string seed
+        let seed2 = "ABCDEFGHIJKLMNOP";
+        let mut seed2_array = [0; 32];
+        (&mut seed2_array[..]).write_all(seed2.as_bytes()).unwrap();
+        let rngs: Vec<(String, Box<dyn Fn() -> DefaultRng>)> = vec![
+            (
+                format!("{seed1}"),
+                Box::new(|| DefaultRng::seed_from_u64(seed1)),
+            ),
+            (
+                seed2.to_string(),
+                Box::new(|| DefaultRng::from_seed(seed2_array)),
+            ),
+        ];
 
-    // input
-    let n_records = 1000;
-    let seqs: Vec<_> = (0..n_records).map(|i| format!(">{i}\nSEQ\n")).collect();
-    let fasta = seqs.join("");
+        // input
 
-    let t = Tester::new();
-    t.temp_file("sample", Some(&fasta), |path, _| {
+        let n_records = 1000;
+        let seqs: Vec<_> = (0..n_records).map(|i| format!(">{i}\nSEQ\n")).collect();
+        let fasta = seqs.join("");
+
+        let input = td.file(".fasta", &fasta);
+
         for (seed, get_rng) in &rngs {
-            // test fixed number (-n)
+            // test fixed number (-n);
             for n in [1, 10, 100, 500, 998, 1000] {
                 // also test different memory limits to ensure that switching
                 // from sampling whole records to indices only works
@@ -73,12 +73,12 @@ fn large() {
                         if two_pass {
                             args.push("-2");
                         }
-                        t.cmp(&args, FileInput(path), &expected);
+                        cmp(&args, &input, &expected);
                     }
                 }
             }
 
-            // test probability sampling (-p)
+            // test probability sampling (-p);
             let distr = Uniform::new(0f32, 1.).unwrap();
             for &p in &[0., 0.1, 0.3, 0.5, 0.7, 0.95] {
                 let mut rng = get_rng();
@@ -88,9 +88,9 @@ fn large() {
                     .cloned()
                     .join("");
 
-                t.cmp(
+                cmp(
                     &["sample", "-p", &format!("{p}"), "-s", seed],
-                    FileInput(path),
+                    &input,
                     &expected,
                 );
             }

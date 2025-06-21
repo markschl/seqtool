@@ -1,131 +1,66 @@
 use super::*;
 use itertools::Itertools;
-use seq_io::fasta::{self, Record};
-use std::fs::File;
+
 use std::str;
 
 #[test]
 fn chunks() {
-    let t = Tester::new();
-
-    for size in 1..5 {
-        t.temp_dir("split_n", |tmp_dir| {
-            let key = tmp_dir.path().join("f_{chunk}.{default_ext}");
-
-            t.succeeds(
-                &[
-                    "split",
-                    "-n",
-                    &format!("{size}"),
-                    "-po",
-                    (key.to_str().unwrap()),
-                ],
-                *FASTA,
-            );
+    with_tmpdir("st_split_chunks_", |td| {
+        for size in 1..5 {
+            let key = td.persistent_path("f_{chunk}.{default_ext}");
+            succeeds(&["split", "-n", &format!("{size}"), "-po", &key], *FASTA);
 
             for (i, seqs) in SEQS.iter().chunks(size).into_iter().enumerate() {
-                let p = tmp_dir.path().join(format!("f_{}.fasta", i + 1));
-                let mut reader =
-                    fasta::Reader::from_path(&p).unwrap_or_else(|_| panic!("file {p:?} not found"));
-                for seq in seqs {
-                    let rec = reader.next().expect("Not enough records").unwrap();
-                    assert_eq!(
-                        &format!(
-                            ">{} {}\n{}\n",
-                            rec.id().unwrap(),
-                            rec.desc().unwrap().unwrap(),
-                            str::from_utf8(rec.seq()).unwrap()
-                        ),
-                        seq
-                    );
-                }
-                assert!(reader.next().is_none(), "Too many records");
+                let f = td.path(&format!("f_{}.fasta", i + 1));
+                assert_eq!(f.content(), seqs.into_iter().join(""));
             }
-        });
-    }
+        }
+    });
 }
 
 #[test]
 fn key() {
-    let t = Tester::new();
+    with_tmpdir("st_split_key_", |td| {
+        let out_path = td.persistent_path("{id}_{attr(p)}.fasta");
+        succeeds(&["split", "-po", &out_path], *FASTA);
 
-    t.temp_dir("split_key", |tmp_dir| {
-        let subdir = tmp_dir.path().join("subdir");
-        let expected: &[&str] = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
-        let key = &subdir.join("{id}_{attr(p)}.fa");
+        let expected = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
 
-        t.succeeds(&["split", "-po", &key.to_string_lossy()], *FASTA);
-
-        for (i, k) in expected.iter().enumerate() {
-            let p = subdir.join(format!("{k}.fa"));
-            let mut reader =
-                fasta::Reader::from_path(&p).unwrap_or_else(|_| panic!("file {p:?} not found"));
-            let rec = reader.next().unwrap().unwrap().to_owned_record();
-            assert_eq!(
-                &format!(
-                    ">{} {}\n{}\n",
-                    rec.id().unwrap(),
-                    rec.desc().unwrap().unwrap(),
-                    str::from_utf8(rec.seq()).unwrap()
-                ),
-                &SEQS[i]
-            );
-            assert!(reader.next().is_none());
+        for (name, seq) in expected.iter().zip(SEQS) {
+            let f = td.path(&format!("{}.fasta", name));
+            assert_eq!(f.content(), seq);
         }
     });
 }
 
 #[test]
 fn seqlen_count() {
-    let t = Tester::new();
-    t.temp_dir("split_key_seqlen", |tmp_dir| {
-        let p = tmp_dir.path().join("{seqlen}.fa");
-        let outfile = tmp_dir.path().join("25.fa");
-        let counts = format!("{}\t4\n", outfile.to_string_lossy());
-        t.cmp(
-            &["split", "-po", p.to_str().unwrap(), "-c", "-"],
+    with_tmpdir("st_split_sl_", |td| {
+        let key = td.persistent_path("{seqlen}.fasta");
+        succeeds(&["split", "-o", &key], *FASTA);
+
+        let out = td.path("25.fasta");
+        cmp(
+            &["split", "-po", &key, "-c", "-"],
             *FASTA,
-            &counts,
+            &format!("{}\t4\n", out.as_str()),
         );
-        let mut f = File::open(outfile).unwrap();
-        let mut s = String::new();
-        f.read_to_string(&mut s).unwrap();
-        assert_eq!(&s, &FASTA as &str);
+        assert_eq!(out.content(), &FASTA as &str);
     });
 }
 
 #[cfg(feature = "gz")]
 #[test]
 fn compression() {
-    let t = Tester::new();
+    with_tmpdir("st_split_compr_", |td| {
+        let key = td.persistent_path("{id}_{attr(p)}.fasta.gz");
+        succeeds(&["split", "-po", &key], *FASTA);
 
-    t.temp_dir("split_compression", |tmp_dir| {
-        let subdir = tmp_dir.path().join("subdir");
+        let expected = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
 
-        let key = &subdir.join("{id}_{attr(p)}.fa.gz");
-
-        t.succeeds(&["split", "-po", (key.to_str().unwrap())], *FASTA);
-
-        let expected: &[&str] = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
-
-        let f = MultiFileInput(
-            expected
-                .iter()
-                .map(|e| {
-                    subdir
-                        .join(e.to_string() + ".fa.gz")
-                        .to_string_lossy()
-                        .into()
-                })
-                .collect(),
-        );
-
-        t.fails(
-            &[".", "--fmt", "fasta"],
-            f.clone(),
-            "FASTA parse error: expected '>' but found '\\u{1f}' at file start",
-        );
-
-        t.cmp(&["."], f, *FASTA);
+        for (name, seq) in expected.iter().zip(SEQS) {
+            let f = td.path(&format!("{}.fasta.gz", name));
+            assert_eq!(f.gz_content(), seq);
+        }
     });
 }

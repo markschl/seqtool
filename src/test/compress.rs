@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn compress_pipe() {
     #[cfg(feature = "gz")]
-    Tester::new().pipe(
+    cmp_pipe(
         &[".", "--to", "fasta.gz", "--compr-level", "9"],
         &FASTA,
         &[".", "--fmt", "fasta.gz"],
@@ -11,7 +11,7 @@ fn compress_pipe() {
     );
 
     #[cfg(feature = "bz2")]
-    Tester::new().pipe(
+    cmp_pipe(
         &[".", "--to", "fasta.bz2", "--compr-level", "9"],
         &FASTA,
         &[".", "--fmt", "fasta.bz2"],
@@ -19,7 +19,7 @@ fn compress_pipe() {
     );
 
     #[cfg(feature = "lz4")]
-    Tester::new().pipe(
+    cmp_pipe(
         &[".", "--to", "fasta.lz4", "--compr-level", "9"],
         &FASTA,
         &[".", "--fmt", "fasta.lz4"],
@@ -27,7 +27,7 @@ fn compress_pipe() {
     );
 
     #[cfg(feature = "zstd")]
-    Tester::new().pipe(
+    cmp_pipe(
         &[".", "--to", "fasta.zst", "--compr-level", "9"],
         &FASTA,
         &[".", "--fmt", "fasta.zst"],
@@ -38,12 +38,11 @@ fn compress_pipe() {
 #[test]
 #[cfg(feature = "gz")]
 fn compress_file() {
-    let t = Tester::new();
-
-    t.temp_file("compr.fa.gz", None, |path, _| {
-        t.succeeds(&[".", "-o", path], *FASTA);
-        t.fails(&[".", "--fmt", "fasta"], path, "FASTA parse error");
-        t.cmp(&["."], FileInput(path), *FASTA);
-        t.cmp(&[".", "--fmt", "fasta.gz"], FileInput(path), *FASTA);
+    with_tmpdir("st_compress_", |td| {
+        let f = td.path("compr_out.fa.gz");
+        succeeds(&[".", "-o", &f], *FASTA);
+        fails(&[".", "--fmt", "fasta"], &f, "FASTA parse error");
+        cmp(&["."], &f, *FASTA);
+        cmp(&[".", "--fmt", "fasta.gz"], &f, *FASTA);
     });
 }

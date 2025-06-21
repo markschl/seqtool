@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn tail() {
-    let t = Tester::new();
-    t.fails(&["tail", "-n", "3"], *FASTA, "Cannot use STDIN as input");
-    t.temp_file("tail", Some(*FASTA), |path, _| {
-        t.cmp(&["tail", "-n", "2"], FileInput(path), records!(2, 3));
-    });
+    fails(&["tail", "-n", "3"], *FASTA, "Cannot use STDIN as input");
+    let input = tmp_file("st_tail_", ".fasta", *FASTA);
+    cmp(&["tail", "-n", "2"], input, records!(2, 3));
 }

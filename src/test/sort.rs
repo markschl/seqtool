@@ -12,39 +12,36 @@ use super::*;
 
 #[test]
 fn id_desc_seq() {
-    Tester::new()
-        .cmp(&["sort", "seq"], *FASTA, records!(3, 2, 1, 0))
-        .cmp(&["sort", "-r", "seq"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(&["sort", "id"], *FASTA, records!(1, 0, 3, 2))
-        .cmp(&["sort", "desc"], *FASTA, records!(1, 2, 3, 0))
-        .cmp(&["sort", "{id}_{desc}"], *FASTA, records!(1, 0, 3, 2));
+    cmp(&["sort", "seq"], *FASTA, records!(3, 2, 1, 0));
+    cmp(&["sort", "-r", "seq"], *FASTA, records!(0, 1, 2, 3));
+    cmp(&["sort", "id"], *FASTA, records!(1, 0, 3, 2));
+    cmp(&["sort", "desc"], *FASTA, records!(1, 2, 3, 0));
+    cmp(&["sort", "{id}_{desc}"], *FASTA, records!(1, 0, 3, 2));
 }
 
 #[test]
 fn attr() {
-    Tester::new()
-        .cmp(&["sort", "attr(p)"], *FASTA, records!(1, 2, 3, 0))
-        .cmp(&["sort", "{attr(p)}"], *FASTA, records!(1, 2, 3, 0));
+    cmp(&["sort", "attr(p)"], *FASTA, records!(1, 2, 3, 0));
+    cmp(&["sort", "{attr(p)}"], *FASTA, records!(1, 2, 3, 0));
 }
 
 #[test]
 fn numeric_attr() {
-    let t = Tester::new();
-    t.cmp(&["sort", "num(attr(p))"], *FASTA, records!(1, 0, 2, 3))
-        .cmp(&["sort", "{num(attr(p))}"], *FASTA, records!(1, 0, 2, 3))
-        .cmp(
-            &["sort", "-r", "num(attr(p))"],
-            *FASTA,
-            records!(3, 2, 0, 1),
-        )
-        .cmp(
-            &["sort", "-r", "{num(attr('p'))}"],
-            *FASTA,
-            records!(3, 2, 0, 1),
-        );
+    cmp(&["sort", "num(attr(p))"], *FASTA, records!(1, 0, 2, 3));
+    cmp(&["sort", "{num(attr(p))}"], *FASTA, records!(1, 0, 2, 3));
+    cmp(
+        &["sort", "-r", "num(attr(p))"],
+        *FASTA,
+        records!(3, 2, 0, 1),
+    );
+    cmp(
+        &["sort", "-r", "{num(attr('p'))}"],
+        *FASTA,
+        records!(3, 2, 0, 1),
+    );
 
     #[cfg(feature = "expr")]
-    t.cmp(
+    cmp(
         &["sort", "{num(attr('p')+1)}"],
         *FASTA,
         records!(1, 0, 2, 3),
@@ -53,73 +50,74 @@ fn numeric_attr() {
 
 #[test]
 fn numeric() {
-    let t = Tester::new();
-    t.fails(&["sort", "num(id)"], *FASTA, "Could not convert");
+    fails(&["sort", "num(id)"], *FASTA, "Could not convert");
     #[cfg(feature = "expr")]
-    t.fails(
-        &["sort", "{num(id + attr('p'))}"],
-        *FASTA,
-        "Could not convert",
-    )
-    .cmp(
-        &["sort", "{num(attr('p') + attr('p'))}"],
-        *FASTA,
-        records!(1, 0, 2, 3),
-    )
-    .cmp(
-        &["sort", "{ num(id.substring(3, 4)) }"],
-        *FASTA,
-        records!(1, 0, 3, 2),
-    );
+    {
+        fails(
+            &["sort", "{num(id + attr('p'))}"],
+            *FASTA,
+            "Could not convert",
+        );
+        cmp(
+            &["sort", "{num(attr('p') + attr('p'))}"],
+            *FASTA,
+            records!(1, 0, 2, 3),
+        );
+        cmp(
+            &["sort", "{ num(id.substring(3, 4)) }"],
+            *FASTA,
+            records!(1, 0, 3, 2),
+        );
+    }
 }
 
 #[test]
 fn numeric_vars() {
-    let t = Tester::new();
-    t.cmp(&["sort", "seq_num"], *FASTA, records!(0, 1, 2, 3))
-        .cmp(&["sort", "-r", "seq_num"], *FASTA, records!(3, 2, 1, 0));
+    cmp(&["sort", "seq_num"], *FASTA, records!(0, 1, 2, 3));
+    cmp(&["sort", "-r", "seq_num"], *FASTA, records!(3, 2, 1, 0));
 
     #[cfg(feature = "expr")]
-    t.cmp(&["sort", "{ 7 + seq_num }"], *FASTA, records!(0, 1, 2, 3))
+    {
+        cmp(&["sort", "{ 7 + seq_num }"], *FASTA, records!(0, 1, 2, 3));
         // seq_num as string in range 1-4 -> same as numeric sort
-        .cmp(
+        cmp(
             &["sort", "{ (seq_num).toString() }"],
             *FASTA,
             records!(0, 1, 2, 3),
-        )
+        );
         // string sorting of: 8, 9, 10, 11 gives 10, 11, 8, 9
-        .cmp(
+        cmp(
             &["sort", "{ (7 + seq_num).toString() }"],
             *FASTA,
             records!(2, 3, 0, 1),
         );
+    }
 
-    t.cmp(&["sort", "ungapped_seqlen"], *FASTA, records!(3, 1, 2, 0))
-        .cmp(
-            &["sort", "-r", "ungapped_seqlen"],
-            *FASTA,
-            records!(0, 1, 2, 3),
-        )
-        .cmp(&["sort", "gc"], *FASTA, records!(0, 3, 1, 2))
-        // -n argument has no effect (already numeric)
-        .cmp(
-            &["sort", "-r", "num(ungapped_seqlen)"],
-            *FASTA,
-            records!(0, 1, 2, 3),
-        )
-        .cmp(&["sort", "num(gc)"], *FASTA, records!(0, 3, 1, 2));
+    cmp(&["sort", "ungapped_seqlen"], *FASTA, records!(3, 1, 2, 0));
+    cmp(
+        &["sort", "-r", "ungapped_seqlen"],
+        *FASTA,
+        records!(0, 1, 2, 3),
+    );
+    cmp(&["sort", "gc"], *FASTA, records!(0, 3, 1, 2));
+    // -n argument has no effect (already numeric);
+    cmp(
+        &["sort", "-r", "num(ungapped_seqlen)"],
+        *FASTA,
+        records!(0, 1, 2, 3),
+    );
+    cmp(&["sort", "num(gc)"], *FASTA, records!(0, 3, 1, 2));
 }
 
 #[test]
 fn multi_key() {
-    let t = Tester::new();
-    t.cmp(
+    cmp(
         &["sort", "-r", "num(gc),num(attr('p'))"],
         *FASTA,
         records!(2, 1, 3, 0),
     );
     #[cfg(feature = "expr")]
-    t.cmp(
+    cmp(
         &["sort", "seqlen,ungapped_seqlen,{-attr('p')}"],
         *FASTA,
         records!(3, 2, 1, 0),
@@ -129,26 +127,25 @@ fn multi_key() {
 #[test]
 #[cfg(feature = "expr")]
 fn mixed_types() {
-    Tester::new()
-        // text before numeric
-        .cmp(
-            &[
-                "sort",
-                "{ if (seq_num <= 2) return seq_num; else return 'text ' + seq_num; }",
-            ],
-            *FASTA,
-            records!(2, 3, 0, 1),
-        )
-        // reverse order: numeric before text
-        .cmp(
-            &[
-                "sort",
-                "-r",
-                "{ if (seq_num <= 2) return seq_num; else return 'text ' + seq_num; }",
-            ],
-            *FASTA,
-            records!(1, 0, 3, 2),
-        );
+    // text before numeric
+    cmp(
+        &[
+            "sort",
+            "{ if (seq_num <= 2) return seq_num; else return 'text ' + seq_num; }",
+        ],
+        *FASTA,
+        records!(2, 3, 0, 1),
+    );
+    // reverse order: numeric before text
+    cmp(
+        &[
+            "sort",
+            "-r",
+            "{ if (seq_num <= 2) return seq_num; else return 'text ' + seq_num; }",
+        ],
+        *FASTA,
+        records!(1, 0, 3, 2),
+    );
 }
 
 #[test]
@@ -159,7 +156,7 @@ fn key_var() {
     let fa = ">s1\nS1\n>s2\nS2\n>s3\nS3\n";
     let out = &format!(">s3 k=-3\nS3\n>s1 k={NA}\nS1\n>s2 k={NA}\nS2\n");
     let expr = "{ if (seq_num <= 2) return undefined; return -parseInt(id.substring(1, 2)); }";
-    Tester::new().cmp(&["sort", expr, "-a", "k={key}"], fa, out);
+    cmp(&["sort", expr, "-a", "k={key}"], fa, out);
 }
 
 #[test]
@@ -188,28 +185,26 @@ fn large() {
     let rev_sorted_fasta = rev_sorted.iter().map(|(_, s)| s).join("");
     let num_sorted_fasta = num_sorted.iter().map(|(_, s)| s).join("");
 
-    let t = Tester::new();
-    t.temp_file("sort", Some(&fasta), |path, _| {
-        for rec_limit in [5usize, 10, 20, 50, 100, 150, 1000] {
-            // a record with a 2-digit ID should currently occupy 50 bytes (text)
-            // or 48 bytes (numeric)
-            let text_limit = format!("{}", rec_limit * 50);
-            let num_limit = format!("{}", rec_limit * 48);
-            t.cmp(
-                &["sort", "id", "-M", &text_limit, "-q"],
-                FileInput(path),
-                &sorted_fasta,
-            );
-            t.cmp(
-                &["sort", "-r", "id", "-M", &text_limit, "-q"],
-                FileInput(path),
-                &rev_sorted_fasta,
-            );
-            t.cmp(
-                &["sort", "num(id)", "-M", &num_limit, "-q"],
-                FileInput(path),
-                &num_sorted_fasta,
-            );
-        }
-    });
+    let input = tmp_file("st_sort_large_", ".fasta", &fasta);
+    for rec_limit in [5usize, 10, 20, 50, 100, 150, 1000] {
+        // a record with a 2-digit ID should currently occupy 50 bytes (text);
+        // or 48 bytes (numeric);
+        let text_limit = format!("{}", rec_limit * 50);
+        let num_limit = format!("{}", rec_limit * 48);
+        cmp(
+            &["sort", "id", "-M", &text_limit, "-q"],
+            &input,
+            &sorted_fasta,
+        );
+        cmp(
+            &["sort", "-r", "id", "-M", &text_limit, "-q"],
+            &input,
+            &rev_sorted_fasta,
+        );
+        cmp(
+            &["sort", "num(id)", "-M", &num_limit, "-q"],
+            &input,
+            &num_sorted_fasta,
+        );
+    }
 }
