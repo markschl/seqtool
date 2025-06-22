@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use ansi_colours::ansi256_from_rgb;
 use palette::white_point::D65;
 use palette::{named, Srgb};
 
@@ -46,7 +45,9 @@ struct AnsiColor(u8);
 
 impl From<Srgb<u8>> for AnsiColor {
     fn from(c: Srgb<u8>) -> Self {
-        Self(ansi256_from_rgb((c.red, c.green, c.blue)))
+        // Simple conversion adapted from the colorsys.rs crate, not using the grayscale ramp
+        let to_ansi = |c| if c < 75 { 0 } else { (c - 35) / 40 };
+        Self(to_ansi(c.red) * 6 * 6 + to_ansi(c.green) * 6 + to_ansi(c.blue) + 16)
     }
 }
 

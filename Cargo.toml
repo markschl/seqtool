@@ -54,7 +54,6 @@ regex = { version = "1.11", optional = true }
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"], optional = true }
 enterpolation = { version = "0.3", default-features = false, features = ["std", "linear"], optional = true }
 termcolor = { version = "1.4", optional = true }
-ansi_colours = { version = "1.2", optional = true }
 # sample command
 rand = { version = "0.9", optional = true }
 rand_xoshiro = { version = "0.7.0", optional = true }
@@ -105,13 +104,13 @@ bz2 = ["bzip2"]
 regex-fast = ["regex"]  # adds ~1.4 MiB to binary (Linux)
 # Commands
 all-commands = [
-    "palette", "enterpolation", "termcolor", "ansi_colours", "pager",  # view
+    "palette", "enterpolation", "termcolor", "pager",  # view
     "rand", "rand_xoshiro",  # sample
     "indexmap", "ringmap", "rkyv", "byteorder", "tempfile",  # sort, unique, cmp
     "regex-lite",  # find, replace
 ]
 pass = []
-view = ["palette", "enterpolation", "termcolor", "ansi_colours", "pager"]
+view = ["palette", "enterpolation", "termcolor", "pager"]
 count = ["rkyv"]
 stat = []
 head = []
