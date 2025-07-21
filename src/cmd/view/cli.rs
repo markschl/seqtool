@@ -1,26 +1,26 @@
 use std::env;
 
 use clap::{value_parser, Args, Parser};
-use vec_map::VecMap;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
-use crate::cmd::view::display_pal;
 use crate::error::CliResult;
 
-use super::{Color, PaletteType, QualPaletteType, SeqPaletteType};
+use super::{display_pal, Color, Palette, PaletteType, QualPaletteType, SeqPaletteType};
 
 pub const DESC: &str = "\
-The output is automatically forwarded to the 'less' pager on UNIX.\
+Sequences are displayed on a single line and can be navigated with
+up/down/left/right arrow keys and by scrolling.
+They are progressively read into memory while navigating down.
+
+Color palettes can be viewed with `st view -p/--list-pal` and also
+configured (as described in this help page).
+\
 ";
 
 #[derive(Parser, Clone, Debug)]
 pub struct ViewCommand {
     #[command(flatten)]
     pub general: GeneralViewArgs,
-
-    #[cfg(target_family = "unix")]
-    #[command(flatten)]
-    pub pager: PagerArgs,
 
     #[command(flatten)]
     pub color: ColorArgs,
@@ -38,44 +38,31 @@ pub struct GeneralViewArgs {
     pub id_len: Option<u32>,
 
     /// Show descriptions along IDs if there is enough space.
-    #[arg(short = 'd', long)]
+    #[arg(long, short = 'd')]
     pub show_desc: bool,
 
-    /// Color base / amino acid letters instead of background.
-    /// If base qualities are present, background coloration is shown,
-    /// and the foreground scheme will be 'dna-bright' (change with --dna-pal).
+    /// Print the sequence in bold letters.
+    /// Bold text is always used with `--fg` if quality scores are present.
+    #[arg(long, short = 'b')]
+    pub bold: bool,
+
+    /// Color the sequence (foreground) instead of instead of the background
+    /// (and additionally printed in bold).
+    /// The background is simultaneously colored by quality scores if present,
+    /// unless `-Q/--no-qual` is used.
     #[arg(long = "fg")]
     pub foreground: bool,
 
-    /// View only the top <N> sequences without pager. Automatic handoff to a
-    /// pager is only available in UNIX (turn off with --no-pager).
-    #[arg(short, long, default_value_t = 100, value_name = "N")]
-    pub n_max: u64,
-}
-
-#[cfg(target_family = "unix")]
-#[derive(Args, Clone, Debug)]
-#[clap(next_help_heading = "View pager (UNIX only)")]
-pub struct PagerArgs {
-    /// Disable paged display
-    #[arg(long)]
-    pub no_pager: bool,
-
-    /// Pager command to use.
-    #[arg(long, default_value = "less -RS", env = "ST_PAGER")]
-    pub pager: Option<String>,
-
-    /// Break lines in pager, disabling 'horizontal scrolling'.
-    /// Equivalent to --pager 'less -R'
-    #[arg(short, long, name = "break")]
-    pub break_: bool,
+    /// Ignore quality scores and color only by the sequence.
+    #[arg(long, short = 'Q')]
+    pub no_qual: bool,
 }
 
 #[derive(Args, Clone, Debug)]
 #[clap(next_help_heading = "Colors")]
 pub struct ColorArgs {
     /// Show a list of all builtin palettes and exit.
-    #[arg(long)]
+    #[arg(short = 'p', long)]
     pub list_pal: bool,
 
     /// Color mapping for DNA.
@@ -83,21 +70,21 @@ pub struct ColorArgs {
     /// or list of 'base1:rrggbb,base2:rrggbb,...'
     /// (builtin palettes: dna, dna-bright, dna-dark, pur-pyrimid, gc-at).
     #[arg(long, value_name = "PAL", default_value = "dna", value_parser = |p: &str| read_palette::<SeqPaletteType>(p, &DNA_PAL))]
-    pub dna_pal: VecMap<Color>,
+    pub dna_pal: Palette,
 
     /// Color mapping for amino acids.
     /// Palette name (hex code, CSS/SVG color name)
     /// or list of 'base1:rrggbb,base2:rrggbb,...'
     /// (available: rasmol, polarity).
     #[arg(long, value_name = "PAL", default_value = "rasmol", value_parser = |p: &str| read_palette::<SeqPaletteType>(p, &PROTEIN_PAL))]
-    pub aa_pal: VecMap<Color>,
+    pub aa_pal: Palette,
 
     /// Color scale to use for coloring according to base quality.
     /// Palette name (hex code, CSS/SVG color name)
     /// or list of 'base1:rrggbb,base2:rrggbb,...'
     /// Palette name or sequence of hex codes from low to high.
     #[arg(long, value_name = "PAL", default_value = "red-blue", value_parser = |p: &str| read_palette::<QualPaletteType>(p, &QUAL_SCALE))]
-    pub qscale: VecMap<Color>,
+    pub qscale: Palette,
 
     /// Text colors used with background coloring. Specify as: <dark>,<bright>.
     /// Which one is used will be chosen depending on the brightness of
@@ -109,6 +96,22 @@ pub struct ColorArgs {
     /// Useful if autorecognition fails.
     #[arg(short, long, value_name = "?")]
     pub truecolor: Option<bool>,
+}
+
+pub struct Palettes {
+    pub dna: Palette,
+    pub protein: Palette,
+    pub qual: Palette,
+}
+
+impl ColorArgs {
+    pub fn palettes(&self) -> Palettes {
+        Palettes {
+            dna: self.dna_pal.clone(),
+            protein: self.aa_pal.clone(),
+            qual: self.qscale.clone(),
+        }
+    }
 }
 
 pub const DNA_PAL: &[(&str, &str)] = &[
@@ -138,7 +141,7 @@ pub const QUAL_SCALE: &[(&str, &str)] = &[("red-blue", "5:red,35:blue,40:darkblu
 pub fn read_palette<T: PaletteType>(
     palette_str: &str,
     default_pal: &[(&str, &str)],
-) -> Result<VecMap<Color>, String> {
+) -> Result<Palette, String> {
     if let Some((_, colors)) = default_pal.iter().find(|(n, _)| *n == palette_str) {
         if let Ok(cols) = T::parse_palette(colors) {
             return Ok(cols);
@@ -155,12 +158,11 @@ pub fn print_palettes(fg: &(Color, Color), rgb: bool) -> CliResult<()> {
         "accept both palette names and color mappings.\n"
     ));
     eprintln!("\nDNA\n===");
-    let mut w = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
-    display_pal::<SeqPaletteType>(DNA_PAL, &mut w, fg, rgb)?;
+    display_pal::<SeqPaletteType>(DNA_PAL, fg, rgb)?;
     eprintln!("\nProtein\n=======");
-    display_pal::<SeqPaletteType>(PROTEIN_PAL, &mut w, fg, rgb)?;
+    display_pal::<SeqPaletteType>(PROTEIN_PAL, fg, rgb)?;
     eprintln!("\nQuality scores\n==============");
-    display_pal::<QualPaletteType>(QUAL_SCALE, &mut w, fg, rgb)?;
+    display_pal::<QualPaletteType>(QUAL_SCALE, fg, rgb)?;
     Ok(())
 }
 
@@ -183,4 +185,14 @@ pub fn has_truecolor() -> bool {
         .unwrap_or(false)
     // 256-color: $TERM contains 256
     // see also https://github.com/chalk/supports-color/blob/master/index.js
+}
+
+pub fn has_utf8() -> bool {
+    // TODO: reasonable?
+    cfg!(target_family = "unix")
+        && env::var("LANG")
+            .unwrap_or_else(|_| "".to_string())
+            .to_ascii_lowercase()
+            .contains("utf-8")
+        || cfg!(target_os = "windows")
 }

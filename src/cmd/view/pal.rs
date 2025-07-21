@@ -1,15 +1,22 @@
-use std::io::Write as _;
+use std::io::{stdout, Write as _};
 
+use crossterm::{
+    execute,
+    style::{Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+};
 use enterpolation::{linear::Linear, Merge, Signal};
-use palette::convert::FromColorUnclamped;
-use palette::rgb::{self, Rgb};
-use palette::{FromColor, Hsv, Mix, Srgb};
-use termcolor::{self, WriteColor};
+use palette::{
+    convert::FromColorUnclamped,
+    rgb::{self, Rgb},
+    FromColor, Hsv, Mix, Srgb,
+};
 use vec_map::VecMap;
 
 use crate::error::CliResult;
 
 use super::{choose_fg, parse_color, Color};
+
+pub type Palette = VecMap<Color>;
 
 // Necessary since LinSrgb doesn't implement `Merge` automatically, but also to
 // get the correct circular blending.
@@ -24,7 +31,7 @@ impl<T: Mix> Merge<T::Scalar> for Adapter<T> {
 }
 
 pub trait PaletteType {
-    fn parse_palette(color_str: &str) -> Result<VecMap<Color>, String>;
+    fn parse_palette(color_str: &str) -> Result<Palette, String>;
 
     fn parse_pal_mapping(color_str: &str) -> Result<Vec<(String, Srgb<u8>)>, String> {
         let mut out = Vec::new();
@@ -50,8 +57,8 @@ pub trait PaletteType {
     }
 
     fn display_palette(
+        name: &str,
         colors_str: &str,
-        writer: &mut termcolor::StandardStream,
         textcols: &(Color, Color),
         rgb: bool,
     ) -> CliResult<()>;
@@ -61,7 +68,7 @@ pub trait PaletteType {
 pub struct SeqPaletteType;
 
 impl PaletteType for SeqPaletteType {
-    fn parse_palette(color_str: &str) -> Result<VecMap<Color>, String> {
+    fn parse_palette(color_str: &str) -> Result<Palette, String> {
         let mut out = VecMap::new();
         for (symbols, color) in Self::parse_pal_mapping(color_str)? {
             for s in symbols.as_bytes() {
@@ -78,28 +85,31 @@ impl PaletteType for SeqPaletteType {
     }
 
     fn display_palette(
+        name: &str,
         colors_str: &str,
-        writer: &mut termcolor::StandardStream,
         textcols: &(Color, Color),
         rgb: bool,
     ) -> CliResult<()> {
-        let default_spec = termcolor::ColorSpec::new();
-        let mut colspec = termcolor::ColorSpec::new();
-
-        writer.set_color(&default_spec)?;
+        let mut out = stdout().lock();
+        execute!(out, ResetColor)?;
+        write!(stdout(), "{name:<12}")?;
         for (symbols, color) in Self::parse_pal_mapping(colors_str)? {
-            write!(writer, "{symbols}:")?;
+            write!(out, "{symbols}:")?;
             let bg = Color::from_rgb(color);
-            let chosen = choose_fg(&textcols.0, &textcols.1, &bg).to_termcolor(rgb);
-            colspec.set_fg(Some(chosen));
-            colspec.set_bg(Some(bg.to_termcolor(rgb)));
-            writer.set_color(&colspec)?;
+            let chosen = choose_fg(&textcols.0, &textcols.1, &bg);
+            execute!(
+                out,
+                SetForegroundColor(chosen.to_crossterm(rgb)),
+                SetBackgroundColor(bg.to_crossterm(rgb))
+            )?;
+            // hex code
             let c: u32 = color.into_u32::<rgb::channels::Rgba>();
-            write!(writer, "{:06x}", c >> 8)?;
-            writer.set_color(&default_spec)?;
-            write!(writer, ",")?;
+            write!(out, "{:06x}", c >> 8)?;
+            execute!(out, ResetColor)?;
+            write!(out, ",")?;
         }
-        writer.set_color(&default_spec)?;
+        execute!(out, ResetColor)?;
+        writeln!(out)?;
         Ok(())
     }
 }
@@ -108,7 +118,7 @@ impl PaletteType for SeqPaletteType {
 pub struct QualPaletteType;
 
 impl PaletteType for QualPaletteType {
-    fn parse_palette(color_str: &str) -> Result<VecMap<Color>, String> {
+    fn parse_palette(color_str: &str) -> Result<Palette, String> {
         let mut elements = vec![];
         let mut knots = vec![];
         for (qual, color) in Self::parse_pal_mapping(color_str)? {
@@ -139,45 +149,39 @@ impl PaletteType for QualPaletteType {
     }
 
     fn display_palette(
+        name: &str,
         colors_str: &str,
-        writer: &mut termcolor::StandardStream,
         textcols: &(Color, Color),
         rgb: bool,
     ) -> CliResult<()> {
-        SeqPaletteType::display_palette(colors_str, writer, textcols, rgb)?;
-        write!(writer, "   [")?;
-
+        let mut out = stdout().lock();
+        SeqPaletteType::display_palette(name, colors_str, textcols, rgb)?;
+        write!(out, "   [")?;
         let colmap = Self::parse_palette(colors_str)?;
-        let default_spec = termcolor::ColorSpec::new();
-        let mut colspec = termcolor::ColorSpec::new();
-        writer.set_color(&default_spec)?;
-        for qual in (2..43).step_by(2) {
+        execute!(out, ResetColor)?;
+        for qual in (2..47).step_by(2) {
             let bg = &colmap[qual];
-            let chosen = choose_fg(&textcols.0, &textcols.1, bg).to_termcolor(rgb);
-            colspec.set_fg(Some(chosen));
-            colspec.set_bg(Some(bg.to_termcolor(rgb)));
-            writer.set_color(&colspec)?;
-            write!(writer, "{qual} ")?;
+            let chosen = choose_fg(&textcols.0, &textcols.1, bg);
+            execute!(
+                out,
+                SetForegroundColor(chosen.to_crossterm(rgb)),
+                SetBackgroundColor(bg.to_crossterm(rgb)),
+                Print(qual),
+                Print(' ')
+            )?;
         }
-        writer.set_color(&default_spec)?;
-        write!(writer, "]")?;
+        execute!(out, ResetColor)?;
+        writeln!(out, "]")?;
         Ok(())
     }
 }
 
-pub fn display_pal<T>(
-    pal: &[(&str, &str)],
-    writer: &mut termcolor::StandardStream,
-    textcols: &(Color, Color),
-    rgb: bool,
-) -> CliResult<()>
+pub fn display_pal<T>(pal: &[(&str, &str)], textcols: &(Color, Color), rgb: bool) -> CliResult<()>
 where
     T: PaletteType,
 {
     for (name, colors_str) in pal {
-        write!(writer, "{name:<12}")?;
-        T::display_palette(colors_str, writer, textcols, rgb)?;
-        writeln!(writer)?;
+        T::display_palette(name, colors_str, textcols, rgb)?;
     }
     Ok(())
 }

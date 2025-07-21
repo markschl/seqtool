@@ -1,19 +1,14 @@
 use std::str::FromStr;
 
-use palette::white_point::D65;
-use palette::{named, Srgb};
+use palette::{named, white_point::D65, Srgb};
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ColorSource {
-    Symbol,
+    Seq,
     Qual,
 }
 
-pub enum ColorMode {
-    Fg,
-    Bg,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Color {
     rgb: (u8, u8, u8),
     ansi: AnsiColor,
@@ -31,16 +26,28 @@ impl Color {
         parse_color(s).map(Self::from_rgb)
     }
 
-    pub fn to_termcolor(&self, rgb: bool) -> termcolor::Color {
+    pub fn to_ratatui(&self, rgb: bool) -> ratatui::style::Color {
         if rgb {
-            termcolor::Color::Rgb(self.rgb.0, self.rgb.1, self.rgb.2)
+            ratatui::style::Color::Rgb(self.rgb.0, self.rgb.1, self.rgb.2)
         } else {
-            termcolor::Color::Ansi256(self.ansi.0)
+            ratatui::style::Color::Indexed(self.ansi.0)
+        }
+    }
+
+    pub fn to_crossterm(&self, rgb: bool) -> crossterm::style::Color {
+        if rgb {
+            crossterm::style::Color::Rgb {
+                r: self.rgb.0,
+                g: self.rgb.1,
+                b: self.rgb.2,
+            }
+        } else {
+            crossterm::style::Color::AnsiValue(self.ansi.0)
         }
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 struct AnsiColor(u8);
 
 impl From<Srgb<u8>> for AnsiColor {
