@@ -4,24 +4,24 @@ use super::*;
 
 #[test]
 fn simple() {
-    cmp(&["count"], *FASTA, "4\n");
+    cmp(&["count"], &*FASTA, "4\n");
     cmp(
         &["count", "-k", "attr(p)"],
-        *FASTA,
+        &*FASTA,
         "1\t1\n10\t1\n11\t1\n2\t1\n",
     );
 }
 
 #[test]
 fn fixed() {
-    cmp(&["count"], *FASTA, "4\n");
-    cmp(&["count"], *FASTA, "4\n");
-    cmp(&["count", "-k", "num('2.3')"], *FASTA, "2.3\t4\n");
-    cmp(&["count"], *FASTA, "4\n");
-    cmp(&["count", "-k", "bin('2.3', 1)"], *FASTA, "(2, 3]\t4\n");
+    cmp(&["count"], &*FASTA, "4\n");
+    cmp(&["count"], &*FASTA, "4\n");
+    cmp(&["count", "-k", "num('2.3')"], &*FASTA, "2.3\t4\n");
+    cmp(&["count"], &*FASTA, "4\n");
+    cmp(&["count", "-k", "bin('2.3', 1)"], &*FASTA, "(2, 3]\t4\n");
     cmp(
         &["count", "-k", "opt_attr(non_existent)"],
-        *FASTA,
+        &*FASTA,
         &format!("{NA}\t4\n"),
     );
 }
@@ -30,10 +30,10 @@ fn fixed() {
 fn multi() {
     let out = "25\t23\t1\n25\t24\t2\n25\t25\t1\n";
 
-    cmp(&["count", "-k", "seqlen,ungapped_seqlen"], *FASTA, out);
+    cmp(&["count", "-k", "seqlen,ungapped_seqlen"], &*FASTA, out);
     cmp(
         &["count", "-k", "seqlen", "-k", "ungapped_seqlen"],
-        *FASTA,
+        &*FASTA,
         out,
     );
 }
@@ -42,7 +42,7 @@ fn multi() {
 fn discrete_bins() {
     cmp(
         &["count", "-k", "{bin(attr(p), 10)}"],
-        *FASTA,
+        &*FASTA,
         "(0, 10]\t2\n(10, 20]\t2\n",
     );
 }
@@ -87,17 +87,17 @@ fn float() {
 fn missing() {
     cmp(
         &["count", "-k", "{opt_attr(missing)}"],
-        *FASTA,
+        &*FASTA,
         &format!("{NA}\t4\n"),
     );
     cmp(
         &["count", "-k", "{num(opt_attr(missing))}"],
-        *FASTA,
+        &*FASTA,
         &format!("{NA}\t4\n"),
     );
     fails(
         &["count", "-k", "{attr(missing)}"],
-        *FASTA,
+        &*FASTA,
         "'missing' not found in record",
     );
 
@@ -105,12 +105,12 @@ fn missing() {
     {
         cmp(
             &["count", "-k", "{opt_attr('missing') + 1}"],
-            *FASTA,
+            &*FASTA,
             "NaN\t4\n",
         );
         cmp(
             &["count", "-k", "{num(opt_attr('missing')) + 1}"],
-            *FASTA,
+            &*FASTA,
             "NaN\t4\n",
         );
     }

@@ -33,34 +33,34 @@ fn general() {
 #[test]
 #[cfg(any(feature = "all-commands", feature = "count"))]
 fn numeric() {
-    cmp(&["count", "-k", "num('1.2')"], *FASTA, "1.2\t4\n");
+    cmp(&["count", "-k", "num('1.2')"], &*FASTA, "1.2\t4\n");
     cmp(
         &["count", "-k", "bin(1.1, .1)"],
-        *FASTA,
+        &*FASTA,
         "(1.1, 1.20000]\t4\n",
     );
 
     #[cfg(feature = "expr")]
     {
-        cmp(&["count", "-k", "{ num(2 + 1) }"], *FASTA, "3\t4\n");
+        cmp(&["count", "-k", "{ num(2 + 1) }"], &*FASTA, "3\t4\n");
         cmp(
             &["count", "-k", "{ num(attr('p') + 1) }"],
-            *FASTA,
+            &*FASTA,
             "11\t1\n21\t1\n101\t1\n111\t1\n",
         );
         cmp(
             &["count", "-k", "{ bin(attr('p') > 2 ? 2 : attr('p')) }"],
-            *FASTA,
+            &*FASTA,
             "(1, 2]\t1\n(2, 3]\t3\n",
         );
         fails(
             &["count", "-k", "{ num('abc') + 1 }"],
-            *FASTA,
+            &*FASTA,
             "Could not convert 'abc'",
         );
         fails(
             &["count", "-k", "{ num('abc' + 1) }"],
-            *FASTA,
+            &*FASTA,
             "Could not convert 'abc1'",
         );
     }
@@ -68,7 +68,7 @@ fn numeric() {
 
 #[test]
 fn attrs() {
-    cmp(&[".", "--to-tsv", "attr(p)"], *FASTA, "2\n1\n10\n11\n");
+    cmp(&[".", "--to-tsv", "attr(p)"], &*FASTA, "2\n1\n10\n11\n");
     cmp(&[".", "--to-tsv", "attr(b)"], ATTR_FA, "3\n");
     cmp(&[".", "--to-tsv", "has_attr(b)"], ATTR_FA, "true\n");
     cmp(
@@ -83,27 +83,27 @@ fn attrs() {
     );
     fails(
         &[".", "-a", "a=0", "-a", "a=1"],
-        *FASTA,
+        &*FASTA,
         "attribute 'a' is added/edited twice",
     );
     fails(
         &[".", "-A", "a=0", "-a", "a=1"],
-        *FASTA,
+        &*FASTA,
         "the 'a' attribute is also used in a different way",
     );
     fails(
         &[".", "-A", "p={attr(p)}"],
-        *FASTA,
+        &*FASTA,
         "the 'p' attribute is also used in a different way",
     );
     fails(
         &[".", "-a", "a={attr_del(a)}"],
-        *FASTA,
+        &*FASTA,
         "attribute 'a' is supposed to be deleted",
     );
     fails(
         &[".", "-a", "a={attr_del(p)}_{attr(p)}"],
-        *FASTA,
+        &*FASTA,
         "attribute 'p' is supposed to be deleted",
     );
     // undefined
@@ -130,7 +130,7 @@ fn attrs() {
     {
         cmp(
             &[".", "--to-tsv", "{num(attr('p'))+1}"],
-            *FASTA,
+            &*FASTA,
             "3\n2\n11\n12\n",
         );
         // edit using the earlier value of itself
@@ -246,18 +246,18 @@ fn meta() {
     // Contains the p=... attribute values of the FASTA records
     let meta = tmp_file("st_meta", ".tsv", META);
     let exp = "2\n1\n10\n11\n";
-    cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], *FASTA, exp);
+    cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], &*FASTA, exp);
     #[cfg(feature = "expr")]
     cmp(
         &[".", "-m", &meta, "--to-tsv", "{ attr('p') - meta(2) }"],
-        *FASTA,
+        &*FASTA,
         "0\n0\n0\n0\n",
     );
     // invalid column
     let msg = "column numbers must be > 0";
-    fails(&[".", "-m", &meta, "--to-tsv", "{meta(0)}"], *FASTA, msg);
+    fails(&[".", "-m", &meta, "--to-tsv", "{meta(0)}"], &*FASTA, msg);
     let msg = "Column no. 3 not found in metadata entry for record 'seq1'";
-    fails(&[".", "-m", &meta, "--to-tsv", "{meta(3)}"], *FASTA, msg);
+    fails(&[".", "-m", &meta, "--to-tsv", "{meta(3)}"], &*FASTA, msg);
 }
 
 #[test]
@@ -275,7 +275,7 @@ fn meta_delim() {
             "--to-csv",
             "id,meta(2)",
         ],
-        *FASTA,
+        &*FASTA,
         exp,
     );
 }
@@ -292,18 +292,18 @@ fn meta_header() {
     let meta = tmp_file("st_meta_head_", ".tsv", META_HEADER);
     // header is ignored (ID not matching);
     let out = "2\n1\n10\n11\n";
-    cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], *FASTA, out);
+    cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], &*FASTA, out);
     // activate auto-headermeta
     let out = "2\t2\n1\t1\n10\t10\n11\t11\n";
     cmp(
         &[".", "-m", &meta, "--to-tsv", "{meta(2)},{meta(number)}"],
-        *FASTA,
+        &*FASTA,
         out,
     );
     let msg = "Column 'somecol' not found";
     fails(
         &[".", "-m", &meta, "--to-tsv", "{meta(somecol)}"],
-        *FASTA,
+        &*FASTA,
         msg,
     );
 }
@@ -327,11 +327,11 @@ fn meta_unordered() {
     with_tmpdir("st_meta_unordered_", |td| {
         let meta = td.file(".tsv", META_UNORDERED);
         let out = "2\n1\n10\n11\n";
-        cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], *FASTA, out);
+        cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], &*FASTA, out);
 
         let meta = td.file(".tsv", META_UNORDERED2);
         let out = "2\n1\n10\n11\n";
-        cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], *FASTA, out);
+        cmp(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], &*FASTA, out);
     });
 }
 
@@ -349,15 +349,15 @@ fn meta_missing() {
         let out = &format!("2\n{NA}\n10\n11\n");
         cmp(
             &[".", "-m", &meta, "--to-tsv", "{opt_meta(2)}"],
-            *FASTA,
+            &*FASTA,
             out,
         );
         // has_meta
         let out = "true\nfalse\ntrue\ntrue\n";
-        cmp(&[".", "-m", &meta, "--to-tsv", "{has_meta}"], *FASTA, out);
+        cmp(&[".", "-m", &meta, "--to-tsv", "{has_meta}"], &*FASTA, out);
         // meta() should fail
         let msg = "not found in metadata";
-        fails(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], *FASTA, msg);
+        fails(&[".", "-m", &meta, "--to-tsv", "{meta(2)}"], &*FASTA, msg);
 
         // undefined value
         use crate::helpers::NA;
@@ -390,13 +390,13 @@ fn meta_duplicated_entries() {
     let out = "2\n1\n10\n11\n";
     cmp(
         &[".", "-m", &meta, "--to-tsv", "{meta(2)}", "--dup-ids"],
-        *FASTA,
+        &*FASTA,
         out,
     );
     let msg = "Found duplicate IDs in associated metadata (first: seq1)";
     cmp_stderr(
         &[".", "-m", &meta, "--to-tsv", "{meta(2)}"],
-        *FASTA,
+        &*FASTA,
         out,
         msg,
     );
@@ -413,21 +413,21 @@ fn meta_multi_file() {
         let out = &format!("2\t2\t2\n1\t1\t{NA}\n10\t10\t10\n11\t11\t11\n");
         cmp(
             &[".", "-m", &m1, "-m", &m2, "-m", &m3, "--to-tsv", fields],
-            *FASTA,
+            &*FASTA,
             out,
         );
         let fields = "meta(2, 1),meta(2, 2),meta(2, 3)";
         let msg = "not found in metadata";
         fails(
             &[".", "-m", &m1, "-m", &m2, "-m", &m3, "--to-tsv", fields],
-            *FASTA,
+            &*FASTA,
             msg,
         );
         // invalid index
         let msg = "Invalid metadata file no. requested: 0";
-        fails(&[".", "-m", &m1, "--to-tsv", "has_meta(0)"], *FASTA, msg);
+        fails(&[".", "-m", &m1, "--to-tsv", "has_meta(0)"], &*FASTA, msg);
         let msg = "Metadata file no. 2 was requested";
-        fails(&[".", "-m", &m1, "--to-tsv", "meta(1, 2)"], *FASTA, msg);
+        fails(&[".", "-m", &m1, "--to-tsv", "meta(1, 2)"], &*FASTA, msg);
     });
 }
 
@@ -523,7 +523,7 @@ fn meta_larger() {
 fn meta_compressed() {
     with_tmpdir("st_meta_compr_", |td| {
         let out = td.path("compr_meta.csv.gz");
-        succeeds(&[".", "--outfields", "id,attr(p)", "-o", &out], *FASTA);
+        succeeds(&[".", "--outfields", "id,attr(p)", "-o", &out], &*FASTA);
         assert_eq!(&out.gz_content(), "seq1,2\nseq0,1\nseq3,10\nseq2,11\n");
     });
 }

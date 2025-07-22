@@ -5,33 +5,33 @@ fn compress_pipe() {
     #[cfg(feature = "gz")]
     cmp_pipe(
         &[".", "--to", "fasta.gz", "--compr-level", "9"],
-        &FASTA,
+        &*FASTA,
         &[".", "--fmt", "fasta.gz"],
-        &FASTA,
+        &*FASTA,
     );
 
     #[cfg(feature = "bz2")]
     cmp_pipe(
         &[".", "--to", "fasta.bz2", "--compr-level", "9"],
-        &FASTA,
+        &*FASTA,
         &[".", "--fmt", "fasta.bz2"],
-        &FASTA,
+        &*FASTA,
     );
 
     #[cfg(feature = "lz4")]
     cmp_pipe(
         &[".", "--to", "fasta.lz4", "--compr-level", "9"],
-        &FASTA,
+        &*FASTA,
         &[".", "--fmt", "fasta.lz4"],
-        &FASTA,
+        &*FASTA,
     );
 
     #[cfg(feature = "zstd")]
     cmp_pipe(
         &[".", "--to", "fasta.zst", "--compr-level", "9"],
-        &FASTA,
+        &*FASTA,
         &[".", "--fmt", "fasta.zst"],
-        &FASTA,
+        &*FASTA,
     );
 }
 
@@ -40,9 +40,9 @@ fn compress_pipe() {
 fn compress_file() {
     with_tmpdir("st_compress_", |td| {
         let f = td.path("compr_out.fa.gz");
-        succeeds(&[".", "-o", &f], *FASTA);
+        succeeds(&[".", "-o", &f], &*FASTA);
         fails(&[".", "--fmt", "fasta"], &f, "FASTA parse error");
-        cmp(&["."], &f, *FASTA);
-        cmp(&[".", "--fmt", "fasta.gz"], &f, *FASTA);
+        cmp(&["."], &f, &*FASTA);
+        cmp(&[".", "--fmt", "fasta.gz"], &f, &*FASTA);
     });
 }

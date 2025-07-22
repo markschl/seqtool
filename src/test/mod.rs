@@ -4,6 +4,7 @@ use std::io::{self, Read, Write};
 use std::ops::Deref;
 use std::process::{Command as StdCommand, Stdio};
 use std::str;
+use std::sync::LazyLock;
 
 use assert_cmd::{assert::Assert, cargo::cargo_bin, Command};
 use itertools::Itertools;
@@ -284,7 +285,7 @@ where
 
 // used by many tests:
 
-static SEQS: [&str; 4] = [
+const SEQS: [&str; 4] = [
     ">seq1 p=2\nTTGGCAGGCCAAGGCCGATGGATCA\n",
     ">seq0 p=1\nCTGGCAGGCC-AGGCCGATGGATCA\n",
     ">seq3 p=10\nCAGGCAGGCC-AGGCCGATGGATCA\n",
@@ -306,11 +307,7 @@ static SEQS: [&str; 4] = [
 // seq3	p=10	CAGGCAGGCC-AGGCCGATGGATCA (2) len=24, GC=0.667
 // seq2	p=11	ACGG-AGGCC-AGGCCGATGGATCA (3) len=23, GC=0.652
 
-lazy_static! {
-    static ref __FASTA_STRING: String = SEQS.concat();
-    #[derive(Eq, PartialEq, Debug)]
-    static ref FASTA: &'static str = &__FASTA_STRING;
-}
+static FASTA: LazyLock<String> = LazyLock::new(|| SEQS.concat());
 
 macro_rules! records {
     ($($i:expr),*) => {

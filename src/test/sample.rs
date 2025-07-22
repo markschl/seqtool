@@ -7,9 +7,9 @@ use super::*;
 
 #[test]
 fn simple() {
-    let input = tmp_file("sample_simple__", ".fasta", &FASTA);
+    let input = tmp_file("sample_simple__", ".fasta", &*FASTA);
     // very simple tests
-    cmp(&["sample", "-n", "4"], &input, &FASTA);
+    cmp(&["sample", "-n", "4"], &input, &*FASTA);
     fails(
         &["sample", "-p", "2"],
         &input,

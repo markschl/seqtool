@@ -1,3 +1,4 @@
+use std::cell::LazyCell;
 use std::fs::create_dir_all;
 use std::path::Path;
 
@@ -20,16 +21,17 @@ file path for each sequence. However, the output format will not be automaticall
 determined from file extensions containing variables.\
 ";
 
-lazy_static::lazy_static! {
-    pub static ref EXAMPLES: String = color_print::cformat!("\
+pub const EXAMPLES: LazyCell<String> = LazyCell::new(|| {
+    color_print::cformat!(
+        "\
 <y,s,u>Example</y,s,u>:
 
 Distribute sequences into different files by an attribute 'category'
 found in the sequence headers (with values A and B):
 
  <c>st split input.fasta -o 'outdir/{{attr(category)}}.fasta'</c>"
-);
-}
+    )
+});
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Split' command options")]

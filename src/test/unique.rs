@@ -6,51 +6,51 @@ use super::*;
 
 #[test]
 fn simple() {
-    cmp(&["unique", "seq"], *FASTA, records!(0, 1, 2, 3));
-    cmp(&["unique", "{seq}"], *FASTA, records!(0, 1, 2, 3));
-    cmp(&["unique", "seqhash"], *FASTA, records!(0, 1, 2, 3));
-    cmp(&["unique", "id"], *FASTA, records!(0, 1, 2, 3));
-    cmp(&["unique", "desc"], *FASTA, records!(0, 1, 2, 3));
-    cmp(&["unique", "{id} {desc}"], *FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "seq"], &*FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "{seq}"], &*FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "seqhash"], &*FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "id"], &*FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "desc"], &*FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "{id} {desc}"], &*FASTA, records!(0, 1, 2, 3));
     #[cfg(feature = "expr")]
-    cmp(&["unique", "{seq + 'A'}"], *FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "{seq + 'A'}"], &*FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
 fn attr() {
-    cmp(&["unique", "attr(p)"], *FASTA, records!(0, 1, 2, 3));
-    cmp(&["unique", "num(attr(p))"], *FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "attr(p)"], &*FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "num(attr(p))"], &*FASTA, records!(0, 1, 2, 3));
     #[cfg(feature = "expr")]
-    cmp(&["unique", "{attr('p')+1}"], *FASTA, records!(0, 1, 2, 3));
+    cmp(&["unique", "{attr('p')+1}"], &*FASTA, records!(0, 1, 2, 3));
 }
 
 #[test]
 fn stats() {
-    cmp(&["unique", "seqlen"], *FASTA, records!(0));
-    cmp(&["unique", "num(seqlen)"], *FASTA, records!(0));
-    cmp(&["unique", "ungapped_seqlen"], *FASTA, records!(0, 1, 3));
-    cmp(&["unique", "gc"], *FASTA, records!(0, 1, 3));
+    cmp(&["unique", "seqlen"], &*FASTA, records!(0));
+    cmp(&["unique", "num(seqlen)"], &*FASTA, records!(0));
+    cmp(&["unique", "ungapped_seqlen"], &*FASTA, records!(0, 1, 3));
+    cmp(&["unique", "gc"], &*FASTA, records!(0, 1, 3));
 }
 
 #[test]
 fn numeric() {
-    fails(&["unique", "num(id)"], *FASTA, "Could not convert");
+    fails(&["unique", "num(id)"], &*FASTA, "Could not convert");
     #[cfg(feature = "expr")]
     {
         fails(
             &["unique", "{num(id + attr('p'))}"],
-            *FASTA,
+            &*FASTA,
             "Could not convert",
         );
         cmp(
             &["unique", "{num(attr('p') + attr('p'))}"],
-            *FASTA,
+            &*FASTA,
             records!(0, 1, 2, 3),
         );
-        fails(&["unique", "{num(id)}"], *FASTA, "Could not convert");
+        fails(&["unique", "{num(id)}"], &*FASTA, "Could not convert");
         cmp(
             &["unique", "{ num(id.substring(3, 4)) }"],
-            *FASTA,
+            &*FASTA,
             records!(0, 1, 2, 3),
         );
     }
@@ -61,7 +61,7 @@ fn numeric() {
 fn expr() {
     cmp(
         &["unique", "{ seq_num + parseInt(attr('p')) }"],
-        *FASTA,
+        &*FASTA,
         records!(0, 2, 3),
     );
     cmp(
@@ -69,7 +69,7 @@ fn expr() {
             "unique",
             "{ if (seq_num <= 2) return seq_num; return (seq_num).toString(); }",
         ],
-        *FASTA,
+        &*FASTA,
         records!(0, 1, 2, 3),
     );
     cmp(
@@ -77,7 +77,7 @@ fn expr() {
             "unique",
             "{ if (seq_num <= 2) return seq_num; return undefined; }",
         ],
-        *FASTA,
+        &*FASTA,
         records!(0, 1, 2),
     );
 }

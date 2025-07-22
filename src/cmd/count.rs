@@ -1,3 +1,4 @@
+use std::cell::LazyCell;
 use std::io::Write;
 use std::mem;
 
@@ -16,21 +17,21 @@ Optionally, grouping categories (text or numeric) can be specified using
 `-k/--key`. The tab-delimited output is sorted by the categories.
 ";
 
-lazy_static::lazy_static! {
-    pub static ref EXAMPLES: String = color_print::cformat!(
+const EXAMPLES: LazyCell<String> = LazyCell::new(|| {
+    color_print::cformat!(
         "\
-<y,s,u>Example</y,s,u>:
+    <y,s,u>Example</y,s,u>:
 
-Print record counts per input file:
+    Print record counts per input file:
 
-<c>`st count -k path *.fasta`</c><r>
-file1.fasta    6470547
-file2.fasta    24022
-file3.fasta    1771678
-</r>
-"
-    );
-}
+    <c>`st count -k path *.fasta`</c><r>
+    file1.fasta    6470547
+    file2.fasta    24022
+    file3.fasta    1771678
+    </r>
+    "
+    )
+});
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Count' command options")]

@@ -6,11 +6,11 @@ fn filter() {
 
     cmp(
         &["filter", "seqlen > ungapped_seqlen && attr('p') >= 10"],
-        *FASTA,
+        &*FASTA,
         &SEQS[2..].concat(),
     );
-    cmp(&["filter", "id == 'seq0'"], *FASTA, SEQS[1]);
-    cmp(&["filter", "id == undefined"], *FASTA, "");
+    cmp(&["filter", "id == 'seq0'"], &*FASTA, SEQS[1]);
+    cmp(&["filter", "id == undefined"], &*FASTA, "");
     // note: comparison with undefined in Javascript returns false, thus only sequences
     // with defined attributes are kept
     cmp(

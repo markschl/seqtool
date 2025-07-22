@@ -7,11 +7,11 @@ use super::*;
 #[test]
 fn exact_filter() {
     // filter
-    cmp(&["find", "-f", "GGCAGGCC"], *FASTA, records!(0, 1, 2));
+    cmp(&["find", "-f", "GGCAGGCC"], &*FASTA, records!(0, 1, 2));
     // exclude
-    cmp(&["find", "-e", "GGCAGGCC"], *FASTA, records!(3));
+    cmp(&["find", "-e", "GGCAGGCC"], &*FASTA, records!(3));
     // nothing: should fail
-    fails(&["find", "GGCAGGCC"], *FASTA, "Find command does nothing");
+    fails(&["find", "GGCAGGCC"], &*FASTA, "Find command does nothing");
 }
 
 #[test]
@@ -43,17 +43,17 @@ fn replace() {
 
 #[test]
 fn id_desc() {
-    cmp(&["find", "-if", "seq1"], *FASTA, records!(0));
-    cmp(&["find", "--desc", "-f", "p="], *FASTA, &FASTA);
+    cmp(&["find", "-if", "seq1"], &*FASTA, records!(0));
+    cmp(&["find", "--desc", "-f", "p="], &*FASTA, &*FASTA);
 }
 
 #[test]
 fn regex() {
-    cmp(&["find", "-drf", r"p=\d$"], *FASTA, records!(0, 1));
-    cmp(&["find", "-rf", "C[AT]GGCAGG"], *FASTA, records!(1, 2));
+    cmp(&["find", "-drf", r"p=\d$"], &*FASTA, records!(0, 1));
+    cmp(&["find", "-rf", "C[AT]GGCAGG"], &*FASTA, records!(1, 2));
     // case-sensitivity
-    cmp(&["find", "-rf", "C[aT]GGcAGG"], *FASTA, "");
-    cmp(&["find", "-crf", "C[aT]GGcAGG"], *FASTA, records!(1, 2));
+    cmp(&["find", "-rf", "C[aT]GGcAGG"], &*FASTA, "");
+    cmp(&["find", "-crf", "C[aT]GGcAGG"], &*FASTA, records!(1, 2));
     // UTF-8
     cmp(&["find", "-rif", "^.$"], ">ä\nSEQ\n", ">ä\nSEQ\n");
 
@@ -394,12 +394,12 @@ fn drop_file() {
 
 #[test]
 fn rng() {
-    cmp(&["find", "-f", "--rng", ":4", "TTGG"], *FASTA, records!(0));
-    cmp(&["find", "-f", "--rng", ":3", "TTGG"], *FASTA, "");
-    cmp(&["find", "-f", "--rng", "2:5", "TTGG"], *FASTA, "");
-    cmp(&["find", "-f", "--rng", "2:4", "TGGC"], *FASTA, "");
-    cmp(&["find", "-f", "--rng", "-5:", "GATCA"], *FASTA, &FASTA);
-    cmp(&["find", "-f", "--rng", "16:-7", "CGAT"], *FASTA, &FASTA);
+    cmp(&["find", "-f", "--rng", ":4", "TTGG"], &*FASTA, records!(0));
+    cmp(&["find", "-f", "--rng", ":3", "TTGG"], &*FASTA, "");
+    cmp(&["find", "-f", "--rng", "2:5", "TTGG"], &*FASTA, "");
+    cmp(&["find", "-f", "--rng", "2:4", "TGGC"], &*FASTA, "");
+    cmp(&["find", "-f", "--rng", "-5:", "GATCA"], &*FASTA, &*FASTA);
+    cmp(&["find", "-f", "--rng", "16:-7", "CGAT"], &*FASTA, &*FASTA);
 }
 
 #[test]
@@ -844,7 +844,7 @@ fn threaded() {
                     &format!("{cap}"),
                     "seq",
                 ],
-                *FASTA,
+                &*FASTA,
             )
             .stdout(contains("seq0").from_utf8())
             .stdout(contains("seq1").from_utf8())

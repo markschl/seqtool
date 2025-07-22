@@ -5,10 +5,6 @@
 // suppress warnings unless most features are used
 #![cfg_attr(not(feature = "default"), allow(warnings, unused))]
 
-#[cfg(test)]
-#[macro_use]
-extern crate lazy_static;
-
 #[macro_use]
 extern crate seq_io;
 
@@ -20,11 +16,12 @@ use std::process;
 
 #[macro_use]
 mod helpers;
+#[macro_use]
+mod error;
 mod cli;
 mod cmd;
 mod config;
 mod context;
-mod error;
 mod io;
 mod var;
 

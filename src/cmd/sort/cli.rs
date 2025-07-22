@@ -1,3 +1,4 @@
+use std::cell::LazyCell;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -15,8 +16,8 @@ The actual value of the key is available through the 'key' variable. It can
 be written to a header attribute or TSV field.
 ";
 
-lazy_static::lazy_static! {
-    pub static ref EXAMPLES: String = color_print::cformat!(
+pub const EXAMPLES: LazyCell<String> = LazyCell::new(|| {
+    color_print::cformat!(
         "\
  <c>st sort seqlen input.fasta</c><r>
 >>id10
@@ -27,8 +28,8 @@ SEQUE
 SEQUENCE
 </r>
 "
-);
-}
+    )
+});
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Sort' command options")]
