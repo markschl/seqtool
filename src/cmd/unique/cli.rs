@@ -8,7 +8,7 @@ use crate::helpers::bytesize::parse_bytesize;
 
 pub const DESC: &str = "\
 The unique key can be 'seq' or any variable/function, expression, or
-text containing them (see <KEY> help and `st unique --help-vars`).
+text containing them (see <KEY> help and `st unique -V/--help-vars`).
 
 The order of the records is the same as in the input unless the memory limit
 is exceeded, in which case temporary files are used and all remaining records

@@ -12,7 +12,7 @@ Sequence statistics variables (seqlen, exp_err, charcount(...), etc.)
 are supplied as comma-delimited list, e.g. `id,seqlen,exp_err`.
 The stat command is equivalent to `st pass --to-tsv 'id,var1,var2,...' input`
 
-See `st stat --help-vars` for a list of all possible variables.";
+See `st stat -V/--help-vars` for a list of all possible variables.";
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Stat' command options")]

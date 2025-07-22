@@ -119,7 +119,7 @@ Search results can be used in three different ways:
    command)
 3. Passing the search results to the output in sequence
    headers (`-a/--attr`) or TSV/CSV fields (`--to-tsv/--to-csv`);
-   see `st find --help-vars` for all possible variables/
+   see `st find -V/--help-vars` for all possible variables/
    functions
 ";
 

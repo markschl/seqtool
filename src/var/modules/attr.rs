@@ -23,7 +23,7 @@ variable_enum! {
     ///
     /// Count the number of sequences for each unique value of an 'abund' attribute
     /// in the FASTA headers (.e.g. `>id abund=3`), which could be the number of
-    /// duplicates obtained by the *unique* command (see `st unique --help-vars`)
+    /// duplicates obtained by the *unique* command (see `st unique -V/--help-vars`)
     ///
     /// `st count -k 'attr(abund)' seqs.fa`
     ///

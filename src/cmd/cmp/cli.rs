@@ -11,7 +11,7 @@ The number of common and unique record numbers are reported to STDERR,
 unless `-q/--quiet` is specified.
 
 Note that the comparison key can be completely customized with `-k/--key`
-(see <KEY> help and `st cmp --help-vars`).
+(see <KEY> help and `st cmp -V/--help-vars`).
 
 If the memory limit is exceeded, two-pass scanning is activated. In this case,
 seekable files must be provided.

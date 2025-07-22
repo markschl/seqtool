@@ -22,13 +22,13 @@ use crate::{config::Config, io::CompressionFormat};
 use crate::{error::CliResult, io::IoKind};
 
 /// This type only serves as a workaround to allow displaying
-/// custom help page that explains all variables (--help-vars)
+/// custom help page that explains all variables (-V/--help-vars)
 /// The actual CLI interface is defined by `ClapCli`
 #[derive(Parser, Debug, Clone)]
 struct VarHelpCli {
     command: String,
 
-    #[arg(long)]
+    #[arg(long, short = 'V')]
     help_vars: bool,
 
     /// Variable help formatted as Markdown (undocumented)
