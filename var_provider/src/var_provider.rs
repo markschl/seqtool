@@ -4,8 +4,11 @@ use std::fmt;
 use std::io::{self, Write};
 use std::marker::PhantomData;
 
+use crossterm::{
+    execute,
+    style::{Color, ResetColor, SetForegroundColor},
+};
 use itertools::Itertools;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 use crate::usage::FuncUsage;
 use crate::{usage_list, UsageExample};
@@ -31,22 +34,16 @@ pub trait VarProviderInfo: fmt::Debug {
     fn _print_text_help() -> io::Result<()> {
         let text_width = 80;
         let usage_width = 12;
-        let mut title_col = ColorSpec::new();
-        title_col.set_fg(Some(Color::Green));
-        let mut usage_col = ColorSpec::new();
-        usage_col.set_fg(Some(Color::Cyan));
-        let mut cmd_output_col = ColorSpec::new();
-        cmd_output_col.set_fg(Some(Color::Red));
-        let mut type_col = ColorSpec::new();
-        type_col.set_fg(Some(Color::Red));
-        let mut std_col = ColorSpec::new();
-        std_col.set_fg(None);
-        let mut out = StandardStream::stdout(ColorChoice::Auto);
+        let title_col = Color::Green;
+        let usage_col = Color::Cyan;
+        let cmd_output_col = Color::Red;
+        let type_col = Color::Red;
+        let mut out = io::stdout();
         // title
         writeln!(out)?;
-        out.set_color(&title_col)?;
+        execute!(out, SetForegroundColor(title_col))?;
         writeln!(out, "{}\n{2:=<1$}", Self::TITLE, Self::TITLE.len(), "")?;
-        out.set_color(&std_col)?;
+        execute!(out, ResetColor)?;
         // description
         if !Self::DESC.is_empty() {
             for d in textwrap::wrap(Self::DESC, text_width) {
@@ -61,11 +58,11 @@ pub trait VarProviderInfo: fmt::Debug {
                 if !info.hidden {
                     let usages = usage_list(info);
                     if usages.iter().any(|u| u.len() > usage_width - 2) {
-                        out.set_color(&usage_col)?;
+                        execute!(out, SetForegroundColor(usage_col))?;
                         for u in usages {
                             writeln!(out, "{}", u)?;
                         }
-                        out.set_color(&std_col)?;
+                        execute!(out, ResetColor)?;
                         for line in textwrap::wrap(info.description, text_width - usage_width) {
                             writeln!(out, "{: <width$} {}", "", line, width = usage_width)?;
                         }
@@ -74,21 +71,27 @@ pub trait VarProviderInfo: fmt::Debug {
                             .iter()
                             .zip_longest(textwrap::wrap(info.description, text_width - usage_width))
                         {
-                            out.set_color(&usage_col)?;
+                            execute!(out, SetForegroundColor(usage_col))?;
                             write!(
                                 out,
                                 "{: <width$}",
                                 item.as_ref().left().map(|u| u.as_str()).unwrap_or(""),
                                 width = usage_width
                             )?;
-                            out.set_color(&std_col)?;
+                            execute!(out, ResetColor)?;
                             writeln!(out, " {}", item.as_deref().right().unwrap_or(""))?;
                         }
                     }
                     if let Some(ty) = info.output_type.as_ref() {
-                        out.set_color(&type_col)?;
-                        writeln!(out, "{:>width$} returns: {}", "", ty, width = usage_width)?;
-                        out.set_color(&std_col)?;
+                        execute!(out, SetForegroundColor(type_col))?;
+                        writeln!(
+                            out,
+                            "{:>width$} return type: {}",
+                            "",
+                            ty,
+                            width = usage_width
+                        )?;
+                        execute!(out, ResetColor)?;
                     }
                 }
             }
@@ -110,13 +113,13 @@ pub trait VarProviderInfo: fmt::Debug {
                 for d in textwrap::wrap(&desc, text_width) {
                     writeln!(out, "{}", d)?;
                 }
-                out.set_color(&usage_col)?;
+                execute!(out, SetForegroundColor(usage_col))?;
                 writeln!(out, "> {}", example.command)?;
                 if let Some(output) = example.output {
-                    out.set_color(&cmd_output_col)?;
+                    execute!(out, SetForegroundColor(cmd_output_col))?;
                     writeln!(out, "{}", output)?;
                 }
-                out.set_color(&std_col)?;
+                execute!(out, ResetColor)?;
                 writeln!(out)?;
             }
         }
@@ -139,13 +142,15 @@ pub trait VarProviderInfo: fmt::Debug {
                         // .into_iter()
                         // .map(|u| format!("{}`", u))
                         .join("<br />");
-                    // TODO: very simple but... but probably fine for a help page
-                    let desc = info
+                    // TODO: very simple escaping but... probably fine for a help page
+                    let mut desc = info
                         .description
                         .replace('<', r"\<")
                         .replace('>', r"\>")
                         .replace('\n', "<br />");
-
+                    if let Some(ty) = info.output_type.as_ref() {
+                        desc.push_str(&format!("<br/>return type: {ty}"));
+                    }
                     writeln!(
                         out,
                         "| <a name=\"{}\"></a>{} | {} |",
