@@ -80,6 +80,16 @@ impl Key {
         Ok(())
     }
 
+    #[inline]
+    pub fn write_delimited<W: io::Write + ?Sized>(
+        &self,
+        writer: &mut W,
+        sep: &[u8],
+    ) -> io::Result<()> {
+        write_list_with(self.iter(), sep, writer, |v, o| v.write(o))?;
+        Ok(())
+    }
+
     pub fn write_to_symbol(&self, sym: &mut OptValue) {
         match self {
             Key::Single(v) => v.to_symbol(sym),

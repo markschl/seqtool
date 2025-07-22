@@ -5,22 +5,25 @@ use crate::cmd::shared::key::Key;
 use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::helpers::DefaultBuildHasher as BuildHasher;
-use crate::io::input::SeqReader;
-use crate::io::{OwnedRecord, Record};
+use crate::io::{input::SeqReader, OwnedRecord, Record};
 use crate::var::varstring::VarString;
 
 use super::*;
+
+type DiffKeyBuf = Vec<Vec<u8>>;
 
 pub fn cmp_in_order(
     cfg: &mut Config,
     var_key: &[VarString],
     out: &mut Output,
+    diff_fields: Option<Vec<VarString>>,
     max_mem: usize,
 ) -> CliResult<CmpStats> {
     let mut stats = CmpStats::default();
     cfg.require_meta_slots(3);
+    let mut diff_writer = diff_fields.map(|fields| DiffWriter::new(fields, 80));
     cfg.read2(|rdr0, rdr1, ctx| {
-        let mut cmp = in_order::OrderedCmp::new(ctx, var_key, out, max_mem);
+        let mut cmp = in_order::OrderedCmp::new(ctx, var_key, out, diff_writer.as_mut(), max_mem);
         // buffers storing non-matching OwnedRecord instances
         let mut buf0 = RingMap::default();
         let mut buf1 = RingMap::default();
@@ -57,6 +60,7 @@ pub struct OrderedCmp<'a> {
     key: [Key; 2],
     text_buf: Vec<Vec<u8>>,
     out: &'a mut Output,
+    diff_writer: Option<(&'a mut DiffWriter, [DiffKeyBuf; 2])>,
     mem_size: usize,
     max_mem: usize,
     stats: CmpStats,
@@ -67,6 +71,7 @@ impl<'a> OrderedCmp<'a> {
         ctx: &'a mut SeqContext,
         var_key: &'a [VarString],
         out: &'a mut Output,
+        diff_writer: Option<&'a mut DiffWriter>,
         max_mem: usize,
     ) -> Self {
         let key_buf = [Key::with_size(var_key.len()), Key::with_size(var_key.len())];
@@ -77,6 +82,7 @@ impl<'a> OrderedCmp<'a> {
             key: key_buf,
             text_buf,
             out,
+            diff_writer: diff_writer.map(|w| (w, [Vec::new(), Vec::new()])),
             mem_size: 0,
             max_mem,
             stats: CmpStats::default(),
@@ -116,11 +122,12 @@ impl<'a> OrderedCmp<'a> {
                 //    in the buffers up to the matching records as unique
                 self.buf_drain(buf.0, None, s0)?;
                 self.buf_drain(buf.1, Some(i1), s1)?;
-                // then report the common elements
+                // then report these new common records
                 self.write(0, s0, rec0, Common, false, true)?;
                 let (_k, rec1) = self.buf_pop_front(buf.1);
                 debug_assert_eq!(_k, self.key[0]);
                 self.write(0, s1, &rec1, Common, true, false)?;
+                self.write_diff()?;
                 self.stats.common += 1;
             } else
             // read new record from stream 1
@@ -136,6 +143,7 @@ impl<'a> OrderedCmp<'a> {
                     self.buf_drain(buf.1, None, s1)?;
                     self.write(0, s0, rec0, Common, false, true)?;
                     self.write(1, s1, rec1, Common, false, true)?;
+                    self.write_diff()?;
                     self.stats.common += 1;
                 } else if let Some(i0) = buf.0.get_index_of(&self.key[1]) {
                     // eprintln!("...in buf0: {}", &self.key[1]);
@@ -150,6 +158,7 @@ impl<'a> OrderedCmp<'a> {
                     debug_assert_eq!(_k, self.key[1]);
                     self.write(0, s0, &rec0, Common, true, true)?;
                     self.write(1, s1, rec1, Common, false, true)?;
+                    self.write_diff()?;
                     self.stats.common += 1;
                 } else {
                     // eprintln!("...not equal {} != {}, {} != {}", self.key[0], self.key[1], std::str::from_utf8(rec0.id()).unwrap(), std::str::from_utf8(rec1.id()).unwrap());
@@ -220,13 +229,14 @@ impl<'a> OrderedCmp<'a> {
 
     /// Reports (and removes) all unique records up to the given end index in the buffer
     /// (`None` = remove all records)
+    /// Always using metadata slot no. 2 for that.
     fn buf_drain(
         &mut self,
         buf: &mut RingMap<Key, (OwnedRecord, usize), BuildHasher>,
         end: Option<usize>,
-        second: bool,
+        is_second: bool,
     ) -> CliResult<()> {
-        let (cat, counter) = if !second {
+        let (cat, counter) = if !is_second {
             (Unique1, &mut self.stats.unique1)
         } else {
             (Unique2, &mut self.stats.unique2)
@@ -241,7 +251,7 @@ impl<'a> OrderedCmp<'a> {
                 &rec,
                 &self.ctx.meta[2],
                 cat,
-                second,
+                is_second,
                 &mut self.ctx.qual_converter,
             )?;
         }
@@ -261,10 +271,15 @@ impl<'a> OrderedCmp<'a> {
         if update_symbols {
             self.ctx.set_record(rec, meta_slot)?;
         }
+        let key = &self.key[is_second as usize];
         if set_vars {
-            let key = &self.key[is_second as usize];
             self.ctx
                 .with_custom_varmod(meta_slot, |m: &mut CmpVars, sym| m.set(key, cat, sym));
+        }
+        if cat == Common {
+            if let Some((w, out)) = self.diff_writer.as_mut() {
+                w.compose_fields(rec, &self.ctx.meta[meta_slot], &mut out[is_second as usize])?;
+            }
         }
         self.out.write_record(
             rec,
@@ -273,5 +288,12 @@ impl<'a> OrderedCmp<'a> {
             is_second,
             &mut self.ctx.qual_converter,
         )
+    }
+
+    fn write_diff(&mut self) -> CliResult<()> {
+        if let Some((w, fields)) = self.diff_writer.as_mut() {
+            w.write_comparison(&self.key[0], &fields[0], &fields[1])?
+        }
+        Ok(())
     }
 }

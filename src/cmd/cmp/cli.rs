@@ -13,6 +13,8 @@ unless `-q/--quiet` is specified.
 Note that the comparison key can be completely customized with `-k/--key`
 (see <KEY> help and `st cmp -V/--help-vars`).
 
+The `-d/--diff` option further allows to compare certain record properties.
+
 If the memory limit is exceeded, two-pass scanning is activated. In this case,
 seekable files must be provided.
 
@@ -37,6 +39,14 @@ pub struct CmpCommand {
     #[arg(short, long, default_value = "id,seqhash")]
     pub key: Vec<String>,
 
+    /// Comma-delimited list of fields/variabes/expressions, which should be
+    /// compared between records that are otherwise identical according to the
+    /// comparison key (`-k/--key`).
+    /// If two records differ by these extra given properties, a colored alignment
+    /// is printed to STDERR.
+    #[arg(long, short, value_name = "KEY")]
+    pub diff: Option<Vec<String>>,
+
     /// Provide this option if the two input files/streams are in the same order.
     /// Instead of scanning the whole output, reading and writing is done
     /// progressively. The same key may occur multiple times. Two records are
@@ -44,27 +54,31 @@ pub struct CmpCommand {
     #[arg(short = 'O', long)]
     pub in_order: bool,
 
-    #[arg(long = "common", visible_aliases = &["common1", "c1"], value_name = "FILE")]
+    /// Checks if the two files match exactly, and exits with an error if not.
+    #[arg(short, long)]
+    pub check: bool,
+
+    #[arg(long = "common", visible_aliases = &["common1", "c1"], value_name = "OUT")]
     /// Write records from the first input to this output file (or `-` for STDOUT)
     /// if *also* present in the second input (according to the comparison of keys).
     pub common_: Option<IoKind>,
 
-    #[arg(long, visible_alias = "c2", value_name = "FILE")]
-    /// Write records from the *second* input to this output file (or `-` for STDOUT)
+    #[arg(long, visible_alias = "c2", value_name = "OUT")]
+    /// Write records from the *second* input to the given output (file or `-` for STDOUT)
     /// if *also* present in the first input (according to the comparison of keys).
     pub common2: Option<IoKind>,
 
-    #[arg(long, visible_alias = "u1", value_name = "FILE")]
+    #[arg(long, visible_alias = "u1", value_name = "OUT")]
     /// Write records from the first input to this output file (or `-` for STDOUT)
     /// if *not* present in the second input.
     pub unique1: Option<IoKind>,
 
-    #[arg(long, visible_alias = "u2", value_name = "FILE")]
+    #[arg(long, visible_alias = "u2", value_name = "OUT")]
     /// Write records from the second input to this output file (or `-` for STDOUT)
     /// if *not* present in the first input.
     pub unique2: Option<IoKind>,
 
-    #[arg(long, visible_alias = "o2", value_name = "FILE")]
+    #[arg(long, visible_alias = "o2", value_name = "OUT")]
     /// Write the second input back to this output file (or - for STDOUT).
     /// Useful if only certain aspects of a record are compared, but records
     /// may still differ by other parts.

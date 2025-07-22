@@ -60,8 +60,6 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
     // tuples of (varstring, text buffer)
     cfg.set_custom_varmodule(Box::<CmpVars>::default())?;
 
-    let mut out = Output::from_args(&mut args, &mut cfg)?;
-
     let mut var_key = Vec::with_capacity(1);
     cfg.build_vars(|b| {
         for key in &args.key {
@@ -69,6 +67,23 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
         }
         Ok::<_, String>(())
     })?;
+
+    let diff_fields = args
+        .diff
+        .as_ref()
+        .map(|fields| {
+            let mut vs = Vec::with_capacity(1);
+            cfg.build_vars(|b| {
+                for f in fields {
+                    register_var_list(f, b, &mut vs, true, true)?;
+                }
+                Ok::<_, String>(())
+            })?;
+            Ok::<_, String>(vs)
+        })
+        .transpose()?;
+
+    let mut out = Output::from_args(&mut args, &mut cfg)?;
 
     cfg.with_custom_varmod(|v: &mut CmpVars| {
         if out.has_combined_output() && !v.has_vars() {
@@ -83,15 +98,26 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
     })?;
 
     let stats = if args.in_order {
-        in_order::cmp_in_order(&mut cfg, &var_key, &mut out, max_mem)?
+        in_order::cmp_in_order(&mut cfg, &var_key, &mut out, diff_fields, max_mem)?
     } else {
-        complete::cmp_complete(&mut cfg, &var_key, &mut out, max_mem, two_pass, quiet)?
+        complete::cmp_complete(
+            &mut cfg,
+            var_key,
+            &mut out,
+            diff_fields,
+            max_mem,
+            two_pass,
+            quiet,
+        )?
     };
     if !quiet {
         eprintln!(
             "common\t{}\nunique1\t{}\nunique2\t{}",
             stats.common, stats.unique1, stats.unique2
         );
+    }
+    if args.check && (stats.unique1 > 0 || stats.unique2 > 0) {
+        return fail!("Not an exact match");
     }
     Ok(())
 }
