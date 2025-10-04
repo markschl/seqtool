@@ -1,5 +1,7 @@
 pub mod shared;
 
+#[cfg(any(feature = "all-commands", feature = "hist"))]
+pub mod hist;
 #[cfg(any(feature = "all-commands", feature = "pass", feature = "stat"))]
 pub mod pass;
 #[cfg(any(feature = "all-commands", feature = "view"))]

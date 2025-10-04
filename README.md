@@ -17,10 +17,9 @@ The standalone binary (5-7 MB) is simply named `st` to save some typing.
 
 ## Downloads
 
-**[📥 download beta release (v0.4.0-beta.3)](https://github.com/markschl/seqtool/releases/tag/v0.4.0-beta.3)**
+**[📥 download beta release (v0.4.0-beta.4)](https://github.com/markschl/seqtool/releases/tag/v0.4.0-beta.4)**
 
-> Should be pretty safe to use despite the considerable refactoring.
-> Approximate matching ([find](https://markschl.github.io/seqtool-docs/find) command) is yet to be fully tested.
+> It should now be pretty bug-free, an official 4.0 release is not far away
 
 **[📥 download stable release (v0.3.0)](https://github.com/markschl/seqtool/releases/latest)**
 
@@ -443,13 +442,14 @@ attribute setting
 * **[count](https://markschl.github.io/seqtool-docs/count)**: Count all records in the input (total or categorized by variables/functions)
 * **[stat](https://markschl.github.io/seqtool-docs/stat)**: Return per-sequence statistics as tab delimited list
 
-### Subset/shuffle
+### Subset/reorganize/compare
 * **[sort](https://markschl.github.io/seqtool-docs/sort)**: Sort records by sequence or any other criterion
 * **[unique](https://markschl.github.io/seqtool-docs/unique)**: De-replicate by sequence and/or other properties, returning only unique records
 * **[filter](https://markschl.github.io/seqtool-docs/filter)**: Keep/exclude sequences based on different properties with a mathematical
 (JavaScript) expression
 * **[split](https://markschl.github.io/seqtool-docs/split)**: Distribute sequences into multiple files based on a variable/function or
 advanced expression
+* **[cmp](https://markschl.github.io/seqtool-docs/cmp)**: Compare two input files/streams
 * **[sample](https://markschl.github.io/seqtool-docs/sample)**: Get a random subset of sequences; either a fixed number or an approximate
 fraction of the input
 * **[slice](https://markschl.github.io/seqtool-docs/slice)**: Return a range of sequence records from the input

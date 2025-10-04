@@ -69,6 +69,11 @@ sort:
     other:
       100 MiB memory limit: st sort seq input.fasta -M 100M > output.fasta
 
+    # compare_with: [SeqKit]
+    # compare:
+    #   seqkit_rev:
+    #     - st sort -r seq input.fasta > output.fasta
+    #     - seqkit sort -r [-w 0] input.fasta > output.fasta
   id:
     description: Sort by record ID
     cmd: st sort id input.fasta > output.fasta
@@ -81,10 +86,11 @@ sort:
     other:
       SeqKit: seqkit sort -l [-w 0] input.fasta > output.fasta
       VSEARCH: vsearch --sortbylength input.fasta --output output.fasta [--fasta_width 0]
+    # compare_with: [SeqKit, VSEARCH]
   size:
     description: Sort sequences by USEARCH/VSEARCH-style abundance annotations
     cmd: >
-      ST_ATTR_FMT=';key=value' st unique seq -a size={n_duplicates} input.fasta |
+      ST_ATTR_FORMAT=';key=value' st unique seq -a size={n_duplicates} input.fasta |
         st sort '{-attr("size")}' > output.fasta
     other:
       VSEARCH: >
@@ -220,7 +226,6 @@ find:
     description: Find the forward primer location in the input reads with up to 4 mismatches
     cmd: st find -D4 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
     other:
-      st (4 threads): st find -t4 -D4 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
       st (max. mismatches = 2): st find -D2 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
       st (max. mismatches = 8): st find -D8 file:primers.fasta input.fastq -a primer={pattern_name} -a rng={match_range} > output.fastq
   find_trim_primer:

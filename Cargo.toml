@@ -1,11 +1,12 @@
 [package]
 name = "seqtool"
-version = "0.4.0-beta.3"
+version = "0.4.0-beta.4"
 edition = "2021"
 authors = ["Markus Schlegel <markschl19@gmail.com>"]
 description = "General-purpose tool for reading, modifying and writing biological sequences."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/markschl/seqtool"
+homepage = "https://github.com/markschl/seqtool"
 readme = "README.md"
 build = "build.rs"
 
@@ -49,17 +50,21 @@ phf = { version = "0.13", features = ["macros"], optional = true }
 bio = { version = "3.0", default-features = false }
 regex-lite = { version = "0.1", optional = true }
 regex = { version = "1.11", optional = true }
-# view
+# view, hist
 ratatui = { version = "0.29", optional = true, default-features = false, features = ["crossterm"] }
+# view, hist, cmp
 crossterm ={ version = "0.29", optional = true }
+# view
 palette = { version = "0.7", default-features = false, features = ["std", "named_from_str"], optional = true }
 enterpolation = { version = "0.3", default-features = false, features = ["std", "linear"], optional = true }
-# sample command
+# hist
+ndarray = { version = "0.16", default-features = false, optional = true}
+# sample
 rand = { version = "0.9", optional = true }
 rand_xoshiro = { version = "0.7.0", optional = true }
 # sort / unique / cmp commands
 indexmap = { version = "2.10", optional = true }
-# cmp command
+# cmp
 ringmap = { version = "0.1", optional = true }
 # TODO: v0.8 update blocked by https://github.com/reem/rust-ordered-float/issues/163
 rkyv = { version = "0.7", optional = true}
@@ -100,13 +105,17 @@ bz2 = ["bzip2"]
 regex-fast = ["regex"]  # adds ~1.4 MiB to binary (Linux)
 # Commands
 all-commands = [
-    "palette", "enterpolation", "ratatui", "crossterm",  # view
+    "palette", "enterpolation", # view
+    "ratatui", # view, hist
+    "crossterm", # view, hist, cmp
+    "ndarray",  # hist
     "rand", "rand_xoshiro",  # sample
     "indexmap", "ringmap", "rkyv", "byteorder", "tempfile",  # sort, unique, cmp
     "regex-lite",  # find, replace
 ]
 pass = []
 view = ["palette", "enterpolation", "crossterm"]
+hist = ["ratatui", "crossterm", "ndarray"]
 count = ["rkyv"]
 stat = []
 head = []
@@ -138,7 +147,8 @@ name = "st"
 lto = "thin"
 codegen-units = 1
 panic = "abort"
-strip = true
+#strip = true
+debug = true
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

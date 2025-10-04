@@ -15,8 +15,42 @@ cargo build --release
 st=target/release/st
 ```
 
+<!-- 
+
+OR PGO
+
+```bash
+cores=4
+target=x86_64-unknown-linux-gnu
+st=target/$target/release/st
+cargo pgo build -- -j $cores --target=$target
+scripts/compare_tools.py -b $st -k main -d $outdir -o bench.json -t $tmp $fq scripts/perf_commands.yaml 
+
+cargo pgo optimize
+``` -->
+
 ## Download sequencing reads
 
+<!-- ```bash
+fq=big.fq
+
+if [ ! -f $fq ]; then
+    wget https://github.com/caporaso-lab/mockrobiota/archive/refs/heads/master.zip
+    unzip master.zip
+    echo -n > $fq
+    for i in 11; do
+        meta=mockrobiota-master/data/mock-$i/dataset-metadata.tsv
+        cat $meta
+        grep 'raw-data-url-forward-read' $meta |
+            cut -f 2 -d $'\t' |
+            xargs wget -O - |
+            zcat |
+            s sample -p 0.4 --fq \
+            >> $fq
+    done
+    rm -Rf mockrobiota-master master.zip
+fi
+``` -->
 
 ```bash
 wget -qi profile/fastq_urls.txt -O - | zcat > $fq
@@ -38,6 +72,10 @@ mkdir -p $outdir/workdir/tmp
 Prepare forward primer for searching
 
 ```bash
+# >ITS_S2F
+# CGATACTTGGTGTGAAT
+# >ITS3
+# TCGATGAAGAACGCAGC
 cat > $outdir/workdir/primers.fasta <<- EOM
 >ITS4
 GTCCTCCGCTTATTGATATGC
@@ -49,6 +87,7 @@ EOM
 Before running, disable frequency boost:
 
 ```bash
+# requires cpufrequtils installed
 echo "0" | sudo tee /sys/devices/system/cpu/cpufreq/boost
 ```
 
@@ -67,8 +106,9 @@ export SEQKIT_THREADS=1
 $st count $fq  # cache the file in memory
 scripts/compare_tools.py \
     -b $st -d $outdir/workdir -o profile/comparison.json -t $outdir/workdir/tmp \
+    -k main \
     $fq profile/comparison_commands.yaml 
-
+ # -k main,other
 scripts/summarize_comparison.py profile/comparison.json - > profile/comparison.md
 ```
 

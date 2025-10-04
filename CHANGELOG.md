@@ -1,4 +1,29 @@
-## v0.4.0-beta.3 (2025-01-05)
+## v0.4.0-beta.4 (2025-10-04)
+
+* *Seqtool* is now dual-licensed under MIT OR Apache-2.0 ([9b0ebf0](https://github.com/markschl/seqtool/commit/9b0ebf0b9fc49f7d5178446989626672fc3be44b))
+* Added a *cmp* command ([5cf0b06](https://github.com/markschl/seqtool/commit/5cf0b06e9a13c26e33dded6d67c71966fd0c8ce1))
+  for comparing sequence sets
+* Improved *view* command: implemented an internal with more features, which also works on
+  Windows ([a1d6934](https://github.com/markschl/seqtool/commit/a1d69348e14cb1e8768e278797f559587783a0be))
+* Improvements to the *find* command
+  - Reviewed/adjusted fuzzy pattern matching. 
+    The prioritization of hits with identical edit distance was improved and match positions are now
+    comparable to the ones from Cutadapt
+    ([3821e60](https://github.com/markschl/seqtool/commit/3821e60bd19984a1491801ee8ac525b00541dd3f),
+    [a8eeea9](https://github.com/markschl/seqtool/commit/a8eeea9babee197ecb7d53bb9d2f3a9455b70540),
+    [de34546](https://github.com/markschl/seqtool/commit/de345469629790569cc26bb7e4bfce211bdb1e57))
+  - Case-insensitive search ([3f35c32](https://github.com/markschl/seqtool/commit/3f35c3209a205c3ea029452ce01c293609766d16))
+  - Added `match_neg_range` variable/function ([824a027](https://github.com/markschl/seqtool/commit/824a02747bad288521140ec81c86c56070a58d38)),
+   and hits can be referred to with negative indices (viewed from the last hit) in all functions
+   ([8929f91](https://github.com/markschl/seqtool/commit/8929f9141738d9e283bcd743a89ad546c5178b73))
+  - Slight behaviour change in case of pattern anchoring leading to faster searches
+   ([5da8427](https://github.com/markschl/seqtool/commit/5da8427ff2443e952addccb4f6c57ff4e11e4f89))
+* Small bugfixes ([99bf13e](https://github.com/markschl/seqtool/commit/99bf13edba77f1cf2e40b1baf866047b6c024795),
+  [f4b1966](https://github.com/markschl/seqtool/commit/f4b1966a7e23f2738ddc564cb72b02db7966b117)
+  )
+* Numerous smaller improvements & dependency updates; some dependencies were dropped
+
+## v0.4.0-beta.3 (2025-05-01)
 
 Besides dependency updates, the release includes:
 

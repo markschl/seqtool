@@ -106,6 +106,12 @@ pub struct CmpCommand {
     /// may still differ by other parts.
     pub output2: Option<IoKind>,
 
+    // #[arg(long, visible_alias = "c1", value_name = "OUT")]
+    // pub combined1: Option<IoKind>,
+
+    // #[arg(long, visible_alias = "c2", value_name = "OUT")]
+    // pub combined2: Option<IoKind>,
+    /// Do the comparison in two passes (default: automatically done if memory limit reached)
     #[arg(short = '2', long, conflicts_with = "in_order")]
     pub two_pass: bool,
 

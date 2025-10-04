@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 
 
 def run_benches(binary, input_dir, config, temp_dir=None, kind=None):
@@ -10,6 +11,8 @@ def run_benches(binary, input_dir, config, temp_dir=None, kind=None):
     # sys.path.insert(0, d)
     if temp_dir is not None:
         temp_dir = os.path.relpath(temp_dir, input_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
     os.chdir(input_dir)
     out = {}
     for cmd, benches in config.items():
@@ -45,25 +48,24 @@ def run_bench(name, cfg, temp_dir=None, kind=None):
         out1 = 'out1'
         out2 = 'out2'
         if 'compare_with' in cfg:
-            _, outfile = run_command(st_cmd, temp_dir=temp_dir)
-            os.rename(outfile, out1)
-            for what in cfg['compare_with']:
-                # print("compare", what)
-                cmd = cfg.get('other', {})[what]
-                _, outfile = run_command(cmd)
-                os.rename(outfile, out2)
-                assert_identical(out1, out2, st_cmd, cmd)
-                os.remove(out2)
-            os.remove(out1)
+            _, outfile = run_command(st_cmd, temp_dir=temp_dir, rename_outfile=out1)
+            if outfile is not None:
+                for what in cfg['compare_with']:
+                    # print("compare", what)
+                    cmd = cfg.get('other', {})[what]
+                    _, outfile = run_command(cmd, temp_dir=temp_dir, rename_outfile=out2)
+                    if outfile is not None:
+                        assert_identical(out1, out2, st_cmd, cmd)
         for what, cmds in cfg.get('compare', {}).items():
             # print("compare other", what)
             assert len(cmds) == 2
-            _, outfile = run_command(cmds[0], temp_dir=temp_dir)
-            os.rename(outfile, out1)
-            _, outfile = run_command(cmds[1], temp_dir=temp_dir)
-            os.rename(outfile, out2)
-            assert_identical(out1, out2, *cmds)
+            _, _out1 = run_command(cmds[0], temp_dir=temp_dir, rename_outfile=out1)
+            _, _out2 = run_command(cmds[1], temp_dir=temp_dir, rename_outfile=out2)
+            if _out1 is not None and _out2 is not None:
+                assert_identical(out1, out2, *cmds)
+        if os.path.exists(out1):
             os.remove(out1)
+        if os.path.exists(out2):
             os.remove(out2)
     if 'cleanup' in cfg:
         if isinstance(cfg['cleanup'], str):
@@ -73,11 +75,11 @@ def run_bench(name, cfg, temp_dir=None, kind=None):
     return out
 
 def assert_identical(f1, f2, cmd1, cmd2):
+    
     import subprocess
     try:
         subprocess.check_call(["diff", "-q", f1, f2])
     except subprocess.CalledProcessError:
-        import sys
         print(
             "COMPARISON ERROR: command output differs for:\n- {}\n- {}\nCheck with diff {} {}".format(
                 cmd1, cmd2, os.path.abspath(f1),
@@ -86,7 +88,7 @@ def assert_identical(f1, f2, cmd1, cmd2):
             )
 
 
-def run_command(command, temp_dir=None):
+def run_command(command, temp_dir=None, rename_outfile=None):
     import re
     from tempfile import mkstemp
     # look for an [[alternative command]] to use instead (appended to command that is displayed)
@@ -121,7 +123,15 @@ def run_command(command, temp_dir=None):
     }
     # Get output file name
     m = re.search(r'\b(output(\.\w+)+)( |$)', mod_cmd)
-    outfile = None if m is None else m.group(1)
+    outfile = None
+    if m is not None:
+        outfile = m.group(1)
+        if not os.path.exists(outfile):
+            print("No output file found for", command, file=sys.stderr)
+            outfile = None
+        elif rename_outfile is not None:
+            os.rename(outfile, rename_outfile)
+            outfile = rename_outfile
     return result, outfile
 
 
@@ -131,7 +141,6 @@ def call(cmd, **kwarg):
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwarg)
     out, err = p.communicate()
     if p.returncode != 0:
-        import sys
         print("ERROR: non-zero exit code {} for command:\n{}\nstderr:\n{}".format(p.returncode, cmd, err.decode('utf-8')), file=sys.stderr)
     return out, err
 
@@ -143,9 +152,25 @@ def generate_files(fastq_path, outdir):
     if os.path.exists(fq):
         os.remove(fq)
     os.symlink(os.path.abspath(fastq_path), os.path.abspath(fq))
+    # gz = fq + '.gz'
+    # if not os.path.exists(gz):
+    #     call(f'gzip -fk {fq}')
+    # # TODO: maybe not use seqtool here?
+    # qual = fq + '.qual'
+    # if not os.path.exists(qual):
+    #     call(f'st . --qual-out {qual} --to-fa {fq} > /dev/null')
     fa = os.path.splitext(fq)[0] + '.fasta'
     if not os.path.exists(fa):
         call(['st', '.', '--to-fa', fq, '-o', fa])
+    # lz4 = fq + '.lz4'
+    # if not os.path.exists(lz4):
+    #     call(f'lz4 -k {fq}')
+    # bzip2 = fq + '.bz2'
+    # if not os.path.exists(bzip2):
+    #     call(f'bzip2 -fk {fq}')
+    # zstd = fq + '.zst'
+    # if not os.path.exists(zstd):
+    #     call(f'zstd -fk {fq}')
 
 
 if __name__ == '__main__':

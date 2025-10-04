@@ -6,6 +6,8 @@ import re
 
 def gen_summary(json_input, md_out):
     from html import escape
+    # def cnv_breaks(s):
+    #     return re.sub(r'[\r\n]', '<br/>', s, re.DOTALL)
 
     def fmt_bench(d):
         return '{}{}<br/>{}'.format(
@@ -82,6 +84,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('json_input', type=argparse.FileType('r'))
     parser.add_argument('md_out', type=argparse.FileType('w'))
+    # parser.add_argument('-m', '--main-only', action='store_true')
     args = parser.parse_args()
 
     gen_summary(**vars(args))
