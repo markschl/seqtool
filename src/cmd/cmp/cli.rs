@@ -37,8 +37,8 @@ Compare only by ID and visualize inconsistencies between sequences:
 
 <c>`st cmp -k id -d seq file1.fasta file2.fasta`</c>
 seq_3:
-CACTTTCAACAACGGATCTCTTG<m>GT</m>TCTCGCATCGATGAAGAACGT
-CACTTTCAACAACGGATCTCTTG<c>..</c>TCTCGCATCGATGAAGAACGT
+<m>┌</m> CACTTTCAACAACGGATCTCTTG<r>GT</r>TCTCGCATCGATGAAGAACGT<m>┐</m>
+<m>└</m> CACTTTCAACAACGGATCTCTTG<c>..</c>TCTCGCATCGATGAAGAACGT<m>┘</m>
 
 common	7
 unique1	2
@@ -106,12 +106,6 @@ pub struct CmpCommand {
     /// may still differ by other parts.
     pub output2: Option<IoKind>,
 
-    // #[arg(long, visible_alias = "c1", value_name = "OUT")]
-    // pub combined1: Option<IoKind>,
-
-    // #[arg(long, visible_alias = "c2", value_name = "OUT")]
-    // pub combined2: Option<IoKind>,
-    /// Do the comparison in two passes (default: automatically done if memory limit reached)
     #[arg(short = '2', long, conflicts_with = "in_order")]
     pub two_pass: bool,
 
@@ -120,6 +114,10 @@ pub struct CmpCommand {
     /// based on powers of 2.
     #[arg(short = 'M', long, value_name = "SIZE", value_parser = parse_bytesize, default_value = "5G")]
     pub max_mem: usize,
+
+    /// Maximum width of the `-d/--diff` output
+    #[arg(long, value_name = "CHARS", default_value_t = 80)]
+    pub diff_width: usize,
 
     #[command(flatten)]
     pub common: CommonArgs,

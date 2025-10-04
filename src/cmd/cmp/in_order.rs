@@ -16,12 +16,11 @@ pub fn cmp_in_order(
     cfg: &mut Config,
     var_key: &[VarString],
     out: &mut Output,
-    diff_fields: Option<Vec<VarString>>,
+    mut diff_writer: Option<DiffWriter>,
     max_mem: usize,
 ) -> CliResult<CmpStats> {
     let mut stats = CmpStats::default();
     cfg.require_meta_slots(3);
-    let mut diff_writer = diff_fields.map(|fields| DiffWriter::new(fields, 80));
     cfg.read2(|rdr0, rdr1, ctx| {
         let mut cmp = in_order::OrderedCmp::new(ctx, var_key, out, diff_writer.as_mut(), max_mem);
         // buffers storing non-matching OwnedRecord instances

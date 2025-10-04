@@ -134,7 +134,7 @@ impl DiffWriter {
                 yclip_prefix: -1,
                 yclip_suffix: -1,
             }),
-            line_writer: DiffLineWriter::new(max_width, (Color::Magenta, Color::Cyan)),
+            line_writer: DiffLineWriter::new(max_width),
         }
     }
 
@@ -163,82 +163,128 @@ impl DiffWriter {
         }
 
         self.line_writer.write_key(key)?;
+        let gap_char = '.';
 
         // debug_assert!(is_second ^ _is_second);
         debug_assert_eq!(fields0.len(), fields1.len());
         for (f0, f1) in fields0.iter().zip(fields1) {
+            self.line_writer
+                .add_char('┌', '└', DiffCharCategory::Separator)?;
             let aln = self.aligner.global(f0, f1);
+            // println!("{:?}", aln);
+            // println!("{:?}\n{}\n\n", key, aln.pretty(f0, f1, 80));
             let mut i0 = aln.xstart;
             let mut i1 = aln.ystart;
-            // dbg!(&aln.operations);
             for op in &aln.operations {
                 use AlignmentOperation::*;
                 match op {
                     Match => {
-                        self.line_writer.add_char(f0[i0], f1[i1], true)?;
+                        self.line_writer.add_char(
+                            f0[i0] as char,
+                            f1[i1] as char,
+                            DiffCharCategory::Match,
+                        )?;
                         i0 += 1;
                         i1 += 1;
                     }
                     Subst => {
-                        self.line_writer.add_char(f0[i0], f1[i1], false)?;
+                        self.line_writer.add_char(
+                            f0[i0] as char,
+                            f1[i1] as char,
+                            DiffCharCategory::Mismatch,
+                        )?;
                         i0 += 1;
                         i1 += 1;
                     }
                     Del => {
-                        self.line_writer.add_char(b' ', f1[i1], false)?;
+                        self.line_writer.add_char(
+                            gap_char,
+                            f1[i1] as char,
+                            DiffCharCategory::Mismatch,
+                        )?;
                         i1 += 1;
                     }
                     Ins => {
-                        self.line_writer.add_char(f0[i0], b' ', false)?;
+                        self.line_writer.add_char(
+                            f0[i0] as char,
+                            gap_char,
+                            DiffCharCategory::Mismatch,
+                        )?;
                         i0 += 1;
                     }
                     Xclip(n) => {
                         for _ in 0..*n {
-                            self.line_writer.add_char(f0[i0], b' ', false)?;
+                            self.line_writer.add_char(
+                                f0[i0] as char,
+                                gap_char,
+                                DiffCharCategory::Mismatch,
+                            )?;
                             i0 += 1;
                         }
                     }
                     Yclip(n) => {
                         for _ in 0..*n {
-                            self.line_writer.add_char(b' ', f1[i1], false)?;
+                            self.line_writer.add_char(
+                                gap_char,
+                                f1[i1] as char,
+                                DiffCharCategory::Mismatch,
+                            )?;
                             i1 += 1;
                         }
                     }
                 }
             }
             debug_assert!(i0 == f0.len() && i1 == f1.len());
+            self.line_writer
+                .add_char('┐', '┘', DiffCharCategory::Separator)?;
         }
         self.line_writer.finish()?;
         Ok(())
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum DiffCharCategory {
+    Match,
+    Mismatch,
+    Separator,
+}
+
+impl DiffCharCategory {
+    fn get_color(self) -> Option<[Color; 2]> {
+        match self {
+            Self::Match => None,
+            Self::Mismatch => Some([Color::Red, Color::Cyan]),
+            Self::Separator => Some([Color::Magenta, Color::Magenta]),
+        }
+    }
+}
+
 struct DiffLineWriter {
     max_width: usize,
-    line_buf: Vec<(u8, u8, bool)>,
+    line_buf: Vec<([char; 2], DiffCharCategory)>,
+    all_match: bool,
     inner: StdoutLock<'static>,
-    colors: (Color, Color),
 }
 
 impl DiffLineWriter {
-    fn new(max_width: usize, colors: (Color, Color)) -> Self {
+    fn new(max_width: usize) -> Self {
         Self {
             max_width,
             line_buf: Vec::new(),
-            colors,
+            all_match: false,
             inner: stdout().lock(),
         }
     }
 
     fn write_key(&mut self, key: &Key) -> io::Result<()> {
         execute!(self.inner, ResetColor)?;
-        // write!(self.writer, ">")?;
         key.write_delimited(&mut self.inner, b",")?;
         writeln!(self.inner, ":")
     }
 
-    fn add_char(&mut self, c1: u8, c2: u8, matches: bool) -> io::Result<()> {
-        self.line_buf.push((c1, c2, matches));
+    fn add_char(&mut self, c1: char, c2: char, category: DiffCharCategory) -> io::Result<()> {
+        self.line_buf.push(([c1, c2], category));
         if self.line_buf.len() == self.max_width {
             self.write_line()?;
         }
@@ -253,31 +299,35 @@ impl DiffLineWriter {
     }
 
     fn write_line(&mut self) -> io::Result<()> {
-        macro_rules! write_line {
-            ($line:expr, $color:expr) => {
-                let mut colored = false;
-                execute!(self.inner, ResetColor)?;
-                for (c, matches) in $line {
-                    if !matches && !colored {
-                        execute!(self.inner, SetForegroundColor($color))?;
-                        colored = true;
-                    } else if matches && colored {
-                        execute!(self.inner, ResetColor)?;
-                        colored = false;
+        execute!(self.inner, ResetColor)?;
+        let _prev_all_match = self.all_match;
+        self.all_match = self
+            .line_buf
+            .iter()
+            .all(|(_, c)| *c == DiffCharCategory::Match);
+        if self.all_match {
+            if !_prev_all_match {
+                writeln!(self.inner, " (...)")?;
+            }
+        } else {
+            for i in 0..2 {
+                write!(self.inner, " ")?;
+                let mut prev_category = DiffCharCategory::Match;
+                for (chars, category) in &self.line_buf {
+                    if category != &prev_category {
+                        if let Some(col) = category.get_color() {
+                            execute!(self.inner, SetForegroundColor(col[i]))?;
+                        } else {
+                            execute!(self.inner, ResetColor)?;
+                        }
+                        prev_category = *category;
                     }
-                    write!(self.inner, "{}", c as char)?;
+                    write!(self.inner, "{}", chars[i])?;
                 }
-                write!(self.inner, "\n")?;
-            };
+                execute!(self.inner, ResetColor)?;
+                writeln!(self.inner)?;
+            }
         }
-        write_line!(
-            self.line_buf.iter().map(|&(c1, _, m)| (c1, m)),
-            self.colors.0
-        );
-        write_line!(
-            self.line_buf.iter().map(|&(_, c2, m)| (c2, m)),
-            self.colors.1
-        );
         self.line_buf.clear();
         Ok(())
     }

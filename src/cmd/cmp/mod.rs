@@ -82,6 +82,7 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
             Ok::<_, String>(vs)
         })
         .transpose()?;
+    let diff_writer = diff_fields.map(|fields| DiffWriter::new(fields, args.diff_width));
 
     let mut out = Output::from_args(&mut args, &mut cfg)?;
 
@@ -98,13 +99,13 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
     })?;
 
     let stats = if args.in_order {
-        in_order::cmp_in_order(&mut cfg, &var_key, &mut out, diff_fields, max_mem)?
+        in_order::cmp_in_order(&mut cfg, &var_key, &mut out, diff_writer, max_mem)?
     } else {
         complete::cmp_complete(
             &mut cfg,
             var_key,
             &mut out,
-            diff_fields,
+            diff_writer,
             max_mem,
             two_pass,
             quiet,

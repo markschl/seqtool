@@ -16,18 +16,17 @@ pub fn cmp_complete(
     cfg: &mut Config,
     var_str: Vec<VarString>,
     out: &mut Output,
-    diff_fields: Option<Vec<VarString>>,
+    mut diff_writer: Option<DiffWriter>,
     max_mem: usize,
     two_pass: bool,
     quiet: bool,
 ) -> CliResult<CmpStats> {
     let mut cmp = if !two_pass {
-        Cmp::Records(RecordCmp::new(var_str, diff_fields.is_some(), max_mem))
+        Cmp::Records(RecordCmp::new(var_str, diff_writer.is_some(), max_mem))
     } else {
-        Cmp::Keys(KeyCmp::new(var_str, diff_fields.is_some(), max_mem))
+        Cmp::Keys(KeyCmp::new(var_str, diff_writer.is_some(), max_mem))
     };
     let mut stats = CmpStats::default();
-    let mut diff_writer = diff_fields.map(|fields| DiffWriter::new(fields, 80));
     cfg.read2(|rdr0, rdr1, ctx| {
         while rdr0.read_next(&mut |rec| cmp.advance(rec, false, ctx, quiet))? {}
         while rdr1.read_next(&mut |rec| cmp.advance(rec, true, ctx, quiet))? {}
@@ -403,6 +402,19 @@ impl KeyCmp {
         Ok(stats)
     }
 }
+
+// fn write_record(
+//     ctx: &mut SeqContext,
+//     key: &Key,
+//     rec: &dyn Record,
+//     cat: Category,
+//     out: &mut Output,
+//     is_second: bool,
+// ) -> CliResult<()> {
+//     ctx.set_record(rec, 0)?;
+//     ctx.with_custom_varmod(0, |m: &mut CmpVars, sym| m.set(key, cat, sym));
+//     out.write_record(rec, &ctx.meta[0], key, cat, is_second, &mut ctx.qual_converter)
+// }
 
 #[derive(Debug, Clone)]
 struct KeyHelper {
