@@ -1,50 +1,72 @@
+use std::cell::LazyCell;
+
 use clap::Parser;
 
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::helpers::bytesize::parse_bytesize;
 use crate::io::IoKind;
 
-pub const DESC: &str = "\
+pub const DESC: LazyCell<String> = LazyCell::new(|| {
+    color_print::cformat!(
+        "\
 In the default mode, two files/streams are compared by *ID* (`id` variable) and
 *sequence hash* (`seqhash` variable), ignoring descriptions in headers.
 The number of common and unique record numbers are reported to STDERR,
 unless `-q/--quiet` is specified.
 
 Note that the comparison key can be completely customized with `-k/--key`
-(see <KEY> help and `st cmp -V/--help-vars`).
-
-The `-d/--diff` option further allows to compare certain record properties.
+(see <<KEY>> help and `st cmp -V/--help-vars`).
 
 If the memory limit is exceeded, two-pass scanning is activated. In this case,
 seekable files must be provided.
 
-If the common records in the two input files/streams are known to be in the same
-order, `-O/--in-order` can be specified.
-This allows fast progressive scanning of the streams, identifying common and
-unique records on the fly. The key is allowed to occur multiple times in the input.
-Records are assumed to be synchronized and identical as long as the key is identical.
-";
+If the the two input files/streams are known to be in sync, then `-O/--in-order`
+can be specified for faster comparison and lower memory usage.
+The key does not have to be unique in this mode.
+
+<y,s,u>Examples</y,s,u>:
+
+Compare records by ID and sequence (the default mode):
+
+<c>`st cmp file1.fasta file2.fasta`</c>
+common	6
+unique1	3
+unique2	3
+
+Compare only by ID and visualize inconsistencies between sequences:
+
+<c>`st cmp -k id -d seq file1.fasta file2.fasta`</c>
+seq_3:
+CACTTTCAACAACGGATCTCTTG<m>GT</m>TCTCGCATCGATGAAGAACGT
+CACTTTCAACAACGGATCTCTTG<c>..</c>TCTCGCATCGATGAAGAACGT
+
+common	7
+unique1	2
+unique2	1
+"
+    )
+});
 
 #[derive(Parser, Clone, Debug)]
-#[clap(next_help_heading = "'Cmd' command options")]
-#[clap(before_help=DESC, help_template=WORDY_HELP)]
+#[clap(next_help_heading = "'Cmp' command options")]
+#[clap(before_help=&*DESC, help_template=WORDY_HELP)]
 pub struct CmpCommand {
     /// The key used to compare the records in the two input files/streams.
     /// Keys must be unique in each input unless `-O/--in-order` is provided.
     /// Can be a single variable/function such as 'id',
     /// a composed string such as '{attr(a)}_{attr(b)}',
-    /// or a comma-delimited list of multiple variables/functions,
-    /// that are compared separately, e.g. 'id,attr(a)'.
-    /// It is also possible to provide `-k/--key` multiple times.
-    #[arg(short, long, default_value = "id,seqhash")]
+    /// or a comma-delimited list of these.
+    /// `-k/--key` may also be provided multiple times, which is equivalent to
+    /// a comma-delimited list.
+    #[arg(short, long, default_value = "id,seqhash", value_name = "FIELDS")]
     pub key: Vec<String>,
 
-    /// Comma-delimited list of fields/variabes/expressions, which should be
-    /// compared between records that are otherwise identical according to the
+    /// Print differences between the two inputs with respect to one or multiple
+    /// extra properties, for records that are otherwise identical according to the
     /// comparison key (`-k/--key`).
     /// If two records differ by these extra given properties, a colored alignment
     /// is printed to STDERR.
-    #[arg(long, short, value_name = "KEY")]
+    #[arg(long, short, value_name = "FIELDS")]
     pub diff: Option<Vec<String>>,
 
     /// Provide this option if the two input files/streams are in the same order.
@@ -84,7 +106,12 @@ pub struct CmpCommand {
     /// may still differ by other parts.
     pub output2: Option<IoKind>,
 
-    /// Do the comparison in two passes (default: automatically activated if memory limit hit)
+    // #[arg(long, visible_alias = "c1", value_name = "OUT")]
+    // pub combined1: Option<IoKind>,
+
+    // #[arg(long, visible_alias = "c2", value_name = "OUT")]
+    // pub combined2: Option<IoKind>,
+    /// Do the comparison in two passes (default: automatically done if memory limit reached)
     #[arg(short = '2', long, conflicts_with = "in_order")]
     pub two_pass: bool,
 
