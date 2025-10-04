@@ -330,12 +330,15 @@ impl MyersMatcherInner {
                     let mut max_score = 0;
                     // end0 <= i < end0 + 2 * best_dist + 1   [upper bound not included, thus +1]
                     assert!(end0 < text.len());
-                    for i in end0..std::cmp::min(end0 + 2 * best_dist as usize + 1, text.len()) {
-                        // TODO: we need to calculate the alignment path to also obtain the edit distance
-                        //       even if the distance is > best_dist. But but it is actually already known
-                        //        (internally) -> issue a PR to rust-bio for a `LazyMatches::dist_at()` method
+                    let end1 = std::cmp::min(end0 + 2 * best_dist as usize + 1, text.len());
+                    for i in end0..end1 {
+
+                        if matches.dist_at(i) != Some(best_dist) {
+                            continue;
+                        }
 
                         let (start, dist, score) = get_aligment!(i);
+                        debug_assert_eq!(dist, best_dist);
                         // eprintln!("Hit at {}-{}; edit distance = {} (score = {})", start+1, i+1, dist, score);
                         // matches.alignment_at(i, &mut aln);
                         // eprintln!("{}", aln.pretty(pattern, text, 120));
@@ -349,7 +352,7 @@ impl MyersMatcherInner {
                             max_score = score;
                         } else if start == hit.0 {
                             // still the same start position
-                            if dist == best_dist && score > max_score {
+                            if score > max_score {
                                 // found a better hit with the same edit distance,
                                 // but a higher alignment score
                                 hit.1 = i;
