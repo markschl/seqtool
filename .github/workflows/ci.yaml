@@ -39,4 +39,7 @@ jobs:
         toolchain: ${{ matrix.rust }}
     - run: cargo clean
     - run: cargo build --verbose --jobs 1
+      env:
+        CARGO_INCREMENTAL: 0
+        RUSTFLAGS: "-C debuginfo=0"
     - run: cargo test --verbose
