@@ -27,6 +27,9 @@ jobs:
         - build: win-msvc
           os: windows-latest
           rust: stable
+          env:
+            RUSTFLAGS: "-C debuginfo=0 -C link-args=/DEBUG:NONE"
+            CARGO_INCREMENTAL: 0
         - build: win-gnu
           os: windows-latest
           rust: stable-x86_64-gnu
@@ -37,9 +40,5 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
-    - run: cargo clean
     - run: cargo build --verbose --jobs 1
-      env:
-        CARGO_INCREMENTAL: 0
-        RUSTFLAGS: "-C debuginfo=0"
-    - run: cargo test --verbose
+    - run: cargo test --verbose --jobs 1
