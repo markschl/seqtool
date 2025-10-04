@@ -37,5 +37,6 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
-    - run: cargo build --verbose
+    - run: cargo clean
+    - run: cargo build --verbose --jobs 1
     - run: cargo test --verbose
