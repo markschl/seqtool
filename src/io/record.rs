@@ -17,7 +17,7 @@ pub trait Record {
     /// Otherwise, returns (full header, None).
     /// For delimited text, (ID, desc) is returned (desc is optional);
     /// no full header is availble there, although the ID may also contain spaces.
-    fn current_header(&self) -> RecordHeader;
+    fn current_header(&'_ self) -> RecordHeader<'_>;
     /// Raw sequence that may contain line breaks
     fn raw_seq(&self) -> &[u8];
     /// Quality line (without line breaks)
@@ -42,7 +42,7 @@ pub trait Record {
     }
     /// Iterator over sequence lines (for FASTA), or just the sequence (FASTQ/CSV).
     /// The idea is to prevent allocations and copying, otherwise use `write_seq`
-    fn seq_segments(&self) -> SeqLineIter {
+    fn seq_segments(&'_ self) -> SeqLineIter<'_> {
         SeqLineIter::OneLine(Some(self.raw_seq()))
     }
     fn full_seq<'a>(&'a self, buf: &'a mut Vec<u8>) -> Cow<'a, [u8]> {
@@ -133,7 +133,7 @@ impl<R: Record + ?Sized> Record for &R {
         (**self).id_desc()
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         (**self).current_header()
     }
 
@@ -157,7 +157,7 @@ impl<R: Record + ?Sized> Record for &R {
         (**self).has_seq_lines()
     }
 
-    fn seq_segments(&self) -> SeqLineIter {
+    fn seq_segments(&'_ self) -> SeqLineIter<'_> {
         (**self).seq_segments()
     }
 }
@@ -217,7 +217,7 @@ impl<R: Record> Record for HeaderRecord<'_, R> {
         (self.id, self.desc)
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         RecordHeader::IdDesc(
             MaybeModified::new(self.id, true),
             MaybeModified::new(self.desc, true),
@@ -244,7 +244,7 @@ impl<R: Record> Record for HeaderRecord<'_, R> {
         self.rec.has_seq_lines()
     }
 
-    fn seq_segments(&self) -> SeqLineIter {
+    fn seq_segments(&'_ self) -> SeqLineIter<'_> {
         self.rec.seq_segments()
     }
 }
@@ -280,7 +280,7 @@ impl<R: Record> Record for SeqQualRecord<'_, R> {
         self.rec.id_desc()
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         self.rec.current_header()
     }
 
@@ -360,7 +360,7 @@ impl Record for OwnedRecord {
         (&self.id, self.desc.as_deref())
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         RecordHeader::IdDesc(
             MaybeModified::new(&self.id, self.id.modified),
             MaybeModified::new(self.desc.as_deref(), self.desc.modified),
@@ -500,7 +500,7 @@ impl Record for EditedRecord<'_> {
         }
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         if self.editor.id.is_none() && self.editor.desc.is_none() {
             return self.rec.current_header();
         }
@@ -539,7 +539,7 @@ impl Record for EditedRecord<'_> {
         }
     }
 
-    fn seq_segments(&self) -> SeqLineIter {
+    fn seq_segments(&'_ self) -> SeqLineIter<'_> {
         self.editor
             .seq
             .as_ref()
