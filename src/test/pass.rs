@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn pass() {
-    cmp(&["pass"], &*FASTA, &*FASTA);
-    cmp(&["."], &*FASTA, &*FASTA);
+    cmp(&["pass"], &*FASTA, &FASTA);
+    cmp(&["."], &*FASTA, &FASTA);
 }
 
 #[test]
@@ -34,10 +34,10 @@ fn fasta_io() {
 
 #[test]
 fn pass_pipe() {
-    cmp_pipe(&["."], &*FASTA, &["."], &*FASTA);
+    cmp_pipe(&["."], &FASTA, &["."], &FASTA);
 }
 
 #[test]
 fn thread_io() {
-    cmp(&[".", "-T", "--write-thread"], &*FASTA, &*FASTA);
+    cmp(&[".", "-T", "--write-thread"], &*FASTA, &FASTA);
 }

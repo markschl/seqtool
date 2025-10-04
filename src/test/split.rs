@@ -27,7 +27,7 @@ fn key() {
         let expected = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
 
         for (name, seq) in expected.iter().zip(SEQS) {
-            let f = td.path(&format!("{}.fasta", name));
+            let f = td.path(&format!("{name}.fasta"));
             assert_eq!(f.content(), seq);
         }
     });
@@ -59,7 +59,7 @@ fn compression() {
         let expected = &["seq1_2", "seq0_1", "seq3_10", "seq2_11"];
 
         for (name, seq) in expected.iter().zip(SEQS) {
-            let f = td.path(&format!("{}.fasta.gz", name));
+            let f = td.path(&format!("{name}.fasta.gz"));
             assert_eq!(f.gz_content(), seq);
         }
     });

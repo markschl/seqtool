@@ -307,9 +307,8 @@ impl<R: Rng> IndexSampler<R> {
     ) -> Result<Self, String> {
         if amount * size_of::<usize>() > max_mem {
             return Err(format!(
-                "Not enough memory to sample {} records. \
-                Consider raising the memory limit (-M/--max-mem) or using -p/--prob.",
-                amount
+                "Not enough memory to sample {amount} records. \
+                Consider raising the memory limit (-M/--max-mem) or using -p/--prob."
             ));
         }
         let (i, reservoir) = pre_sampled.unwrap_or((0, Vec::with_capacity(amount)));

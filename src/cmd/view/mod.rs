@@ -41,7 +41,7 @@ pub fn run(mut cfg: Config, args: ViewCommand) -> CliResult<()> {
             args.color.truecolor.unwrap_or_else(has_truecolor),
             has_utf8(),
         )
-        .textcols(args.color.textcols.0.clone(), args.color.textcols.1.clone())?
+        .textcols(args.color.textcols.0, args.color.textcols.1)?
         .color_config(bg, fg)
         .bold(args.general.bold || bold);
 

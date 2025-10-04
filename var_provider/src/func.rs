@@ -29,18 +29,12 @@ impl_from_arg!(String, |s: &str| Ok::<_, String>(s.to_string()), "a string");
 
 #[inline(never)]
 pub fn invalid_value<V: Display>(var_name: &str, arg_name: &str, value: V) -> String {
-    format!(
-        "Invalid value for argument '{}' of function '{}': '{}'",
-        arg_name, var_name, value
-    )
+    format!("Invalid value for argument '{arg_name}' of function '{var_name}': '{value}'")
 }
 
 #[inline(never)]
 pub fn missing_argument(var_name: &str, arg_name: &str) -> String {
-    format!(
-        "The function '{}' is missing the argument '{}'",
-        var_name, arg_name
-    )
+    format!("The function '{var_name}' is missing the argument '{arg_name}'")
 }
 
 #[inline(never)]

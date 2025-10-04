@@ -16,8 +16,7 @@ where
         _ => {
             return Err(format!(
                 "Only DNA/RNA sequences can be reverse-complemented, but the sequence type \
-                is '{}'. Wrongly recognized sequence types can be adjusted with `--seqtype`.",
-                seqtype
+                is '{seqtype}'. Wrongly recognized sequence types can be adjusted with `--seqtype`."
             ))
         }
     };

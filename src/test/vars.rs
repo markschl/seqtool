@@ -120,10 +120,7 @@ fn attrs() {
     fails(
         &[".", "-a", "b={attr('a')}"],
         format!(">seq a={NA}\nSEQ\n"),
-        &format!(
-            "value for attribute 'a' is '{}', which is reserved for missing values",
-            NA
-        ),
+        &format!("value for attribute 'a' is '{NA}', which is reserved for missing values"),
     );
 
     #[cfg(feature = "expr")]

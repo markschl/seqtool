@@ -26,7 +26,7 @@ impl Color {
         parse_color(s).map(Self::from_rgb)
     }
 
-    pub fn to_ratatui(&self, rgb: bool) -> ratatui::style::Color {
+    pub fn to_ratatui(self, rgb: bool) -> ratatui::style::Color {
         if rgb {
             ratatui::style::Color::Rgb(self.rgb.0, self.rgb.1, self.rgb.2)
         } else {
@@ -34,7 +34,7 @@ impl Color {
         }
     }
 
-    pub fn to_crossterm(&self, rgb: bool) -> crossterm::style::Color {
+    pub fn to_crossterm(self, rgb: bool) -> crossterm::style::Color {
         if rgb {
             crossterm::style::Color::Rgb {
                 r: self.rgb.0,
@@ -69,8 +69,8 @@ pub fn choose_fg(fg_dark: &Color, fg_bright: &Color, bg_col: &Color) -> Color {
     let bright_l = palette::Lab::<D65, _>::from(fg_bright.rgb).l as f32;
     let bg = palette::Lab::<D65, _>::from(bg_col.rgb).l as f32;
     if (bright_l - bg) / (bright_l - dark_l) < 0.3 {
-        fg_dark.clone()
+        *fg_dark
     } else {
-        fg_bright.clone()
+        *fg_bright
     }
 }

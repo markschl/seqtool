@@ -115,8 +115,7 @@ impl FromStr for CompressionFormat {
                 .map(|(names, _)| names.join("/"))
                 .join(", ");
             Err(format!(
-                "Unknown compression format: {}. Valid formats are: {}.",
-                s, fmt_list
+                "Unknown compression format: {s}. Valid formats are: {fmt_list}."
             ))
         }
     }

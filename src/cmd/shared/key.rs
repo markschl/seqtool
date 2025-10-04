@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io;
 use std::ops::{Deref, DerefMut};
 
 use deepsize::DeepSizeOf;
@@ -112,7 +113,7 @@ impl fmt::Display for Key {
             if i > 0 {
                 write!(f, ",")?;
             }
-            write!(f, "{}", k)?;
+            write!(f, "{k}")?;
         }
         Ok(())
     }

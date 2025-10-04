@@ -64,11 +64,10 @@ pub fn guess_seqtype_or_fail(
 ) -> Result<SeqTypeInfo, String> {
     let info = guess_seqtype(text, hint).map_err(|hint| {
         format!(
-            "The sequence type '{}' provided with `--seqtype` does not appear to be valid \
+            "The sequence type '{hint}' provided with `--seqtype` does not appear to be valid \
             for the given sequence. Please make sure that only valid characters are used and \
             note that only standard ambiguities according to IUPAC are recognized \
-            (e.g. see https://bioinformatics.org/sms/iupac.html).",
-            hint
+            (e.g. see https://bioinformatics.org/sms/iupac.html)."
         )
     })?;
     if !allow_other && info.seqtype == Other {

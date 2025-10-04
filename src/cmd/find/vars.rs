@@ -527,10 +527,9 @@ impl VarProvider for FindVars {
                 0
             } else if pattern_cfg.algorithm != Algorithm::Regex {
                 return Err(format!(
-                    "Regex group '{}' was requested, but groups other than '0' (the whole hit) \
+                    "Regex group '{match_group}' was requested, but groups other than '0' (the whole hit) \
                     are not supported for non-regex patterns. Did you forget to enable regex \
-                    matching (`-r/--regex`)?",
-                    match_group
+                    matching (`-r/--regex`)?"
                 ));
             } else {
                 cfg.resolve_named_group(match_group)?

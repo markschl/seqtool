@@ -44,7 +44,7 @@ fn replace() {
 #[test]
 fn id_desc() {
     cmp(&["find", "-if", "seq1"], &*FASTA, records!(0));
-    cmp(&["find", "--desc", "-f", "p="], &*FASTA, &*FASTA);
+    cmp(&["find", "--desc", "-f", "p="], &*FASTA, &FASTA);
 }
 
 #[test]
@@ -398,8 +398,8 @@ fn rng() {
     cmp(&["find", "-f", "--rng", ":3", "TTGG"], &*FASTA, "");
     cmp(&["find", "-f", "--rng", "2:5", "TTGG"], &*FASTA, "");
     cmp(&["find", "-f", "--rng", "2:4", "TGGC"], &*FASTA, "");
-    cmp(&["find", "-f", "--rng", "-5:", "GATCA"], &*FASTA, &*FASTA);
-    cmp(&["find", "-f", "--rng", "16:-7", "CGAT"], &*FASTA, &*FASTA);
+    cmp(&["find", "-f", "--rng", "-5:", "GATCA"], &*FASTA, &FASTA);
+    cmp(&["find", "-f", "--rng", "16:-7", "CGAT"], &*FASTA, &FASTA);
 }
 
 #[test]

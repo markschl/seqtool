@@ -1,6 +1,5 @@
-use std::mem::replace;
+use std::fmt::Write;
 use std::str;
-use std::{fmt::Write, iter::repeat};
 
 use palette::named;
 use ratatui::{
@@ -110,7 +109,7 @@ impl Formatter {
             for symbol in symbols {
                 let col = map.get(symbol as usize).unwrap().to_ratatui(self.truecolor);
                 let style = Style::default().bg(col);
-                spans.push(Span::styled(format!("{} ", symbol), style));
+                spans.push(Span::styled(format!("{symbol} "), style));
             }
             spans
         })
@@ -171,7 +170,7 @@ impl Formatter {
         if overflow {
             id_out.push(if self.utf8 { ellipsis } else { ' ' });
         } else {
-            id_out.extend(repeat(' ').take(self.id_len as usize - id_len));
+            id_out.extend(std::iter::repeat_n(' ', self.id_len as usize - id_len));
         }
         id_out.push(' ');
 
@@ -197,10 +196,7 @@ impl Formatter {
             for &symbol in segment {
                 let q = qual_iter.as_mut().map(|q| q.next().copied().unwrap());
                 if seq.as_bytes().last().copied() != Some(symbol) || q != prev_q {
-                    line.push_span(Span::styled(
-                        replace(&mut seq, String::new()),
-                        style.clone(),
-                    ));
+                    line.push_span(Span::styled(std::mem::take(&mut seq), style));
                     let mut colors = self.palettes.iter().zip(self.sources).map(|(pal, source)| {
                         source.and_then(|s| {
                             let sym = match s {

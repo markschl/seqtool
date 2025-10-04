@@ -105,7 +105,7 @@ impl fmt::Display for Expression<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::Expr(expr) => write!(f, "{}", expr.script),
-            Expression::SourceFile(path) => write!(f, "file:{}", path),
+            Expression::SourceFile(path) => write!(f, "file:{path}"),
         }
     }
 }

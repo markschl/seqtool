@@ -168,9 +168,8 @@ impl MetaVars {
             .map(|(rdr, vars)| (rdr, vars))
             .ok_or_else(|| {
                 format!(
-                    "Metadata file no. {} was requested by `{}`, \
-                    but only {} metadata source(s) were supplied with -m/--meta",
-                    file_num, func_name, n_readers
+                    "Metadata file no. {file_num} was requested by `{func_name}`, \
+                    but only {n_readers} metadata source(s) were supplied with -m/--meta"
                 )
             })
     }

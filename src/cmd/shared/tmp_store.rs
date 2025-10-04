@@ -97,10 +97,9 @@ impl TmpStore {
     pub fn writer<T>(&mut self, quiet: bool) -> CliResult<TmpWriter<T>> {
         if self.num == TEMP_FILE_WARN_LIMIT && !quiet {
             eprintln!(
-                "Warning: sequence sorting resulted in many temporary files ({}). \
+                "Warning: sequence sorting resulted in many temporary files ({TEMP_FILE_WARN_LIMIT}). \
                 Consider increasing the memory limit (-M/--max-mem). \
-                Supply -q/--quiet to silence this warning.",
-                TEMP_FILE_WARN_LIMIT
+                Supply -q/--quiet to silence this warning."
             )
         }
         if self.num == self.file_limit {

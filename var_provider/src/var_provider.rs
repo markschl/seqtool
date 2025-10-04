@@ -47,7 +47,7 @@ pub trait VarProviderInfo: fmt::Debug {
         // description
         if !Self::DESC.is_empty() {
             for d in textwrap::wrap(Self::DESC, text_width) {
-                writeln!(out, "{}", d)?;
+                writeln!(out, "{d}")?;
             }
         }
         writeln!(out)?;
@@ -60,7 +60,7 @@ pub trait VarProviderInfo: fmt::Debug {
                     if usages.iter().any(|u| u.len() > usage_width - 2) {
                         execute!(out, SetForegroundColor(usage_col))?;
                         for u in usages {
-                            writeln!(out, "{}", u)?;
+                            writeln!(out, "{u}")?;
                         }
                         execute!(out, ResetColor)?;
                         for line in textwrap::wrap(info.description, text_width - usage_width) {
@@ -104,20 +104,20 @@ pub trait VarProviderInfo: fmt::Debug {
             if examples.len() > 1 {
                 ex.push('s');
             }
-            writeln!(out, "{}", ex)?;
+            writeln!(out, "{ex}")?;
             writeln!(out)?;
             writeln!(out, "{1:-<0$}", ex.len(), "")?;
             for example in examples {
                 let mut desc = example.description.to_string();
                 desc.push(':');
                 for d in textwrap::wrap(&desc, text_width) {
-                    writeln!(out, "{}", d)?;
+                    writeln!(out, "{d}")?;
                 }
                 execute!(out, SetForegroundColor(usage_col))?;
                 writeln!(out, "> {}", example.command)?;
                 if let Some(output) = example.output {
                     execute!(out, SetForegroundColor(cmd_output_col))?;
-                    writeln!(out, "{}", output)?;
+                    writeln!(out, "{output}")?;
                 }
                 execute!(out, ResetColor)?;
                 writeln!(out)?;
@@ -167,12 +167,12 @@ pub trait VarProviderInfo: fmt::Debug {
             if examples.len() > 1 {
                 ex.push('s');
             }
-            writeln!(out, "### {}", ex)?;
+            writeln!(out, "### {ex}")?;
             for example in examples {
                 writeln!(out, "{}:", example.description)?;
                 writeln!(out, "```bash\n{}\n```", example.command)?;
                 if let Some(output) = example.output {
-                    writeln!(out, "```\n{}\n```", output)?;
+                    writeln!(out, "```\n{output}\n```")?;
                 }
             }
         }

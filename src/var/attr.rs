@@ -211,9 +211,8 @@ impl Attributes {
         #[inline(never)]
         fn mod_err(what: &str) -> CliError {
             format!(
-                "Attempting to modify key=value attribute(s) in the record {0}, \
-                but the {0} is simultaneously modified in another way",
-                what
+                "Attempting to modify key=value attribute(s) in the record {what}, \
+                but the {what} is simultaneously modified in another way"
             )
             .into()
         }
@@ -372,22 +371,20 @@ impl Parser {
                         || matches!(write_action, Some(AttrWriteAction::Delete))
                     {
                         return Err(format!(
-                            "The FASTA/FASTQ header attribute '{}' is supposed to be deleted \
-                            but the '{}' attribute is used in a different way. \
+                            "The FASTA/FASTQ header attribute '{name}' is supposed to be deleted \
+                            but the '{name}' attribute is used in a different way. \
                             Make sure to use `attr_del` consistently at all places, \
                             and not to write this attribute to the output \
-                            (`-a/--attr {}=...`) at the same time.",
-                            name, name, name
+                            (`-a/--attr {name}=...`) at the same time."
                         ));
                     }
                     match write_action {
                         Some(AttrWriteAction::Append(_)) => {
                             return Err(format!(
-                                "`-A/--attr-append` '{}=...' is used to append a FASTA/FASTQ header, \
-                                but the '{}' attribute is also used in a different way. \
+                                "`-A/--attr-append` '{name}=...' is used to append a FASTA/FASTQ header, \
+                                but the '{name}' attribute is also used in a different way. \
                                 Do not combine `attr()`/`attr_del()`/`has_attr()` functions or '-a/--attr' \
                                 with `-A/--attr-append` for the same attribute name.",
-                                name, name,
                             ))
                         }
                         Some(AttrWriteAction::Edit(_)) => {

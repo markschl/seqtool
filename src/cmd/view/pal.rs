@@ -47,9 +47,8 @@ pub trait PaletteType {
                 out.push((symbols, col))
             } else {
                 return Err(format!(
-                    "Invalid color mapping: '{}'. Use 'WHAT:rrggbb' \
-                    for mapping WHAT to a given color (in hex code)",
-                    c
+                    "Invalid color mapping: '{c}'. Use 'WHAT:rrggbb' \
+                    for mapping WHAT to a given color (in hex code)"
                 ));
             }
         }
@@ -125,9 +124,8 @@ impl PaletteType for QualPaletteType {
             // parse quality score
             let qual: u8 = qual.parse().map_err(|_| {
                 format!(
-                    "Invalid quality code: '{}'. Expecting Phred scores, \
-                    usually between 0 and ~42",
-                    qual
+                    "Invalid quality code: '{qual}'. Expecting Phred scores, \
+                    usually between 0 and ~45"
                 )
             })?;
             knots.push(qual as f32);

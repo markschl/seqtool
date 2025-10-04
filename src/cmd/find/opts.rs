@@ -244,10 +244,9 @@ impl SearchConfig {
             if let Some(n) = num {
                 if n != _n {
                     return Err(format!(
-                        "Named group '{}' does not resolve to the same group number in all patterns.\
+                        "Named group '{group}' does not resolve to the same group number in all patterns.\
                         This is a requirement in the case of multiple regex patterns. \
                         Consider using simple group numbers instead.",
-                        group,
                     ));
                 }
             } else {
