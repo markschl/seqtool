@@ -15,21 +15,25 @@ use super::VarBuilder;
 /// delimiter is only searched in text inbetween vars/functions.
 /// If `raw_var` is true, the parser will attempt to find and register variables/functions
 /// **without** braces around them, falling back to text mode if registration fails.
-pub fn register_var_list(
-    text: &str,
+pub fn register_var_list<'a>(
+    text: &'a str,
     builder: &mut VarBuilder,
     out: &mut Vec<VarString>,
+    mut fragment_out: Option<&mut Vec<&'a str>>,
     raw_var: bool,
     require_vars: bool,
 ) -> Result<(), String> {
-    for frags in parse_varstring_list(text, raw_var)? {
+    for (frags, text) in parse_varstring_list(text, raw_var)? {
         let (vs, _) = VarString::register_parsed(&frags, builder)?;
+        if let Some(out) = fragment_out.as_mut() {
+            out.push(text);
+        }
         if require_vars && vs.len() == 1 {
             if let VarStringSegment::Text(t) = &vs[0] {
                 return fail!(
                     "The following string contains no variables/functions: '{}' \
                     Is it possible that you misspelled the variable/function name? \
-                    See also st <command> --help-vars.",
+                    See also st <command> -V/--help-vars.",
                     String::from_utf8_lossy(t)
                 );
             }

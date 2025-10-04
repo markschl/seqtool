@@ -1,6 +1,6 @@
+use std::borrow::Borrow;
 use std::cell::Cell;
 use std::io;
-use std::path::Path;
 
 use crate::cli::CommonArgs;
 use crate::context::SeqContext;
@@ -141,11 +141,11 @@ impl Config {
     ///
     /// Writing in a background thread is not possible, since that
     /// would require a scoped function.
-    pub fn io_writer<P>(&mut self, path: P) -> CliResult<Box<dyn WriteFinish>>
+    pub fn io_writer<K>(&mut self, kind: K) -> CliResult<Box<dyn WriteFinish>>
     where
-        P: AsRef<Path>,
+        K: Borrow<IoKind>,
     {
-        self.ctx.io_writer(path)
+        self.ctx.io_writer(kind)
     }
 
     /// Provides an io Writer and `Vars` in a scope and takes care of cleanup (flushing)
@@ -231,6 +231,8 @@ impl Config {
         let cfg2 = &self.input_config[1];
         thread_reader(&cfg1.reader, |io_rdr1| {
             thread_reader(&cfg2.reader, |io_rdr2| {
+                // self.ctx.init_input(in_opts1, seq_opts1)?;
+                // self.ctx.init_input(in_opts2, seq_opts2)?;
                 let mut rdr1 = get_seq_reader(io_rdr1, &cfg1.format)?;
                 let mut rdr2 = get_seq_reader(io_rdr2, &cfg2.format)?;
                 scope(&mut rdr1, &mut rdr2, &mut self.ctx)

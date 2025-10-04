@@ -615,66 +615,93 @@ mod tests {
             ]),
         };
         let exp = vec![
-            vec![
-                Text("a "),
-                Expr(Expression::SourceFile("path with spaces.js".to_string())),
-                Text("b"),
-            ],
-            vec![Var(VarFunc::new(
-                "func",
-                Some(vec![
-                    Arg::Func(VarFunc::new("c", None, 39..40)),
-                    "d".into(),
-                    "e".into(),
-                ]),
-                34..49,
-            ))],
-            vec![VarOrText {
-                func: VarFunc::new("_f", None, 51..53),
-                text: "_f",
-            }],
-            vec![],
-            vec![VarOrText {
-                func: VarFunc::new(
-                    "num",
-                    Some(vec![Arg::Func(VarFunc::new(
-                        "g",
-                        Some(vec![Arg::Func(VarFunc::new("a", None, 61..62))]),
-                        59..63,
-                    ))]),
-                    55..64,
-                ),
-                text: "num(g(a))",
-            }],
-            vec![VarOrText {
-                func: VarFunc::new("raw", Some(vec!["var".into()]), 65..75),
-                text: "raw('var')",
-            }],
-            vec![Expr(Expression::Expr(num_ast.clone())), Text(" rest")],
+            (
+                vec![
+                    Text("a "),
+                    Expr(Expression::SourceFile("path with spaces.js".to_string())),
+                    Text("b"),
+                ],
+                "a {file: path with spaces.js }b",
+            ),
+            (
+                vec![Var(VarFunc::new(
+                    "func",
+                    Some(vec![
+                        Arg::Func(VarFunc::new("c", None, 39..40)),
+                        "d".into(),
+                        "e".into(),
+                    ]),
+                    34..49,
+                ))],
+                "{ func(c,'d','e')}",
+            ),
+            (
+                vec![VarOrText {
+                    func: VarFunc::new("_f", None, 51..53),
+                    text: "_f",
+                }],
+                "_f",
+            ),
+            (vec![], ""),
+            (
+                vec![VarOrText {
+                    func: VarFunc::new(
+                        "num",
+                        Some(vec![Arg::Func(VarFunc::new(
+                            "g",
+                            Some(vec![Arg::Func(VarFunc::new("a", None, 61..62))]),
+                            59..63,
+                        ))]),
+                        55..64,
+                    ),
+                    text: "num(g(a))",
+                }],
+                "num(g(a))",
+            ),
+            (
+                vec![VarOrText {
+                    func: VarFunc::new("raw", Some(vec!["var".into()]), 65..75),
+                    text: "raw('var')",
+                }],
+                "raw('var')",
+            ),
+            (
+                vec![Expr(Expression::Expr(num_ast.clone())), Text(" rest")],
+                "{ num(g)/h(i, 'j')+f(['ab']) } rest",
+            ),
         ];
         assert_eq!(res.unwrap(), exp);
         // enforcing { braces } around every item
         let res = parse_varstring_list(vs, false);
         let exp = vec![
-            vec![
-                Text("a "),
-                Expr(Expression::SourceFile("path with spaces.js".to_string())),
-                Text("b"),
-            ],
-            vec![Var(VarFunc::new(
-                "func",
-                Some(vec![
-                    Arg::Func(VarFunc::new("c", None, 39..40)),
-                    "d".into(),
-                    "e".into(),
-                ]),
-                34..49,
-            ))],
-            vec![Text("_f")],
-            vec![],
-            vec![Text("num(g(a))")],
-            vec![Text("raw('var')")],
-            vec![Expr(Expression::Expr(num_ast.clone())), Text(" rest")],
+            (
+                vec![
+                    Text("a "),
+                    Expr(Expression::SourceFile("path with spaces.js".to_string())),
+                    Text("b"),
+                ],
+                "a {file: path with spaces.js }b",
+            ),
+            (
+                vec![Var(VarFunc::new(
+                    "func",
+                    Some(vec![
+                        Arg::Func(VarFunc::new("c", None, 39..40)),
+                        "d".into(),
+                        "e".into(),
+                    ]),
+                    34..49,
+                ))],
+                "{ func(c,'d','e')}",
+            ),
+            (vec![Text("_f")], "_f"),
+            (vec![], ""),
+            (vec![Text("num(g(a))")], "num(g(a))"),
+            (vec![Text("raw('var')")], "raw('var')"),
+            (
+                vec![Expr(Expression::Expr(num_ast.clone())), Text(" rest")],
+                "{ num(g)/h(i, 'j')+f(['ab']) } rest",
+            ),
         ];
         assert_eq!(res.unwrap(), exp);
     }

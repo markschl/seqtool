@@ -63,7 +63,7 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
     let mut var_key = Vec::with_capacity(1);
     cfg.build_vars(|b| {
         for key in &args.key {
-            register_var_list(key.as_ref(), b, &mut var_key, true, true)?;
+            register_var_list(key.as_ref(), b, &mut var_key, None, true, true)?;
         }
         Ok::<_, String>(())
     })?;
@@ -75,7 +75,7 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
             let mut vs = Vec::with_capacity(1);
             cfg.build_vars(|b| {
                 for f in fields {
-                    register_var_list(f, b, &mut vs, true, true)?;
+                    register_var_list(f, b, &mut vs, None, true, true)?;
                 }
                 Ok::<_, String>(())
             })?;

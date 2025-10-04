@@ -22,7 +22,7 @@ impl CsvWriter {
 
         // progressively parse fields; this is necessary because there can be
         // commas in functions as well
-        register_var_list(field_list, builder, &mut out.fields, true, true)?;
+        register_var_list(field_list, builder, &mut out.fields, None, true, true)?;
         Ok(out)
     }
 }

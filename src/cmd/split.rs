@@ -81,7 +81,7 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
     let counts_file = args
         .counts
         .as_ref()
-        .map(|path| cfg.io_writer(path))
+        .map(|path| cfg.io_writer(IoKind::from_path(path)?))
         .transpose()?;
 
     // register variable provider
@@ -134,7 +134,7 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
             create_dir_all(par)?;
         }
 
-        let io_writer = ctx.io_writer(path_str)?;
+        let io_writer = ctx.io_writer(IoKind::from_path(path_str)?)?;
         outfiles.insert(path.clone(), (io_writer, 1usize));
         let (io_writer, _) = outfiles.get_mut(&path).unwrap();
         format_writer.write(&record, io_writer, ctx)?;

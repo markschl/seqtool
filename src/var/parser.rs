@@ -294,23 +294,25 @@ pub fn parse_varstring(text: &str, raw_var: bool) -> Result<Vec<ParsedVarStringS
     Ok(frags)
 }
 
-pub fn parse_varstring_list(
-    text: &str,
+pub fn parse_varstring_list<'a>(
+    text: &'a str,
     raw_var: bool,
-) -> Result<Vec<Vec<ParsedVarStringSegment>>, String> {
+) -> Result<Vec<(Vec<ParsedVarStringSegment<'a>>, &'a str)>, String> {
     let mut input = LocatingSlice::new(text);
-    let frags = varstring_list(raw_var).parse_next(&mut input).unwrap();
+    let out = varstring_list(raw_var).parse_next(&mut input).unwrap();
     if input.len() > 0 {
         return Err(VarStringParseErr::new(&input).to_string());
     }
     // dbg!("varstring list", &frags);
-    Ok(frags)
+    Ok(out)
 }
 
 fn varstring_list<'a, S: LocatedStream<'a>>(
     raw_var: bool,
-) -> impl FnMut(&mut S) -> WResult<Vec<Vec<ParsedVarStringSegment<'a>>>> {
-    move |input: &mut S| separated(1.., varstring(raw_var, Some(',')), ',').parse_next(input)
+) -> impl FnMut(&mut S) -> WResult<Vec<(Vec<ParsedVarStringSegment<'a>>, &'a str)>> {
+    move |input: &mut S| {
+        separated(1.., varstring(raw_var, Some(',')).with_taken(), ',').parse_next(input)
+    }
 }
 
 fn varstring<'a, S: LocatedStream<'a>>(
@@ -502,44 +504,59 @@ mod tests {
         let input = "{func('a', b, 1.24)}_rest , id , {id}, a(";
         let res = parse_varstring_list(input, false);
         let exp = vec![
-            vec![
-                Var(VarFunc::new(
-                    "func",
-                    Some(vec![
-                        "a".into(),
-                        Arg::Func(VarFunc::new("b", None, 11..12)),
-                        "1.24".into(),
-                    ]),
-                    1..19,
-                )),
-                Text("_rest "),
-            ],
-            vec![Text(" id ")],
-            vec![Text(" "), Var(VarFunc::new("id", None, 34..36))],
-            vec![Text(" a(")],
+            (
+                vec![
+                    Var(VarFunc::new(
+                        "func",
+                        Some(vec![
+                            "a".into(),
+                            Arg::Func(VarFunc::new("b", None, 11..12)),
+                            "1.24".into(),
+                        ]),
+                        1..19,
+                    )),
+                    Text("_rest "),
+                ],
+                "{func('a', b, 1.24)}_rest ",
+            ),
+            (vec![Text(" id ")], " id "),
+            (
+                vec![Text(" "), Var(VarFunc::new("id", None, 34..36))],
+                " {id}",
+            ),
+            (vec![Text(" a(")], " a("),
         ];
         assert_eq!(res.unwrap(), exp);
         // allowing parts without { braces }
         let res = parse_varstring_list(input, true);
         let exp = vec![
-            vec![
-                Var(VarFunc::new(
-                    "func",
-                    Some(vec![
-                        "a".into(),
-                        Arg::Func(VarFunc::new("b", None, 11..12)),
-                        "1.24".into(),
-                    ]),
-                    1..19,
-                )),
-                Text("_rest "),
-            ],
-            vec![VarOrText {
-                func: VarFunc::new("id", None, 28..30),
-                text: " id ",
-            }],
-            vec![Text(" "), Var(VarFunc::new("id", None, 34..36))],
-            vec![Text(" a(")],
+            (
+                vec![
+                    Var(VarFunc::new(
+                        "func",
+                        Some(vec![
+                            "a".into(),
+                            Arg::Func(VarFunc::new("b", None, 11..12)),
+                            "1.24".into(),
+                        ]),
+                        1..19,
+                    )),
+                    Text("_rest "),
+                ],
+                "{func('a', b, 1.24)}_rest ",
+            ),
+            (
+                vec![VarOrText {
+                    func: VarFunc::new("id", None, 28..30),
+                    text: " id ",
+                }],
+                " id ",
+            ),
+            (
+                vec![Text(" "), Var(VarFunc::new("id", None, 34..36))],
+                " {id}",
+            ),
+            (vec![Text(" a(")], " a("),
         ];
         assert_eq!(res.unwrap(), exp);
     }

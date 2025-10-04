@@ -1,5 +1,5 @@
+use std::borrow::Borrow;
 use std::cell::Cell;
-use std::path::Path;
 
 use crate::error::CliResult;
 use crate::io::input::InputConfig;
@@ -149,12 +149,12 @@ impl SeqContext {
     // TODO: this is mostly useful for the 'split' command, which always has the
     // same output format and compression settings. It may not be flexible enough
     // for all future uses.
-    pub fn io_writer<P>(&self, path: P) -> CliResult<Box<dyn WriteFinish>>
+    pub fn io_writer<K>(&self, kind: K) -> CliResult<Box<dyn WriteFinish>>
     where
-        P: AsRef<Path>,
+        K: Borrow<IoKind>,
     {
-        let kind = IoKind::from_path(path)?;
-        self.check_stdout(&kind)?;
+        let kind = kind.borrow();
+        self.check_stdout(kind)?;
         let w = kind.io_writer(&self.output_opts)?;
         Ok(w)
     }

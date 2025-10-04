@@ -8,6 +8,7 @@ use rkyv::{Archive, Deserialize, Serialize};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::vec_buf::VecFactory;
+use crate::io::IoKind;
 use crate::var::varstring::register_var_list;
 use crate::CliError;
 
@@ -40,7 +41,12 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
     let mut map_writer = args
         .map_out
         .as_ref()
-        .map(|path| Ok::<_, CliError>(MapWriter::new(cfg.io_writer(path)?, args.map_fmt)))
+        .map(|path| {
+            Ok::<_, CliError>(MapWriter::new(
+                cfg.io_writer(IoKind::from_path(path)?)?,
+                args.map_fmt,
+            ))
+        })
         .transpose()?;
 
     cfg.set_custom_varmodule(Box::<UniqueVars>::default())?;
@@ -50,7 +56,7 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
     cfg.with_io_writer(|io_writer, mut cfg| {
         // assemble key
         let mut varstring_keys = Vec::with_capacity(1);
-        cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, true, true))?;
+        cfg.build_vars(|b| register_var_list(&args.key, b, &mut varstring_keys, None, true, true))?;
         let mut key_values = Key::with_size(varstring_keys.len());
         let mut text_buf = vec![Vec::new(); varstring_keys.len()];
         // Depending on the CLI options, different information is needed,

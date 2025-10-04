@@ -90,7 +90,7 @@ where
     let mut var_keys = Vec::with_capacity(1);
     cfg.build_vars(|b| {
         for key in keys {
-            register_var_list(key.as_ref(), b, &mut var_keys, true, true)?;
+            register_var_list(key.as_ref(), b, &mut var_keys, None, true, true)?;
         }
         Ok::<_, String>(())
     })?;
