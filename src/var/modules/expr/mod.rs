@@ -48,7 +48,7 @@ pub trait ExprContext: Default {
     }
 }
 
-pub fn code_or_file(expr: &str) -> Result<Cow<str>, String> {
+pub fn code_or_file(expr: &'_ str) -> Result<Cow<'_, str>, String> {
     let expr = expr.trim();
     let prefix = "file:";
     #[allow(clippy::manual_strip)]

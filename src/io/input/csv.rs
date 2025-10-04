@@ -178,7 +178,7 @@ impl Record for CsvRecord {
         (self.id(), self.desc())
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         let (id, desc) = self.id_desc();
         RecordHeader::IdDesc(
             MaybeModified::new(id, false),

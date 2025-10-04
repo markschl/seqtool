@@ -67,7 +67,7 @@ impl Record for FastqRecord<'_> {
         self.header_parser.id_desc(self.rec.head())
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         if let Some((id, desc)) = self.header_parser.parsed_id_desc(self.rec.head()) {
             RecordHeader::IdDesc(
                 MaybeModified::new(id, false),

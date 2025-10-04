@@ -67,7 +67,7 @@ impl Record for FastaRecord<'_> {
         self.header_parser.id_desc(self.rec.head())
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         if let Some((id, desc)) = self.header_parser.parsed_id_desc(self.rec.head()) {
             RecordHeader::IdDesc(
                 MaybeModified::new(id, false),
@@ -98,7 +98,7 @@ impl Record for FastaRecord<'_> {
         self.rec.num_seq_lines() > 1
     }
 
-    fn seq_segments(&self) -> SeqLineIter {
+    fn seq_segments(&'_ self) -> SeqLineIter<'_> {
         SeqLineIter::Fasta(self.rec.seq_lines())
     }
 }

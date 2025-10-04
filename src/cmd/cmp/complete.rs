@@ -86,7 +86,7 @@ impl<R> Records1Map<R> {
         }
     }
 
-    fn iter(&self) -> Records1MapIter<R> {
+    fn iter(&'_ self) -> Records1MapIter<'_, R> {
         match self {
             Records1Map::Simple(m) => Records1MapIter::Simple(m.iter()),
             Records1Map::WithDiffFields0(m) => Records1MapIter::WithDiffFields0(m.iter()),

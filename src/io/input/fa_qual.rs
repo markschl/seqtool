@@ -150,7 +150,7 @@ impl Record for FaQualRecord<'_> {
         self.fa_rec.id_desc()
     }
 
-    fn current_header(&self) -> RecordHeader {
+    fn current_header(&'_ self) -> RecordHeader<'_> {
         self.fa_rec.current_header()
     }
 
@@ -174,7 +174,7 @@ impl Record for FaQualRecord<'_> {
         self.fa_rec.has_seq_lines()
     }
 
-    fn seq_segments(&self) -> SeqLineIter {
+    fn seq_segments(&'_ self) -> SeqLineIter<'_> {
         self.fa_rec.seq_segments()
     }
 }

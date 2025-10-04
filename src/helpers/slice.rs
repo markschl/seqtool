@@ -1,6 +1,6 @@
 use std::mem::replace;
 
-pub fn split_text(text: &[u8], sep: u8) -> SplitIter {
+pub fn split_text(text: &'_ [u8], sep: u8) -> SplitIter<'_> {
     SplitIter { sep, text }
 }
 
