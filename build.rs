@@ -23,5 +23,5 @@ fn write_js() {
         .join("_js_include.rs");
     let mut out = BufWriter::new(File::create(path).unwrap());
 
-    writeln!(&mut out, "static JS_INCLUDE: &str = r#\"{}\"#;", js_include).unwrap();
+    writeln!(&mut out, "static JS_INCLUDE: &str = r#\"{js_include}\"#;").unwrap();
 }
