@@ -142,8 +142,8 @@ name = "st"
 lto = "thin"
 codegen-units = 1
 panic = "abort"
-#strip = true
-debug = true
+strip = true
+#debug = true
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
