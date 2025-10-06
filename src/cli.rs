@@ -85,8 +85,6 @@ impl Cli {
             Pass(mut opts) => run!(pass, opts),
             #[cfg(any(feature = "all-commands", feature = "view"))]
             View(mut opts) => run!(view, opts),
-            #[cfg(any(feature = "all-commands", feature = "view"))]
-            Hist(mut opts) => run!(hist, opts),
             #[cfg(any(feature = "all-commands", feature = "count"))]
             Count(mut opts) => run!(count, opts),
             #[cfg(any(feature = "all-commands", feature = "stat"))]
@@ -296,9 +294,6 @@ pub enum SubCommand {
     /// View biological sequences, colored by base / amino acid, or by sequence quality.
     #[cfg(any(feature = "all-commands", feature = "view"))]
     View(cmd::view::ViewCommand),
-    /// Display a histogram of categorical or continuous record properties.
-    #[cfg(any(feature = "all-commands", feature = "hist"))]
-    Hist(cmd::hist::HistCommand),
     /// Count all records in the input (total or categorized by variables/functions)
     #[cfg(any(feature = "all-commands", feature = "count"))]
     Count(cmd::count::CountCommand),
