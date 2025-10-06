@@ -1,4 +1,4 @@
-## v0.4.0-beta.4 (2025-10-04)
+## v0.4.0-beta.4 (2025-10-06)
 
 * *Seqtool* is now dual-licensed under MIT OR Apache-2.0 ([9b0ebf0](https://github.com/markschl/seqtool/commit/9b0ebf0b9fc49f7d5178446989626672fc3be44b))
 * Added a *cmp* command ([5cf0b06](https://github.com/markschl/seqtool/commit/5cf0b06e9a13c26e33dded6d67c71966fd0c8ce1))
