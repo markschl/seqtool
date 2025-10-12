@@ -1,9 +1,9 @@
 ## v0.4.0-beta.4 (2025-10-06)
 
 * *Seqtool* is now dual-licensed under MIT OR Apache-2.0 ([9b0ebf0](https://github.com/markschl/seqtool/commit/9b0ebf0b9fc49f7d5178446989626672fc3be44b))
-* Added a *cmp* command ([5cf0b06](https://github.com/markschl/seqtool/commit/5cf0b06e9a13c26e33dded6d67c71966fd0c8ce1))
-  for comparing sequence sets
-* Improved *view* command: implemented an internal with more features, which also works on
+* Added a *cmp* command for comparing sequence sets
+  ([5cf0b06](https://github.com/markschl/seqtool/commit/5cf0b06e9a13c26e33dded6d67c71966fd0c8ce1))
+* Improved *view* command: implemented an internal pager with more features, which also works on
   Windows ([a1d6934](https://github.com/markschl/seqtool/commit/a1d69348e14cb1e8768e278797f559587783a0be))
 * Improvements to the *find* command
   - Reviewed/adjusted fuzzy pattern matching. 
@@ -19,8 +19,7 @@
   - Slight behaviour change in case of pattern anchoring leading to faster searches
    ([5da8427](https://github.com/markschl/seqtool/commit/5da8427ff2443e952addccb4f6c57ff4e11e4f89))
 * Small bugfixes ([99bf13e](https://github.com/markschl/seqtool/commit/99bf13edba77f1cf2e40b1baf866047b6c024795),
-  [f4b1966](https://github.com/markschl/seqtool/commit/f4b1966a7e23f2738ddc564cb72b02db7966b117)
-  )
+  [f4b1966](https://github.com/markschl/seqtool/commit/f4b1966a7e23f2738ddc564cb72b02db7966b117))
 * Numerous smaller improvements & dependency updates; some dependencies were dropped
 
 ## v0.4.0-beta.3 (2025-05-01)
