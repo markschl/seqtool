@@ -8,11 +8,6 @@ The standalone binary (5-7 MB) is simply named `st` to save some typing.
 
 
 
-## Detailed documentation
-
-**See [this page](https://markschl.github.io/seqtool-docs)**
-
-
 ## Documentation
 
 **See https://markschl.github.io/seqtool-docs**
