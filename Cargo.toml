@@ -41,8 +41,8 @@ bzip2 = { version = "0.6", optional = true }
 lz4 = { version = "1.28", optional = true }
 zstd = { version = "0.13", default-features = false, features = ["zdict_builder"], optional = true }
 # variables / functions
-var_provider = { path = "var_provider" }
-variable_enum_macro = { path = "var_provider/variable_enum_macro" }
+var_provider = { path = "var_provider", version = "0.4.0" }
+variable_enum_macro = { path = "var_provider/variable_enum_macro", version = "0.4.0" }
 # JS expressions
 rquickjs = { version = "0.10", features=["classes", "properties", "rust-alloc", "macro"], optional=true }
 phf = { version = "0.13", features = ["macros"], optional = true }
