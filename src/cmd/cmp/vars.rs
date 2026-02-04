@@ -18,9 +18,9 @@ variable_enum! {
     ///
     /// `st cmp input1.fasta input2.fasta -o cmp.fasta -a cat={category}`
     ///
-    /// common  942
-    /// unique1  51
-    /// unique2  18
+    /// common: 942
+    /// unique1: 51
+    /// unique2: 18
     CmpVar {
         /// Record category:
         /// 'common' (record present in both files based on comparison of keys),
