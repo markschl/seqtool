@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, Report};
 use crate::config::Config;
 use crate::error::CliResult;
 
@@ -10,7 +10,7 @@ pub struct PassCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, _args: PassCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, _args: PassCommand) -> CliResult<Option<Box<dyn Report>>> {
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read(|record, ctx| {
@@ -18,4 +18,5 @@ pub fn run(mut cfg: Config, _args: PassCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

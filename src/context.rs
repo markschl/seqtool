@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::Cell;
 
+use crate::cli::BasicStats;
 use crate::error::CliResult;
 use crate::io::input::InputConfig;
 use crate::io::output::{OutputOpts, WriteFinish};
@@ -58,6 +59,8 @@ pub struct SeqContext {
     output_opts: OutputOpts,
     /// Set to `true` as soon as STDOUT is effectively used
     stdout_in_use: Cell<bool>,
+    // for statistics
+    pub n_records: u64,
 }
 
 impl SeqContext {
@@ -73,6 +76,7 @@ impl SeqContext {
             qual_converter: QualConverter::new(qual_format),
             output_opts,
             stdout_in_use: Cell::new(false),
+            n_records: 0,
         }
     }
 
@@ -89,6 +93,11 @@ impl SeqContext {
     #[inline(always)]
     pub fn set_record(&mut self, record: &dyn Record, meta_slot: usize) -> CliResult<()> {
         self.meta[meta_slot].set_record(record, &mut self.var_providers, &mut self.qual_converter)
+    }
+
+    #[inline(always)]
+    pub fn increment_record(&mut self) {
+        self.n_records += 1;
     }
 
     // #[inline(always)]
@@ -157,5 +166,11 @@ impl SeqContext {
         self.check_stdout(kind)?;
         let w = kind.io_writer(&self.output_opts)?;
         Ok(w)
+    }
+
+    pub fn get_stats(&self) -> BasicStats {
+        BasicStats {
+            n_records: self.n_records,
+        }
     }
 }

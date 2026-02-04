@@ -2,7 +2,7 @@ use std::iter::repeat_n;
 
 use clap::Parser;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::OwnedRecord;
@@ -39,7 +39,7 @@ pub struct ConcatCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: ConcatCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: ConcatCommand) -> CliResult<Option<Box<dyn Report>>> {
     let id_check = !args.no_id_check;
     let spacer_n = args.spacer;
     let s_char = args.s_char as u8;
@@ -101,4 +101,5 @@ pub fn run(mut cfg: Config, args: ConcatCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

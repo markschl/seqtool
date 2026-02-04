@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::rng::Range;
@@ -30,34 +30,35 @@ pub struct SliceCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: SliceCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: SliceCommand) -> CliResult<Option<Box<dyn Report>>> {
     let range = args.range;
 
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
         // convert from 1-based to 0-based coordinates
-        let mut start = range.start.unwrap_or(1);
+        let start = range.start.unwrap_or(1);
         if start == 0 {
-            return fail!("Select ranges are 1-based, zero is not a valid start value");
+            return fail!("Slice ranges are 1-based, zero is not a valid start value");
         }
-        start -= 1;
-        let end = range.end;
-
-        let mut i = 0;
+        if start < 0 || range.end.map(|e| e < 0).unwrap_or(false) {
+            return fail!("Slice ranges cannot be negative");
+        }
+        let start = start as u64;
+        let end = range.end.map(|e| e as u64);
 
         cfg.read(|record, ctx| {
             // if a start value was specified, skip records
             // was thinking about using Itertools::dropping(), but have to check for errors...
-            if i >= start {
+            if ctx.n_records >= start {
                 if let Some(e) = end {
-                    if i >= e {
+                    if ctx.n_records > e {
                         return Ok(false);
                     }
                 }
                 format_writer.write(&record, io_writer, ctx)?;
             }
-            i += 1;
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

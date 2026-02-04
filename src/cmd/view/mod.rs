@@ -1,3 +1,4 @@
+use crate::cli::Report;
 use crate::config::Config;
 use crate::error::CliResult;
 
@@ -13,13 +14,13 @@ use self::fmt::*;
 use self::pager::*;
 use self::pal::*;
 
-pub fn run(mut cfg: Config, args: ViewCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: ViewCommand) -> CliResult<Option<Box<dyn Report>>> {
     if args.color.list_pal {
         print_palettes(
             &args.color.textcols,
             args.color.truecolor.unwrap_or_else(has_truecolor),
         )?;
-        return Ok(());
+        return Ok(None);
     }
 
     // setup colors
@@ -84,5 +85,5 @@ pub fn run(mut cfg: Config, args: ViewCommand) -> CliResult<()> {
         while !matches!(pager.check_draw(&mut terminal, true)?, Status::Quit) {}
     }
     ratatui::restore();
-    res
+    res.map(|_| None)
 }

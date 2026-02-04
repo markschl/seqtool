@@ -1,6 +1,6 @@
 use clap::{value_parser, Parser};
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, Report};
 use crate::config::Config;
 use crate::error::CliResult;
 
@@ -15,7 +15,7 @@ pub struct HeadCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: HeadCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: HeadCommand) -> CliResult<Option<Box<dyn Report>>> {
     let n = args.num_seqs;
 
     let mut format_writer = cfg.get_format_writer()?;
@@ -31,4 +31,5 @@ pub fn run(mut cfg: Config, args: HeadCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

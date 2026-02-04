@@ -1,10 +1,13 @@
 use std::env::temp_dir;
+use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
 use deepsize::DeepSizeOf;
 use rkyv::{Archive, Deserialize, Serialize};
+use serde::Serialize as SerdeSerialize;
 
+use crate::cli::Report;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::vec_buf::VecFactory;
@@ -32,7 +35,23 @@ pub use self::vars::*;
 /// the hash map, sorting and other allocations unaccounted for.
 static MEM_OVERHEAD: f32 = 1.2;
 
-pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
+#[derive(Debug, Clone, Default, SerdeSerialize)]
+pub struct UniqueStats {
+    pub n_unique: usize,
+    pub n_records: u64,
+}
+
+impl fmt::Display for UniqueStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} of {} records are unique",
+            self.n_unique, self.n_records
+        )
+    }
+}
+
+pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<Option<Box<dyn Report>>> {
     let verbose = args.common.general.verbose;
     let quiet = args.common.general.quiet;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
@@ -76,7 +95,7 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
             args.temp_file_limit,
         );
 
-        cfg.read(|record, ctx| {
+        let stats = cfg.read(|record, ctx| {
             // assemble key
             key_values.compose_from(&varstring_keys, &mut text_buf, ctx.symbols(), record)?;
             ctx.with_custom_varmod(0, |m: &mut UniqueVars, sym| m.set(&key_values, sym));
@@ -100,7 +119,13 @@ pub fn run(mut cfg: Config, args: UniqueCommand) -> CliResult<()> {
         if let Some(writer) = map_writer {
             writer.into_inner().finish()?;
         }
-        Ok(())
+        Ok(Some(
+            UniqueStats {
+                n_records: stats.n_records,
+                n_unique: dedup.n_unique(),
+            }
+            .to_box(),
+        ))
     })
 }
 
@@ -204,7 +229,7 @@ impl Deduplicator {
                             "Memory limit reached after {} records, writing to temporary file(s). \
                             Consider raising the limit (-M/--max-mem) to speed up de-duplicating. \
                             Use -q/--quiet to silence this message.",
-                            m.len()
+                            m.n_unique()
                         );
                     }
                     let f =
@@ -229,6 +254,13 @@ impl Deduplicator {
         match &mut self.inner {
             DeduplicatorInner::Mem(m) => m.write_deferred(io_writer, map_writer),
             DeduplicatorInner::File(f) => f.write_records(io_writer, map_writer, quiet, verbose),
+        }
+    }
+
+    pub fn n_unique(&self) -> usize {
+        match &self.inner {
+            DeduplicatorInner::Mem(m) => m.n_unique(),
+            DeduplicatorInner::File(f) => f.n_unique(),
         }
     }
 }

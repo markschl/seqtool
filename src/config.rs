@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 use std::cell::Cell;
 use std::io;
 
-use crate::cli::CommonArgs;
+use crate::cli::{BasicStats, CommonArgs};
 use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::io::input::{self, get_seq_reader, thread_reader, InFormat, InputConfig, SeqReader};
@@ -195,10 +195,9 @@ impl Config {
         Ok((io_writer, fmt_writer))
     }
 
-    /// Provides a reader (reading input sequentially) within a context,
-    /// and a `Vars` object for convenience (otherwise, two nested closures
-    /// would be needed).
-    pub fn read<F>(&mut self, mut func: F) -> CliResult<()>
+    /// Provides a reader (reading input sequentially) along with the SeqContext,
+    /// **without** calling `SeqContext::set_record()`
+    pub fn read_simple<F>(&mut self, mut func: F) -> CliResult<BasicStats>
     where
         F: FnMut(&dyn Record, &mut SeqContext) -> CliResult<bool>,
     {
@@ -207,18 +206,38 @@ impl Config {
             thread_reader(&cfg.reader, |io_rdr| {
                 self.ctx.init_input(cfg)?;
                 input::read(io_rdr, &cfg.format, &mut |rec| {
+                    self.ctx.increment_record();
+                    func(rec, &mut self.ctx)
+                })
+            })?;
+        }
+        Ok(self.ctx.get_stats())
+    }
+
+    /// Provides a reader (reading input sequentially) along with the SeqContext.
+    /// Beforehand,`SeqContext::set_record()` is called to set all variables.
+    pub fn read<F>(&mut self, mut func: F) -> CliResult<BasicStats>
+    where
+        F: FnMut(&dyn Record, &mut SeqContext) -> CliResult<bool>,
+    {
+        self.init_reader()?;
+        for cfg in &self.input_config {
+            thread_reader(&cfg.reader, |io_rdr| {
+                self.ctx.init_input(cfg)?;
+                input::read(io_rdr, &cfg.format, &mut |rec| {
+                    self.ctx.increment_record();
                     self.ctx.set_record(&rec, 0)?;
                     func(rec, &mut self.ctx)
                 })
             })?;
         }
-        Ok(())
+        Ok(self.ctx.get_stats())
     }
 
     /// Provides two readers, from which the records can be pulled independently
     ///
     /// Does not call `SeqContext::init_input()` and `SeqContext::set_record()`
-    pub fn read2<F>(&mut self, mut scope: F) -> CliResult<()>
+    pub fn read2<F>(&mut self, mut scope: F) -> CliResult<BasicStats>
     where
         F: FnMut(&mut dyn SeqReader, &mut dyn SeqReader, &mut SeqContext) -> CliResult<()>,
     {
@@ -235,9 +254,11 @@ impl Config {
                 // self.ctx.init_input(in_opts2, seq_opts2)?;
                 let mut rdr1 = get_seq_reader(io_rdr1, &cfg1.format)?;
                 let mut rdr2 = get_seq_reader(io_rdr2, &cfg2.format)?;
+                self.ctx.increment_record();
                 scope(&mut rdr1, &mut rdr2, &mut self.ctx)
             })
-        })
+        })?;
+        Ok(self.ctx.get_stats())
     }
 
     /// Reads records of several readers alongside each other,
@@ -249,14 +270,16 @@ impl Config {
     ///
     /// `SeqContext::set_record()` needs to be called manually to handle
     /// variables in the output.
-    pub fn read_alongside<F>(&mut self, id_check: bool, mut func: F) -> CliResult<()>
+    pub fn read_alongside<F>(&mut self, id_check: bool, mut func: F) -> CliResult<BasicStats>
     where
         F: FnMut(usize, &dyn Record, &mut SeqContext) -> CliResult<bool>,
     {
         self.init_reader()?;
         input::read_alongside(&self.input_config, id_check, |i, rec| {
+            self.ctx.increment_record();
             func(i, rec, &mut self.ctx)
-        })
+        })?;
+        Ok(self.ctx.get_stats())
     }
 
     /// Does some final preparation tasks regarding variables/functions before
@@ -280,7 +303,7 @@ impl Config {
         data_init: Di,
         work: W,
         mut func: F,
-    ) -> CliResult<()>
+    ) -> CliResult<BasicStats>
     where
         W: Fn(&dyn Record, &mut O) -> CliResult<()> + Send + Sync,
         F: FnMut(&dyn Record, &mut O, &mut SeqContext) -> CliResult<bool>,
@@ -298,16 +321,22 @@ impl Config {
                     &data_init,
                     &work,
                     |rec, out| {
+                        self.ctx.increment_record();
                         self.ctx.set_record(rec, 0)?;
                         func(rec, out, &mut self.ctx)
                     },
                 )
             })?;
         }
-        Ok(())
+        Ok(self.ctx.get_stats())
     }
 
-    pub fn read_parallel<W, F, O>(&mut self, n_threads: u32, work: W, func: F) -> CliResult<()>
+    pub fn read_parallel<W, F, O>(
+        &mut self,
+        n_threads: u32,
+        work: W,
+        func: F,
+    ) -> CliResult<BasicStats>
     where
         W: Fn(&dyn Record, &mut O) -> CliResult<()> + Send + Sync,
         F: FnMut(&dyn Record, &mut O, &mut SeqContext) -> CliResult<bool>,

@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, Report};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::HeaderRecord;
@@ -21,7 +21,7 @@ pub struct DelCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: DelCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: DelCommand) -> CliResult<Option<Box<dyn Report>>> {
     let del_desc = args.desc;
     let del_attrs = args.attrs.as_deref();
 
@@ -47,4 +47,5 @@ pub fn run(mut cfg: Config, args: DelCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

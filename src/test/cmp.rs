@@ -21,15 +21,15 @@ const FA2: &str = "\
 ";
 
 const STATS: &str = "\
-common\t3
-unique1\t4
-unique2\t4
+common:  3
+unique1: 4
+unique2: 4
 ";
 
 const STATS_ID: &str = "\
-common\t4
-unique1\t3
-unique2\t3
+common:  4
+unique1: 3
+unique2: 3
 ";
 
 const CATEGORY1: &str = "\

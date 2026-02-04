@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::var_range::VarRanges;
@@ -44,7 +44,7 @@ pub struct MaskCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: MaskCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: MaskCommand) -> CliResult<Option<Box<dyn Report>>> {
     let ranges = &args.ranges;
     let hard_mask = args.hard;
     let rng0 = args.zero_based;
@@ -94,4 +94,5 @@ pub fn run(mut cfg: Config, args: MaskCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

@@ -284,7 +284,10 @@ impl<'a> StrStream<'a> for &'a str {}
 impl<'a, S: StrStream<'a>> StrStream<'a> for LocatingSlice<S> {}
 impl<'a, S: StrStream<'a>> LocatedStream<'a> for LocatingSlice<S> {}
 
-pub fn parse_varstring(text: &'_ str, raw_var: bool) -> Result<Vec<ParsedVarStringSegment<'_>>, String> {
+pub fn parse_varstring(
+    text: &'_ str,
+    raw_var: bool,
+) -> Result<Vec<ParsedVarStringSegment<'_>>, String> {
     let mut input = LocatingSlice::new(text);
     let frags = varstring(raw_var, None).parse_next(&mut input).unwrap();
     if input.len() > 0 {

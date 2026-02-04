@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::output::OutFormat;
@@ -26,7 +26,7 @@ pub struct StatCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: StatCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: StatCommand) -> CliResult<Option<Box<dyn Report>>> {
     let cmd = PassCommand {
         common: args.common,
     };

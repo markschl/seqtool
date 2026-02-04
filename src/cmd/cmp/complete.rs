@@ -239,10 +239,10 @@ impl RecordCmp {
         let mut stats = CmpStats::default();
         for (key, rec) in &self.records0 {
             let (cat, diff_fields0) = if let Some(diff_fields0) = self.records1.lookup(key) {
-                stats.common += 1;
+                stats.n_common += 1;
                 (Common, diff_fields0)
             } else {
-                stats.unique1 += 1;
+                stats.n_unique1 += 1;
                 (Unique1, None)
             };
             set_vars(self.key.inner(), rec, cat, 0, ctx)?;
@@ -260,7 +260,7 @@ impl RecordCmp {
             let (cat, diff_fields0) = if is_common {
                 (Common, diff_fields0)
             } else {
-                stats.unique2 += 1;
+                stats.n_unique2 += 1;
                 (Unique2, None)
             };
             set_vars(key, rec, cat, 0, ctx)?;
@@ -343,10 +343,10 @@ impl KeyCmp {
         // Records1Map::lookup() flags any common records
         for key in &self.records0 {
             let (cat, mut diff_fields0) = if let Some(diff_fields0) = self.records1.lookup(key) {
-                stats.common += 1;
+                stats.n_common += 1;
                 (Common, diff_fields0)
             } else {
-                stats.unique1 += 1;
+                stats.n_unique1 += 1;
                 (Unique1, None)
             };
             // println!("key1 {} cat {:?}", key, cat);
@@ -375,10 +375,9 @@ impl KeyCmp {
         let mut diff_fields1 = Vec::new();
         for (key, is_common, _, diff_fields0) in self.records1.iter() {
             let (cat, diff_fields0) = if is_common {
-                stats.common += 1;
                 (Common, diff_fields0)
             } else {
-                stats.unique2 += 1;
+                stats.n_unique2 += 1;
                 (Unique2, None)
             };
             // println!("key2 {} cat {:?}", key, cat);

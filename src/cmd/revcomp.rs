@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use clap::Parser;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{
@@ -41,7 +41,7 @@ struct RevCompRecord {
 // TODO: wait for https://doc.rust-lang.org/std/sync/struct.OnceLock.html#method.get_or_try_init stabilization
 static SEQTYPE: OnceLock<Result<SeqType, String>> = OnceLock::new();
 
-pub fn run(mut cfg: Config, args: RevcompCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: RevcompCommand) -> CliResult<Option<Box<dyn Report>>> {
     let num_threads = args.threads;
 
     let mut format_writer = cfg.get_format_writer()?;
@@ -82,6 +82,5 @@ pub fn run(mut cfg: Config, args: RevcompCommand) -> CliResult<()> {
                 Ok(true)
             },
         )
-    })?;
-    Ok(())
+    }).map(|r| Some(Report::to_box(r)))
 }

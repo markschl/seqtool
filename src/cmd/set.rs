@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, Report};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::{RecordAttr, RecordEditor};
@@ -25,7 +25,7 @@ pub struct SetCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: SetCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: SetCommand) -> CliResult<Option<Box<dyn Report>>> {
     let mut replacements = vec![];
     if let Some(string) = args.id.as_ref() {
         replacements.push((string, RecordAttr::Id));
@@ -60,4 +60,5 @@ pub fn run(mut cfg: Config, args: SetCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

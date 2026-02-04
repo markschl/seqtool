@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use clap::{value_parser, Parser};
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::error::CliResult;
 
@@ -22,7 +22,7 @@ pub struct TailCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: TailCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: TailCommand) -> CliResult<Option<Box<dyn Report>>> {
     let n_select = args.num_seqs;
 
     if cfg.has_stdin() {
@@ -51,4 +51,5 @@ pub fn run(mut cfg: Config, args: TailCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

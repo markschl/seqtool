@@ -247,7 +247,7 @@ impl Records {
 }
 
 /// Object handling the de-duplication in memory.
-/// The memory used by the items is tracked, and `insert` returns `false`
+/// The memory used by the items is tracked, and `add` returns `false`
 /// if the memory limit is exceeded.
 #[derive(Debug)]
 pub struct MemDeduplicator {
@@ -303,7 +303,7 @@ impl MemDeduplicator {
         Ok(self.mem < self.max_mem)
     }
 
-    pub fn len(&self) -> usize {
+    pub fn n_unique(&self) -> usize {
         self.records.len()
     }
 

@@ -1,6 +1,11 @@
+use std::fmt;
+
+use crate::cli::Report;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::var::{modules::VarProvider, varstring::register_var_list};
+
+use serde::Serialize;
 
 mod cli;
 mod complete;
@@ -39,11 +44,19 @@ impl Category {
     }
 }
 
-#[derive(Debug, Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone, Serialize)]
 struct CmpStats {
-    pub common: u64,
-    pub unique1: u64,
-    pub unique2: u64,
+    pub n_common: u64,
+    pub n_unique1: u64,
+    pub n_unique2: u64,
+}
+
+impl fmt::Display for CmpStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "common:  {}", self.n_common)?;
+        writeln!(f, "unique1: {}", self.n_unique1)?;
+        write!(f, "unique2: {}", self.n_unique2)
+    }
 }
 
 /// Factor for adjusting the calculated memory usage (based on size of items)
@@ -51,8 +64,9 @@ struct CmpStats {
 /// It corrects for the extra memory that may not be in the calculation otherwise.
 static MEM_OVERHEAD: f32 = 1.1;
 
-pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<Option<Box<dyn Report>>> {
     let quiet = args.common.general.quiet;
+    let verbose = args.common.general.verbose;
     let two_pass = args.two_pass;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
 
@@ -111,14 +125,13 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<()> {
             quiet,
         )?
     };
-    if !quiet {
-        eprintln!(
-            "common\t{}\nunique1\t{}\nunique2\t{}",
-            stats.common, stats.unique1, stats.unique2
-        );
+
+    if !quiet && !verbose {
+        // TODO: needs to be printed before the '--check' error message, but this will not happen with --verbose
+        eprintln!("{}", stats);
     }
-    if args.check && (stats.unique1 > 0 || stats.unique2 > 0) {
+    if args.check && (stats.n_unique1 > 0 || stats.n_unique2 > 0) {
         return fail!("Not an exact match");
     }
-    Ok(())
+    Ok(Some(Box::new(stats)))
 }

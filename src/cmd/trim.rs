@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, Report};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::{rng::Range, var_range::VarRanges};
@@ -36,7 +36,7 @@ pub struct TrimCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: TrimCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: TrimCommand) -> CliResult<Option<Box<dyn Report>>> {
     let ranges = &args.ranges;
     let rng0 = args.zero_based;
     let exclusive = args.exclusive;
@@ -65,6 +65,7 @@ pub fn run(mut cfg: Config, args: TrimCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }
 
 fn trim<'r>(

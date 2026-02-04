@@ -1,10 +1,14 @@
 use std::cell::RefCell;
+use std::fmt;
 
+use crate::cli::Report;
 use crate::config::Config;
 use crate::error::{CliError, CliResult};
 use crate::helpers::{replace::replace_iter, thread_local::with_mut_thread_local};
 use crate::io::RecordEditor;
 use crate::var::{modules::VarProvider, varstring::VarString};
+
+use serde::Serialize;
 
 pub mod ambig;
 pub mod cli;
@@ -23,7 +27,19 @@ thread_local! {
     static MATCHERS: RefCell<Option<Vec<Box<dyn matcher::Matcher + Send + Sync>>>> = RefCell::new(None);
 }
 
-pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct FindStats {
+    pub n_records: u64,
+    pub n_matched: u64,
+}
+
+impl fmt::Display for FindStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Found {} of {} records", self.n_matched, self.n_records)
+    }
+}
+
+pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<Option<Box<dyn Report>>> {
     // parse all CLI options and initialize replacements
     let (search_config, opts) = args.parse(cfg.input_config[0].format.seqtype)?;
 
@@ -78,10 +94,11 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
     let matchers = get_matchers(&search_config)?;
     let matches = search_config.init_matches();
 
+    let mut n_matched = 0;
     // dbg!(&search_config, &search_opts, &filter_opts);
 
     // run the search
-    cfg.with_io_writer(|io_writer, mut cfg| {
+    let stats = cfg.with_io_writer(|io_writer, mut cfg| {
         cfg.read_parallel_init(
             opts.threads,
             || {
@@ -130,6 +147,10 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
                     })?;
                 }
 
+                if matches.has_matches() {
+                    n_matched += 1;
+                }
+
                 // keep / exclude
                 if let Some(keep) = opts.filter {
                     if matches.has_matches() ^ keep {
@@ -146,11 +167,13 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<()> {
                 format_writer.write(&edited_rec, io_writer, ctx)?;
                 Ok(true)
             },
-        )?;
-        Ok(())
+        )
     })?;
     if let Some((io_writer, _)) = dropped_out {
         io_writer.finish()?;
     }
-    Ok(())
+    Ok(Some(Box::new(FindStats {
+        n_records: stats.n_records,
+        n_matched,
+    })))
 }

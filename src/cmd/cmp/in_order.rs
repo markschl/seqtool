@@ -127,7 +127,7 @@ impl<'a> OrderedCmp<'a> {
                 debug_assert_eq!(_k, self.key[0]);
                 self.write(0, s1, &rec1, Common, true, false)?;
                 self.write_diff()?;
-                self.stats.common += 1;
+                self.stats.n_common += 1;
             } else
             // read new record from stream 1
             if !rdr.1.read_next(&mut |rec1| {
@@ -143,7 +143,7 @@ impl<'a> OrderedCmp<'a> {
                     self.write(0, s0, rec0, Common, false, true)?;
                     self.write(1, s1, rec1, Common, false, true)?;
                     self.write_diff()?;
-                    self.stats.common += 1;
+                    self.stats.n_common += 1;
                 } else if let Some(i0) = buf.0.get_index_of(&self.key[1]) {
                     // eprintln!("...in buf0: {}", &self.key[1]);
                     // identical key found in buffer of 1st stream
@@ -158,7 +158,7 @@ impl<'a> OrderedCmp<'a> {
                     self.write(0, s0, &rec0, Common, true, true)?;
                     self.write(1, s1, rec1, Common, false, true)?;
                     self.write_diff()?;
-                    self.stats.common += 1;
+                    self.stats.n_common += 1;
                 } else {
                     // eprintln!("...not equal {} != {}, {} != {}", self.key[0], self.key[1], std::str::from_utf8(rec0.id()).unwrap(), std::str::from_utf8(rec1.id()).unwrap());
                     // none of the records match -> store them in the buffers
@@ -236,9 +236,9 @@ impl<'a> OrderedCmp<'a> {
         is_second: bool,
     ) -> CliResult<()> {
         let (cat, counter) = if !is_second {
-            (Unique1, &mut self.stats.unique1)
+            (Unique1, &mut self.stats.n_unique1)
         } else {
-            (Unique2, &mut self.stats.unique2)
+            (Unique2, &mut self.stats.n_unique2)
         };
         for (key, (rec, size)) in buf.drain(..end.unwrap_or(buf.len())) {
             *counter += 1;

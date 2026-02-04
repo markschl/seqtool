@@ -2,6 +2,7 @@ use std::env::temp_dir;
 use std::io::Write;
 use std::path::Path;
 
+use crate::cli::Report;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::vec_buf::VecFactory;
@@ -26,7 +27,7 @@ pub use self::vars::*;
 /// (factor found by memory profiling on Linux)
 static MEM_OVERHEAD: f32 = 1.1;
 
-pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<Option<Box<dyn Report>>> {
     let verbose = args.common.general.verbose;
     let quiet = args.common.general.quiet;
     let max_mem = (args.max_mem as f32 / MEM_OVERHEAD) as usize;
@@ -49,7 +50,7 @@ pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<()> {
         let mut key_values = Key::with_size(varstring_keys.len());
         let mut text_buf = vec![Vec::new(); varstring_keys.len()];
 
-        cfg.read(|record, ctx| {
+        let stats = cfg.read(|record, ctx| {
             // assemble key
             key_values.compose_from(&varstring_keys, &mut text_buf, ctx.symbols(), record)?;
             ctx.with_custom_varmod(0, |m: &mut SortVars, sym| m.set(&key_values, sym));
@@ -66,7 +67,8 @@ pub fn run(mut cfg: Config, args: SortCommand) -> CliResult<()> {
             Ok(true)
         })?;
         // write sorted output
-        sorter.write(io_writer, quiet, verbose)
+        sorter.write(io_writer, quiet, verbose)?;
+        Ok(Some(stats.to_box()))
     })
 }
 

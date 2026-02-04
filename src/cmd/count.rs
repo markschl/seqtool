@@ -4,7 +4,7 @@ use std::mem;
 
 use clap::Parser;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{BasicStats, CommonArgs, Report, WORDY_HELP};
 use crate::cmd::shared::key::Key;
 use crate::config::Config;
 use crate::error::CliResult;
@@ -58,30 +58,26 @@ pub struct CountCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(cfg: Config, args: CountCommand) -> CliResult<()> {
-    if args.key.is_empty() {
+pub fn run(cfg: Config, args: CountCommand) -> CliResult<Option<Box<dyn Report>>> {
+    let stats = if args.key.is_empty() {
         count_simple(cfg)
     } else {
         count_categorized(cfg, &args.key, args.category_limit)
-    }
+    }?;
+    Ok(Some(stats.to_box()))
 }
 
-fn count_simple(cfg: Config) -> CliResult<()> {
+fn count_simple(cfg: Config) -> CliResult<BasicStats> {
     // run counting without any variable processing
     cfg.with_io_writer(|writer, mut cfg| {
-        let mut n = 0;
-        cfg.read(|_, _| {
-            n += 1;
-            Ok(true)
-        })?;
+        let stats = cfg.read_simple(|_, _| Ok(true))?;
         // TODO: line terminator?
-        writeln!(writer, "{n}")?;
-        Ok(())
-    })?;
-    Ok(())
+        writeln!(writer, "{}", stats.n_records)?;
+        Ok(stats)
+    })
 }
 
-fn count_categorized<S>(mut cfg: Config, keys: &[S], category_limit: usize) -> CliResult<()>
+fn count_categorized<S>(mut cfg: Config, keys: &[S], category_limit: usize) -> CliResult<BasicStats>
 where
     S: AsRef<str>,
 {
@@ -102,7 +98,7 @@ where
     let mut counts = HashMap::default();
 
     // count the records
-    cfg.read(|record, ctx| {
+    let stats = cfg.read(|record, ctx| {
         key_values.compose_from(&var_keys, &mut text_buf, ctx.symbols(), record)?;
         if let Some(v) = counts.get_mut(&key_values) {
             *v += 1;
@@ -170,5 +166,6 @@ where
         writer.write_all(&prev_buf)?;
         writeln!(writer, "{count}")?;
         Ok(())
-    })
+    })?;
+    Ok(stats)
 }

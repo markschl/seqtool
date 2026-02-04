@@ -61,25 +61,30 @@ pub struct FormatOpts {
 }
 
 impl IoKind {
-    /// Returns an I/O writer.
-    /// Ignores `threaded` and `thread_bufsize` options.
-    /// The caller is responsible for calling `finish()` on the writer when done.
-    pub fn io_writer(&self, opts: &OutputOpts) -> io::Result<Box<dyn WriteFinish>> {
-        let writer: Box<dyn WriteFinish> = match self {
-            IoKind::Stdio => Box::new(io::BufWriter::new(io::stdout().lock())),
+    /// Returns an I/O writer
+    pub fn simple_io_writer(&self, append: bool) -> io::Result<Box<dyn WriteFinish>> {
+        match self {
+            IoKind::Stdio => Ok(Box::new(io::BufWriter::new(io::stdout().lock()))),
             IoKind::File(ref p) => {
                 let f = File::options()
                     .create(true)
                     .write(true)
-                    .truncate(!opts.append)
-                    .append(opts.append)
+                    .truncate(!append)
+                    .append(append)
                     .open(p)
                     .map_err(|e| {
                         io::Error::other(format!("Error creating '{}': {}", p.to_string_lossy(), e))
                     })?;
-                Box::new(io::BufWriter::new(f))
+                Ok(Box::new(io::BufWriter::new(f)))
             }
-        };
+        }
+    }
+
+    /// Returns an I/O writer given an output options object.
+    /// Ignores `threaded` and `thread_bufsize` options.
+    /// The caller is responsible for calling `finish()` on the writer when done.
+    pub fn io_writer(&self, opts: &OutputOpts) -> io::Result<Box<dyn WriteFinish>> {
+        let writer: Box<dyn WriteFinish> = self.simple_io_writer(opts.append)?;
         if let Some(fmt) = opts.compression_format {
             return compr_writer(writer, fmt, opts.compression_level);
         }

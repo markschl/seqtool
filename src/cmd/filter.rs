@@ -1,6 +1,9 @@
-use clap::Parser;
+use std::fmt;
 
-use crate::cli::CommonArgs;
+use clap::Parser;
+use serde::Serialize;
+
+use crate::cli::{CommonArgs, Report};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::var::{modules::expr::js::parser::Expression, symbols::Value};
@@ -19,7 +22,19 @@ pub struct FilterCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<()> {
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct FilterStats {
+    pub n_records: u64,
+    pub n_kept: u64,
+}
+
+impl fmt::Display for FilterStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} of {} records kept", self.n_kept, self.n_records)
+    }
+}
+
+pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<Option<Box<dyn Report>>> {
     let expr = args.expression.trim();
     if expr.starts_with('{') && expr.ends_with('}') {
         eprintln!(
@@ -39,8 +54,9 @@ pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<()> {
         .transpose()?;
 
     let mut format_writer = cfg.get_format_writer()?;
+    let mut n_kept = 0;
     cfg.with_io_writer(|io_writer, mut cfg| {
-        cfg.read(|record, ctx| {
+        let stats = cfg.read(|record, ctx| {
             let v = ctx.symbols().get(symbol_id);
             let result = match v.inner() {
                 Some(Value::Bool(b)) => *b.get(),
@@ -55,6 +71,7 @@ pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<()> {
 
             if result {
                 format_writer.write(&record, io_writer, ctx)?;
+                n_kept += 1;
             } else if let Some((d_writer, d_format_writer)) = dropped_out.as_mut() {
                 d_format_writer.write(&record, d_writer, ctx)?;
             }
@@ -63,6 +80,12 @@ pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<()> {
         if let Some((w, _)) = dropped_out {
             w.finish()?;
         }
-        Ok(())
+        Ok(Some(
+            FilterStats {
+                n_records: stats.n_records,
+                n_kept,
+            }
+            .to_box(),
+        ))
     })
 }

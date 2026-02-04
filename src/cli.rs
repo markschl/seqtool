@@ -1,3 +1,4 @@
+use std::fmt;
 use std::process::exit;
 use std::str::FromStr;
 
@@ -6,6 +7,7 @@ use clap::builder::{
     Styles,
 };
 use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
+use serde::Serialize;
 
 use var_provider::{dyn_var_provider, DynVarProviderInfo};
 
@@ -76,11 +78,14 @@ impl Cli {
     pub fn run(self) -> CliResult<()> {
         use SubCommand::*;
         macro_rules! run {
-            ($cmdmod:ident, $opts:expr) => {
-                cmd::$cmdmod::run(Config::new(&mut $opts.common)?, $opts)
-            };
+            ($cmdmod:ident, $opts:expr) => {{
+                let report_out = $opts.common.output.report.clone();
+                let verbose = $opts.common.general.verbose;
+                let stats = cmd::$cmdmod::run(Config::new(&mut $opts.common)?, $opts)?;
+                Ok::<_, crate::error::CliError>(stats.map(|s| (s, report_out, verbose)))
+            }};
         }
-        match self.0.command {
+        let out: Option<(Box<dyn Report>, Option<String>, bool)> = match self.0.command {
             #[cfg(any(feature = "all-commands", feature = "pass"))]
             Pass(mut opts) => run!(pass, opts),
             #[cfg(any(feature = "all-commands", feature = "view"))]
@@ -132,7 +137,17 @@ impl Cli {
             Revcomp(mut opts) => run!(revcomp, opts),
             #[cfg(any(feature = "all-commands", feature = "concat"))]
             Concat(mut opts) => run!(concat, opts),
+        }?;
+        if let Some((stats, stats_out, verbose)) = out {
+            if verbose {
+                eprintln!("{}", stats);
+            }
+            if let Some(out) = stats_out {
+                let mut w = IoKind::from_path(&out)?.simple_io_writer(false)?;
+                stats.write(&mut w)?;
+            }
         }
+        Ok(())
     }
 }
 
@@ -543,6 +558,10 @@ pub struct OutputArgs {
     /// Path to QUAL output file with quality scores
     #[arg(long, value_name = "FILE")]
     pub qual_out: Option<String>,
+
+    /// Write JSON report to output (not all commands)
+    #[arg(long, value_name = "FILE")]
+    pub report: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -655,6 +674,45 @@ pub struct AdvancedArgs {
     /// The default is 4 MiB or the optimal size depending on the compression format.
     #[arg(long, value_name = "N", value_parser = parse_bytesize, hide = true)]
     pub write_tbufsize: Option<usize>,
+}
+
+/// Trait for reporting results of commands to STDOUT (with -v/--verbose)
+/// and/or writing to JSON (--report)
+pub trait Report: fmt::Display {
+    fn write(&self, writer: &mut dyn std::io::Write) -> CliResult<()>;
+
+    fn to_box(self) -> Box<dyn Report>
+    where
+        Self: Sized + 'static,
+    {
+        Box::new(self)
+    }
+}
+
+impl<T> Report for T
+where
+    T: fmt::Display + Serialize,
+{
+    fn write(&self, writer: &mut dyn std::io::Write) -> CliResult<()> {
+        serde_json::to_writer(writer, self).map_err(|e| e.into())
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct BasicStats {
+    pub n_records: u64,
+}
+
+impl BasicStats {
+    pub fn new(n_records: u64) -> Self {
+        Self { n_records }
+    }
+}
+
+impl fmt::Display for BasicStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "n_records: {}", self.n_records)
+    }
 }
 
 pub fn parse_format_spec(spec: &str) -> CliResult<(FormatVariant, Option<CompressionFormat>)> {

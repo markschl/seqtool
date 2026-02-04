@@ -1,13 +1,15 @@
 use std::cell::LazyCell;
+use std::fmt;
 use std::fs::create_dir_all;
 use std::path::Path;
 
 use clap::Parser;
+use serde::Serialize;
 
 use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
 use variable_enum_macro::variable_enum;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::helpers::DefaultHashMap as HashMap;
 use crate::io::{output::SeqFormatter, IoKind};
@@ -56,7 +58,23 @@ pub struct SplitCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SplitStats {
+    pub n_records: u64,
+    pub n_files: u64,
+}
+
+impl fmt::Display for SplitStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Distributed {} records into {} files",
+            self.n_records, self.n_files
+        )
+    }
+}
+
+pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<Option<Box<dyn Report>>> {
     let num_seqs = args.num_seqs;
     let parents = args.parents;
     let verbose = args.common.general.verbose;
@@ -99,7 +117,7 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
     // TODO: allow autorecognition of extension
     let mut format_writer = cfg.get_format_writer()?;
 
-    cfg.read(|record, ctx| {
+    let stats = cfg.read(|record, ctx| {
         // update chunk number variable
         if num_seqs.is_some() {
             ctx.with_custom_varmod(0, |var_mod: &mut SplitVars, sym| var_mod.increment(sym));
@@ -141,6 +159,11 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
         Ok(true)
     })?;
 
+    let stats = SplitStats {
+        n_records: stats.n_records,
+        n_files: outfiles.len() as u64,
+    };
+
     // write file stats
     if let Some(mut f) = counts_file {
         for (path, (_, count)) in &outfiles {
@@ -153,7 +176,7 @@ pub fn run(mut cfg: Config, args: SplitCommand) -> CliResult<()> {
     for (_, (f, _)) in outfiles {
         f.finish()?;
     }
-    Ok(())
+    Ok(Some(stats.to_box()))
 }
 
 variable_enum! {

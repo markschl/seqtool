@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::{self, Write};
 use std::mem::{size_of, size_of_val};
 
@@ -5,8 +6,9 @@ use clap::{value_parser, Parser};
 use deepsize::DeepSizeOf;
 use rand::distr::Uniform;
 use rand::prelude::*;
+use serde::Serialize;
 
-use crate::cli::{CommonArgs, WORDY_HELP};
+use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::context::SeqContext;
 use crate::error::CliResult;
@@ -62,6 +64,22 @@ pub struct SampleCommand {
     pub common: CommonArgs,
 }
 
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SampleStats {
+    pub n_records: u64,
+    pub n_selected: u64,
+}
+
+impl fmt::Display for SampleStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} of {} records returned",
+            self.n_selected, self.n_records
+        )
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Seed {
     Number(u64),
@@ -83,17 +101,16 @@ fn read_seed(seed_str: &str) -> Seed {
 // TODO: examine performance on 32-bit platforms
 pub type DefaultRng = rand_xoshiro::Xoshiro256PlusPlus;
 
-pub fn run(cfg: Config, args: SampleCommand) -> CliResult<()> {
+pub fn run(cfg: Config, args: SampleCommand) -> CliResult<Option<Box<dyn Report>>> {
     let rng = match args.seed {
         Some(Seed::Number(s)) => DefaultRng::seed_from_u64(s),
         Some(Seed::Array(s)) => DefaultRng::from_seed(s),
         None => DefaultRng::from_os_rng(),
     };
-    if let Some(amount) = args.num_seqs {
-        let amount = amount as usize;
+    let stats = if let Some(n) = args.num_seqs {
         sample_n(
             cfg,
-            amount,
+            n as usize,
             rng,
             args.max_mem,
             args.two_pass,
@@ -103,25 +120,30 @@ pub fn run(cfg: Config, args: SampleCommand) -> CliResult<()> {
         sample_prob(cfg, p, rng)
     } else {
         fail!("Nothing selected, use either -n/--num-seqs or -p/--prob")
-    }
+    }?;
+    Ok(Some(stats.to_box()))
 }
 
 fn sample_n<R: Rng + Clone>(
     mut cfg: Config,
-    amount: usize,
+    n: usize,
     rng: R,
     max_mem: usize,
     two_pass: bool,
     quiet: bool,
-) -> CliResult<()> {
+) -> CliResult<SampleStats> {
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
-        let mut sampler = ReservoirSampler::new(amount, rng, two_pass, max_mem)?;
-        cfg.read(|record, ctx| {
+        let mut sampler = ReservoirSampler::new(n, rng, two_pass, max_mem)?;
+        let stats = cfg.read(|record, ctx| {
             sampler.sample(record, &mut format_writer, ctx, quiet)?;
             Ok(true)
         })?;
-        sampler.write(&mut format_writer, &mut cfg, io_writer)
+        sampler.write(&mut format_writer, &mut cfg, io_writer)?;
+        Ok(SampleStats {
+            n_records: stats.n_records,
+            n_selected: n as u64,
+        })
     })
 }
 
@@ -142,14 +164,14 @@ enum ReservoirSampler<R: Rng + Clone> {
 }
 
 impl<R: Rng + Clone> ReservoirSampler<R> {
-    fn new(amount: usize, rng: R, two_pass: bool, max_mem: usize) -> Result<Self, String> {
+    fn new(n: usize, rng: R, two_pass: bool, max_mem: usize) -> Result<Self, String> {
         if two_pass {
             Ok(ReservoirSampler::Indices(IndexSampler::new(
-                amount, rng, max_mem, None,
+                n, rng, max_mem, None,
             )?))
         } else {
             Ok(ReservoirSampler::Records(RecordsSampler::new(
-                amount, rng, max_mem,
+                n, rng, max_mem,
             )))
         }
     }
@@ -209,11 +231,11 @@ struct RecordsSampler<R: Rng + Clone> {
 }
 
 impl<R: Rng + Clone> RecordsSampler<R> {
-    fn new(amount: usize, rng: R, max_mem: usize) -> Self {
+    fn new(n: usize, rng: R, max_mem: usize) -> Self {
         Self {
             rng,
-            amount,
-            reservoir: Vec::with_capacity(amount),
+            amount: n,
+            reservoir: Vec::with_capacity(n),
             vec_factory: VecFactory::new(),
             i: 0,
             mem: 0,
@@ -300,21 +322,21 @@ struct IndexSampler<R: Rng> {
 impl<R: Rng> IndexSampler<R> {
     /// pre_sampled: allows continuing an already started sampling.
     fn new(
-        amount: usize,
+        n: usize,
         rng: R,
         max_mem: usize,
         pre_sampled: Option<(usize, Vec<usize>)>,
     ) -> Result<Self, String> {
-        if amount * size_of::<usize>() > max_mem {
+        if n * size_of::<usize>() > max_mem {
             return Err(format!(
-                "Not enough memory to sample {amount} records. \
+                "Not enough memory to sample {n} records. \
                 Consider raising the memory limit (-M/--max-mem) or using -p/--prob."
             ));
         }
-        let (i, reservoir) = pre_sampled.unwrap_or((0, Vec::with_capacity(amount)));
+        let (i, reservoir) = pre_sampled.unwrap_or((0, Vec::with_capacity(n)));
         Ok(Self {
             rng,
-            amount,
+            amount: n,
             reservoir,
             i,
         })
@@ -356,7 +378,8 @@ impl<R: Rng> IndexSampler<R> {
             }
             i += 1;
             Ok(true)
-        })
+        })?;
+        Ok(())
     }
 
     fn len(&self) -> usize {
@@ -364,7 +387,7 @@ impl<R: Rng> IndexSampler<R> {
     }
 }
 
-fn sample_prob<R: Rng>(mut cfg: Config, prob: f32, mut rng: R) -> CliResult<()> {
+fn sample_prob<R: Rng>(mut cfg: Config, prob: f32, mut rng: R) -> CliResult<SampleStats> {
     if !(0f32..1.).contains(&prob) {
         return fail!("Fractions should be between 0 and 1 (but still < 1)");
     }
@@ -372,11 +395,17 @@ fn sample_prob<R: Rng>(mut cfg: Config, prob: f32, mut rng: R) -> CliResult<()> 
 
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
-        cfg.read(|record, ctx| {
+        let mut n_selected = 0;
+        let stats = cfg.read(|record, ctx| {
             if distr.sample(&mut rng) < prob {
                 format_writer.write(&record, io_writer, ctx)?;
+                n_selected += 1;
             }
             Ok(true)
+        })?;
+        Ok(SampleStats {
+            n_records: stats.n_records,
+            n_selected,
         })
     })
 }

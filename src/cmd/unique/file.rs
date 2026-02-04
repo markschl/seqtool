@@ -16,6 +16,7 @@ pub struct FileDeduplicator {
     handles: Vec<TmpHandle<Item<Record>>>,
     has_placeholders: bool,
     n_written: usize,
+    n_unique: usize,
 }
 
 impl FileDeduplicator {
@@ -66,6 +67,7 @@ impl FileDeduplicator {
             tmp_store,
             has_placeholders,
             n_written,
+            n_unique: 0,
         })
     }
 
@@ -154,6 +156,7 @@ impl FileDeduplicator {
                         current.record.duplicate_info.as_ref().unwrap(),
                     )?;
                 }
+                self.n_unique += 1;
             }
             current_item = Some(new_item);
         }
@@ -168,11 +171,16 @@ impl FileDeduplicator {
                     current.record.duplicate_info.as_ref().unwrap(),
                 )?;
             }
+            self.n_unique += 1;
         }
         // clean up
         for rdr in readers {
             rdr.done()?;
         }
         Ok(())
+    }
+
+    pub fn n_unique(&self) -> usize {
+        self.n_unique
     }
 }

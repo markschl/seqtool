@@ -4,7 +4,7 @@ use std::str;
 use clap::{value_parser, Parser};
 use memchr::memmem::find_iter;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, Report};
 use crate::error::CliResult;
 use crate::helpers::replace::replace_iter;
 use crate::io::{RecordAttr, RecordEditor};
@@ -41,7 +41,7 @@ pub struct ReplaceCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, args: ReplaceCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, args: ReplaceCommand) -> CliResult<Option<Box<dyn Report>>> {
     // what should be replaced?
     let attr = if args.id {
         RecordAttr::Id
@@ -73,8 +73,8 @@ pub fn run(mut cfg: Config, args: ReplaceCommand) -> CliResult<()> {
                 Ok(true)
             },
         )
-    })?;
-    Ok(())
+    })
+    .map(|r| Some(Report::to_box(r)))
 }
 
 trait Replacer {

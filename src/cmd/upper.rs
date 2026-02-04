@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use crate::cli::CommonArgs;
+use crate::cli::{CommonArgs, Report};
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::io::SeqQualRecord;
@@ -12,7 +12,7 @@ pub struct UpperCommand {
     pub common: CommonArgs,
 }
 
-pub fn run(mut cfg: Config, _args: UpperCommand) -> CliResult<()> {
+pub fn run(mut cfg: Config, _args: UpperCommand) -> CliResult<Option<Box<dyn Report>>> {
     let mut format_writer = cfg.get_format_writer()?;
     cfg.with_io_writer(|io_writer, mut cfg| {
         let mut seq = vec![];
@@ -29,4 +29,5 @@ pub fn run(mut cfg: Config, _args: UpperCommand) -> CliResult<()> {
             Ok(true)
         })
     })
+    .map(|r| Some(Report::to_box(r)))
 }

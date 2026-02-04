@@ -69,3 +69,4 @@ from_err!(FromUtf8Error);
 from_err!(ParseIntError);
 from_err!(ParseFloatError);
 from_err!(csv::Error);
+from_err!(serde_json::Error);
