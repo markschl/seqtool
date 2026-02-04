@@ -71,8 +71,7 @@ variable_enum! {
         /// Calculates a hash value from the sequence using the XXH3 algorithm.
         /// A hash is a integer number representing the sequence.
         /// There is a small (almost zero) chance that two different sequences
-        /// have the same hash value.
-        /// sequences may lead to the same hash value. Using 'seqhash' instead of 'seq'
+        /// have the same hash value. Using 'seqhash' instead of 'seq'
         /// speeds up de-replication ('unique' command) and requires less memory,
         /// at a very small risk of wrongly recognizing two
         /// different sequences as duplicates.
