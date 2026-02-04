@@ -109,12 +109,12 @@ fn hash() {
     let fa = ">s1\nAGGCUG\n>s2\nCAGCCU\n";
     cmp(&["unique", "seqhash", "--to-tsv", "id"], fa, "s1\ns2\n");
     cmp(&["unique", "seqhash_rev", "--to-tsv", "id"], fa, "s1\ns2\n");
-    cmp(&["unique", "seqhash_both", "--to-tsv", "id"], fa, "s1\n");
+    cmp(&["unique", "seqhash_min", "--to-tsv", "id"], fa, "s1\n");
     // 'U' not reverse complemented
     cmp(
         &[
             "unique",
-            "seqhash_both",
+            "seqhash_min",
             "--seqtype",
             "dna",
             "--to-tsv",
@@ -141,7 +141,7 @@ fn case() {
     cmp(&["unique", "upper_seq", "--to-tsv", "id"], fa, "s1\ns3\n");
     cmp(&["unique", "lower_seq", "--to-tsv", "id"], fa, "s1\ns3\n");
     cmp(
-        &["unique", "seqhash_both(true)", "--to-tsv", "id"],
+        &["unique", "seqhash_min(true)", "--to-tsv", "id"],
         fa,
         "s1\n",
     );

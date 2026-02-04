@@ -490,7 +490,7 @@ pub struct InputArgs {
     pub qual: Option<String>,
 
     /// Sequence type; relevant for the `find` and `revcomp` commands,
-    /// as well as the variables/functions `seq_revcomp`, `seqhash_rev` and `seqhash_both`
+    /// as well as the variables/functions `seq_revcomp`, `seqhash_rev` and `seqhash_min`
     /// (default: auto-detected based on the first sequence)
     #[arg(long, value_enum, value_name = "TYPE")]
     pub seqtype: Option<SeqType>,

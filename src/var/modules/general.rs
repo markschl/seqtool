@@ -56,7 +56,7 @@ variable_enum! {
     /// Remove duplicate records irrespective of the sequence orientation and
     /// whether letters are uppercase or lowercase
     ///
-    /// `st unique 'seqhash_both(true)' input.fasta`
+    /// `st unique 'seqhash_min(true)' input.fasta`
     GeneralVar {
         /// Record ID (in FASTA/FASTQ: everything before first space)
         Id(Text),
@@ -68,8 +68,10 @@ variable_enum! {
         UpperSeq(Text),
         /// Record sequence in lowercase letters
         LowerSeq(Text),
-        /// Calculates a hash value from the sequence using the XXH3 algorithm. A hash
-        /// is a integer number representing the sequence. In very rare cases, different
+        /// Calculates a hash value from the sequence using the XXH3 algorithm.
+        /// A hash is a integer number representing the sequence.
+        /// There is a small (almost zero) chance that two different sequences
+        /// have the same hash value.
         /// sequences may lead to the same hash value. Using 'seqhash' instead of 'seq'
         /// speeds up de-replication ('unique' command) and requires less memory,
         /// at a very small risk of wrongly recognizing two
@@ -78,12 +80,11 @@ variable_enum! {
         Seqhash(Number) { ignorecase: bool = false },
         /// The hash value of the reverse-complemented sequence
         SeqhashRev(Number) { ignorecase: bool = false },
-        /// The sum of the hashes from the forward and reverse sequences.
-        /// The result is always the same irrespective of the sequence orientation,
-        /// which is useful when de-replicating sequences with potentially different
-        /// orientations. [side note: to be precise it is a *wrapping addition*
-        /// to prevent integer overflow]
-        SeqhashBoth(Number) { ignorecase: bool = false },
+        /// The minimum of forward and reverse sequence hashes, which is always
+        /// the for a sequence and its reverse complement.
+        /// This is useful when de-replicating sequences with potentially different
+        /// orientations.
+        SeqhashMin(Number) { ignorecase: bool = false },
         /// Sequence number (n-th sequence in the input), starting from 1.
         /// The numbering continues across all provided sequence files unless `reset`
         /// is `true`, in which case the numbering re-starts from 1 for each new
@@ -213,9 +214,9 @@ impl VarProvider for GeneralVars {
                     let hash = seqhash_rev(record, &mut self.seq_cache, ty, *ignorecase)?;
                     sym.set_int(hash as i64);
                 }
-                SeqhashBoth { ignorecase } => {
+                SeqhashMin { ignorecase } => {
                     let ty = self.seqtype_helper.get_or_guess(record)?;
-                    let hash = seqhash_both(record, &mut self.seq_cache, ty, *ignorecase)?;
+                    let hash = seqhash_min(record, &mut self.seq_cache, ty, *ignorecase)?;
                     sym.set_int(hash as i64);
                 }
                 SeqNum { reset } => {
@@ -303,7 +304,7 @@ fn seqhash_rev(
     Ok(hash_one(seq_buf))
 }
 
-fn seqhash_both(
+fn seqhash_min(
     record: &dyn Record,
     seq_buf: &mut Vec<u8>,
     seqtype: SeqType,
@@ -311,7 +312,7 @@ fn seqhash_both(
 ) -> Result<u64, String> {
     let hash1 = seqhash(record, seq_buf, ignorecase);
     let hash2 = seqhash_rev(record, seq_buf, seqtype, ignorecase)?;
-    Ok(hash1.wrapping_add(hash2))
+    Ok(hash1.min(hash2))
 }
 
 fn write_os_str<F>(in_opts: &ReaderConfig, out: &mut Vec<u8>, func: F)
