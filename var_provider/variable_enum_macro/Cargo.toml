@@ -1,6 +1,6 @@
 [package]
 name = "variable_enum_macro"
-version = "0.4.0-beta.4"
+version = "0.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 

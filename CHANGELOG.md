@@ -1,3 +1,11 @@
+## v0.4.0 (2026-02-04)
+
+* Improve `-v/--verbose` messages and add `--report` option (very simple JSON reports)
+* Rename `seqhash_both` to `seqhash_min` (for checking equality irrespective of sequence strand)
+* Avoid truncated output with *cmp* command (bugfix)
+* Added script for comparing the pattern search with other tools (Cutadapt, USEARCH)
+  in order to further validate the *find* command
+
 ## v0.4.0-beta.4 (2025-10-06)
 
 * *Seqtool* is now dual-licensed under MIT OR Apache-2.0 ([9b0ebf0](https://github.com/markschl/seqtool/commit/9b0ebf0b9fc49f7d5178446989626672fc3be44b))
