@@ -11,10 +11,12 @@ variable_enum! {
     ///
     /// # Examples
     ///
-    /// Compare two files by ID and sequence hash and store all commonly found
-    /// records in a new file (some statistics is printed to STDERR):
+    /// Compare two files by ID and sequence hash and store all (common and unique)
+    /// records in `cmp.fasta`. The category is stored in the header attribute
+    /// `cat`: cat=common, cat=unique1, cat=unique2.
+    /// Statistics are printed to STDERR
     ///
-    /// `st cmp input1.fasta input2.fasta --common1 common.fasta`
+    /// `st cmp input1.fasta input2.fasta -o cmp.fasta -a cat={category}`
     ///
     /// common  942
     /// unique1  51
