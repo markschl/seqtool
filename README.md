@@ -6,8 +6,6 @@ The standalone binary (5-7 MB) is simply named `st` to save some typing.
 
 [![CI](https://github.com/markschl/seqtool/actions/workflows/ci.yaml/badge.svg)](https://github.com/markschl/seqtool/actions/workflows/ci.yaml)
 
-> **Note:** this page describes the development version 0.4-beta.
-> **The older stable version (v0.3.0) is [documented here](https://github.com/markschl/seqtool/wiki).**
 
 
 ## Detailed documentation
@@ -15,17 +13,16 @@ The standalone binary (5-7 MB) is simply named `st` to save some typing.
 **See [this page](https://markschl.github.io/seqtool-docs)**
 
 
+## Documentation
+
+**See https://markschl.github.io/seqtool-docs**
+
+
 ## Downloads
 
-**[📥 download beta release (v0.4.0-beta.4)](https://github.com/markschl/seqtool/releases/tag/v0.4.0-beta.4)**
+Binaries are available for Linux, OS X and Windows
 
-> It should now be pretty bug-free, an official 4.0 release is not far away
-
-**[📥 download stable release (v0.3.0)](https://github.com/markschl/seqtool/releases/latest)**
-
-> **⚠ Note**: there are a few **unfixed bugs in v0.3.0** (currently)
-> when reading GZIP files or searching/replacing;
-> see [CHANGELOG for v0.4.0-beta](https://github.com/markschl/seqtool/blob/main/CHANGELOG.md#important-bugfixes-).
+**[📥 download the latest version (v0.4.0)](https://github.com/markschl/seqtool/releases/latest)**
 
 
 ## Feature overview
@@ -247,6 +244,13 @@ SEQUENCE4
 
 </details>
 
+### Fast pattern search
+
+The [find](https://markschl.github.io/seqtool-docs/find) command enables flexible and fast pattern search,
+where the optimal algorithm is chosen automatically.
+Primer/adapter searches usually yield the [same results as *Cutadapt*](https://markschl.github.io/seqtool-docs/find/#comparison-to-cutadapt),
+while being faster.
+
 <details markdown class="highlight">
 <summary>
 Example: pre-processing of mixed multi-marker amplicon sequences (primer trimming, grouping by amplicon)
@@ -254,9 +258,11 @@ Example: pre-processing of mixed multi-marker amplicon sequences (primer trimmin
 
 These steps could be part of an amplicon pipeline that de-multiplexes
 multi-marker amplicons.
-[find](https://markschl.github.io/seqtool-docs/find) searches for a set of primers, which are removed by [trim](https://markschl.github.io/seqtool-docs/trim),
-and finally [split](https://markschl.github.io/seqtool-docs/split) distributes the sequences into different files named
-by the forward primer.
+
+Three different *seqtool* commands are chained, whereby [find](https://markschl.github.io/seqtool-docs/find) searches for a set of primers,
+which are removed by [trim](https://markschl.github.io/seqtool-docs/trim) and finally [split](https://markschl.github.io/seqtool-docs/split) distributes the sequences into different files named
+by the forward primer. The primer names and positions are passed to the next command in the form of
+[header attributes](https://markschl.github.io/seqtool-docs/attributes) (`-a/--attr` option).
 
 **primers.fasta**
 
