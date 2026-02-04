@@ -152,14 +152,14 @@ pub fn run(mut cfg: Config, args: FindCommand) -> CliResult<Option<Box<dyn Repor
                 }
 
                 // keep / exclude
-                if let Some(keep) = opts.filter {
-                    if matches.has_matches() ^ keep {
-                        if let Some((d_writer, d_format_writer)) = dropped_out.as_mut() {
-                            // we don't write the edited record, since there are no hits to report
-                            d_format_writer.write(&record, d_writer, ctx)?;
-                        }
-                        return Ok(true);
+                if let Some(keep) = opts.filter
+                    && matches.has_matches() ^ keep
+                {
+                    if let Some((d_writer, d_format_writer)) = dropped_out.as_mut() {
+                        // we don't write the edited record, since there are no hits to report
+                        d_format_writer.write(&record, d_writer, ctx)?;
                     }
+                    return Ok(true);
                 }
 
                 // write non-excluded to output

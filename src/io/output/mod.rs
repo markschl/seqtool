@@ -12,8 +12,8 @@ use crate::var::VarBuilder;
 
 use super::input::InFormat;
 use super::{
-    parse_compr_ext, CompressionFormat, FormatVariant, IoKind, QualFormat, Record, DEFAULT_FORMAT,
-    DEFAULT_IO_WRITER_BUFSIZE,
+    CompressionFormat, DEFAULT_FORMAT, DEFAULT_IO_WRITER_BUFSIZE, FormatVariant, IoKind,
+    QualFormat, Record, parse_compr_ext,
 };
 
 pub use self::writer::*;
@@ -65,7 +65,7 @@ impl IoKind {
     pub fn simple_io_writer(&self, append: bool) -> io::Result<Box<dyn WriteFinish>> {
         match self {
             IoKind::Stdio => Ok(Box::new(io::BufWriter::new(io::stdout().lock()))),
-            IoKind::File(ref p) => {
+            IoKind::File(p) => {
                 let f = File::options()
                     .create(true)
                     .write(true)
@@ -135,21 +135,21 @@ pub fn infer_out_format(
     out_opts: &mut OutputOpts,
     format_opts: &mut FormatOpts,
 ) {
-    if out_opts.compression_format.is_none() || format_opts.format.is_none() {
-        if let Some(IoKind::File(path)) = out_kind {
-            let (compression, ext) = parse_compr_ext(&path);
-            if out_opts.compression_format.is_none() {
-                out_opts.compression_format = compression;
-            }
-            if format_opts.format.is_none() {
-                format_opts.format = ext.and_then(FormatVariant::str_match);
-                if format_opts.format.is_none() && format_opts.qfile.is_none() {
-                    eprintln!(
-                        "Could not infer the output format from the extension of '{}', \
+    if (out_opts.compression_format.is_none() || format_opts.format.is_none())
+        && let Some(IoKind::File(path)) = out_kind
+    {
+        let (compression, ext) = parse_compr_ext(&path);
+        if out_opts.compression_format.is_none() {
+            out_opts.compression_format = compression;
+        }
+        if format_opts.format.is_none() {
+            format_opts.format = ext.and_then(FormatVariant::str_match);
+            if format_opts.format.is_none() && format_opts.qfile.is_none() {
+                eprintln!(
+                    "Could not infer the output format from the extension of '{}', \
                         defaulting to the input format",
-                        path.to_string_lossy()
-                    );
-                }
+                    path.to_string_lossy()
+                );
             }
         }
     }
@@ -259,24 +259,23 @@ impl OutFormat {
         builder: &mut VarBuilder,
     ) -> CliResult<Box<dyn SeqFormatter + 'a>> {
         Ok(match self {
-            OutFormat::Fasta {
-                ref attrs,
-                wrap_width,
-            } => Box::new(fasta::FastaWriter::new(*wrap_width, attrs, builder)?),
-            OutFormat::Fastq { format, ref attrs } => {
+            OutFormat::Fasta { attrs, wrap_width } => {
+                Box::new(fasta::FastaWriter::new(*wrap_width, attrs, builder)?)
+            }
+            OutFormat::Fastq { format, attrs } => {
                 Box::new(fastq::FastqWriter::new(*format, attrs, builder)?)
             }
             OutFormat::FaQual {
-                ref attrs,
+                attrs,
                 wrap_width,
-                ref qfile,
+                qfile,
             } => Box::new(fa_qual::FaQualWriter::new(
                 *wrap_width,
                 qfile,
                 attrs,
                 builder,
             )?),
-            OutFormat::DelimitedText { delim, ref fields } => {
+            OutFormat::DelimitedText { delim, fields } => {
                 Box::new(csv::CsvWriter::new(fields, *delim, builder)?)
             }
         })

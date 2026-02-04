@@ -1,13 +1,13 @@
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
 
 use crate::io::{QualConverter, Record};
 use crate::var::{
-    attr::Attributes, modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder,
+    VarBuilder, attr::Attributes, modules::VarProvider, parser::Arg, symbols::SymbolTable,
 };
 
 use super::code_or_file;
-use super::js::{parser::Expression, JsExpr};
+use super::js::{JsExpr, parser::Expression};
 
 type Expressions = super::expressions::Expressions<JsExpr>;
 

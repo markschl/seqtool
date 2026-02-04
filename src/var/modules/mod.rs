@@ -1,15 +1,15 @@
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
 
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 
 use crate::helpers::any::AsAnyMut;
-use crate::io::{input::InputConfig, output::OutputConfig, QualConverter, Record};
+use crate::io::{QualConverter, Record, input::InputConfig, output::OutputConfig};
 
+use super::VarBuilder;
 use super::attr::Attributes;
 use super::parser::Arg;
 use super::symbols::SymbolTable;
-use super::VarBuilder;
 
 pub mod attr;
 pub mod cnv;

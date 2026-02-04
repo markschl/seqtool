@@ -17,7 +17,7 @@ where
             return Err(format!(
                 "Only DNA/RNA sequences can be reverse-complemented, but the sequence type \
                 is '{seqtype}'. Wrongly recognized sequence types can be adjusted with `--seqtype`."
-            ))
+            ));
         }
     };
     out.clear();

@@ -9,7 +9,7 @@
 use var_provider::VarType;
 
 use crate::io::Record;
-use crate::var::{symbols::SymbolTable, VarBuilder};
+use crate::var::{VarBuilder, symbols::SymbolTable};
 
 use super::js::{parser::SimpleAst, replace_register_vars};
 use super::{ExprContext, Expression};

@@ -65,7 +65,7 @@ pub fn run(mut cfg: Config, args: FilterCommand) -> CliResult<Option<Box<dyn Rep
                         "Filter expression did not return a boolean (true/false), \
                         found '{}' instead",
                         v
-                    )
+                    );
                 }
             };
 

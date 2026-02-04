@@ -4,12 +4,12 @@ use std::{io, mem, str};
 use memchr::memmem;
 use var_provider::VarType;
 
-use crate::helpers::{number::parse_int, value::SimpleValue, NA};
+use crate::helpers::{NA, number::parse_int, value::SimpleValue};
 use crate::io::Record;
 use crate::var;
 
-use super::parser::{parse_varstring, parse_varstring_list, ParsedVarStringSegment};
 use super::VarBuilder;
+use super::parser::{ParsedVarStringSegment, parse_varstring, parse_varstring_list};
 
 /// Parses a comma delimited list of variables/functions, whereby the
 /// delimiter is only searched in text inbetween vars/functions.
@@ -28,15 +28,16 @@ pub fn register_var_list<'a>(
         if let Some(out) = fragment_out.as_mut() {
             out.push(text);
         }
-        if require_vars && vs.len() == 1 {
-            if let VarStringSegment::Text(t) = &vs[0] {
-                return fail!(
-                    "The following string contains no variables/functions: '{}' \
+        if require_vars
+            && vs.len() == 1
+            && let VarStringSegment::Text(t) = &vs[0]
+        {
+            return fail!(
+                "The following string contains no variables/functions: '{}' \
                     Is it possible that you misspelled the variable/function name? \
                     See also st <command> -V/--help-vars.",
-                    String::from_utf8_lossy(t)
-                );
-            }
+                String::from_utf8_lossy(t)
+            );
         }
         out.push(vs);
     }
@@ -145,22 +146,22 @@ impl VarString {
     /// The implementation is not particularly efficient, but this method is only rarely called
     pub fn split_at(&self, sep: &[u8]) -> Option<(Self, Self)> {
         for i in 0..self.len() {
-            if let VarStringSegment::Text(ref t) = self.parts[i] {
-                if let Some(pos) = memmem::find(t, sep) {
-                    let mut start = self.parts[..i + 1].to_owned();
-                    if let VarStringSegment::Text(ref mut t) = start[i] {
-                        t.truncate(pos);
-                    } else {
-                        unreachable!();
-                    }
-                    let mut end = self.parts[i..].to_owned();
-                    if let VarStringSegment::Text(ref mut t) = end[0] {
-                        *t = t.split_off(pos + sep.len());
-                    } else {
-                        unreachable!();
-                    }
-                    return Some((Self::from_segments(&start), Self::from_segments(&end)));
+            if let VarStringSegment::Text(ref t) = self.parts[i]
+                && let Some(pos) = memmem::find(t, sep)
+            {
+                let mut start = self.parts[..i + 1].to_owned();
+                if let VarStringSegment::Text(ref mut t) = start[i] {
+                    t.truncate(pos);
+                } else {
+                    unreachable!();
                 }
+                let mut end = self.parts[i..].to_owned();
+                if let VarStringSegment::Text(ref mut t) = end[0] {
+                    *t = t.split_off(pos + sep.len());
+                } else {
+                    unreachable!();
+                }
+                return Some((Self::from_segments(&start), Self::from_segments(&end)));
             }
         }
         None

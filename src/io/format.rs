@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use itertools::Itertools;
 
-use super::{QualFormat, DEFAULT_IO_READER_BUFSIZE, DEFAULT_IO_WRITER_BUFSIZE};
+use super::{DEFAULT_IO_READER_BUFSIZE, DEFAULT_IO_WRITER_BUFSIZE, QualFormat};
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum FormatVariant {

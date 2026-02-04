@@ -2,8 +2,8 @@ use std::io::{self, Write};
 use std::{cell::RefCell, fmt, str::Utf8Error};
 
 use crate::helpers::{
-    number::{parse_float, parse_int, Float, Interval},
     NA,
+    number::{Float, Interval, parse_float, parse_int},
 };
 use crate::io::{Record, RecordAttr};
 
@@ -365,7 +365,7 @@ macro_rules! mut_accessor {
         pub fn $fn_name(&mut self) -> &mut $t {
             loop {
                 match self {
-                    Value::$variant(ref mut v) => return v.get_mut(),
+                    Value::$variant(v) => return v.get_mut(),
                     _ => {
                         *self = Value::$variant(Default::default());
                     }
@@ -390,12 +390,12 @@ macro_rules! accessor {
         pub fn $fn_name(&self, record: &dyn Record) -> Result<$t, String> {
             use Value::*;
             match self {
-                Text(ref v) => v.$fn_name(record),
-                Int(ref v) => v.$fn_name(record),
-                Float(ref v) => v.$fn_name(record),
-                Interval(ref v) => v.$fn_name(record),
-                Bool(ref v) => v.$fn_name(record),
-                Attr(ref v) => v.$fn_name(record),
+                Text(v) => v.$fn_name(record),
+                Int(v) => v.$fn_name(record),
+                Float(v) => v.$fn_name(record),
+                Interval(v) => v.$fn_name(record),
+                Bool(v) => v.$fn_name(record),
+                Attr(v) => v.$fn_name(record),
             }
         }
     };
@@ -438,12 +438,12 @@ impl Value {
     ) -> Result<(), E> {
         use Value::*;
         match self {
-            Text(ref v) => v.as_text(record, func),
-            Int(ref v) => v.as_text(record, func),
-            Float(ref v) => v.as_text(record, func),
-            Interval(ref v) => v.as_text(record, func),
-            Bool(ref v) => v.as_text(record, func),
-            Attr(ref v) => v.as_text(record, func),
+            Text(v) => v.as_text(record, func),
+            Int(v) => v.as_text(record, func),
+            Float(v) => v.as_text(record, func),
+            Interval(v) => v.as_text(record, func),
+            Bool(v) => v.as_text(record, func),
+            Attr(v) => v.as_text(record, func),
         }
     }
 }

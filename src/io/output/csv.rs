@@ -3,7 +3,7 @@ use std::io;
 use super::{Record, SeqFormatter};
 use crate::context::RecordMeta;
 use crate::io::QualConverter;
-use crate::var::{varstring, VarBuilder};
+use crate::var::{VarBuilder, varstring};
 use crate::{error::CliResult, var::varstring::register_var_list};
 
 pub const DEFAULT_OUTFIELDS: &str = "id,desc,seq";

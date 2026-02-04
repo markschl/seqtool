@@ -7,7 +7,7 @@ use rkyv::{Archive, Deserialize, Serialize};
 
 use crate::cmd::shared::tmp_store::{Item, Key, TmpHandle, TmpWriter};
 use crate::error::CliResult;
-use crate::helpers::{vec_buf::VecFactory, DefaultBuildHasher as BuildHasher};
+use crate::helpers::{DefaultBuildHasher as BuildHasher, vec_buf::VecFactory};
 
 use super::{FileDeduplicator, MapWriter, Record, RequiredInformation};
 
@@ -219,9 +219,7 @@ impl Records {
         mut writer: TmpWriter<Item<Record>>,
     ) -> io::Result<(usize, TmpHandle<Item<Record>>)> {
         let n = match self {
-            Records::Records {
-                ref mut records, ..
-            } => {
+            Records::Records { records, .. } => {
                 records.sort_keys();
                 let n = records.len();
                 for (k, r) in records.drain(..) {
@@ -229,7 +227,7 @@ impl Records {
                 }
                 n
             }
-            Records::KeySet(ref mut records) => {
+            Records::KeySet(records) => {
                 records.sort();
                 let n = records.len();
                 for k in records.drain(..) {

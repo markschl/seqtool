@@ -3,22 +3,22 @@ use std::process::exit;
 use std::str::FromStr;
 
 use clap::builder::{
-    styling::{AnsiColor, Color, Style},
     Styles,
+    styling::{AnsiColor, Color, Style},
 };
-use clap::{value_parser, ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Parser, Subcommand, value_parser};
 use serde::Serialize;
 
-use var_provider::{dyn_var_provider, DynVarProviderInfo};
+use var_provider::{DynVarProviderInfo, dyn_var_provider};
 
 use crate::helpers::{bytesize::parse_bytesize, seqtype::SeqType};
 use crate::io::input::{
-    csv::{ColumnMapping, TextColumnSpec},
     FormatConfig, InFormat, InputConfig, ReaderConfig,
+    csv::{ColumnMapping, TextColumnSpec},
 };
 use crate::io::output::{FormatOpts, OutputOpts};
-use crate::io::{FormatVariant, QualFormat, DEFAULT_FORMAT};
-use crate::var::{attr::AttrFormat, VarOpts};
+use crate::io::{DEFAULT_FORMAT, FormatVariant, QualFormat};
+use crate::var::{VarOpts, attr::AttrFormat};
 use crate::{cmd, io::output::fastx::Attribute};
 use crate::{config::Config, io::CompressionFormat};
 use crate::{error::CliResult, io::IoKind};
@@ -53,24 +53,24 @@ impl Cli {
         // in order to work around the fact that clap exits with a
         // 'missing argument error' for command with positional args.
         // TODO: any better way to do this?
-        if let Ok(m) = VarHelpCli::try_parse() {
-            if m.help_vars || m.help_vars_md {
-                let custom_help: Option<Box<dyn DynVarProviderInfo>> = match m.command.as_str() {
-                    #[cfg(any(feature = "all-commands", feature = "sort"))]
-                    "sort" => Some(Box::new(dyn_var_provider!(cmd::sort::SortVar))),
-                    #[cfg(any(feature = "all-commands", feature = "unique"))]
-                    "unique" => Some(Box::new(dyn_var_provider!(cmd::unique::UniqueVar))),
-                    #[cfg(any(feature = "all-commands", feature = "split"))]
-                    "split" => Some(Box::new(dyn_var_provider!(cmd::split::SplitVar))),
-                    #[cfg(any(feature = "all-commands", feature = "find"))]
-                    "find" => Some(Box::new(dyn_var_provider!(cmd::find::FindVar))),
-                    #[cfg(any(feature = "all-commands", feature = "cmp"))]
-                    "cmp" => Some(Box::new(dyn_var_provider!(cmd::cmp::CmpVar))),
-                    _ => None,
-                };
-                crate::var::print_var_help(custom_help, m.help_vars_md, m.help_cmd_vars)?;
-                exit(0);
-            }
+        if let Ok(m) = VarHelpCli::try_parse()
+            && (m.help_vars || m.help_vars_md)
+        {
+            let custom_help: Option<Box<dyn DynVarProviderInfo>> = match m.command.as_str() {
+                #[cfg(any(feature = "all-commands", feature = "sort"))]
+                "sort" => Some(Box::new(dyn_var_provider!(cmd::sort::SortVar))),
+                #[cfg(any(feature = "all-commands", feature = "unique"))]
+                "unique" => Some(Box::new(dyn_var_provider!(cmd::unique::UniqueVar))),
+                #[cfg(any(feature = "all-commands", feature = "split"))]
+                "split" => Some(Box::new(dyn_var_provider!(cmd::split::SplitVar))),
+                #[cfg(any(feature = "all-commands", feature = "find"))]
+                "find" => Some(Box::new(dyn_var_provider!(cmd::find::FindVar))),
+                #[cfg(any(feature = "all-commands", feature = "cmp"))]
+                "cmp" => Some(Box::new(dyn_var_provider!(cmd::cmp::CmpVar))),
+                _ => None,
+            };
+            crate::var::print_var_help(custom_help, m.help_vars_md, m.help_cmd_vars)?;
+            exit(0);
         }
         Ok(Self(ClapCli::parse()))
     }

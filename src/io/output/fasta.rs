@@ -8,8 +8,8 @@ use crate::io::QualConverter;
 use crate::var::VarBuilder;
 
 use crate::io::{
-    output::{fastx::register_attributes, SeqFormatter},
     Record,
+    output::{SeqFormatter, fastx::register_attributes},
 };
 
 use super::fastx::Attribute;

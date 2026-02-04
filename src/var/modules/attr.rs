@@ -1,13 +1,13 @@
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
 
 use crate::helpers::NA;
 use crate::io::{QualConverter, Record};
 use crate::var::{
+    VarBuilder, VarStore,
     attr::{self, Attributes},
     parser::Arg,
     symbols::SymbolTable,
-    VarBuilder, VarStore,
 };
 
 use super::VarProvider;
@@ -164,7 +164,8 @@ impl VarProvider for AttrVars {
                                 "The value for attribute '{attr}' is '{na}', which is reserved for missing values. \
                                 If '{na}' is meant to represent a missing value, use `opt_attr()` or `opt_attr_del()` \
                                 to avoid this error. Otherwise, consider adjusting the attribute values to avoid '{na}'.",
-                                attr=var.name, na=NA
+                                attr = var.name,
+                                na = NA
                             );
                         }
                     }

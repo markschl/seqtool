@@ -1,19 +1,19 @@
 use std::cmp::Ordering;
-use std::fs::{remove_file, File};
+use std::fs::{File, remove_file};
 use std::hash::{Hash, Hasher};
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::marker::PhantomData;
 use std::mem::size_of_val;
 use std::path::{Path, PathBuf};
 
-use byteorder::{ReadBytesExt, LE};
+use byteorder::{LE, ReadBytesExt};
 use deepsize::DeepSizeOf;
 use rkyv::{
-    ser::{
-        serializers::{AlignedSerializer, AllocScratch, CompositeSerializer},
-        Serializer,
-    },
     AlignedVec, Archive, Deserialize, Infallible, Serialize,
+    ser::{
+        Serializer,
+        serializers::{AlignedSerializer, AllocScratch, CompositeSerializer},
+    },
 };
 use tempfile::TempDir;
 

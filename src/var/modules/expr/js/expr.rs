@@ -2,8 +2,8 @@ use std::fmt;
 use std::str;
 
 use rquickjs::{
-    class::Trace, context::intrinsic::*, function::Opt, Atom, Class, Coerced, Context as RContext,
-    Ctx, Error, Exception, Function, IntoJs, Persistent, Runtime, Type,
+    Atom, Class, Coerced, Context as RContext, Ctx, Error, Exception, Function, IntoJs, Persistent,
+    Runtime, Type, class::Trace, context::intrinsic::*, function::Opt,
 };
 // use rquickjs::{embed, loader::Bundle};
 

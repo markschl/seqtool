@@ -7,13 +7,13 @@ use deepsize::DeepSizeOf;
 use rkyv::{Archive, Deserialize, Serialize};
 use serde::Serialize as SerdeSerialize;
 
+use crate::CliError;
 use crate::cli::Report;
 use crate::config::Config;
 use crate::error::CliResult;
 use crate::helpers::vec_buf::VecFactory;
 use crate::io::IoKind;
 use crate::var::varstring::register_var_list;
-use crate::CliError;
 
 use super::shared::tmp_store::{Archivable, Key};
 

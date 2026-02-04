@@ -1,15 +1,15 @@
 use crate::error::CliResult;
 use crate::io::Record;
 use crate::var::{
-    symbols::SymbolTable,
-    varstring::{register_var_list, VarString},
     VarBuilder,
+    symbols::SymbolTable,
+    varstring::{VarString, register_var_list},
 };
 
+use super::NA;
 use super::number::parse_int;
 use super::rng::Range;
 use super::slice::split_text;
-use super::NA;
 
 /// Represents a range bound integer stored either directly or in a `VarString`
 /// that is evaluated later with `RngBound::value()`.
@@ -145,12 +145,11 @@ impl VarRanges {
             .collect::<Result<_, _>>()?;
         // single-variable strings may hold a range list (not only a single range)
         let mut ty = VarRangesType::Split(ranges.clone());
-        if ranges.len() == 1 {
-            if let VarRange::Full { varstring, .. } = ranges.drain(..).next().unwrap() {
-                if varstring.is_one_var() {
-                    ty = VarRangesType::Full(varstring)
-                }
-            }
+        if ranges.len() == 1
+            && let VarRange::Full { varstring, .. } = ranges.drain(..).next().unwrap()
+            && varstring.is_one_var()
+        {
+            ty = VarRangesType::Full(varstring)
         }
         Ok(VarRanges {
             ty,

@@ -6,7 +6,7 @@ use std::process::{Command as StdCommand, Stdio};
 use std::str;
 use std::sync::LazyLock;
 
-use assert_cmd::{assert::Assert, cargo::cargo_bin, Command};
+use assert_cmd::{Command, assert::Assert, cargo::cargo_bin};
 use itertools::Itertools;
 use predicates::{ord::eq, prelude::*, str::contains};
 

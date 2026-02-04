@@ -5,12 +5,12 @@ use std::io;
 use crate::cli::{BasicStats, CommonArgs};
 use crate::context::SeqContext;
 use crate::error::CliResult;
-use crate::io::input::{self, get_seq_reader, thread_reader, InFormat, InputConfig, SeqReader};
+use crate::io::input::{self, InFormat, InputConfig, SeqReader, get_seq_reader, thread_reader};
 use crate::io::output::{
-    self, infer_out_format, OutFormat, OutputConfig, OutputOpts, SeqFormatter, WriteFinish,
+    self, OutFormat, OutputConfig, OutputOpts, SeqFormatter, WriteFinish, infer_out_format,
 };
 use crate::io::{IoKind, QualFormat, Record};
-use crate::var::{build::VarBuilder, modules::VarProvider, VarOpts, VarProviders};
+use crate::var::{VarOpts, VarProviders, build::VarBuilder, modules::VarProvider};
 
 #[derive(Debug)]
 pub struct Config {

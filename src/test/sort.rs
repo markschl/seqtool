@@ -1,6 +1,6 @@
 use std::cmp::Reverse;
 
-use rand::{seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, seq::SliceRandom};
 
 use super::*;
 

@@ -1,6 +1,6 @@
 use indexmap::IndexSet;
 use itertools::Itertools;
-use rand::{seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, seq::SliceRandom};
 
 use super::*;
 

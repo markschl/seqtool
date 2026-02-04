@@ -1,4 +1,4 @@
-use clap::{value_parser, Parser};
+use clap::{Parser, value_parser};
 
 use crate::cli::{CommonArgs, Report};
 use crate::config::Config;

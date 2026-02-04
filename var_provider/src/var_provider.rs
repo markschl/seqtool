@@ -11,7 +11,7 @@ use crossterm::{
 use itertools::Itertools;
 
 use crate::usage::FuncUsage;
-use crate::{usage_list, UsageExample};
+use crate::{UsageExample, usage_list};
 
 /// This trait provides additional information on the given variable provider
 /// in order to generate a help page. It is implemented for all variable enums

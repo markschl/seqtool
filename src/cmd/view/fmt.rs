@@ -9,10 +9,10 @@ use ratatui::{
 use vec_map::VecMap;
 
 use crate::error::CliResult;
-use crate::helpers::seqtype::{guess_seqtype, SeqType};
+use crate::helpers::seqtype::{SeqType, guess_seqtype};
 use crate::io::{QualConverter, Record};
 
-use super::{choose_fg, Color, ColorSource, Palette, Palettes};
+use super::{Color, ColorSource, Palette, Palettes, choose_fg};
 
 #[derive(Debug)]
 pub(super) struct Formatter {
@@ -85,16 +85,16 @@ impl Formatter {
         }
 
         // set optimal bright or dark text color for different bg colors
-        if let Some(pal) = self.palettes[0].as_ref() {
-            if self.palettes[1].is_none() {
-                let mut fg_map = VecMap::new();
-                for (ref symbol, col) in pal {
-                    let chosen = choose_fg(&self.textcols[0], &self.textcols[1], col);
-                    fg_map.insert(*symbol, chosen);
-                }
-                self.palettes[1] = Some(fg_map);
-                self.sources[1] = self.sources[0];
+        if let Some(pal) = self.palettes[0].as_ref()
+            && self.palettes[1].is_none()
+        {
+            let mut fg_map = VecMap::new();
+            for (ref symbol, col) in pal {
+                let chosen = choose_fg(&self.textcols[0], &self.textcols[1], col);
+                fg_map.insert(*symbol, chosen);
             }
+            self.palettes[1] = Some(fg_map);
+            self.sources[1] = self.sources[0];
         }
         self.initialized = true;
         Ok(())
@@ -154,18 +154,19 @@ impl Formatter {
                 .take(self.id_len as usize - overflow as usize),
         );
         let rest = self.id_len as isize - id_len as isize;
-        if self.show_desc && rest >= 3 {
-            if let Some(d) = desc {
-                let d = String::from_utf8_lossy(d);
-                id_len += 1 + d.chars().count();
-                overflow = id_len >= self.id_len as usize;
-                id_out.push(' ');
-                id_out.extend(
-                    d.chars()
-                        .map(replace_invalid)
-                        .take(rest as usize - 1 - overflow as usize),
-                );
-            }
+        if self.show_desc
+            && rest >= 3
+            && let Some(d) = desc
+        {
+            let d = String::from_utf8_lossy(d);
+            id_len += 1 + d.chars().count();
+            overflow = id_len >= self.id_len as usize;
+            id_out.push(' ');
+            id_out.extend(
+                d.chars()
+                    .map(replace_invalid)
+                    .take(rest as usize - 1 - overflow as usize),
+            );
         }
         if overflow {
             id_out.push(if self.utf8 { ellipsis } else { ' ' });

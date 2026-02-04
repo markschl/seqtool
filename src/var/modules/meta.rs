@@ -5,13 +5,13 @@ use std::str::FromStr;
 
 use csv::{self, ByteRecord, Reader, ReaderBuilder};
 
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
 
+use crate::CliResult;
 use crate::helpers::{DefaultHashMap as HashMap, DefaultHashSet as HashSet, NA};
 use crate::io::{IoKind, QualConverter, Record};
-use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
-use crate::CliResult;
+use crate::var::{VarBuilder, VarStore, attr::Attributes, parser::Arg, symbols::SymbolTable};
 
 use super::VarProvider;
 
@@ -160,7 +160,9 @@ impl MetaVars {
         }
         // there should be at least one metadata file
         if self.readers.is_empty() {
-            return fail!("The '{func_name}' function is used, but no metadata source was supplied with -m/--meta <file>.");
+            return fail!(
+                "The '{func_name}' function is used, but no metadata source was supplied with -m/--meta <file>."
+            );
         }
         let n_readers = self.readers.len();
         self.readers
@@ -235,7 +237,7 @@ impl VarProvider for MetaVars {
             // copy to symbol table
             for (symbol_id, var) in vars.iter() {
                 match var {
-                    MetaVarKind::Col(i, ref allow_missing) => {
+                    MetaVarKind::Col(i, allow_missing) => {
                         let sym = symbols.get_mut(*symbol_id);
                         if let Some(rec) = opt_record {
                             if let Some(text) = rec.get(*i) {
@@ -250,7 +252,9 @@ impl VarProvider for MetaVars {
                                         If '{na}' is meant to represent a missing value, use `opt_meta()` \
                                         to avoid this error. Otherwise, consider avoiding '{na}' \
                                         in the metadata file.",
-                                        col=*i + 1, id=String::from_utf8_lossy(id), na=NA
+                                        col = *i + 1,
+                                        id = String::from_utf8_lossy(id),
+                                        na = NA
                                     );
                                 }
                             } else if !allow_missing {

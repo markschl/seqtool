@@ -2,13 +2,13 @@ use std::io;
 use std::time::{Duration, Instant};
 
 use ratatui::{
+    DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode},
     layout::{Constraint, Layout, Size},
     style::Stylize,
     symbols::{block, line, scrollbar},
     text::{Line, Span},
     widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
-    DefaultTerminal, Frame,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

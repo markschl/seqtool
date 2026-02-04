@@ -7,7 +7,7 @@
 use std::fmt;
 use std::fs::read_to_string;
 
-use phf::{phf_set, Set};
+use phf::{Set, phf_set};
 use winnow::ascii::{multispace0, multispace1};
 use winnow::combinator::{alt, delimited, opt, preceded, repeat};
 use winnow::error::Result as WResult;
@@ -15,8 +15,8 @@ use winnow::token::{one_of, take_till, take_until};
 use winnow::{LocatingSlice, Parser};
 
 use crate::var::parser::{
-    name, some_value, string, string_fragment, var_or_func, Arg, LocatedStream, StrStream, VarFunc,
-    VarStringParseErr,
+    Arg, LocatedStream, StrStream, VarFunc, VarStringParseErr, name, some_value, string,
+    string_fragment, var_or_func,
 };
 
 /// list of JavaScript keywords that cannot be variable names
@@ -583,7 +583,7 @@ mod tests {
     #[test]
     fn varstring() {
         use crate::var::parser::Arg;
-        use crate::var::parser::{parse_varstring_list, ParsedVarStringSegment::*};
+        use crate::var::parser::{ParsedVarStringSegment::*, parse_varstring_list};
         // TODO: test/fix string quote escapes
         let vs = r"a {file: path with spaces.js }b,{ func(c,'d','e')},_f,,num(g(a)),raw('var'),{ num(g)/h(i, 'j')+f(['ab']) } rest";
         // parse allowing variables/functions without { braces } in the comma-delimited list

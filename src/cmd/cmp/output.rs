@@ -1,8 +1,8 @@
-use std::io::{self, stdout, StdoutLock, Write};
+use std::io::{self, StdoutLock, Write, stdout};
 
 use bio::alignment::{
-    pairwise::{Aligner, MatchParams, Scoring},
     AlignmentOperation,
+    pairwise::{Aligner, MatchParams, Scoring},
 };
 use crossterm::{
     execute,
@@ -14,8 +14,8 @@ use crate::config::Config;
 use crate::context::RecordMeta;
 use crate::error::CliResult;
 use crate::io::{
-    output::{SeqFormatter, WriteFinish},
     QualConverter, Record,
+    output::{SeqFormatter, WriteFinish},
 };
 use crate::var::varstring::VarString;
 
@@ -122,10 +122,8 @@ impl Output {
             self.unique1,
             self.unique2,
         ];
-        for writer in writers {
-            if let Some((io_writer, _)) = writer {
-                io_writer.finish()?;
-            }
+        for (io_writer, _) in writers.into_iter().flatten() {
+            io_writer.finish()?;
         }
         Ok(())
     }

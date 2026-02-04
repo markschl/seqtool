@@ -6,8 +6,8 @@ use seq_io::policy::BufPolicy;
 use crate::error::CliResult;
 use crate::io::{MaybeModified, Record, RecordHeader};
 
-use super::fastx::FastxHeaderParser;
 use super::SeqReader;
+use super::fastx::FastxHeaderParser;
 
 pub struct FastqReader<R: io::Read, P: BufPolicy>(pub Reader<R, P>);
 

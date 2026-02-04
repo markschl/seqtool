@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use palette::{named, white_point::D65, Srgb};
+use palette::{Srgb, named, white_point::D65};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ColorSource {

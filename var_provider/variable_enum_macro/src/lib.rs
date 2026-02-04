@@ -4,11 +4,10 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    braced, parenthesized,
+    Attribute, Expr, Ident, Lifetime, Lit, Meta, Token, Type, braced, parenthesized,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    Attribute, Expr, Ident, Lifetime, Lit, Meta, Token, Type,
 };
 
 #[derive(Debug)]
@@ -296,25 +295,20 @@ fn generate_from(varmod: &VarMod) -> proc_macro2::TokenStream {
 fn extract_docstring(attrs: &[Attribute]) -> Option<String> {
     let mut out = String::new();
     for attr in attrs {
-        if let Meta::NameValue(meta) = &attr.meta {
-            if let Expr::Lit(l) = &meta.value {
-                if let Lit::Str(doc) = &l.lit {
-                    let line = doc.value();
-                    out.push_str(if !line.starts_with(' ') {
-                        &line
-                    } else {
-                        &line[1..]
-                    });
-                    out.push('\n');
-                }
-            }
+        if let Meta::NameValue(meta) = &attr.meta
+            && let Expr::Lit(l) = &meta.value
+            && let Lit::Str(doc) = &l.lit
+        {
+            let line = doc.value();
+            out.push_str(if !line.starts_with(' ') {
+                &line
+            } else {
+                &line[1..]
+            });
+            out.push('\n');
         }
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    if out.is_empty() { None } else { Some(out) }
 }
 
 // TODO: address clippy warning

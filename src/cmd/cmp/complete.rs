@@ -1,13 +1,13 @@
 use std::fmt;
 
 use deepsize::DeepSizeOf;
-use indexmap::{map::Iter as IndexMapIter, IndexMap, IndexSet};
+use indexmap::{IndexMap, IndexSet, map::Iter as IndexMapIter};
 
 use crate::cmd::shared::key::Key;
 use crate::context::SeqContext;
 use crate::error::{CliError, CliResult};
 use crate::helpers::DefaultBuildHasher as BuildHasher;
-use crate::io::{input::SeqReader, OwnedRecord, Record};
+use crate::io::{OwnedRecord, Record, input::SeqReader};
 use crate::var::varstring::VarString;
 
 use super::*;

@@ -1,12 +1,12 @@
 use std::io::Write;
 
 use bio::alignment::AlignmentOperation;
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
 
 use crate::helpers::write_list::write_list_with;
 use crate::io::Record;
-use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
+use crate::var::{VarBuilder, VarStore, modules::VarProvider, parser::Arg, symbols::SymbolTable};
 
 use super::matches::Matches;
 use super::opts::{Algorithm, RequiredDetail, SearchConfig};
@@ -245,15 +245,17 @@ impl FindVars {
 
     fn register_match(&mut self, h: &RequestedHit) -> Result<(), String> {
         let cfg = self.config.as_mut().unwrap();
-        if let Some(i) = h.hit_pos {
-            if cfg.get_anchor().is_some() && i != 0 && i != -1 {
-                return fail!(
-                    "Hit no. {} is undefined with anchoring activated \
+        if let Some(i) = h.hit_pos
+            && cfg.get_anchor().is_some()
+            && i != 0
+            && i != -1
+        {
+            return fail!(
+                "Hit no. {} is undefined with anchoring activated \
                     (--anchor-start/--anchor-end), since only the hit nearest to the \
                     start or end is returned",
-                    if i >= 0 { i + 1 } else { i }
-                );
-            }
+                if i >= 0 { i + 1 } else { i }
+            );
         }
         cfg.require_hit(h.hit_pos, h.match_group, h.var_type.required_detail());
         Ok(())

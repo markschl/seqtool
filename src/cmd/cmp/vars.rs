@@ -1,8 +1,8 @@
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
 
 use crate::cmd::shared::key::Key;
-use crate::var::{modules::VarProvider, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
+use crate::var::{VarBuilder, VarStore, modules::VarProvider, parser::Arg, symbols::SymbolTable};
 
 use super::Category;
 

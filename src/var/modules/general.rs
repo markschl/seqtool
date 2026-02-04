@@ -2,20 +2,20 @@ use std::ffi::OsStr;
 use std::hash::Hasher;
 use std::path::Path;
 
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
-use xxhash_rust::xxh3::{xxh3_64 as hash_one, Xxh3 as Seqhasher};
+use xxhash_rust::xxh3::{Xxh3 as Seqhasher, xxh3_64 as hash_one};
 
 use crate::helpers::{
     complement::reverse_complement,
     seqtype::{SeqType, SeqtypeHelper},
 };
 use crate::io::{
+    IoKind, QualConverter, Record, RecordAttr,
     input::{InputConfig, ReaderConfig},
     output::OutputConfig,
-    IoKind, QualConverter, Record, RecordAttr,
 };
-use crate::var::{attr::Attributes, parser::Arg, symbols::SymbolTable, VarBuilder, VarStore};
+use crate::var::{VarBuilder, VarStore, attr::Attributes, parser::Arg, symbols::SymbolTable};
 
 use super::VarProvider;
 

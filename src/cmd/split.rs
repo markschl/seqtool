@@ -6,15 +6,15 @@ use std::path::Path;
 use clap::Parser;
 use serde::Serialize;
 
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
 
+use crate::CliResult;
 use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;
 use crate::helpers::DefaultHashMap as HashMap;
-use crate::io::{output::SeqFormatter, IoKind};
-use crate::var::{modules::VarProvider, parser::Arg, symbols, varstring, VarBuilder};
-use crate::CliResult;
+use crate::io::{IoKind, output::SeqFormatter};
+use crate::var::{VarBuilder, modules::VarProvider, parser::Arg, symbols, varstring};
 
 pub const DESC: &str = "\
 In contrast to other commands, the output argument (`-o/--output`) of the

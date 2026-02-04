@@ -83,12 +83,12 @@ pub fn run(mut cfg: Config, args: ConcatCommand) -> CliResult<Option<Box<dyn Rep
             }
 
             // spacer
-            if let Some(n) = spacer_n {
-                if i < max_idx {
-                    record.seq.extend(repeat_n(s_char, n));
-                    if let Some(q) = record.qual.as_mut() {
-                        q.extend(repeat_n(q_char, n));
-                    }
+            if let Some(n) = spacer_n
+                && i < max_idx
+            {
+                record.seq.extend(repeat_n(s_char, n));
+                if let Some(q) = record.qual.as_mut() {
+                    q.extend(repeat_n(q_char, n));
                 }
             }
 

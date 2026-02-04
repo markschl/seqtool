@@ -1,20 +1,20 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{value_parser, Args, Parser};
+use clap::{Args, Parser, value_parser};
 use itertools::Itertools;
 
+use crate::CliResult;
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::helpers::{
-    rng::Range,
-    seqtype::{guess_seqtype_or_fail, SeqType, SeqTypeInfo},
     DefaultHashSet as HashSet,
+    rng::Range,
+    seqtype::{SeqType, SeqTypeInfo, guess_seqtype_or_fail},
 };
 use crate::io::RecordAttr;
-use crate::CliResult;
 
 use super::opts::{
-    algorithm_from_name, Algorithm, Anchor, GeneralOpts, PatternConfig, SearchConfig,
+    Algorithm, Anchor, GeneralOpts, PatternConfig, SearchConfig, algorithm_from_name,
 };
 
 #[derive(Debug, Clone)]

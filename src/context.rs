@@ -7,10 +7,10 @@ use crate::io::input::InputConfig;
 use crate::io::output::{OutputOpts, WriteFinish};
 use crate::io::{IoKind, QualConverter, QualFormat, Record};
 use crate::var::{
+    VarProviders,
     attr::{AttrFormat, Attributes},
     modules::VarProvider,
     symbols::SymbolTable,
-    VarProviders,
 };
 
 /// Object holding metadata (attributes and symbols) for a single sequence record

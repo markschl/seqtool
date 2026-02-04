@@ -1,20 +1,20 @@
-use std::io::{stdout, Write as _};
+use std::io::{Write as _, stdout};
 
 use crossterm::{
     execute,
     style::{Print, ResetColor, SetBackgroundColor, SetForegroundColor},
 };
-use enterpolation::{linear::Linear, Merge, Signal};
+use enterpolation::{Merge, Signal, linear::Linear};
 use palette::{
+    FromColor, Hsv, Mix, Srgb,
     convert::FromColorUnclamped,
     rgb::{self, Rgb},
-    FromColor, Hsv, Mix, Srgb,
 };
 use vec_map::VecMap;
 
 use crate::error::CliResult;
 
-use super::{choose_fg, parse_color, Color};
+use super::{Color, choose_fg, parse_color};
 
 pub type Palette = VecMap<Color>;
 

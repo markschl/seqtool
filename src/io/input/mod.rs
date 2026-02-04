@@ -9,11 +9,11 @@ use crate::error::{CliError, CliResult};
 use crate::helpers::seqtype::SeqType;
 
 use super::{
-    parse_compr_ext, CompressionFormat, FormatVariant, IoKind, QualFormat, Record,
-    DEFAULT_IO_READER_BUFSIZE,
+    CompressionFormat, DEFAULT_IO_READER_BUFSIZE, FormatVariant, IoKind, QualFormat, Record,
+    parse_compr_ext,
 };
 
-use self::csv::{parallel_csv_init, ColumnMapping, CsvReader, TextColumnSpec, DEFAULT_INFIELDS};
+use self::csv::{ColumnMapping, CsvReader, DEFAULT_INFIELDS, TextColumnSpec, parallel_csv_init};
 
 pub mod csv;
 pub mod fa_qual;
@@ -209,7 +209,7 @@ impl IoKind {
         compression: Option<CompressionFormat>,
     ) -> CliResult<Box<dyn io::Read + Send>> {
         let rdr: Box<dyn io::Read + Send> = match self {
-            IoKind::File(ref path) => Box::new(
+            IoKind::File(path) => Box::new(
                 File::open(path)
                     .map_err(|e| format!("Error opening '{}': {}", path.to_string_lossy(), e))?,
             ),
@@ -231,7 +231,7 @@ impl IoKind {
     /// Returns the file extension if present.
     pub fn io_reader(&self) -> CliResult<(Box<dyn io::Read + Send>, Option<String>)> {
         let (compr, ext) = match self {
-            IoKind::File(ref path) => parse_compr_ext(path),
+            IoKind::File(path) => parse_compr_ext(path),
             IoKind::Stdio => (None, None),
         };
         let rdr = self.io_reader_with_compression(compr)?;
@@ -494,7 +494,7 @@ where
         InFormat::FaQual { .. } => {
             return fail!(
                 "Multithreaded processing of records with qualities from .qual files implemented"
-            )
+            );
         }
         InFormat::DelimitedText {
             ref delim,

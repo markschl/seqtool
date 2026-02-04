@@ -5,7 +5,7 @@ use crate::helpers::{rng::Range, seqtype::SeqType};
 use crate::io::RecordAttr;
 
 use super::cli::{HitScoring, Pattern};
-use super::matcher::{regex::resolve_group, Match};
+use super::matcher::{Match, regex::resolve_group};
 use super::matches::Matches;
 
 /// General options/properties derived from CLI args

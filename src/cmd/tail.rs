@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use clap::{value_parser, Parser};
+use clap::{Parser, value_parser};
 
 use crate::cli::{CommonArgs, Report, WORDY_HELP};
 use crate::config::Config;

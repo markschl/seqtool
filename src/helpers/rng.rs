@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use memchr::memmem;
 
-use super::{number::parse_int, NA};
+use super::{NA, number::parse_int};
 
 /// General and simple range type used in this crate
 /// Unbounded ranges that can be negative (viewed from end of sequence).
@@ -66,20 +66,20 @@ impl Range {
             // start0 = start - 1
             // '3:6' becomes '2:6'
             // '0:6' stays '0:6'  (0 is not a valid 1-based coordinate but may rather be interpreted as open range?)
-            if let Some(s) = self.start.as_mut() {
-                if *s >= 1 {
-                    *s -= 1;
-                }
+            if let Some(s) = self.start.as_mut()
+                && *s >= 1
+            {
+                *s -= 1;
             }
             // negative end coordinates: end0 = end + 1
             // ':-3' becomes ':-2'
             // ':-1' becomes None (end not trimmed)
             if self.end == Some(-1) {
                 self.end = None;
-            } else if let Some(e) = self.end.as_mut() {
-                if *e <= -2 {
-                    *e += 1;
-                }
+            } else if let Some(e) = self.end.as_mut()
+                && *e <= -2
+            {
+                *e += 1;
             }
         }
         if exclusive {
@@ -87,10 +87,10 @@ impl Range {
             if let Some(s) = self.start.as_mut() {
                 *s += 1;
             }
-            if let Some(e) = self.end.as_mut() {
-                if *e != 0 {
-                    *e -= 1;
-                }
+            if let Some(e) = self.end.as_mut()
+                && *e != 0
+            {
+                *e -= 1;
             }
         }
         Ok(self)

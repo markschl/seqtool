@@ -5,7 +5,7 @@ use crate::cmd::shared::key::Key;
 use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::helpers::DefaultBuildHasher as BuildHasher;
-use crate::io::{input::SeqReader, OwnedRecord, Record};
+use crate::io::{OwnedRecord, Record, input::SeqReader};
 use crate::var::varstring::VarString;
 
 use super::*;
@@ -275,10 +275,10 @@ impl<'a> OrderedCmp<'a> {
             self.ctx
                 .with_custom_varmod(meta_slot, |m: &mut CmpVars, sym| m.set(key, cat, sym));
         }
-        if cat == Common {
-            if let Some((w, out)) = self.diff_writer.as_mut() {
-                w.compose_fields(rec, &self.ctx.meta[meta_slot], &mut out[is_second as usize])?;
-            }
+        if cat == Common
+            && let Some((w, out)) = self.diff_writer.as_mut()
+        {
+            w.compose_fields(rec, &self.ctx.meta[meta_slot], &mut out[is_second as usize])?;
         }
         self.out.write_record(
             rec,

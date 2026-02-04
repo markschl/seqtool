@@ -49,7 +49,7 @@ impl Float {
     }
 
     pub fn inner(&self) -> f64 {
-        self.0 .0
+        self.0.0
     }
 }
 

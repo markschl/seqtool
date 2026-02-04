@@ -874,8 +874,7 @@ fn multiple() {
     }
     {
         let pat = format!("file:{}", pat_f.path_str());
-        let vars =
-            "match_range,match_range(1,1),match_range(1,2),match_range(1,3),match_range(1,1,'-'),\
+        let vars = "match_range,match_range(1,1),match_range(1,2),match_range(1,3),match_range(1,1,'-'),\
                 match_diffs,match_diffs(1,1),match_diffs(1,2),match_diffs(1,3),\
                 pattern_name,pattern_name(1),pattern_name(2),pattern_name(3)";
         let out = "2:21,2:21,2:21,2:21,2-21,0,0,1,2,p0,p0,p2,p1\n";

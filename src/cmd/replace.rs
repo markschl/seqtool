@@ -1,14 +1,14 @@
 use std::borrow::ToOwned;
 use std::str;
 
-use clap::{value_parser, Parser};
+use clap::{Parser, value_parser};
 use memchr::memmem::find_iter;
 
+use crate::Config;
 use crate::cli::{CommonArgs, Report};
 use crate::error::CliResult;
 use crate::helpers::replace::replace_iter;
 use crate::io::{RecordAttr, RecordEditor};
-use crate::Config;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(next_help_heading = "'Replace' command options")]

@@ -2,7 +2,7 @@ use std::fmt;
 use std::io::{self, Write};
 use std::mem::{size_of, size_of_val};
 
-use clap::{value_parser, Parser};
+use clap::{Parser, value_parser};
 use deepsize::DeepSizeOf;
 use rand::distr::Uniform;
 use rand::prelude::*;
@@ -13,7 +13,7 @@ use crate::config::Config;
 use crate::context::SeqContext;
 use crate::error::CliResult;
 use crate::helpers::{bytesize::parse_bytesize, vec_buf::VecFactory};
-use crate::io::{output::SeqFormatter, Record};
+use crate::io::{Record, output::SeqFormatter};
 
 pub const DESC: &str = " The records are returned in input order.";
 
@@ -184,7 +184,7 @@ impl<R: Rng + Clone> ReservoirSampler<R> {
         quiet: bool,
     ) -> CliResult<()> {
         match self {
-            ReservoirSampler::Records(ref mut s) => {
+            ReservoirSampler::Records(s) => {
                 if !s.sample(record, fmt, ctx)? {
                     let s = s.get_index_sampler()?;
                     if !quiet {
@@ -199,7 +199,7 @@ impl<R: Rng + Clone> ReservoirSampler<R> {
                 }
                 Ok(())
             }
-            ReservoirSampler::Indices(ref mut s) => s.sample(),
+            ReservoirSampler::Indices(s) => s.sample(),
         }
     }
 

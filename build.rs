@@ -1,4 +1,4 @@
-use std::fs::{read_to_string, File};
+use std::fs::{File, read_to_string};
 use std::io::{BufWriter, Write};
 use std::path::Path;
 

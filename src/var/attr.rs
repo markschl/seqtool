@@ -270,10 +270,10 @@ impl Attributes {
         id_text: &'a [u8],
         desc_text: Option<&'a [u8]>,
     ) -> bool {
-        if let Some(text) = self.get_value(attr_id, id_text, desc_text) {
-            if text != NA.as_bytes() {
-                return true;
-            }
+        if let Some(text) = self.get_value(attr_id, id_text, desc_text)
+            && text != NA.as_bytes()
+        {
+            return true;
         }
         false
     }
@@ -385,7 +385,7 @@ impl Parser {
                                 but the '{name}' attribute is also used in a different way. \
                                 Do not combine `attr()`/`attr_del()`/`has_attr()` functions or '-a/--attr' \
                                 with `-A/--attr-append` for the same attribute name.",
-                            ))
+                            ));
                         }
                         Some(AttrWriteAction::Edit(_)) => {
                             // swith from read-only (action = None) to write action
@@ -573,10 +573,10 @@ impl Parser {
             .read_edit_attrs
             .iter()
             .filter_map(|d| {
-                if d.get_pos(self.search_id).is_none() {
-                    if let Some(AttrWriteAction::Edit(vs)) = &d.write_action {
-                        return Some((d.name.as_str(), vs));
-                    }
+                if d.get_pos(self.search_id).is_none()
+                    && let Some(AttrWriteAction::Edit(vs)) = &d.write_action
+                {
+                    return Some((d.name.as_str(), vs));
                 }
                 None
             })

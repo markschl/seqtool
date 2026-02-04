@@ -50,10 +50,10 @@ pub fn run(mut cfg: Config, args: SliceCommand) -> CliResult<Option<Box<dyn Repo
             // if a start value was specified, skip records
             // was thinking about using Itertools::dropping(), but have to check for errors...
             if ctx.n_records >= start {
-                if let Some(e) = end {
-                    if ctx.n_records > e {
-                        return Ok(false);
-                    }
+                if let Some(e) = end
+                    && ctx.n_records > e
+                {
+                    return Ok(false);
                 }
                 format_writer.write(&record, io_writer, ctx)?;
             }

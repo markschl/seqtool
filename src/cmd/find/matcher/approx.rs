@@ -1,11 +1,11 @@
 use bio::{alignment::AlignmentOperation, pattern_matching::myers};
 
+use crate::CliResult;
 use crate::cmd::find::{
     ambig::{AMBIG_DNA, AMBIG_PROTEIN, AMBIG_RNA},
     cli::HitScoring,
     opts::{RequiredDetail, SearchOpts},
 };
-use crate::CliResult;
 
 use super::{Hit, Match, Matcher};
 
@@ -488,9 +488,9 @@ impl Hit for ((usize, usize, usize), &[AlignmentOperation]) {
         debug_assert!(group == 0); // only full hit (group = 0)
         out.alignment_path.clear();
         out.alignment_path.extend(self.1.iter().rev());
-        out.start = self.0 .0;
-        out.end = self.0 .1 + 1;
-        out.dist = self.0 .2;
+        out.start = self.0.0;
+        out.end = self.0.1 + 1;
+        out.dist = self.0.2;
         Ok(())
     }
 }

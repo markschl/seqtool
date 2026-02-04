@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::error::CliResult;
-use crate::var::{attr::AttrWriteAction, varstring::VarString, VarBuilder};
+use crate::var::{VarBuilder, attr::AttrWriteAction, varstring::VarString};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Attribute {
@@ -20,7 +20,7 @@ impl FromStr for Attribute {
             None => {
                 return Err(format!(
                     "Invalid attribute: '{name}'. Attributes need to be in the format: name=value"
-                ))
+                ));
             }
         };
         Ok(Attribute { name, value })

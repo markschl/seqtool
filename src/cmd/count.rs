@@ -8,7 +8,7 @@ use crate::cli::{BasicStats, CommonArgs, Report, WORDY_HELP};
 use crate::cmd::shared::key::Key;
 use crate::config::Config;
 use crate::error::CliResult;
-use crate::helpers::{value::SimpleValue, DefaultHashMap as HashMap};
+use crate::helpers::{DefaultHashMap as HashMap, value::SimpleValue};
 use crate::var::varstring::register_var_list;
 
 pub const DESC: &str = "

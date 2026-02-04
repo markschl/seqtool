@@ -1,11 +1,11 @@
 use std::env;
 
-use clap::{value_parser, Args, Parser};
+use clap::{Args, Parser, value_parser};
 
 use crate::cli::{CommonArgs, WORDY_HELP};
 use crate::error::CliResult;
 
-use super::{display_pal, Color, Palette, PaletteType, QualPaletteType, SeqPaletteType};
+use super::{Color, Palette, PaletteType, QualPaletteType, SeqPaletteType, display_pal};
 
 pub const DESC: &str = "\
 Sequences are displayed on a single line and can be navigated with
@@ -132,8 +132,14 @@ pub const DNA_PAL: &[(&str, &str)] = &[
 ];
 
 pub const PROTEIN_PAL: &[(&str, &str)] = &[
-    ("rasmol", "DE:e60a0a,CM:e6e600,RK:145aff,ST:fa9600,FY:3232aa,NQ:00dcdc,G:ebebeb,LVI:0f820f,A:c8c8c8,W:b45Ab4,H:8282d2,P:dc9682"),
-    ("polarity", "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff"),
+    (
+        "rasmol",
+        "DE:e60a0a,CM:e6e600,RK:145aff,ST:fa9600,FY:3232aa,NQ:00dcdc,G:ebebeb,LVI:0f820f,A:c8c8c8,W:b45Ab4,H:8282d2,P:dc9682",
+    ),
+    (
+        "polarity",
+        "GAVLIFWMP:ffd349,STCYNQ:3dff51,DE:ff2220,KRH:1e35ff",
+    ),
 ];
 
 pub const QUAL_SCALE: &[(&str, &str)] = &[("red-blue", "5:red,35:blue,40:darkblue")];
@@ -142,10 +148,10 @@ pub fn read_palette<T: PaletteType>(
     palette_str: &str,
     default_pal: &[(&str, &str)],
 ) -> Result<Palette, String> {
-    if let Some((_, colors)) = default_pal.iter().find(|(n, _)| *n == palette_str) {
-        if let Ok(cols) = T::parse_palette(colors) {
-            return Ok(cols);
-        }
+    if let Some((_, colors)) = default_pal.iter().find(|(n, _)| *n == palette_str)
+        && let Ok(cols) = T::parse_palette(colors)
+    {
+        return Ok(cols);
     }
     T::parse_palette(palette_str)
 }
@@ -169,10 +175,10 @@ pub fn print_palettes(fg: &(Color, Color), rgb: bool) -> CliResult<()> {
 pub fn parse_textcols(text: &str) -> Result<(Color, Color), String> {
     let mut s = text.split(',').map(|s| s.to_string());
     let dark = s.next().unwrap();
-    if let Some(bright) = s.next() {
-        if s.next().is_none() {
-            return Ok((Color::from_str(&dark)?, Color::from_str(&bright)?));
-        }
+    if let Some(bright) = s.next()
+        && s.next().is_none()
+    {
+        return Ok((Color::from_str(&dark)?, Color::from_str(&bright)?));
     }
     Err(format!(
         "Invalid text color specification: '{text}'. Must be '<dark>,<bright>'"

@@ -4,9 +4,9 @@ use var_provider::DynVarProviderInfo;
 
 use crate::error::CliResult;
 use crate::helpers::seqtype::SeqType;
-use crate::io::{input::InputConfig, output::OutputConfig, QualConverter, Record};
+use crate::io::{QualConverter, Record, input::InputConfig, output::OutputConfig};
 
-use self::modules::{VarProvider, MODULE_INFO};
+use self::modules::{MODULE_INFO, VarProvider};
 use self::{attr::Attributes, symbols::SymbolTable};
 
 pub mod attr;

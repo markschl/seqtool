@@ -1,13 +1,13 @@
-use var_provider::{dyn_var_provider, DynVarProviderInfo, VarType};
+use var_provider::{DynVarProviderInfo, VarType, dyn_var_provider};
 use variable_enum_macro::variable_enum;
 
 use crate::helpers::number::bin;
 use crate::io::{QualConverter, Record};
 use crate::var::{
+    VarBuilder, VarStore,
     attr::Attributes,
     parser::Arg,
     symbols::{SymbolTable, Value},
-    VarBuilder, VarStore,
 };
 
 use super::VarProvider;
@@ -97,12 +97,12 @@ macro_rules! value_to_symbol {
             //     let i = $val.get_int($rec)?;
             //     $symbols.get_mut($target_id).inner_mut().set_int(i)
             // }
-            CnvVarType::Bin(ref interval) => {
+            CnvVarType::Bin(interval) => {
                 let num = $val.get_float($rec)?;
                 $symbols
                     .get_mut($target_id)
                     .inner_mut()
-                    .set_interval(bin(num, *interval));
+                    .set_interval(bin(num, interval));
             }
         }
         Ok::<(), String>(())
@@ -118,7 +118,7 @@ impl CnvVarType {
         rec: &dyn Record,
     ) -> Result<(), String> {
         if let Some(val) = symbols.get(source_id).inner() {
-            value_to_symbol!(self, val, target_id, symbols, rec)?;
+            value_to_symbol!(*self, val, target_id, symbols, rec)?;
         } else {
             symbols.get_mut(target_id).set_none();
         }
