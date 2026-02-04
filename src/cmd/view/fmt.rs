@@ -3,7 +3,7 @@ use std::str;
 
 use palette::named;
 use ratatui::{
-    style::{Style, Stylize},
+    style::Style,
     text::{Line, Span},
 };
 use vec_map::VecMap;
