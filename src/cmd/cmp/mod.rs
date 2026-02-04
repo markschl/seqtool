@@ -125,6 +125,7 @@ pub fn run(mut cfg: Config, mut args: CmpCommand) -> CliResult<Option<Box<dyn Re
             quiet,
         )?
     };
+    out.finish()?;
 
     if !quiet && !verbose {
         // TODO: needs to be printed before the '--check' error message, but this will not happen with --verbose

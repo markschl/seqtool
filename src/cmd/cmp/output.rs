@@ -112,6 +112,23 @@ impl Output {
         }
         Ok(())
     }
+
+    pub fn finish(self) -> CliResult<()> {
+        let writers: [Option<(Box<dyn WriteFinish>, Box<dyn SeqFormatter>)>; 6] = [
+            self.output,
+            self.output2,
+            self.common,
+            self.common2,
+            self.unique1,
+            self.unique2,
+        ];
+        for writer in writers {
+            if let Some((io_writer, _)) = writer {
+                io_writer.finish()?;
+            }
+        }
+        Ok(())
+    }
 }
 
 pub struct DiffWriter {
